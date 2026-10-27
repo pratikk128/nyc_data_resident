@@ -307,23 +307,7 @@ svg { flex-shrink: 0; }
 
 /* Hero strip: deliberately compact */
 .hero {
-  position: relative;
-  overflow: hidden;
-  padding: var(--space-5) var(--space-6);
-  border-radius: var(--radius-md);
-  background: linear-gradient(120deg, var(--blue-tint) 0%, #F4F8FF 50%, var(--yellow-tint) 100%);
-  border: 1px solid var(--line);
-  box-shadow: var(--shadow);
-}
-.hero::after {
-  /* Accent stripe, like a platform edge */
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 6px;
-  background: linear-gradient(var(--blue), var(--yellow));
+  padding: var(--space-2) 0;
 }
 .hero h1 {
   max-width: 40ch;
@@ -539,7 +523,6 @@ svg { flex-shrink: 0; }
     visibility: visible;
   }
   .main { padding: var(--space-4) var(--space-4) var(--space-6); }
-  .hero { padding: var(--space-4) var(--space-5); }
   .site-footer { padding: var(--space-5) var(--space-4); flex-direction: column; }
 }
 
