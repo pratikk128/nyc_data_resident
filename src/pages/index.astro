@@ -1,11 +1,94 @@
 ---
-import Welcome from '../components/Welcome.astro';
-import Layout from '../layouts/Layout.astro';
-
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+import '../styles/landing.css';
 ---
 
-<Layout>
-	<Welcome />
-</Layout>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ask NYC Data | Interactive Dashboards for NYC Residents</title>
+  <meta name="description" content="Explore interactive dashboards and visualizations on NYC restaurant inspections, 311 complaints, city spending, and more, built on public NYC Open Data.">
+  <meta name="application-name" content="Ask NYC Data">
+  <meta name="theme-color" content="#0B1F3A">
+  <link rel="canonical" href="https://asknycdata.com/">
+
+  <!-- Open Graph / social -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Ask NYC Data">
+  <meta property="og:title" content="Ask NYC Data | Interactive Dashboards for NYC Residents">
+  <meta property="og:description" content="Explore interactive dashboards and visualizations on NYC restaurant inspections, 311 complaints, city spending, and more, built on public NYC Open Data.">
+  <meta property="og:url" content="https://asknycdata.com/">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Ask NYC Data">
+  <meta name="twitter:description" content="NYC's public data, made easy to understand.">
+
+  <!-- Favicon: map pin on a navy tile -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+
+  <!-- Apply the saved sidebar state before first paint to avoid a flash -->
+  <script is:inline>
+    try {
+      if (localStorage.getItem("anycd-sidebar") === "collapsed") {
+        document.documentElement.classList.add("sidebar-collapsed");
+      }
+    } catch (e) {}
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to dashboards</a>
+
+  <header class="site-header">
+    <button class="menu-toggle" id="menu-toggle" type="button"
+            aria-controls="sidebar" aria-expanded="true" aria-label="Hide categories">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+    </button>
+    <a class="brand" href="/" aria-label="Ask NYC Data, home">
+      <span class="wordmark">Ask <span class="wordmark-accent">NYC</span> Data</span>
+    </a>
+    <p class="tagline">NYC's public data, made easy to understand.</p>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar" id="sidebar" aria-label="Dashboard categories">
+      <nav class="sidebar-nav" aria-labelledby="sidebar-title">
+        <h2 class="sidebar-title" id="sidebar-title">Categories</h2>
+        <ul class="category-list" id="category-list">
+          <!-- Rendered by js/app.js -->
+        </ul>
+      </nav>
+    </aside>
+    <div class="backdrop" id="backdrop" hidden></div>
+
+    <main class="main" id="main" tabindex="-1">
+      <section class="hero" aria-labelledby="hero-title">
+        <h1 id="hero-title">Understand your city, one dashboard at a time.</h1>
+        <p>Interactive dashboards built on official NYC Open Data. No data skills needed.</p>
+      </section>
+
+      <section class="results" aria-labelledby="results-title">
+        <div class="results-head">
+          <h2 id="results-title">All Categories</h2>
+          <p class="results-count" id="results-count" aria-live="polite"></p>
+        </div>
+        <ul class="card-grid" id="card-grid">
+          <!-- Rendered by js/app.js from js/dashboards.js -->
+        </ul>
+        <div class="empty-state" id="empty-state" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/></svg>
+          <p>No dashboards in this category yet. Coming soon.</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <footer class="site-footer">
+    <p class="footer-brand">Ask NYC Data · <a href="https://asknycdata.com">asknycdata.com</a></p>
+    <p class="footer-note">Data sourced from NYC Open Data. Not affiliated with the City of New York.</p>
+  </footer>
+
+  <!-- Plain scripts served from public/js; edit public/js/dashboards.js to add dashboards -->
+  <script is:inline src="/js/dashboards.js"></script>
+  <script is:inline src="/js/app.js"></script>
+</body>
+</html>

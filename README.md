@@ -1,46 +1,49 @@
-# Astro Starter Kit: Basics
+# Ask NYC Data
+
+**asknycdata.com** · NYC's public data, made easy to understand.
+
+Interactive dashboards for NYC residents, built on public [NYC Open Data](https://opendata.cityofnewyork.us/). This repo currently holds the landing page; the dashboards themselves come later.
+
+Built with [Astro](https://docs.astro.build). The page's interactivity is plain vanilla JavaScript.
+
+```
+src/pages/index.astro     Landing page markup
+src/styles/landing.css    Landing page styles (theme tokens at the top in :root)
+public/js/dashboards.js   Dashboard registry: the list of cards
+public/js/app.js          Renders the sidebar and cards, filtering, sidebar collapse
+public/favicon.svg        Favicon
+```
+
+## Run it locally
 
 ```sh
-npm create astro@latest -- --template basics
+npm install
+npm run dev          # http://localhost:4321
 ```
 
-> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
+To run the dev server in the background: `npx astro dev --background` (stop with `npx astro dev stop`).
 
-## 🚀 Project Structure
+Production build: `npm run build` (output in `dist/`), preview with `npm run preview`.
 
-Inside of your Astro project, you'll see the following folders and files:
+## Add a new dashboard
 
-```text
-/
-├── public/
-│   └── favicon.svg
-├── src
-│   ├── assets
-│   │   └── astro.svg
-│   ├── components
-│   │   └── Welcome.astro
-│   ├── layouts
-│   │   └── Layout.astro
-│   └── pages
-│       └── index.astro
-└── package.json
+Open `public/js/dashboards.js` and append one object to the `dashboards` array:
+
+```js
+{
+  id: "street-trees",
+  title: "Street Trees Near You",
+  description: "See what kinds of trees line your block and how healthy they are.",
+  category: "Environment",
+  url: "#"   // placeholder until the dashboard page exists
+}
 ```
 
-To learn more about the folder structure of an Astro project, refer to [our guide on project structure](https://docs.astro.build/en/basics/project-structure/).
+- `category` must exactly match a sidebar category name: Business, City Government, Education, Environment, Health, Housing & Development, Public Safety, Recreation, Social Services, Transportation.
+- The card, sidebar counts, and filter update automatically.
 
-## 🧞 Commands
+To add a new category, add an entry (name → SVG icon paths) to `ICONS` in `public/js/app.js`; sidebar order follows that object's order.
 
-All commands are run from the root of the project, from a terminal:
+## Theme
 
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `npm install`             | Installs dependencies                            |
-| `npm run dev`             | Starts local dev server at `localhost:4321`      |
-| `npm run build`           | Build your production site to `./dist/`          |
-| `npm run preview`         | Preview your build locally, before deploying     |
-| `npm run astro ...`       | Run CLI commands like `astro add`, `astro check` |
-| `npm run astro -- --help` | Get help using the Astro CLI                     |
-
-## 👀 Want to learn more?
-
-Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
+Colors, spacing, radius, and layout sizes are CSS variables at the top of `src/styles/landing.css`.
