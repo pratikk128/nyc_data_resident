@@ -27,6 +27,25 @@
 
   var CATEGORIES = Object.keys(ICONS); // Display order is the key order above.
 
+  // Pastel color per category (styled via [data-tone] in landing.css).
+  var TONES = {
+    "All Categories": "blue",
+    "Business": "yellow",
+    "City Government": "blue",
+    "Education": "purple",
+    "Environment": "teal",
+    "Health": "green",
+    "Housing & Development": "orange",
+    "Public Safety": "red",
+    "Recreation": "lime",
+    "Social Services": "pink",
+    "Transportation": "yellow"
+  };
+
+  function tone(name) {
+    return TONES[name] || "blue";
+  }
+
   function icon(name, className) {
     return '<svg class="' + className + '" viewBox="0 0 24 24" aria-hidden="true">' +
       (ICONS[name] || ICONS[ALL]) + "</svg>";
@@ -58,7 +77,7 @@
   function renderCategories() {
     categoryList.innerHTML = CATEGORIES.map(function (name) {
       var n = countFor(name);
-      return '<li><button type="button" class="category-btn" data-category="' + escapeHTML(name) + '"' +
+      return '<li><button type="button" class="category-btn" data-category="' + escapeHTML(name) + '" data-tone="' + tone(name) + '"' +
         ' title="' + escapeHTML(name) + '"' +
         ' aria-label="' + escapeHTML(name) + ", " + n + (n === 1 ? " dashboard" : " dashboards") + '">' +
         icon(name, "category-icon") +
@@ -89,7 +108,7 @@
     resultsCount.textContent = list.length + (list.length === 1 ? " dashboard" : " dashboards");
 
     cardGrid.innerHTML = list.map(function (d) {
-      return '<li><a class="card" href="' + escapeHTML(d.url || "#") + '">' +
+      return '<li><a class="card" data-tone="' + tone(d.category) + '" href="' + escapeHTML(d.url || "#") + '">' +
         '<span class="card-icon">' + icon(d.category, "") + "</span>" +
         '<h3 class="card-title">' + escapeHTML(d.title) + "</h3>" +
         '<p class="card-desc">' + escapeHTML(d.description) + "</p>" +

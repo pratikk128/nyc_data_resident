@@ -78,55 +78,63 @@ A website that makes NYC Open Data (Socrata datasets) easy to explore and unders
 
 ## 4. Visual identity
 
-**Concept:** *Subway signage meets a well-edited newspaper.* Clean wayfinding, bold route-bullet circles, confident type, generous whitespace, one or two spots of color per screen.
+**Concept:** *Subway signage meets a sunny pastel zine.* Clean wayfinding, bold route-bullet circles, confident type, generous whitespace, and a bright pastel blue + yellow palette that makes civic data feel friendly.
 
 ### 4.1 Color
 
-Define as CSS custom properties. Use semantic names in code, not raw hex.
+Soft pastel blue and pastel yellow on a warm cream page: bright, calm, and friendly. Text stays dark navy so it's always readable. Define as CSS custom properties. Use semantic names in code, not raw hex.
 
 ```css
 :root {
   /* Neutrals */
-  --ink:            #14181F; /* primary text */
-  --ink-soft:       #4A5260; /* secondary text */
-  --ink-faint:      #7B8494; /* captions, axis labels (check contrast) */
-  --paper:          #FBFAF7; /* page background (warm off-white) */
+  --ink:            #1C2A44; /* primary text (deep navy, not black) */
+  --ink-soft:       #4F5D78; /* secondary text */
+  --ink-faint:      #7A869C; /* captions, axis labels (check contrast) */
+  --paper:          #FFFCF2; /* page background (soft butter cream) */
   --card:           #FFFFFF; /* card / panel background */
-  --line:           #E4E1D9; /* borders, dividers */
-  --line-strong:    #CFCBC0;
+  --line:           #E3EAF5; /* borders, dividers */
+  --line-strong:    #CBD7EA;
 
-  /* Brand */
-  --taxi:           #FFC72C; /* primary accent: highlights, key CTA background */
-  --taxi-deep:      #E0A800; /* hover / pressed */
-  --transit-blue:   #0039A6; /* links, primary data color, focus */
-  --transit-blue-dark: #002B7F;
-
-  /* Supporting (data + status) */
-  --green-line:     #00933C; /* positive / good */
-  --orange-line:    #FF6319; /* warning / attention */
-  --red-line:       #D82233; /* serious / critical (use sparingly) */
-  --purple-line:    #B933AD; /* categorical */
-  --teal:           #00A1DE; /* categorical */
-  --gray-line:      #808183; /* neutral series */
-
-  /* Tints for backgrounds */
-  --taxi-tint:      #FFF4CC;
-  --blue-tint:      #E6ECF8;
-  --green-tint:     #E3F4EA;
-  --orange-tint:    #FFE9DE;
-  --red-tint:       #FBE3E5;
+  /* Brand: pastel blue + pastel yellow */
+  --blue:           #A9CBFF; /* header, icon fills, chart areas */
+  --blue-tint:      #E7F0FF; /* active nav, chips, footer, "Good to know" */
+  --blue-deep:      #1F4FB8; /* links, focus, primary data color */
+  --yellow:         #FFE27A; /* signature accent: stripes, active markers, key CTA */
+  --yellow-tint:    #FFF7D1; /* hovers, "Fun fact" */
+  --yellow-deep:    #7A5C00; /* text on yellow tint */
+  --yellow-hover:   #FFD23F; /* hover / pressed for yellow */
 }
 ```
 
+**Category tones** (supporting colors, used only for category icons and tags). Each tone has a pastel fill (with `--ink` icon on top), a tint (chip background) and a deep shade (chip text, sidebar icon stroke):
+
+| Category | Tone | Fill | Tint | Deep |
+|---|---|---|---|---|
+| All Categories, City Government | blue | `#A9CBFF` | `#E7F0FF` | `#1F4FB8` |
+| Business, Transportation | yellow | `#FFE27A` | `#FFF7D1` | `#7A5C00` |
+| Health | green | `#A8E6B8` | `#E5F7EA` | `#1E7A3C` |
+| Environment | teal | `#9EE3DC` | `#E2F7F4` | `#0F6E66` |
+| Housing & Development | orange | `#FFC79A` | `#FFEEDF` | `#A14A0C` |
+| Public Safety | red | `#FFB3AE` | `#FFE8E6` | `#B3261E` |
+| Education | purple | `#CDBDFF` | `#F0EBFF` | `#5B3FC4` |
+| Recreation | lime | `#D4EE9A` | `#F3FADF` | `#4D6B0A` |
+| Social Services | pink | `#FFBADB` | `#FFEAF4` | `#B0306E` |
+
+The mapping lives in `TONES` in `public/js/app.js`; a new category needs a tone there (default: blue).
+
 **Usage rules**
 - Page background is `--paper`, not pure white. Cards are `--card`.
-- **Taxi yellow** is the signature. Use for: the logo mark, one primary highlight per page, key stat underlines, hero accents. Text on yellow is always `--ink`.
-- **Transit blue** for links, primary chart series, focus rings, secondary buttons.
-- Status colors (green/orange/red) always paired with an icon or text label — never color alone.
+- **Blue + yellow** are the brand. Everything outside category icons/tags uses only these two pastels plus neutrals.
+- **Yellow** is the single "look here" accent: hero stripe, active-nav marker, the "NYC" highlight in the wordmark, primary CTA. Text on yellow is always `--ink`.
+- **Blue** fills the header; a soft blue → yellow gradient is allowed on the header and hero only.
+- **Blue-deep** for links, focus rings, primary chart series, and secondary buttons. Never use a pastel for text.
+- Category tones color the icon and tag for that category, so Health always reads green, Public Safety red, and so on.
+- Status colors (green/orange/red deep shades) always paired with an icon or text label, never color alone.
 - Max **three** non-neutral colors visible in a single chart.
-- Dark mode: optional for v1. If built, invert neutrals (`--paper: #0F1217`, `--card: #171B22`, `--ink: #F2F0EA`) and keep taxi/blue/status hues, adjusting for contrast.
+- Shadows are tinted navy/blue (`rgba(28,42,68,…)`), never gray-black.
+- Dark mode: optional for v1. If built, use a deep navy page (`--paper: #121A2B`, `--card: #1A2438`, `--ink: #F2F5FB`), keep pastels as fills, and lighten deep shades for contrast.
 
-**Contrast:** all text/background pairs must meet **WCAG AA** (4.5:1 body, 3:1 large text and UI). `--ink-faint` on `--paper` is only for non-essential captions ≥ 14px; verify.
+**Contrast:** all text/background pairs must meet **WCAG AA** (4.5:1 body, 3:1 large text and UI). Verified: ink on every pastel fill ≥ 8.4:1; blue-deep on white 7.3:1; each deep shade on its tint ≥ 4.8:1; ink-soft on the header gradient ≥ 5.2:1. `--ink-faint` is only for non-essential captions; verify.
 
 ### 4.2 Typography
 
@@ -165,7 +173,7 @@ Load via Google Fonts or `next/font`/`@fontsource`. Use `font-display: swap`. Li
 
 ### 4.4 Iconography and illustration
 - Icon set: **Lucide** (or Phosphor) — 1.5–2px stroke, rounded. One icon family only.
-- Illustration style: flat, geometric, limited palette (taxi yellow, transit blue, ink, paper + one accent). Subjects: skyline silhouettes, fire escapes, water towers, bodega awnings, subway signage, pigeons, street grates, hydrants. Keep it charming, not cartoonish.
+- Illustration style: flat, geometric, pastel palette (pastel blue, pastel yellow, one category tone + navy ink outlines on cream paper). Subjects: skyline silhouettes, fire escapes, water towers, bodega awnings, subway signage, pigeons, street grates, hydrants. Keep it charming, not cartoonish.
 - **Do not use** copyrighted logos or marks: no MTA logos, official subway bullets' trademarked lettering systems beyond generic colored circles, no NYC government seal, no NYC Open Data logo as our own branding. We may *credit* "NYC Open Data" in text.
 - Photography: avoid stock photos of generic skylines. If used, prefer real street-level scenes, with alt text.
 
@@ -176,15 +184,15 @@ Load via Google Fonts or `next/font`/`@fontsource`. Use `font-display: swap`. Li
 Build as reusable components with props, not one-off markup.
 
 ### Navigation
-- Sticky top bar, `--paper` with 1px bottom border. Logo left, 4–5 links, one CTA right.
+- Sticky top bar, `--blue` (or the blue → yellow gradient) with `--ink` text. Logo left, 4–5 links, one CTA right.
 - Mobile: hamburger → full-screen sheet. Tap targets ≥ 44px.
-- Active link: blue text + 2px yellow underline.
+- Active link: blue-deep text + 2px yellow underline.
 
 ### Buttons
-- **Primary:** `--taxi` background, `--ink` text, bold, radius-md. Hover `--taxi-deep`.
-- **Secondary:** white background, 1.5px `--transit-blue` border and text.
-- **Tertiary/link:** blue text, underline on hover.
-- Focus: 3px `--transit-blue` outline with 2px offset. Never remove focus styles.
+- **Primary:** `--yellow` background, `--ink` text, bold, radius-md. Hover `--yellow-hover`.
+- **Secondary:** white background, 1.5px `--blue-deep` border and text.
+- **Tertiary/link:** blue-deep text, underline on hover.
+- Focus: 3px `--blue-deep` outline with 2px offset. Never remove focus styles.
 - Button text is a verb: "Explore inspections," "Download CSV," "See the methodology."
 
 ### Stat card ("Big number")
@@ -203,11 +211,11 @@ Build as reusable components with props, not one-off markup.
 - Gridlines light (`--line`), no chart borders, no 3D, no pie charts beyond 4 slices, no dual-axis unless unavoidable.
 - Tooltips: exact value, unit, date range.
 - Every chart has: alt text/summary, a "View as table" toggle, a "Download CSV" link, and a source line.
-- Categorical palette order: blue → taxi → green → orange → purple → teal → gray. Colorblind-safe: test with a simulator; add patterns or direct labels.
+- Categorical palette order: blue → yellow → green → orange → purple → teal → gray (use the pastel fills for areas/bars with ink labels; deep tones for lines and small marks). Colorblind-safe: test with a simulator; add patterns or direct labels.
 
 ### Maps
 - Library: **MapLibre GL** or **Leaflet** with a muted, light basemap (so data colors pop).
-- Choropleths: sequential single-hue blue scale (5–7 bins), with a legend and "no data" gray hatch.
+- Choropleths: sequential single-hue pastel blue → blue-deep scale (5–7 bins), with a legend and "no data" gray hatch.
 - Normalize by population/area when comparing neighborhoods; say so in the legend.
 - Always provide a non-map alternative (ranked list or table) and keyboard-accessible controls.
 - Boundaries: borough, community district, zip/ZCTA, neighborhood tabulation area (NTA) — state which one in the subtitle.
@@ -222,12 +230,12 @@ Build as reusable components with props, not one-off markup.
 - Filters as pill toggles (borough, year, category). Show active filters as removable chips.
 
 ### Callouts
-- **"Heads up"** (orange tint): caveats and data limits.
+- **"Heads up"** (orange tone tint): caveats and data limits.
 - **"Good to know"** (blue tint): context and definitions.
-- **"Fun fact"** (taxi tint): light trivia, always sourced. Max one per page.
+- **"Fun fact"** (yellow tint): light trivia, always sourced. Max one per page.
 
 ### Badges / route bullets
-- Circle with letter/number, used for boroughs (e.g. **M**, **B**, **Q**, **Bx**, **SI**) and topics. These are our own generic bullets, not official MTA assets.
+- Pastel circle (the category's tone, or blue/yellow) with an `--ink` letter/number, used for boroughs (e.g. **M**, **B**, **Q**, **Bx**, **SI**) and topics. These are our own generic bullets, not official MTA assets.
 
 ### Footer
 - Links: About, Methodology, Data sources, Accessibility, Contact.
@@ -358,7 +366,7 @@ Additional rules:
 
 **Do**
 - Put the number up front and make it huge.
-- Use route-bullet circles and taxi yellow as the recognizable signature.
+- Use pastel route-bullet circles and pastel blue + yellow as the recognizable signature.
 - Explain what a dataset field means in plain English.
 - Link out to the original dataset every time.
 - Let empty and error states be charming.
@@ -413,6 +421,6 @@ A natural-language Q&A interface may be added in a later version. For now:
 
 - Final product name and logo mark
 - Whether to launch with dark mode
-- Domain/brand colors if taxi yellow + transit blue are too close to existing civic brands
+- Whether pastel blue + yellow reads too close to existing civic brands
 - Which 3–5 topics ship first
 - Analytics/monetization approach and the related cookie/consent requirements
