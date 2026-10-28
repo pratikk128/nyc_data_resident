@@ -8,10 +8,11 @@ import assert from "node:assert/strict";
 
 import {
   latestGrade, groupInspections, isInspected, countByCategory, totalsFromFamilies,
-  perInspection, compareToMeans, cutoffDate, gradeInfo, scoreBand, titleCase
+  perInspection, compareToMeans, cutoffDate, gradeInfo, scoreBand, titleCase, boroLabel
 } from "../src/lib/restaurants/inspections.js";
 import { categoryFor, violationFamily, CATEGORIES, OTHER } from "../src/lib/restaurants/violation-categories.js";
 import { parseLocation, searchWhere, normalizeSearch, soqlString } from "../src/lib/restaurants/soql.js";
+import { categoryBarsHtml } from "../src/lib/restaurants/render.js";
 
 const row = (o) => ({ camis: "1", ...o });
 
@@ -204,4 +205,17 @@ test("names are title-cased for display", () => {
   assert.equal(titleCase("JOE'S PIZZA"), "Joe's Pizza");
   assert.equal(titleCase("O'BRIEN'S PUB"), "O'Brien's Pub");
   assert.equal(titleCase("NYC BBQ 2ND AVE"), "NYC BBQ 2nd Ave");
+});
+
+test("no inspections in the window isn't shown as an all-clear", () => {
+  const rows = compareToMeans(perInspection({}, 0), {});
+  const cmp = { since: "2023-10-28", inspections: 0, citywide: { rows } };
+  const html = categoryBarsHtml(cmp, "citywide");
+  assert.match(html, /no inspections in this window/);
+  assert.doesNotMatch(html, /aren't above/);
+});
+
+test("an invalid borough is shown with the header's label", () => {
+  assert.equal(boroLabel("0"), "Borough unknown");
+  assert.equal(boroLabel("Queens"), "Queens");
 });

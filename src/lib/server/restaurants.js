@@ -123,6 +123,8 @@ function categoryComparison(inspections, benchmarks, cuisine, boro) {
   const city = benchmarks.citywide;
   const group = benchmarks.similar[similarKey(cuisine, boro)];
   const similarOk = group && group.restaurants >= MIN_SIMILAR_RESTAURANTS;
+  // The raw boro can be "0" or blank; the notes show it, so use the same label as the header.
+  const boroText = boroLabel(boro);
   return {
     since: benchmarks.since,
     years: benchmarks.years,
@@ -131,8 +133,8 @@ function categoryComparison(inspections, benchmarks, cuisine, boro) {
     inspections: inWindow,
     citywide: { restaurants: city.restaurants, rows: compareToMeans(rates, perInspection(city.totals, city.inspections)) },
     similar: similarOk
-      ? { restaurants: group.restaurants, cuisine, boro, rows: compareToMeans(rates, perInspection(group.totals, group.inspections)) }
-      : { restaurants: group?.restaurants ?? 0, cuisine, boro, rows: null, minRestaurants: MIN_SIMILAR_RESTAURANTS }
+      ? { restaurants: group.restaurants, cuisine, boro: boroText, rows: compareToMeans(rates, perInspection(group.totals, group.inspections)) }
+      : { restaurants: group?.restaurants ?? 0, cuisine, boro: boroText, rows: null, minRestaurants: MIN_SIMILAR_RESTAURANTS }
   };
 }
 

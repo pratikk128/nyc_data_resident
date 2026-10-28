@@ -61,6 +61,10 @@ function criticalViolationsHtml(latest) {
 // ---------- Category bars ----------
 
 export function categoryBarsHtml(cmp, benchmark) {
+  // With nothing to divide by, every rate is 0, which would read as an all-clear.
+  if (!cmp.inspections) {
+    return `<p class="insp-summary">This restaurant has no inspections in this window (since ${date(cmp.since)}), so there's nothing to compare.</p>`;
+  }
   const rows = cmp[benchmark].rows.filter((r) => r.above);
   if (!rows.length) {
     const who = benchmark === "citywide" ? "the city average" : "the average for similar restaurants";
