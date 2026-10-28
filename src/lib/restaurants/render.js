@@ -29,9 +29,11 @@ export const detailHref = (camis) => `/restaurant-inspections/?camis=${encodeURI
 export function resultCardsHtml(results) {
   return results.map((r) => {
     const when = r.lastInspected ? `Last inspected ${date(r.lastInspected)}` : "Not yet inspected";
+    // The grade can be years older than the last inspection, so date it.
+    const graded = r.grade ? `<span class="rest-card-graded">Graded ${date(r.grade.date)}</span>` : "";
     return (
       `<li><a class="rest-card" href="${detailHref(r.camis)}" data-camis="${escape(r.camis)}">` +
-        gradeBadge(r.grade?.grade, { size: "md" }) +
+        `<span class="rest-card-grade">${gradeBadge(r.grade?.grade, { size: "md" })}${graded}</span>` +
         `<span class="rest-card-body">` +
           `<span class="rest-card-name">${escape(r.name)}</span>` +
           `<span class="rest-card-place">${escape(placeLine(r))}</span>` +
@@ -48,14 +50,25 @@ function typeLabel(type) {
   return escape(type).replace(/ \/ /g, " · ");
 }
 
+function violationItemHtml(v) {
+  const critical = v.critical === "Critical";
+  return `<li class="violation${critical ? " is-critical" : ""}">` +
+    (critical ? "" : `<p class="violation-flag">Not critical</p>`) +
+    `<p class="violation-text">${escape(v.description)}</p></li>`;
+}
+
 function criticalViolationsHtml(latest) {
   const critical = latest.violations.filter((v) => v.critical === "Critical");
-  if (!critical.length) return `<p class="insp-summary">No critical violations were cited at the latest inspection.</p>`;
-  return (
-    `<ul class="violations">` +
-      critical.map((v) => `<li class="violation is-critical"><p class="violation-text">${escape(v.description)}</p></li>`).join("") +
-    `</ul>`
-  );
+  const list = critical.length
+    ? `<ul class="violations">${critical.map(violationItemHtml).join("")}</ul>`
+    : `<p class="insp-summary">No critical violations were cited at the latest inspection.</p>`;
+  // Everything else cited that day, behind a toggle (violations are sorted critical first).
+  const all = latest.violations.length > critical.length
+    ? `<details class="cat-more all-violations"><summary>Show all ${count(latest.violations.length)} ` +
+      `${latest.violations.length === 1 ? "violation" : "violations"}</summary>` +
+      `<ul class="violations">${latest.violations.map(violationItemHtml).join("")}</ul></details>`
+    : "";
+  return list + all;
 }
 
 // ---------- Category list ----------
@@ -187,7 +200,7 @@ export function detailHtml(d, { benchmark = "citywide" } = {}) {
 
   const latestBlock =
     `<section class="rest-block" aria-labelledby="latest-title">` +
-      `<h3 class="chart-title" id="latest-title">Critical violations at the latest inspection</h3>` +
+      `<h3 class="chart-title" id="latest-title">Violations at the latest inspection</h3>` +
       newerUnscoredNote(d) +
       criticalViolationsHtml(latest) +
     `</section>`;

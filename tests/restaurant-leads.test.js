@@ -317,6 +317,10 @@ test("cards escape names, link the phone and start with the back inert", async (
   assert.match(html, /class="lead-face lead-back"[^>]* inert>/);
   assert.match(html, /aria-expanded="false"/);
   assert.match(html, /data-tier="closed"/);
+  // The front isn't one long button: only a short "Details and contact" one flips it.
+  assert.match(html, /<div class="lead-face lead-front">/);
+  assert.match(html, /<button[^>]*data-flip>Details and contact<span class="sr-only"> for &#60;b&#62;Joe/);
+  assert.doesNotMatch(html.match(/<button[^>]*data-flip>[^]*?<\/button>/)[0], /lead-rank|lead-count/);
   assert.equal(emptyStateText(pest, 7), "No critical pest violations in the last 7 days. Try 30 days.");
 });
 

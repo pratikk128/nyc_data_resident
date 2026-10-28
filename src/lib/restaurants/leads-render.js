@@ -3,9 +3,10 @@
  * Used by the page script (src/components/restaurant-inspections/LeadsSection.astro);
  * lead shapes come from rankLeads() in leads.js.
  *
- * Each card has two faces. The front is one button (Enter/Space flips it);
- * the back has the contact links and the violation list, plus a button to
- * flip back. The script makes the face that's out of view inert.
+ * Each card has two faces. The front is plain text plus one short-named
+ * button, stretched over the whole card, that flips it; the back has the
+ * contact links and the violation list, plus a button to flip back. The
+ * script makes the face that's out of view inert.
  */
 import { date, count } from "../format.js";
 import { gradeInfo } from "./inspections.js";
@@ -49,7 +50,7 @@ export function leadCardHtml(lead, group, descriptions) {
     `<li class="lead-card" data-tier="${lead.tier}" data-camis="${escape(lead.camis)}">` +
     `<div class="lead-inner">` +
       // ---------- Front ----------
-      `<button type="button" class="lead-face lead-front" aria-expanded="false" aria-controls="${id}-back" data-flip>` +
+      `<div class="lead-face lead-front">` +
         `<span class="lead-top"><span class="lead-rank">#${lead.rank}</span>${tierBadge(lead.tier)}</span>` +
         `<span class="lead-name">${escape(lead.name)}</span>` +
         `<span class="lead-place">${escape(place)}</span>` +
@@ -58,8 +59,10 @@ export function leadCardHtml(lead, group, descriptions) {
           `<span class="lead-count-label">${escape(what)}` +
           (lead.inspectionsAffected > 1 ? ` over ${lead.inspectionsAffected} inspections` : "") + `</span></span>` +
         `<span class="lead-score">${scoreLine(latest)}</span>` +
-        `<span class="lead-flip-hint">Details and contact<span aria-hidden="true"> ↻</span></span>` +
-      `</button>` +
+        `<button type="button" class="lead-flip" aria-expanded="false" aria-controls="${id}-back" data-flip>` +
+          `Details and contact<span class="sr-only"> for ${escape(lead.name)}</span><span aria-hidden="true"> ↻</span>` +
+        `</button>` +
+      `</div>` +
       // ---------- Back ----------
       `<div class="lead-face lead-back" id="${id}-back" role="group" aria-label="${escape(lead.name)}, details" inert>` +
         `<div class="lead-back-head">` +

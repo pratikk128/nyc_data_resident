@@ -904,6 +904,8 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
 .rest-card-name { font-size: 1.0625rem; font-weight: 800; line-height: 1.3; }
 .rest-card-place { font-size: .9375rem; }
 .rest-card-meta { font-size: .875rem; color: var(--ink-soft); }
+.rest-card-grade { display: flex; flex-direction: column; align-items: center; gap: 4px; flex-shrink: 0; }
+.rest-card-graded { font-size: .75rem; color: var(--ink-soft); white-space: nowrap; }
 .rest-card-arrow { margin-left: auto; color: var(--link); font-size: 1.25rem; font-weight: 700; }
 
 /* Loading skeletons: same shape as a card */
@@ -1001,6 +1003,9 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
 }
 .violation.is-critical { border-left-color: var(--critical); background: #FFFBFA; }
 .violation-text { max-width: 75ch; }
+.violation-flag { font-size: .8125rem; font-weight: 700; color: var(--ink-soft); }
+.all-violations { max-width: none; }
+.all-violations .violations { color: var(--ink); }
 
 /* Score chart (reuses .line-svg / .salary-line / .salary-dot) */
 .table-scroll .cell-text { text-align: left; white-space: normal; }
@@ -1506,15 +1511,28 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
 .lead-card[data-tier="closed"] .lead-face, .lead-card[data-tier="reinspection"] .lead-face { padding-left: calc(var(--space-4) + 5px); }
 
 .lead-front {
-  width: 100%;
-  font: inherit;
-  text-align: left;
+  position: relative;
   cursor: pointer;
   transition: border-color var(--speed) var(--ease), box-shadow var(--speed) var(--ease);
 }
 .lead-front:hover { border-color: var(--link); }
 .lead-card[data-tier="standard"] .lead-front:hover { box-shadow: var(--shadow-hover); }
-.lead-front:focus-visible, .lead-unflip:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
+/* The whole front clicks through to the flip button; focus rings the card */
+.lead-flip {
+  align-self: flex-start;
+  margin-top: var(--space-3);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--link);
+  font: inherit;
+  font-size: .8125rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.lead-flip::after { content: ""; position: absolute; inset: 0; border-radius: var(--radius-md); }
+.lead-flip:focus-visible { outline: none; }
+.lead-flip:focus-visible::after, .lead-unflip:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
 
 .lead-top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); margin-bottom: var(--space-2); }
 .lead-rank { font-size: .9375rem; font-weight: 800; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
@@ -1540,7 +1558,6 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
 .lead-count-n { font-size: 2.5rem; font-weight: 800; line-height: 1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .lead-count-label { font-size: .9375rem; font-weight: 600; line-height: 1.3; }
 .lead-score { margin-top: var(--space-2); font-size: .9375rem; }
-.lead-flip-hint { margin-top: var(--space-3); font-size: .8125rem; font-weight: 700; color: var(--link); }
 
 .lead-back { gap: var(--space-2); }
 .lead-back-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2); }

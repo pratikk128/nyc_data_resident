@@ -341,15 +341,16 @@ const { windows, defaultWindow, reinspectionScore, lowScoreMax, includeNonCritic
   // With reduced motion the back opens below the front instead of turning
   // over, so the front stays usable.
   function flip(card: HTMLElement, on: boolean, { focus = true } = {}) {
-    const front = card.querySelector<HTMLButtonElement>('[data-flip]')!;
+    const front = card.querySelector<HTMLElement>('.lead-front')!;
+    const flipBtn = front.querySelector<HTMLButtonElement>('[data-flip]')!;
     const back = card.querySelector<HTMLElement>('.lead-back')!;
     card.classList.toggle('is-flipped', on);
-    front.setAttribute('aria-expanded', String(on));
+    flipBtn.setAttribute('aria-expanded', String(on));
     back.inert = !on;
     front.inert = on && !reducedMotion.matches;
     if (!focus) return;
     if (on) back.querySelector<HTMLElement>('[data-unflip]')!.focus({ preventScroll: true });
-    else front.focus({ preventScroll: true });
+    else flipBtn.focus({ preventScroll: true });
   }
 
   list.addEventListener('click', (e) => {

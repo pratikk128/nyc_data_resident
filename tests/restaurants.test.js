@@ -13,7 +13,7 @@ import {
 } from "../src/lib/restaurants/inspections.js";
 import { categoryFor, violationFamily, CATEGORIES, OTHER } from "../src/lib/restaurants/violation-categories.js";
 import { parseLocation, searchWhere, normalizeSearch, soqlString, MAX_NAME_LENGTH, MAX_PLACE_LENGTH } from "../src/lib/restaurants/soql.js";
-import { categoryListHtml, detailHtml } from "../src/lib/restaurants/render.js";
+import { categoryListHtml, detailHtml, resultCardsHtml } from "../src/lib/restaurants/render.js";
 
 const row = (o) => ({ camis: "1", ...o });
 
@@ -131,6 +131,27 @@ test("the detail says when a newer visit wasn't scored", () => {
   assert.match(html, /A newer Administrative Miscellaneous · Initial Inspection visit/);
   assert.match(html, /isn't scored/);
   assert.doesNotMatch(detailHtml(detail()), /A newer/);
+});
+
+test("the detail lists critical violations and puts every violation behind Show all", () => {
+  const violations = [
+    { code: "04L", description: "Evidence of mice.", critical: "Critical" },
+    { code: "10F", description: "Non-food contact surface.", critical: "Not Critical" }
+  ];
+  const html = detailHtml(detail({ latest: { ...detail().latest, violations } }));
+  const shown = html.slice(0, html.indexOf("Show all"));
+  assert.match(shown, /Evidence of mice/);
+  assert.doesNotMatch(shown, /Non-food contact/);
+  assert.match(html, /<summary>Show all 2 violations<\/summary>/);
+  assert.match(html, /Not critical<\/p><p class="violation-text">Non-food contact surface/);
+  // All critical: nothing more to show
+  assert.doesNotMatch(detailHtml(detail({ latest: { ...detail().latest, violations: violations.slice(0, 1) } })), /Show all/);
+});
+
+test("search results date the grade next to the badge", () => {
+  const r = { camis: "1", name: "Joe's", lastInspected: "2026-10-01", grade: { grade: "A", date: "2021-03-04" } };
+  assert.match(resultCardsHtml([r]), /grade-badge[^]*Graded Mar 4, 2021<\/span><\/span>/);
+  assert.doesNotMatch(resultCardsHtml([{ ...r, grade: null }]), /Graded/);
 });
 
 // ---------- Category mapping ----------
