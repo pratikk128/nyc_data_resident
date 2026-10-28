@@ -26,6 +26,11 @@ export function placeLine(r) {
   return [r.address, [r.boro, r.zipcode].filter(Boolean).join(" ")].filter(Boolean).join(", ");
 }
 
+// "0.2 mi" from "near me"; anything closer than a tenth rounds up to it.
+export function milesText(miles) {
+  return `${Math.max(0.1, Math.round(miles * 10) / 10).toFixed(1)} mi`;
+}
+
 export const detailHref = (camis) => `/restaurant-inspections/?camis=${encodeURIComponent(camis)}`;
 
 export function resultCardsHtml(results) {
@@ -38,7 +43,7 @@ export function resultCardsHtml(results) {
         `<span class="rest-card-grade">${gradeBadge(r.grade?.grade, { size: "md" })}${graded}</span>` +
         `<span class="rest-card-body">` +
           `<span class="rest-card-name">${escape(r.name)}</span>` +
-          `<span class="rest-card-place">${escape(placeLine(r))}</span>` +
+          `<span class="rest-card-place">${r.miles != null ? `${milesText(r.miles)} · ` : ""}${escape(placeLine(r))}</span>` +
           `<span class="rest-card-meta">${r.cuisine ? `${escape(r.cuisine)} · ` : ""}${when}</span>` +
         `</span>` +
         `<span class="rest-card-arrow" aria-hidden="true">→</span>` +
@@ -52,9 +57,10 @@ export function searchStatusText({ results, more }, { named, near }) {
   const n = results.length;
   if (n === 0) return "No matches. Try a nearby ZIP code or fewer words.";
   if (more) {
+    const which = near ? `${n} nearest` : named ? `${n} closest matches` : `first ${n}`;
     return named
-      ? `More restaurants match than we can show, so here are the first ${n}. Add a borough or ZIP code to narrow it down.`
-      : `More restaurants ${near ? "are nearby" : "match"} than we can show, so here are the first ${n}. Type a name to narrow it down.`;
+      ? `More restaurants match than we can show, so here are the ${which}. Add a borough or ZIP code to narrow it down.`
+      : `More restaurants ${near ? "are nearby" : "match"} than we can show, so here are the ${which}. Type a name to narrow it down.`;
   }
   return `${n} ${n === 1 ? "restaurant matches" : "restaurants match"}${near ? " within about half a mile" : ""}.`;
 }

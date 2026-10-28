@@ -12,7 +12,7 @@ import {
   latestScored, closesRestaurant, inspectionsByCategory, MIN_REPEAT_INSPECTIONS
 } from "../src/lib/restaurants/inspections.js";
 import { categoryFor, violationFamily, CATEGORIES, OTHER } from "../src/lib/restaurants/violation-categories.js";
-import { parseLocation, searchWhere, normalizeSearch, soqlString, MAX_NAME_LENGTH, MAX_PLACE_LENGTH } from "../src/lib/restaurants/soql.js";
+import { parseLocation, searchWhere, searchParams, nameRank, milesBetween, normalizeSearch, soqlString, MAX_NAME_LENGTH, MAX_PLACE_LENGTH } from "../src/lib/restaurants/soql.js";
 import { categoryListHtml, detailHtml, resultCardsHtml } from "../src/lib/restaurants/render.js";
 
 const row = (o) => ({ camis: "1", ...o });
@@ -152,6 +152,13 @@ test("search results date the grade next to the badge", () => {
   const r = { camis: "1", name: "Joe's", lastInspected: "2026-10-01", grade: { grade: "A", date: "2021-03-04" } };
   assert.match(resultCardsHtml([r]), /grade-badge[^]*Graded Mar 4, 2021<\/span><\/span>/);
   assert.doesNotMatch(resultCardsHtml([{ ...r, grade: null }]), /Graded/);
+});
+
+test("near me results show the distance", () => {
+  const r = { camis: "1", name: "Joe's", lastInspected: "2026-10-01", grade: null };
+  assert.match(resultCardsHtml([{ ...r, miles: 0.234 }]), /rest-card-place">0\.2 mi · /);
+  assert.match(resultCardsHtml([{ ...r, miles: 0.01 }]), /rest-card-place">0\.1 mi · /);
+  assert.doesNotMatch(resultCardsHtml([r]), / mi · /);
 });
 
 // ---------- Category mapping ----------
@@ -332,6 +339,23 @@ test("near me works without a name, but not with a 1-letter one", () => {
   assert.match(searchWhere(query), /^latitude between .* AND longitude between /);
   assert.ok(normalizeSearch({ name: "j", lat: "40.73", lng: "-73.99" }).error);
   assert.ok(normalizeSearch({}).error);
+});
+
+test("name searches rank the whole name, then the first word, the start, a later word, anywhere", () => {
+  assert.equal(nameRank("joe"),
+    "case(upper(dba) like 'JOE', 0, upper(dba) like 'JOE %' OR upper(dba) like 'JOE''%', 1, " +
+    "upper(dba) like 'JOE%', 2, upper(dba) like '% JOE%', 3, true, 4)");
+  assert.equal(searchParams(normalizeSearch({ name: "joe" }).query).$order, "name_rank, name_length, dba, camis");
+  assert.equal(searchParams(normalizeSearch({ where: "11211" }).query).$order, "dba, camis");
+});
+
+test("near me sorts nearest first, name or not", () => {
+  const near = searchParams(normalizeSearch({ name: "joe", lat: "40.73", lng: "-73.99" }).query);
+  assert.equal(near.$order, "distance, dba, camis");
+  assert.match(near.$select, /\(latitude - 40\.73\) \* \(latitude - 40\.73\) \+ \(longitude - -73\.99\)/);
+  // Union Square to Times Square is about 1.6 miles
+  const miles = milesBetween({ lat: 40.7359, lng: -73.9911 }, { lat: 40.758, lng: -73.9855 });
+  assert.ok(miles > 1.5 && miles < 1.7);
 });
 
 test("a street or ZIP works without a name, but not with a 1-letter one", () => {

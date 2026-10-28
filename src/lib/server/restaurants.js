@@ -7,7 +7,7 @@ import { soql, datasetMetadata } from "./socrata.js";
 import { dailyValue } from "./cache.js";
 import { nycToday } from "../format.js";
 import {
-  SEARCH_LIMIT, searchParams, gradesParams, detailParams,
+  SEARCH_LIMIT, searchParams, milesBetween, gradesParams, detailParams,
   restaurantCountParams, familyCountParams, similarKey,
   latestInspectionParams, leadViolationParams, leadInspectionParams
 } from "../restaurants/soql.js";
@@ -127,9 +127,11 @@ export function getMetadata() {
 
 // ---------- Search ----------
 
-function summarize(row) {
+function summarize(row, near) {
   const last = day(row.last_inspected);
+  const lat = Number(row.latitude), lng = Number(row.longitude);
   return {
+    ...(near && lat && lng && { miles: milesBetween(near, { lat, lng }) }),
     camis: row.camis,
     name: titleCase(row.dba) || "Name not listed",
     address: addressLine(row),
@@ -143,14 +145,15 @@ function summarize(row) {
 export async function searchRestaurants(query) {
   const rows = await soql(DATASET_ID, searchParams(query));
 
-  // One card per camis: keep the spelling with the latest inspection.
+  // One card per camis: keep the spelling with the latest inspection, in the
+  // place the first spelling sorted (nearest or closest name first).
   const byCamis = new Map();
   for (const row of rows) {
     const prev = byCamis.get(row.camis);
     if (!prev || (row.last_inspected ?? "") > (prev.last_inspected ?? "")) byCamis.set(row.camis, row);
   }
   const unique = [...byCamis.values()];
-  const results = unique.slice(0, SEARCH_LIMIT).map(summarize);
+  const results = unique.slice(0, SEARCH_LIMIT).map((row) => summarize(row, query.near));
 
   if (results.length) {
     const graded = await soql(DATASET_ID, gradesParams(results.map((r) => r.camis)));

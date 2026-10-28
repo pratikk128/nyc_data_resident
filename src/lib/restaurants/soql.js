@@ -100,12 +100,52 @@ export function searchWhere(query) {
   return parts.join(" AND ");
 }
 
+// How closely a name matches, best first: the whole name ("joe" finds "JOE"),
+// the first word ("JOE'S PIZZA", "JOE COFFEE"), the start of it ("JOELENY'S"),
+// the start of a later word ("PIZZA JOE"), then anywhere ("SLOPPY JOE'S" is a
+// later word too; "BIG JOEY" is not). Sorting on this keeps the closest names
+// inside the rows we fetch.
+export function nameRank(name) {
+  const words = likeTerm(name).split(" ").join("%");
+  const like = (pattern) => `upper(dba) like ${soqlString(pattern)}`;
+  return `case(${like(words)}, 0, ${like(`${words} %`)} OR ${like(`${words}'%`)}, 1, ${like(`${words}%`)}, 2, ` +
+    `${like(`% ${words}%`)}, 3, true, 4)`;
+}
+
+// Squared distance in degrees of latitude: a degree of longitude is shorter
+// by cos(latitude). Good enough to sort within half a mile.
+export function distanceOrder({ lat, lng }) {
+  const k = Math.cos((lat * Math.PI) / 180) ** 2;
+  return `(latitude - ${lat}) * (latitude - ${lat}) + (longitude - ${lng}) * (longitude - ${lng}) * ${k.toFixed(4)}`;
+}
+
+// Straight-line miles between two points (haversine).
+export function milesBetween(a, b) {
+  const rad = (d) => (d * Math.PI) / 180;
+  const h = Math.sin(rad(b.lat - a.lat) / 2) ** 2 +
+    Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(rad(b.lng - a.lng) / 2) ** 2;
+  return 2 * 3958.8 * Math.asin(Math.sqrt(h));
+}
+
+// "Near me" sorts nearest first; a name search puts the closest names first;
+// a street or ZIP alone stays alphabetical.
 export function searchParams(query) {
+  const select = ["camis, dba, building, street, boro, zipcode, cuisine_description, latitude, longitude",
+    "max(inspection_date) AS last_inspected"];
+  const order = [];
+  if (query.near) {
+    select.push(`${distanceOrder(query.near)} AS distance`);
+    order.push("distance");
+  } else if (query.name) {
+    // Shorter first within a rank: "JOE'S PIZZA" before "JOE'S LITTLE ITALY PIZZA".
+    select.push(`${nameRank(query.name)} AS name_rank`, "length(dba) AS name_length");
+    order.push("name_rank", "name_length");
+  }
   return {
-    $select: "camis, dba, building, street, boro, zipcode, cuisine_description, max(inspection_date) AS last_inspected",
+    $select: select.join(", "),
     $where: searchWhere(query),
-    $group: "camis, dba, building, street, boro, zipcode, cuisine_description",
-    $order: "dba, camis",
+    $group: "camis, dba, building, street, boro, zipcode, cuisine_description, latitude, longitude",
+    $order: [...order, "dba", "camis"].join(", "),
     $limit: String(SEARCH_FETCH)
   };
 }
