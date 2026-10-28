@@ -61,31 +61,21 @@ function criticalViolationsHtml(latest) {
 // ---------- Category bars ----------
 
 export function categoryBarsHtml(cmp, benchmark) {
-  const group = cmp[benchmark];
-  const rows = group.rows;
-  const who = benchmark === "citywide" ? "City average" : "Similar restaurants";
-  const max = Math.max(1e-9, ...rows.flatMap((r) => [r.value, r.mean]));
-  const pct = (v) => `${Math.max(v > 0 ? 1.5 : 0, (v / max) * 100).toFixed(1)}%`;
-  const avg = (v) => (v < 0.05 && v > 0 ? "<0.1" : v.toFixed(1));
+  const rows = cmp[benchmark].rows.filter((r) => r.above);
+  if (!rows.length) {
+    const who = benchmark === "citywide" ? "the city average" : "the average for similar restaurants";
+    return `<p class="insp-summary">This restaurant's critical violations aren't above ${who} in any category.</p>`;
+  }
 
   return `<ol class="cat-bars">` + rows.map((r) => {
     const label = ratioLabel(r, benchmark === "citywide" ? "city" : "similar");
     return (
-      `<li class="cat-row${r.above ? " is-above" : ""}">` +
+      `<li class="cat-row is-above">` +
         `<div class="cat-head">` +
           `<span class="cat-name">${escape(r.label)}</span>` +
-          (label ? `<span class="cat-flag"><span aria-hidden="true">▲ </span>${escape(label)}</span>` : "") +
+          `<span class="cat-flag"><span aria-hidden="true">▲ </span>${escape(label)}</span>` +
         `</div>` +
         `<p class="cat-blurb">${escape(r.blurb)}</p>` +
-        `<div class="cat-bar-pair" aria-hidden="true">` +
-          `<span class="cat-bar-label">This restaurant</span>` +
-          `<span class="cat-track"><span class="cat-bar cat-bar-self" style="width:${pct(r.value)}"></span></span>` +
-          `<span class="cat-bar-value">${count(r.value)}</span>` +
-          `<span class="cat-bar-label">${who}</span>` +
-          `<span class="cat-track"><span class="cat-bar cat-bar-mean" style="width:${pct(r.mean)}"></span></span>` +
-          `<span class="cat-bar-value">${avg(r.mean)}</span>` +
-        `</div>` +
-        `<p class="sr-only">This restaurant: ${count(r.value)} cited. ${who}: ${avg(r.mean)} per restaurant.${label ? ` ${escape(label)}.` : ""}</p>` +
       `</li>`
     );
   }).join("") + `</ol>`;
@@ -184,13 +174,13 @@ export function detailHtml(d, { benchmark = "citywide" } = {}) {
   const categories =
     `<section class="rest-block chart-frame" aria-labelledby="cats-title" data-categories>` +
       `<div class="chart-head">` +
-        `<div><h3 class="chart-title" id="cats-title">Violations by category, compared with the average</h3>` +
-        `<p class="chart-subtitle">Cited violations since ${date(cmp.since)} (last ${cmp.years} years), per restaurant. ` +
-        `Categories where this restaurant is above the average come first.</p></div>` +
+        `<div><h3 class="chart-title" id="cats-title">Critical violations above the average, by category</h3>` +
+        `<p class="chart-subtitle">Critical violations cited since ${date(cmp.since)} (last ${cmp.years} years), per restaurant. ` +
+        `Only categories where this restaurant has more critical violations than the average are shown.</p></div>` +
         toggle +
       `</div>` +
       similarNote +
-      `<p class="cat-note"><strong>Good to know:</strong> These are counts of violations inspectors cited, not a safety rating. ` +
+      `<p class="cat-note"><strong>Good to know:</strong> These are counts of critical violations inspectors cited, not a safety rating. ` +
       `Restaurants that are inspected more often have more chances to be cited.</p>` +
       `<p class="cat-scope" data-cat-note aria-live="polite">${benchmarkNote(cmp, shown)}</p>` +
       `<div data-cat-bars>${categoryBarsHtml(cmp, shown)}</div>` +

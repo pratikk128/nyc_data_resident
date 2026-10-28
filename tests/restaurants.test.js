@@ -132,10 +132,11 @@ test("mean is 0, not NaN, when no restaurants were inspected", () => {
   assert.deepEqual(meanPerRestaurant({ temperature: 0 }, 0), { temperature: 0 });
 });
 
-test("restaurant counts only use violations inside the window", () => {
+test("restaurant counts only use critical violations inside the window", () => {
   const insp = groupInspections([
     row({ inspection_date: "2026-01-05T00:00:00.000", violation_code: "02G", critical_flag: "Critical" }),
     row({ inspection_date: "2026-01-05T00:00:00.000", violation_code: "02B", critical_flag: "Critical" }),
+    row({ inspection_date: "2026-01-05T00:00:00.000", violation_code: "02H", critical_flag: "Not Critical" }),
     row({ inspection_date: "2022-01-05T00:00:00.000", violation_code: "02B", critical_flag: "Critical" })
   ]);
   assert.equal(countByCategory(insp, "2023-10-27").temperature, 2);

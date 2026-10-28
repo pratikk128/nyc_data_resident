@@ -792,8 +792,6 @@ th[aria-sort="none"] .sort-btn:hover .sort-icon::after { content: "↕"; color: 
   --critical-tint: #FFE8E6;
 
   /* Category bars: restaurant (blue-deep), mean (neutral), above the mean (orange) */
-  --bar-self: var(--blue-deep);
-  --bar-mean: #A3AFC4;
   --bar-above: var(--callout-heads-up-deep);
   --bar-above-tint: var(--callout-heads-up);
 }
@@ -989,21 +987,6 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
   font-weight: 700;
 }
 .cat-blurb { margin-top: 2px; font-size: .875rem; color: var(--ink-soft); max-width: 75ch; }
-.cat-bar-pair {
-  display: grid;
-  grid-template-columns: 9.5rem minmax(0, 1fr) 3rem;
-  align-items: center;
-  gap: var(--space-1) var(--space-3);
-  margin-top: var(--space-2);
-  font-size: .875rem;
-}
-.cat-bar-label { color: var(--ink-soft); }
-.cat-bar-value { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
-.cat-track { height: 12px; border-radius: 6px; background: #F1F5FB; overflow: hidden; }
-.cat-bar { display: block; height: 100%; border-radius: 6px; }
-.cat-bar-self { background: var(--bar-self); }
-.cat-bar-mean { background: var(--bar-mean); }
-.is-above .cat-bar-self { background: var(--bar-above); }
 
 .rest-about .about-data { margin-top: var(--space-3); }
 
@@ -1021,7 +1004,6 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
   .grade-lg .grade-letter { font-size: 2.5rem; }
   .rest-head-side { width: 100%; align-items: stretch; }
   .copy-link { width: 100%; }
-  .cat-bar-pair { grid-template-columns: 7rem minmax(0, 1fr) 2.5rem; }
   .rest-detail .toggle { width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) {
