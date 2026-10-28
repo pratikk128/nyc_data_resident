@@ -25,7 +25,7 @@ const LABEL_TILES = `${ESRI}/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{
 const ATTRIBUTION = 'Tiles &copy; <a href="https://www.esri.com/">Esri</a>, HERE, Garmin, &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 // Pastel blue → blue-deep → yellow → orange, so the busiest spots stand out on the light basemap.
 const GRADIENT = { 0.2: "#A9CBFF", 0.45: "#1F4FB8", 0.7: "#FFE27A", 1: "#F28C38" };
-const HEAT_RADIUS = 12, HEAT_BLUR = 14;
+const HEAT_RADIUS = 14, HEAT_BLUR = 15;
 const INK = "#1C2A44";
 const BLUE_DEEP = "#1F4FB8";
 
@@ -45,7 +45,7 @@ async function loadLeaflet() {
  * The heat layer's `max`: a high percentile of the cell counts rather than the
  * very busiest cell, so one building with hundreds of calls doesn't wash out the rest.
  */
-export function heatMax(cells, pct = 0.98) {
+export function heatMax(cells, pct = 0.95) {
   if (!cells.length) return 1;
   const ns = cells.map((c) => c[2]).sort((a, b) => a - b);
   return Math.max(1, ns[Math.min(ns.length - 1, Math.floor(pct * ns.length))]);
@@ -102,7 +102,7 @@ export function mountHeatmap(root) {
       L.tileLayer(BASE_TILES, { attribution: ATTRIBUTION, maxZoom: 16 }).addTo(map);
       map.createPane("labels").style.zIndex = "450"; // above the heat (overlayPane is 400)
       L.tileLayer(LABEL_TILES, { pane: "labels", maxZoom: 16 }).addTo(map);
-      heat = L.heatLayer([], { radius: HEAT_RADIUS, blur: HEAT_BLUR, minOpacity: 0.02, gradient: GRADIENT }).addTo(map);
+      heat = L.heatLayer([], { radius: HEAT_RADIUS, blur: HEAT_BLUR, minOpacity: 0.15, gradient: GRADIENT }).addTo(map);
       rings = L.layerGroup().addTo(map);
     }
     rings.clearLayers();
