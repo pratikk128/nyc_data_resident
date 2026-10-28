@@ -1601,3 +1601,44 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
   .lead-card.is-flipped .lead-back { display: flex; border-top: 0; border-top-left-radius: 0; border-top-right-radius: 0; }
   .lead-unflip span { display: none; }
 }
+
+/* ---------- Agency ranking (city payroll) ---------- */
+.rank-list { display: grid; gap: var(--space-3); margin-top: var(--space-4); padding: 0; list-style: none; }
+.rank-row {
+  display: grid;
+  grid-template-columns: 1.75rem minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+}
+.rank-n { color: var(--ink-soft); font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+.rank-name {
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--link);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.rank-name:hover { text-decoration-thickness: 2px; }
+.rank-value { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rank-share { margin-left: var(--space-1); color: var(--ink-soft); font-weight: 400; }
+.rank-bar { grid-column: 2 / -1; display: flex; height: 12px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.rank-seg { flex-shrink: 0; height: 100%; }
+.rank-seg + .rank-seg { box-shadow: inset 1px 0 0 var(--card); }
+.rank-seg-regular { background: var(--pay-regular); }
+.rank-seg-overtime { background: var(--pay-overtime); }
+.rank-seg-other {
+  background:
+    repeating-linear-gradient(45deg, var(--pay-other-hatch) 0 1.5px, transparent 1.5px 4.2px),
+    var(--pay-other);
+}
+.rank-row.is-current .rank-name { color: var(--ink); text-decoration: none; }
+.rank-row.is-current .rank-n { color: var(--ink); }
+.rank-row.is-current { margin-inline: calc(-1 * var(--space-2)); padding: var(--space-2); border-radius: var(--radius-md); background: var(--yellow-tint); }
+.rank-note { margin-top: var(--space-4); font-size: .9375rem; color: var(--ink-soft); }

@@ -15,6 +15,7 @@ import { money, count, date } from '../../lib/format.js';
 import { payrollCsvHref } from '../../lib/payroll-csv.js';
 import { payrollRowsHtml } from '../../lib/payroll-table.js';
 import { yearChange } from '../../lib/year-change.js';
+import { rankAgencies, agencyRankingHtml, TOP_N } from '../../lib/agency-ranking.js';
 
 const { years, dataset, checks } = snapshot;
 const latest = years[years.length - 1];
@@ -23,6 +24,13 @@ const range = `FY${first.fiscalYear}–FY${latest.fiscalYear}`;
 
 const latestTotal = (agency) => agency.years.find((y) => y.fiscalYear === latest.fiscalYear)?.total ?? 0;
 const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latestTotal(a)).slice(0, 10);
+
+// Latest-year pay for every agency with records that year: small enough to
+// inline for the agency ranking, so re-ranking by pay type needs no fetch.
+const latestRows = byAgency.agencies.flatMap((a) => {
+  const y = a.years.find((y) => y.fiscalYear === latest.fiscalYear);
+  return y ? [{ id: a.id, label: a.label, regular: y.regular, overtime: y.overtime, other: y.other }] : [];
+});
 ---
 
 <section class="dash-section" id="workforce" aria-labelledby="workforce-title">
@@ -81,7 +89,28 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
     />
   </div>
 
-  <figure class="chart-frame" aria-labelledby="workforce-chart-title">
+  <figure class="chart-frame" id="agency-ranking" aria-labelledby="agency-ranking-title" data-rows={JSON.stringify(latestRows)}>
+    <div class="chart-head">
+      <div>
+        <h3 class="chart-title" id="agency-ranking-title">Spending by agency, FY{latest.fiscalYear}</h3>
+        <p class="chart-subtitle" data-ranking-subject>
+          The {TOP_N} agencies with the largest total payroll, out of {latestRows.length}. Share is of all city payroll.
+        </p>
+      </div>
+    </div>
+
+    <ul class="legend" aria-label="Legend">
+      <li data-pay="regular"><span class="swatch swatch-regular" aria-hidden="true"></span>Regular pay</li>
+      <li data-pay="overtime"><span class="swatch swatch-overtime" aria-hidden="true"></span>Overtime</li>
+      <li data-pay="other"><span class="swatch swatch-other" aria-hidden="true"></span>Other pay</li>
+    </ul>
+
+    <ol class="rank-list" aria-live="polite" set:html={agencyRankingHtml(rankAgencies(latestRows))} />
+    <p class="rank-note" data-ranking-note hidden></p>
+    <p class="chart-hint">Pick an agency name to see its payroll below.</p>
+  </figure>
+
+  <figure class="chart-frame" id="workforce-frame" aria-labelledby="workforce-chart-title">
     <div class="chart-head">
       <div>
         <h3 class="chart-title" id="workforce-chart-title">Payroll by fiscal year</h3>
@@ -193,6 +222,7 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
   import { payrollCsvHref } from '../../lib/payroll-csv.js';
   import { payrollRowsHtml } from '../../lib/payroll-table.js';
   import { yearChange } from '../../lib/year-change.js';
+  import { rankAgencies, agencyRankingHtml, TOP_N } from '../../lib/agency-ranking.js';
 
   type Year = (typeof snapshot.years)[number];
   type Agency = { id: string; label: string; years: Year[] };
@@ -209,7 +239,7 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
       }));
 
   const section = document.querySelector<HTMLElement>('#workforce');
-  const frame = section?.querySelector<HTMLElement>('.chart-frame');
+  const frame = section?.querySelector<HTMLElement>('#workforce-frame');
 
   if (section && frame) {
     const chart = mountWorkforceChart(frame, snapshot.years);
@@ -225,10 +255,17 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
       people: section.querySelector<HTMLElement>('[data-stat="people"]')!
     };
     const cityLatest = snapshot.years[snapshot.years.length - 1];
+    const ranking = section.querySelector<HTMLElement>('#agency-ranking')!;
+    const rankList = ranking.querySelector<HTMLElement>('.rank-list')!;
+    const rankSubject = ranking.querySelector<HTMLElement>('[data-ranking-subject]')!;
+    const rankNote = ranking.querySelector<HTMLElement>('[data-ranking-note]')!;
+    const rankRows: { id: string; label: string; regular: number; overtime: number; other: number }[] =
+      JSON.parse(ranking.dataset.rows ?? '[]');
 
     // Keep the server-rendered citywide text so "All agencies" restores it exactly.
     const initial = {
       subject: subject.textContent,
+      rankSubject: rankSubject.textContent,
       tableLabel: tableRegion.getAttribute('aria-label'),
       cards: Object.fromEntries(Object.entries(cards).map(([k, card]) => [k, cardText(card)]))
     };
@@ -324,6 +361,33 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
       ]);
     }
 
+    // ---------- Agency ranking (latest fiscal year) ----------
+    function updateRanking() {
+      const keys = selectedPay();
+      const ranked = rankAgencies(rankRows, keys);
+      const id = select.value;
+      rankList.innerHTML = agencyRankingHtml(ranked, keys, id);
+      rankSubject.textContent = allPay()
+        ? initial.rankSubject
+        : `The ${TOP_N} agencies that paid the most ${payLabel(keys).toLowerCase()}, out of ${ranked.length}. Share is of all city ${payLabel(keys).toLowerCase()}.`;
+
+      // Say where the picked agency stands when it's outside the top 10.
+      const rank = ranked.findIndex((r) => r.id === id);
+      const label = select.selectedOptions[0]?.textContent ?? '';
+      rankNote.hidden = !id || (rank >= 0 && rank < TOP_N);
+      rankNote.textContent = !id ? '' : rank < 0
+        ? `${label} has no payroll records for FY${cityLatest.fiscalYear}.`
+        : `${label} ranks #${rank + 1} with ${money(ranked[rank].amount)}.`;
+    }
+
+    rankList.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.rank-name');
+      if (!btn) return;
+      select.value = btn.dataset.agency ?? '';
+      select.dispatchEvent(new Event('change'));
+      frame.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    });
+
     async function apply(id: string) {
       let agency: Agency | undefined;
       try {
@@ -334,6 +398,7 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
         // so the dropdown doesn't name an agency whose numbers aren't shown.
         select.value = current.agency?.id ?? '';
         syncUrl();
+        updateRanking();
         loadError.hidden = false;
         return;
       }
@@ -380,6 +445,7 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
 
     select.addEventListener('change', () => {
       apply(select.value);
+      updateRanking();
       syncUrl();
     });
 
@@ -387,6 +453,7 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
       applyPayTypes();
       updateTableAndCsv();
       updateTotalCard();
+      updateRanking();
       syncUrl();
     }));
 
@@ -402,6 +469,7 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
       updateTableAndCsv();
       updateTotalCard();
     }
+    if (!allPay() || select.value) updateRanking();
     if (select.value) apply(select.value);
   }
 </script>
