@@ -10,11 +10,17 @@
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
-    "data:payroll": "node scripts/refresh-payroll-data.mjs"
+    "data:payroll": "node scripts/refresh-payroll-data.mjs",
+    "deploy": "astro build && wrangler deploy",
+    "test": "node --test \"tests/**/*.test.js\""
   },
   "dependencies": {
+    "@astrojs/cloudflare": "^14.4.2",
     "@tailwindcss/vite": "^4.3.3",
     "astro": "^7.4.2",
     "tailwindcss": "^4.3.3"
+  },
+  "devDependencies": {
+    "wrangler": "^4.154.0"
   }
 }

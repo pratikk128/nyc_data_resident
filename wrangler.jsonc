@@ -1,0 +1,20 @@
+// Cloudflare Workers config. Static pages are served from ./dist as assets;
+// API routes and on-demand pages run in src/worker.js.
+// Secrets (not in this file): `npx wrangler secret put SOCRATA_APP_TOKEN`.
+// Local dev reads them from .dev.vars (see .dev.vars.example).
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "asknycdata",
+  "main": "./src/worker.js",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Daily aggregates for every dataset (src/lib/server/daily-jobs.js).
+  // No "id": wrangler creates the namespace on first deploy.
+  "kv_namespaces": [{ "binding": "DATA_CACHE" }],
+
+  // 11:00 UTC, after DOHMH's overnight update to NYC Open Data
+  "triggers": { "crons": ["0 11 * * *"] },
+
+  "observability": { "enabled": true }
+}

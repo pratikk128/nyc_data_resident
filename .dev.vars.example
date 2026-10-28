@@ -1,0 +1,4 @@
+# Copy to .dev.vars for local dev (`astro dev` / `wrangler dev`). Never commit .dev.vars.
+# In production set it as a Worker secret: npx wrangler secret put SOCRATA_APP_TOKEN
+# Get a token at https://data.cityofnewyork.us/profile/edit/developer_settings
+SOCRATA_APP_TOKEN=

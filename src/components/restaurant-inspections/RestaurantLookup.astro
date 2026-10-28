@@ -1,0 +1,387 @@
+---
+/*
+ * "Look up a restaurant": search by name (plus borough, street or ZIP, or
+ * near me), pick a result, see its latest grade and inspection and violation
+ * categories compared with the average.
+ *
+ * Search and detail data come from /api/restaurants/* (server-side, cached).
+ * A deep link (?camis=50066715) is rendered on the server and passed in as
+ * `initial`, so a shared link shows the restaurant without waiting for script.
+ */
+import { BOROUGHS } from '../../lib/restaurants/inspections.js';
+import RestaurantDetail from './RestaurantDetail.astro';
+import { date } from '../../lib/format.js';
+
+interface Props {
+  meta: { id: string; name: string; url: string; rowsUpdatedAt: string | null } | null;
+  initial: any;               // restaurantDetail() result for ?camis=, or null
+  initialError: string | null; // 'not-found' | 'upstream' when ?camis= couldn't be loaded
+  benchmark: 'citywide' | 'similar';
+}
+
+const { meta, initial, initialError, benchmark } = Astro.props;
+const datasetUrl = meta?.url ?? 'https://data.cityofnewyork.us/d/43nn-pn8j';
+const datasetName = meta?.name ?? 'DOHMH New York City Restaurant Inspection Results';
+// Safe inside <script type="application/json">
+const initialJson = JSON.stringify(initial ?? null).replace(/</g, '\\u003c');
+const errorText = initialError === 'not-found'
+  ? 'We couldn’t find that restaurant. The link may be mistyped, or the restaurant may have closed and dropped out of the data.'
+  : initialError
+    ? 'Couldn’t reach NYC Open Data. Their servers might be stuck behind a double-parked truck. Try again in a minute.'
+    : '';
+const deepLink = Boolean(initial || initialError);
+---
+
+{/* A shared link (?camis=) puts the restaurant first; otherwise it opens below the results */}
+{deepLink && <RestaurantDetail initial={initial} errorText={errorText} benchmark={benchmark} />}
+
+<section class="dash-section" id="lookup" aria-labelledby="lookup-title">
+  <header class="section-head">
+    <h2 id="lookup-title">Look up a restaurant</h2>
+    <p class="section-intro">
+      Find any restaurant the Health Department inspects and see its letter grade, what inspectors found last time,
+      and how its record compares with other restaurants.
+    </p>
+  </header>
+
+  <form class="rest-search" role="search" action="/restaurant-inspections/" method="get" novalidate data-search-form>
+    <div class="field field-name">
+      <label class="filter-label" for="rest-name">Restaurant name</label>
+      <input class="search-input" id="rest-name" name="name" type="search" required minlength="2"
+        autocomplete="off" spellcheck="false" placeholder="Try “Joe’s Pizza”"
+        aria-describedby="rest-name-hint" aria-controls="rest-results" />
+      <p class="field-hint" id="rest-name-hint">At least 2 letters. Results update as you type.</p>
+    </div>
+    <div class="field">
+      <label class="filter-label" for="rest-boro">Borough</label>
+      <select class="filter-select" id="rest-boro" name="boro">
+        <option value="All">All boroughs</option>
+        {BOROUGHS.map((b) => <option value={b}>{b}</option>)}
+      </select>
+    </div>
+    <div class="field">
+      <label class="filter-label" for="rest-place">Street or ZIP <span class="field-optional">(optional)</span></label>
+      <input class="search-input" id="rest-place" name="place" type="search" autocomplete="off" spellcheck="false"
+        placeholder="Try “123 Broadway” or “11211”" aria-controls="rest-results" />
+    </div>
+    <div class="field field-near">
+      <button type="button" class="near-btn" aria-pressed="false" data-near>
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>
+        <span data-near-label>Near me</span>
+      </button>
+    </div>
+    <button type="submit" class="sr-only">Search</button>
+  </form>
+
+  <p class="rest-status" role="status" aria-live="polite" data-status></p>
+  <ul class="rest-results" id="rest-results" aria-label="Matching restaurants" data-results></ul>
+  <p class="rest-keys" data-keys hidden>Tip: use the ↑ and ↓ keys to move through results, and Enter to open one.</p>
+</section>
+
+{!deepLink && <RestaurantDetail initial={initial} errorText={errorText} benchmark={benchmark} />}
+
+<section class="dash-section rest-about" aria-labelledby="about-title">
+  <h2 class="chart-title" id="about-title">How to read this data</h2>
+  <details class="about-data">
+    <summary>About this data</summary>
+    <div class="about-body">
+      <p>
+        <strong>Grades.</strong> Inspectors give points for each violation, and a lower score is better: A is 0–13
+        points, B is 14–27 and C is 28 or more. Only some inspections come with a grade. A restaurant that scores B or
+        C on its first visit gets a second chance a few weeks later, and can post “Grade pending” until any hearing is
+        over. “Latest grade” is the most recent grade on record, which may come from an earlier visit than the latest
+        inspection; we show both dates.
+      </p>
+      <p>
+        <strong>Not yet graded and grade pending.</strong> “Not yet graded” (N) usually means the inspection doesn't
+        lead to a grade, such as a new restaurant's first visit. “Grade pending” (Z) means the grade is under appeal or
+        waiting for a re-inspection; “Grade pending (reopened)” (P) is the same for a restaurant reopening after being
+        closed.
+      </p>
+      <p>
+        <strong>Critical violations</strong> are the ones most likely to make someone sick, like food held at the wrong
+        temperature or signs of mice. They're listed first.
+      </p>
+      <p>
+        <strong>Violation categories</strong> group violation codes by their first two digits (for example, every code
+        starting with 02 is about food temperature). The average is the total number of cited violations in that
+        category, divided by every restaurant inspected in the same window, including restaurants with none. “Similar
+        restaurants” means the same cuisine in the same borough. These averages are recalculated once a day.
+      </p>
+      <p>
+        <strong>Counting.</strong> The source has one row per violation, so we group rows into inspections by
+        restaurant and date. Restaurants are matched by their permit ID (CAMIS), not by name. New restaurants that
+        haven't been inspected yet are listed but left out of every count.
+      </p>
+    </div>
+  </details>
+
+  <footer class="section-sources">
+    <h3 class="sources-title">Where this comes from</h3>
+    <p>
+      <a href={datasetUrl}>{datasetName}</a> on NYC Open Data (dataset 43nn-pn8j), from the NYC Department of Health
+      and Mental Hygiene.
+      {meta?.rowsUpdatedAt && <> Last updated {date(meta.rowsUpdatedAt)}. </>}
+      Search results are refreshed hourly and averages daily.
+    </p>
+    <ul class="caveats">
+      <li>A grade or score reflects one inspection on one day.</li>
+      <li>Violation counts are what inspectors cited, not a safety rating.</li>
+      <li>Only restaurants with an active permit appear; closed restaurants drop out of the data.</li>
+      <li>Names and addresses are as the restaurant registered them, so spelling can vary.</li>
+    </ul>
+    <p><a href="https://data.cityofnewyork.us/d/43nn-pn8j">Report a data problem</a> to NYC Open Data.</p>
+  </footer>
+</section>
+
+<script type="application/json" id="rest-initial" set:html={initialJson}></script>
+
+<script>
+  import { detailHtml, resultCardsHtml, categoryBarsHtml, benchmarkNote, detailHref } from '../../lib/restaurants/render.js';
+
+  const MSG = {
+    tooShort: 'Type at least 2 letters of the restaurant name.',
+    loading: 'Checking the kitchen…',
+    empty: 'No matches. Try a nearby ZIP code or fewer words.',
+    error: 'Couldn’t reach NYC Open Data. Their servers might be stuck behind a double-parked truck. Try again in a minute.',
+    notFound: 'We couldn’t find that restaurant. The link may be mistyped, or the restaurant may have closed and dropped out of the data.',
+    more: 'More than 25 restaurants match, so we’re showing the first 25. Add a borough or ZIP code to narrow it down.'
+  };
+  const DEBOUNCE_MS = 300;
+
+  const form = document.querySelector<HTMLFormElement>('[data-search-form]')!;
+  const nameInput = form.querySelector<HTMLInputElement>('#rest-name')!;
+  const boroSelect = form.querySelector<HTMLSelectElement>('#rest-boro')!;
+  const placeInput = form.querySelector<HTMLInputElement>('#rest-place')!;
+  const nearBtn = form.querySelector<HTMLButtonElement>('[data-near]')!;
+  const nearLabel = nearBtn.querySelector<HTMLElement>('[data-near-label]')!;
+  const status = document.querySelector<HTMLElement>('[data-status]')!;
+  const list = document.querySelector<HTMLUListElement>('[data-results]')!;
+  const keysHint = document.querySelector<HTMLElement>('[data-keys]')!;
+  const detail = document.querySelector<HTMLElement>('[data-detail]')!;
+  const detailBody = detail.querySelector<HTMLElement>('[data-detail-body]')!;
+  const backLink = detail.querySelector<HTMLAnchorElement>('[data-back]')!;
+
+  let current: any = JSON.parse(document.getElementById('rest-initial')!.textContent || 'null');
+  let benchmark: 'citywide' | 'similar' = new URL(location.href).searchParams.get('compare') === 'similar' ? 'similar' : 'citywide';
+  let near: { lat: number; lng: number } | null = null;
+  let searchTimer = 0;
+  let searchAbort: AbortController | null = null;
+  let detailAbort: AbortController | null = null;
+  let openedFromSearch = false;
+
+  // ---------- URL state: ?name=&boro=&place= for the search, ?camis= for a restaurant ----------
+  function setUrl(changes: Record<string, string | null>, push = false) {
+    const url = new URL(location.href);
+    for (const [k, v] of Object.entries(changes)) (v ? url.searchParams.set(k, v) : url.searchParams.delete(k));
+    if (url.href === location.href) return;
+    history[push ? 'pushState' : 'replaceState'](null, '', url);
+  }
+
+  // ---------- Search ----------
+  function skeleton(n = 3) {
+    list.innerHTML = Array.from({ length: n }, () =>
+      '<li class="rest-card is-skeleton" aria-hidden="true"><span class="grade-badge grade-md"></span><span class="rest-card-body"><span class="sk-line"></span><span class="sk-line sk-short"></span></span></li>'
+    ).join('');
+  }
+
+  function searchUrl() {
+    const p = new URLSearchParams({ name: nameInput.value.trim() });
+    if (boroSelect.value !== 'All') p.set('boro', boroSelect.value);
+    if (placeInput.value.trim()) p.set('place', placeInput.value.trim());
+    if (near) { p.set('lat', String(near.lat)); p.set('lng', String(near.lng)); }
+    return `/api/restaurants/search?${p}`;
+  }
+
+  async function runSearch() {
+    clearTimeout(searchTimer);
+    searchAbort?.abort();
+    const name = nameInput.value.trim();
+    setUrl({ name: name || null, boro: boroSelect.value === 'All' ? null : boroSelect.value, place: placeInput.value.trim() || null });
+
+    if (name.length < 2) {
+      list.replaceChildren();
+      keysHint.hidden = true;
+      status.textContent = name || placeInput.value.trim() || near ? MSG.tooShort : '';
+      nameInput.setAttribute('aria-invalid', String(name.length === 1));
+      return;
+    }
+    nameInput.removeAttribute('aria-invalid');
+
+    searchAbort = new AbortController();
+    status.textContent = MSG.loading;
+    list.setAttribute('aria-busy', 'true');
+    skeleton();
+    try {
+      const res = await fetch(searchUrl(), { signal: searchAbort.signal });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error === 'upstream' ? MSG.error : data.error || MSG.error);
+      list.innerHTML = resultCardsHtml(data.results);
+      keysHint.hidden = data.results.length < 2;
+      const n = data.results.length;
+      status.textContent = n === 0 ? MSG.empty
+        : data.more ? MSG.more
+        : `${n} ${n === 1 ? 'restaurant matches' : 'restaurants match'}${near ? ' within about half a mile' : ''}.`;
+    } catch (err: any) {
+      if (err.name === 'AbortError') return;
+      list.replaceChildren();
+      keysHint.hidden = true;
+      status.textContent = err.message && err.message !== 'Failed to fetch' ? err.message : MSG.error;
+    } finally {
+      list.removeAttribute('aria-busy');
+    }
+  }
+
+  function scheduleSearch() {
+    clearTimeout(searchTimer);
+    searchTimer = window.setTimeout(runSearch, DEBOUNCE_MS);
+  }
+
+  form.addEventListener('submit', (e) => { e.preventDefault(); runSearch(); });
+  nameInput.addEventListener('input', scheduleSearch);
+  placeInput.addEventListener('input', scheduleSearch);
+  boroSelect.addEventListener('change', runSearch);
+
+  // "Near me": a ~0.5 mile box around the browser's location. Press again to turn off.
+  nearBtn.addEventListener('click', () => {
+    if (near) {
+      near = null;
+      nearBtn.setAttribute('aria-pressed', 'false');
+      nearLabel.textContent = 'Near me';
+      runSearch();
+      return;
+    }
+    if (!navigator.geolocation) { status.textContent = 'Your browser can’t share its location. Try a street or ZIP code instead.'; return; }
+    nearLabel.textContent = 'Finding you…';
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        near = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        nearBtn.setAttribute('aria-pressed', 'true');
+        nearLabel.textContent = 'Near me (½ mile)';
+        if (nameInput.value.trim().length < 2) { status.textContent = 'Got your location. Now type a restaurant name.'; nameInput.focus(); }
+        else runSearch();
+      },
+      () => {
+        nearLabel.textContent = 'Near me';
+        status.textContent = 'We couldn’t get your location. Check your browser’s location setting, or try a street or ZIP code.';
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
+    );
+  });
+
+  // Keyboard: ↓ from the name box goes to the first result; ↑/↓/Home/End move between results.
+  const cards = () => Array.from(list.querySelectorAll<HTMLAnchorElement>('a.rest-card'));
+  nameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' && cards().length) { e.preventDefault(); cards()[0].focus(); }
+  });
+  list.addEventListener('keydown', (e) => {
+    const all = cards();
+    const i = all.indexOf(document.activeElement as HTMLAnchorElement);
+    if (i < 0) return;
+    const next = ({ ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: all.length - 1 } as Record<string, number>)[e.key];
+    if (next === undefined) return;
+    e.preventDefault();
+    if (next < 0) nameInput.focus(); else all[Math.min(next, all.length - 1)].focus();
+  });
+
+  list.addEventListener('click', (e) => {
+    const card = (e.target as HTMLElement).closest<HTMLAnchorElement>('a.rest-card');
+    if (!card || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; // let new-tab clicks through
+    e.preventDefault();
+    openedFromSearch = true;
+    openRestaurant(card.dataset.camis!, { push: true });
+  });
+
+  // ---------- Detail ----------
+  function showDetail(data: any) {
+    current = data;
+    detailBody.innerHTML = detailHtml(data, { benchmark });
+    document.title = `${data.name} inspections | NYC Restaurant Inspections | Ask NYC Data`;
+  }
+
+  function showDetailError(message: string) {
+    current = null;
+    detailBody.innerHTML = `<p class="rest-error" role="alert"></p>`;
+    detailBody.querySelector('p')!.textContent = message;
+  }
+
+  async function openRestaurant(camis: string, { push = false } = {}) {
+    detailAbort?.abort();
+    detailAbort = new AbortController();
+    detail.hidden = false;
+    setUrl({ camis }, push);
+    detailBody.setAttribute('aria-busy', 'true');
+    detailBody.innerHTML = '<p class="rest-loading">Pulling the inspection records…</p><div class="sk-block"></div><div class="sk-block"></div>';
+    detail.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    try {
+      const res = await fetch(`/api/restaurants/${encodeURIComponent(camis)}`, { signal: detailAbort.signal });
+      if (res.status === 404) return showDetailError(MSG.notFound);
+      if (!res.ok) throw new Error('upstream');
+      showDetail(await res.json());
+      detailBody.querySelector<HTMLElement>('#restaurant-title')?.focus({ preventScroll: true });
+    } catch (err: any) {
+      if (err.name !== 'AbortError') showDetailError(MSG.error);
+    } finally {
+      detailBody.setAttribute('aria-busy', 'false');
+    }
+  }
+
+  function closeDetail() {
+    detailAbort?.abort();
+    detail.hidden = true;
+    current = null;
+    document.title = 'NYC Restaurant Inspections | Ask NYC Data';
+  }
+
+  backLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (openedFromSearch) { history.back(); return; } // popstate closes the detail
+    closeDetail();
+    setUrl({ camis: null, compare: null }, true);
+    nameInput.focus();
+  });
+
+  window.addEventListener('popstate', () => {
+    const camis = new URL(location.href).searchParams.get('camis');
+    if (camis) { if (camis !== current?.camis) openRestaurant(camis); }
+    else {
+      closeDetail();
+      const first = cards()[0];
+      (first ?? nameInput).focus();
+    }
+  });
+
+  detailBody.addEventListener('click', async (e) => {
+    const target = e.target as HTMLElement;
+    const toggle = target.closest<HTMLButtonElement>('[data-benchmark]');
+    if (toggle && current) {
+      benchmark = toggle.dataset.benchmark as typeof benchmark;
+      detailBody.querySelectorAll('[data-benchmark]').forEach((b) =>
+        b.setAttribute('aria-pressed', String((b as HTMLElement).dataset.benchmark === benchmark)));
+      detailBody.querySelector('[data-cat-bars]')!.innerHTML = categoryBarsHtml(current.categories, benchmark);
+      detailBody.querySelector('[data-cat-note]')!.innerHTML = benchmarkNote(current.categories, benchmark);
+      setUrl({ compare: benchmark === 'similar' ? 'similar' : null });
+      return;
+    }
+    const copy = target.closest<HTMLButtonElement>('[data-copy-link]');
+    if (copy && current) {
+      const link = new URL(detailHref(current.camis), location.origin).href;
+      try {
+        await navigator.clipboard.writeText(link);
+        copy.textContent = 'Link copied';
+      } catch {
+        copy.textContent = link; // clipboard blocked: show the link so it can be copied by hand
+      }
+      setTimeout(() => { copy.textContent = 'Copy link to this restaurant'; }, 2500);
+    }
+  });
+
+  // ---------- Start ----------
+  const params = new URL(location.href).searchParams;
+  nameInput.value = params.get('name') ?? '';
+  const boro = params.get('boro');
+  boroSelect.value = boro && Array.from(boroSelect.options).some((o) => o.value === boro) ? boro : 'All';
+  placeInput.value = params.get('place') ?? '';
+  if (nameInput.value.trim().length >= 2) runSearch();
+  if (!current && params.get('camis') && detail.hidden) openRestaurant(params.get('camis')!);
+</script>

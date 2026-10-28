@@ -1,0 +1,23 @@
+---
+/*
+ * One restaurant's detail panel. Server-rendered for a deep link; the script in
+ * RestaurantLookup.astro fills it when a search result is picked.
+ */
+import { detailHtml } from '../../lib/restaurants/render.js';
+
+interface Props {
+  initial: any;
+  errorText: string;
+  benchmark: 'citywide' | 'similar';
+}
+
+const { initial, errorText, benchmark } = Astro.props;
+---
+
+<section class="dash-section rest-detail" id="restaurant" aria-label="Restaurant details" data-detail hidden={!initial && !errorText}>
+  <a class="back-link" href="/restaurant-inspections/" data-back><span aria-hidden="true">←</span>Back to search</a>
+  <div class="rest-detail-body" data-detail-body aria-busy="false">
+    {initial && <Fragment set:html={detailHtml(initial, { benchmark })} />}
+    {errorText && <p class="rest-error" role="alert">{errorText}</p>}
+  </div>
+</section>

@@ -23,8 +23,7 @@ const dashboards = [
     title: "NYC Restaurant Inspections",
     description: "Explore health inspection grades, violations, and trends for restaurants across the five boroughs.",
     category: "Health",
-    // Placeholder link: the dashboard isn't built yet. Replace "#" with its real page when it's ready.
-    url: "#"
+    url: "/restaurant-inspections/"
   },
   {
     id: "311-complaints",

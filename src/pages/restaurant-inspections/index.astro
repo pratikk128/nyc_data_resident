@@ -1,0 +1,62 @@
+---
+/*
+ * NYC Restaurant Inspections. Rendered on demand (not prerendered) so the
+ * "Data updated" date comes from the dataset's live metadata and a shared
+ * link like ?camis=50066715 opens straight to that restaurant.
+ */
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+import RestaurantLookup from '../../components/restaurant-inspections/RestaurantLookup.astro';
+import { getMetadata } from '../../lib/server/restaurants.js';
+import { loadRestaurant, isCamis } from '../../lib/server/restaurant-page.js';
+import { date } from '../../lib/format.js';
+
+export const prerender = false;
+
+let meta = null;
+try {
+  meta = await getMetadata();
+} catch (err) {
+  console.error(err); // the page still works; it just can't show the date
+}
+
+const camis = Astro.url.searchParams.get('camis');
+let initial = null;
+let initialError: string | null = null;
+if (camis) {
+  if (!isCamis(camis)) initialError = 'not-found';
+  else {
+    try {
+      initial = await loadRestaurant(camis, Astro.url, Astro.locals.cfContext);
+      if (!initial) initialError = 'not-found';
+    } catch (err) {
+      console.error(err);
+      initialError = 'upstream';
+    }
+  }
+}
+if (initialError === 'not-found') Astro.response.status = 404;
+Astro.response.headers.set('Cache-Control', initialError ? 'no-store' : 'public, max-age=300');
+
+const benchmark = Astro.url.searchParams.get('compare') === 'similar' ? 'similar' : 'citywide';
+const title = initial ? `${initial.name} inspections | NYC Restaurant Inspections` : 'NYC Restaurant Inspections';
+const description = initial
+  ? `Health inspection grade, latest violations and how it compares for ${initial.name}, ${initial.address}, ${initial.boro}.`
+  : 'Look up any NYC restaurant’s health inspection grade, latest violations and how it compares, from NYC Open Data.';
+---
+
+<DashboardLayout
+  title={title}
+  description={description}
+  path={initial ? `/restaurant-inspections/?camis=${initial.camis}` : '/restaurant-inspections/'}
+  category="Health"
+  tone="green"
+  lastRefreshed={meta?.rowsUpdatedAt ? date(meta.rowsUpdatedAt) : undefined}
+  dataUpdated={meta?.rowsUpdatedAt ?? undefined}
+>
+  <header class="page-head">
+    <h1>NYC Restaurant Inspections</h1>
+    <p>Every restaurant in the city gets surprise visits from Health Department inspectors. Here's what they found, in plain language.</p>
+  </header>
+
+  <RestaurantLookup meta={meta} initial={initial} initialError={initialError} benchmark={benchmark} />
+</DashboardLayout>
