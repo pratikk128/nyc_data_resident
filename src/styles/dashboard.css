@@ -763,8 +763,7 @@ th[aria-sort="none"] .sort-btn:hover .sort-icon::after { content: "↕"; color: 
   .jobs-table tbody tr.job-row.is-open { border-radius: var(--radius-md) var(--radius-md) 0 0; }
   .jobs-table .job-row > * { padding: 0; text-align: left; }
   .jobs-table .job-row th { grid-column: 1 / -1; font-size: 1rem; }
-  .jobs-table .job-row td[data-col="employees"],
-  .jobs-table .job-row td[data-col="extra"] { display: none; }
+  .jobs-table .job-row td[data-col="employees"] { display: none; }
   .jobs-table .job-row td::before {
     content: attr(data-label);
     display: block;

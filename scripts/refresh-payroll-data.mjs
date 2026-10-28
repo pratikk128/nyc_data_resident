@@ -10,7 +10,8 @@
  * we never download rows: Socrata aggregates by fiscal year server-side and
  * we save the ~dozen resulting rows as a small JSON snapshot that the site
  * reads at build time. The data updates about once a year. Job title medians
- * are computed server-side too, with SoQL median().
+ * are computed server-side too, with SoQL median(); that query needs the list
+ * of fiscal years, so it runs after the citywide totals come back.
  *
  * Optional: set SOCRATA_APP_TOKEN to avoid anonymous rate limits.
  */
@@ -43,23 +44,45 @@ const AGENCY_QUERY = {
 };
 
 // "What do city jobs actually pay?": full-time annual salaries of active
-// employees, one row per (fiscal year, job title). Exact values checked
-// against the data by checkFilterValues() before each run.
+// employees. Exact values checked against the data by checkFilterValues()
+// before each run.
 const PAY_BASIS = "per Annum";
 const LEAVE_STATUS = "ACTIVE";
-const MIN_EMPLOYEES = 25;  // titles smaller than this in the latest year are left out
+const MIN_EMPLOYEES = 25;  // titles with fewer full-year employees in the latest year are left out
 const CHANGE_YEARS = 5;    // "5-yr change in median base salary"
 
-const JOBS_QUERY = {
-  $select: "fiscal_year, upper(trim(title_description)) AS title, count(*) AS employees, " +
-    "median(base_salary) AS median_base, " +
-    "median(coalesce(regular_gross_paid, 0) + coalesce(total_ot_paid, 0) + coalesce(total_other_pay, 0)) AS median_total",
-  $where: `pay_basis = '${PAY_BASIS}' AND leave_status_as_of_june_30 = '${LEAVE_STATUS}' ` +
-    "AND base_salary > 0 AND title_description IS NOT NULL",
-  $group: "fiscal_year, title",
-  $order: "fiscal_year, title",
-  $limit: "100000"
-};
+const ACTIVE_SALARIED = `pay_basis = '${PAY_BASIS}' AND leave_status_as_of_june_30 = '${LEAVE_STATUS}' ` +
+  "AND base_salary > 0 AND title_description IS NOT NULL";
+const OT_AND_OTHER = "coalesce(total_ot_paid, 0) + coalesce(total_other_pay, 0)";
+
+// Pay medians, one row per (fiscal year, job title), counting only people who
+// started at their agency by July 1, when that fiscal year began. A partial
+// year of pay would drag overtime and other pay down.
+// "extra" is the median of each person's own overtime plus other pay.
+function jobsQuery(fiscalYears) {
+  const fullYear = fiscalYears
+    .map((fy) => `(fiscal_year = ${fy} AND agency_start_date <= '${fy - 1}-07-01T00:00:00')`)
+    .join(" OR ");
+  return {
+    $select: "fiscal_year, upper(trim(title_description)) AS title, count(*) AS employees, " +
+      `median(base_salary) AS median_base, median(${OT_AND_OTHER}) AS median_extra`,
+    $where: `${ACTIVE_SALARIED} AND (${fullYear})`,
+    $group: "fiscal_year, title",
+    $order: "fiscal_year, title",
+    $limit: "100000"
+  };
+}
+
+// "# employees": everyone active in the title in the latest year, full year or not.
+function headcountQuery(fiscalYear) {
+  return {
+    $select: "upper(trim(title_description)) AS title, count(*) AS employees",
+    $where: `${ACTIVE_SALARIED} AND fiscal_year = ${fiscalYear}`,
+    $group: "title",
+    $order: "title",
+    $limit: "100000"
+  };
+}
 
 // Quick-filter chips → exact (normalized) title_description values. A chip
 // with no matching title in the latest year is dropped from the snapshot.
@@ -291,9 +314,12 @@ async function checkFilterValues() {
   }
 }
 
-// One entry per title with >= MIN_EMPLOYEES in the latest year: latest-year
-// medians, the change since CHANGE_YEARS earlier, and every year's median base.
-function buildJobs(rows) {
+// One entry per title with >= MIN_EMPLOYEES full-year employees in the latest
+// year: latest-year medians, the change since CHANGE_YEARS earlier, and every
+// year's median base. rows come from jobsQuery(), headcountRows from
+// headcountQuery() for the latest year.
+function buildJobs(rows, headcountRows) {
+  const headcount = new Map(headcountRows.map((r) => [r.title, Number(r.employees)]));
   const byTitle = new Map();
   for (const r of rows) {
     if (!r.title || r.fiscal_year == null) continue;
@@ -302,7 +328,7 @@ function buildJobs(rows) {
       fiscalYear: Number(r.fiscal_year),
       employees: Number(r.employees),
       base: Math.round(Number(r.median_base)),
-      total: Math.round(Number(r.median_total))
+      extra: Math.round(Number(r.median_extra))
     });
   }
 
@@ -317,12 +343,12 @@ function buildJobs(rows) {
     jobs.push({
       title,
       label: titleLabel(title),
-      employees: latest.employees,
+      employees: headcount.get(title) ?? latest.employees,
+      fullYearEmployees: latest.employees,
       base: latest.base,
-      total: latest.total,
-      extra: latest.total - latest.base,
+      extra: latest.extra,
       change: then && then.employees >= MIN_EMPLOYEES ? Number((latest.base / then.base - 1).toFixed(4)) : null,
-      // [fiscal year, median base salary, employees]
+      // [fiscal year, median base salary, full-year employees]
       series: years.map((y) => [y.fiscalYear, y.base, y.employees])
     });
   }
@@ -343,7 +369,8 @@ function buildJobs(rows) {
     if (!job) warnings.push(`No "${title}" title in FY${latestFY}.`);
     else if (job.base < lo || job.base > hi) warnings.push(`${title} median base salary ($${job.base}) looks implausible.`);
   }
-  if (jobs.some((j) => j.employees < MIN_EMPLOYEES)) throw new Error("A title with too few employees slipped through.");
+  if (jobs.some((j) => j.fullYearEmployees < MIN_EMPLOYEES)) throw new Error("A title with too few employees slipped through.");
+  if (jobs.some((j) => j.fullYearEmployees > j.employees)) throw new Error("A title has more full-year employees than employees.");
 
   return { latestFY, compareFY, jobs, chips, warnings };
 }
@@ -351,13 +378,25 @@ function buildJobs(rows) {
 async function main() {
   const url = `${RESOURCE}?${new URLSearchParams(QUERY)}`;
   const agencyUrl = `${RESOURCE}?${new URLSearchParams(AGENCY_QUERY)}`;
-  const jobsUrl = `${RESOURCE}?${new URLSearchParams(JOBS_QUERY)}`;
   await checkFilterValues();
   console.log(`Querying ${url}`);
   console.log(`Querying ${agencyUrl}`);
+  const rowsPromise = getJSON(url);
+  const agencyRowsPromise = getJSON(agencyUrl);
+  const metaPromise = getJSON(METADATA);
+
+  // The job queries need the fiscal years, which the citywide totals give us.
+  const rows = await rowsPromise;
+  const fiscalYears = rows.filter((r) => r.fiscal_year != null).map((r) => Number(r.fiscal_year));
+  if (fiscalYears.length === 0) throw new Error("Query returned no fiscal years; not overwriting the snapshot.");
+  const jobsQueryUsed = jobsQuery(fiscalYears);
+  const headcountQueryUsed = headcountQuery(Math.max(...fiscalYears));
+  const jobsUrl = `${RESOURCE}?${new URLSearchParams(jobsQueryUsed)}`;
+  const headcountUrl = `${RESOURCE}?${new URLSearchParams(headcountQueryUsed)}`;
   console.log(`Querying ${jobsUrl} (medians are slow; allow a couple of minutes)`);
-  const [rows, agencyRows, jobRows, meta] = await Promise.all([
-    getJSON(url), getJSON(agencyUrl), getJSON(jobsUrl), getJSON(METADATA)
+  console.log(`Querying ${headcountUrl}`);
+  const [agencyRows, jobRows, headcountRows, meta] = await Promise.all([
+    agencyRowsPromise, getJSON(jobsUrl), getJSON(headcountUrl), metaPromise
   ]);
 
   const years = rows
@@ -372,7 +411,7 @@ async function main() {
 
   const checks = checkYears(years);
 
-  const jobs = buildJobs(jobRows);
+  const jobs = buildJobs(jobRows, headcountRows);
   if (jobs.jobs.length === 0) throw new Error("Job title query returned no titles; not overwriting the snapshot.");
   if (jobs.latestFY !== years[years.length - 1].fiscalYear) {
     checks.warnings.push(`Job titles end in FY${jobs.latestFY} but payroll totals end in FY${years[years.length - 1].fiscalYear}.`);
@@ -409,10 +448,11 @@ async function main() {
   );
 
   // One line per title, like the agency file
-  const jobsQuery = Object.fromEntries(Object.entries(JOBS_QUERY).filter(([k]) => k !== "$limit"));
+  const withoutLimit = (q) => Object.fromEntries(Object.entries(q).filter(([k]) => k !== "$limit"));
   await writeFile(
     JOBS_OUT_FILE,
-    `{\n  "refreshedAt": ${JSON.stringify(snapshot.refreshedAt)},\n  "query": ${JSON.stringify(jobsQuery)},\n` +
+    `{\n  "refreshedAt": ${JSON.stringify(snapshot.refreshedAt)},\n  "query": ${JSON.stringify(withoutLimit(jobsQueryUsed))},\n` +
+    `  "headcountQuery": ${JSON.stringify(withoutLimit(headcountQueryUsed))},\n` +
     `  "latestFiscalYear": ${jobs.latestFY},\n  "compareFiscalYear": ${jobs.compareFY},\n  "minEmployees": ${MIN_EMPLOYEES},\n` +
     `  "checks": ${JSON.stringify({ latestYearLooksComplete: checks.latestYearLooksComplete, warnings: jobs.warnings })},\n` +
     `  "chips": [\n${jobs.chips.map((c) => `    ${JSON.stringify(c)}`).join(",\n")}\n  ],\n` +
@@ -425,10 +465,10 @@ async function main() {
     console.log(`  FY${y.fiscalYear}  $${(y.total / 1e9).toFixed(2)}B  ${y.peoplePaid.toLocaleString("en-US")} people paid`);
   }
   console.log(`\nWrote ${agencies.length} agencies to src/data/payroll-by-agency.json`);
-  console.log(`\nWrote ${jobs.jobs.length} job titles (FY${jobs.latestFY}, ${MIN_EMPLOYEES}+ employees) to src/data/payroll-jobs.json`);
+  console.log(`\nWrote ${jobs.jobs.length} job titles (FY${jobs.latestFY}, ${MIN_EMPLOYEES}+ full-year employees) to src/data/payroll-jobs.json`);
   for (const title of Object.keys(PLAUSIBLE_MEDIAN_BASE)) {
     const j = jobs.jobs.find((x) => x.title === title);
-    if (j) console.log(`  ${j.label}: median base $${j.base.toLocaleString("en-US")}, median total $${j.total.toLocaleString("en-US")}`);
+    if (j) console.log(`  ${j.label}: median base $${j.base.toLocaleString("en-US")}, median OT & other $${j.extra.toLocaleString("en-US")}`);
   }
 
   if (checks.warnings.length) {

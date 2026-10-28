@@ -5,8 +5,8 @@
  * drawSalaryLine(container, job, minEmployees)
  *   container  Empty element to draw into; redraw by calling again.
  *   job        One entry from src/data/payroll-jobs.json. series is
- *              [[fiscalYear, medianBase, employees], ...].
- *   minEmployees  Years with fewer employees get a hollow dot.
+ *              [[fiscalYear, medianBase, fullYearEmployees], ...].
+ *   minEmployees  Years with fewer full-year employees get a hollow dot.
  *
  * salarySentence(job) returns the one-line summary shown under the chart.
  */
@@ -38,7 +38,7 @@ export function salarySentence(job, minEmployees = 25) {
   let text = verb === "stayed at"
     ? `Median base salary stayed at about ${money(last)} from FY${fy0} to FY${fy1}.`
     : `Median base salary ${verb} ${money(first)} in FY${fy0} to ${money(last)} in FY${fy1}.`;
-  if (n0 < minEmployees) text += ` FY${fy0} had only ${count(n0)} ${n0 === 1 ? "employee" : "employees"} with this title.`;
+  if (n0 < minEmployees) text += ` FY${fy0} had only ${count(n0)} full-year ${n0 === 1 ? "employee" : "employees"} with this title.`;
   if (s.length < fy1 - fy0 + 1) text += " Some years have no data.";
   return text;
 }
@@ -97,7 +97,7 @@ export function drawSalaryLine(container, job, minEmployees = 25) {
   s.forEach(([fy, base, n]) => {
     const dot = el("circle", { cx: x(fy), cy: y(base), r: 3.5, class: n < minEmployees ? "salary-dot is-small" : "salary-dot" }, g);
     el("title", {}, dot).textContent =
-      `FY${fy}: ${money(base)} median base salary (${count(n)} ${n === 1 ? "employee" : "employees"})`;
+      `FY${fy}: ${money(base)} median base salary (${count(n)} full-year ${n === 1 ? "employee" : "employees"})`;
   });
 
   const [, lastBase] = s[s.length - 1];

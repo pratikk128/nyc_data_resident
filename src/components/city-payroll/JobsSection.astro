@@ -1,7 +1,8 @@
 ---
 /*
  * "What do city jobs actually pay?"
- * Median pay by job title for full-time, active, annual-salary employees.
+ * Median pay by job title for full-time, active, annual-salary employees who
+ * worked the whole fiscal year; "# employees" counts everyone in the title.
  * The first page of the table (default sort) is rendered at build time from
  * src/data/payroll-jobs.json; the script at the bottom handles search, chips,
  * sorting, paging and the per-title salary chart from the same snapshot.
@@ -20,8 +21,7 @@ const SORT_OPTIONS = [
   { value: 'employees-desc', label: 'Most employees' },
   { value: 'base-desc', label: 'Highest median base salary' },
   { value: 'base-asc', label: 'Lowest median base salary' },
-  { value: 'total-desc', label: 'Highest median total pay' },
-  { value: 'extra-desc', label: 'Most extra from OT & other pay' },
+  { value: 'extra-desc', label: 'Highest median OT & other pay' },
   { value: 'change-desc', label: 'Biggest 5-yr raise' },
   { value: 'label-asc', label: 'Job title, A–Z' }
 ];
@@ -31,7 +31,8 @@ const SORT_OPTIONS = [
   <header class="section-head">
     <h2 id="jobs-title">What do city jobs actually pay?</h2>
     <p class="section-intro">
-      Salaries for full-time city jobs in FY{fy}. “Total pay” includes overtime and other pay.
+      Salaries for full-time city jobs in FY{fy}, for people who worked the whole year, with median base salary and median
+      overtime and other pay.
     </p>
   </header>
 
@@ -70,7 +71,8 @@ const SORT_OPTIONS = [
   <div class="table-scroll jobs-table-wrap" tabindex="0" role="region" aria-label="Median pay by job title, table">
     <table class="jobs-table" id="jobs-table">
       <caption class="sr-only">
-        Median pay by job title, FY{fy}. Full-time, active employees on annual salaries; titles with {minEmployees} or more employees.
+        Median pay by job title, FY{fy}. Full-time, active employees on annual salaries. Pay is for employees who worked
+        the whole fiscal year; titles with {minEmployees} or more of them.
         Select a job title to see its salary history.
       </caption>
       <thead>
@@ -103,24 +105,31 @@ const SORT_OPTIONS = [
       <p>
         <strong>Who's included.</strong> Full-time employees paid an annual salary (pay basis “per Annum”) who were
         active on June 30, {fy}, with a base salary above $0. Hourly and per-diem workers, people on leave and people
-        who left during the year are excluded. Job titles with fewer than {minEmployees} such employees in FY{fy}
-        aren't shown.
+        who left during the year are excluded.
+      </p>
+      <p>
+        <strong>Full year only.</strong> Salaries and overtime and other pay only count people who started at their agency
+        by July 1, when the fiscal year began, so everyone was paid for the whole year. Someone who joined partway
+        through would make overtime and other pay look low. “# employees” still counts everyone in the title, including newer
+        hires. Job titles with fewer than {minEmployees} full-year employees in FY{fy} aren't shown. Someone who moved
+        between agencies during the year counts as a newer hire, because the data only has their start date at the
+        current agency.
       </p>
       <p>
         <strong>Base salary</strong> is each person's annual salary rate at the end of the fiscal year (June 30).
-        Raises during the year aren't shown separately.
+        Raises during the year aren't shown separately. Leaving out newer hires, who often start on lower pay steps,
+        can make it a little higher than the median for everyone in the title.
       </p>
       <p>
-        <strong>Total pay</strong> is what people were actually paid during the fiscal year: regular pay plus overtime
-        plus other pay (lump sums, differentials, retroactive pay), before taxes. Overtime and lump sums vary a lot
-        from year to year. Someone who started partway through the year, took unpaid time or got a raise late in the
-        year can have total pay below their base salary, so “Extra from OT & other pay” can be negative.
+        <strong>Median OT &amp; other pay</strong> is the median of each person's own overtime plus other pay (lump
+        sums, differentials, retroactive pay) actually paid during the fiscal year, before taxes. Many people in a
+        title may get little or none, so the median can be $0. Overtime and lump sums vary a lot from year to year.
       </p>
       <p>
         <strong>Medians, not averages.</strong> Half of the people in a title earn more than the median and half earn
-        less. “Extra from OT & other pay” is median total pay minus median base salary.
-        The 5-yr change compares median base salary in FY{compareFiscalYear} and FY{fy}; it's blank when the title had
-        fewer than {minEmployees} employees in FY{compareFiscalYear}.
+        less. The 5-yr change compares median base salary in FY{compareFiscalYear} and FY{fy}, counting
+        full-year employees in each year; it's blank when the title had fewer than {minEmployees} of them in
+        FY{compareFiscalYear}.
       </p>
       <p>
         <strong>Job titles</strong> are shown as they appear in the payroll data (trimmed and matched without regard to
@@ -144,6 +153,7 @@ const SORT_OPTIONS = [
     </p>
     <ul class="caveats">
       <li>Full-time, annual-salary, active employees only; hourly and per-diem workers are excluded.</li>
+      <li>Pay figures count only people employed for the whole fiscal year.</li>
       <li>Base salary is the end-of-fiscal-year rate; mid-year raises are not shown separately.</li>
       <li>Total pay includes overtime and lump sums/retro pay, which vary year to year.</li>
       <li>Dollars are nominal: not adjusted for inflation.</li>
@@ -240,7 +250,7 @@ const SORT_OPTIONS = [
       const chart = detail.querySelector<HTMLElement>('.job-chart')!;
       const hasSmallYears = drawSalaryLine(chart, job, minEmployees);
       detail.querySelector('.job-sentence')!.textContent = salarySentence(job, minEmployees) +
-        (hasSmallYears ? ` Hollow dots mark years with fewer than ${minEmployees} employees.` : '');
+        (hasSmallYears ? ` Hollow dots mark years with fewer than ${minEmployees} full-year employees.` : '');
     }
 
     function toggle(row: HTMLElement) {

@@ -5,7 +5,10 @@
  * its salary chart once expanded.
  *
  * Jobs come from src/data/payroll-jobs.json:
- *   { title, label, employees, base, total, extra, change, series }
+ *   { title, label, employees, fullYearEmployees, base, extra, change, series }
+ * employees counts everyone active in the title; the pay medians cover only
+ * full-year employees. extra is the median of each person's own overtime plus
+ * other pay.
  */
 import { money, count, percent } from "./format.js";
 
@@ -16,8 +19,7 @@ export const COLUMNS = [
   { key: "label", label: "Job title", text: true },
   { key: "employees", label: "# employees" },
   { key: "base", label: "Median base salary" },
-  { key: "total", label: "Median total pay" },
-  { key: "extra", label: "Extra from OT & other pay" },
+  { key: "extra", label: "Median OT & other pay" },
   { key: "change", label: "5-yr change in base salary" }
 ];
 
@@ -59,8 +61,7 @@ export function jobRowsHtml(jobs, { maxExtra, compareYear, expanded = new Set() 
           `<span class="job-chevron" aria-hidden="true"></span><span class="job-name">${escape(job.label)}</span></button></th>` +
         `<td data-col="employees" data-label="Employees">${count(job.employees)}</td>` +
         `<td data-col="base" data-label="Median base" title="${dollars(job.base)}">${money(job.base)}</td>` +
-        `<td data-col="total" data-label="Median total pay" title="${dollars(job.total)}">${money(job.total)}</td>` +
-        `<td data-col="extra" data-label="Extra from OT & other" title="${job.extra < 0 ? "−" : ""}${dollars(Math.abs(job.extra))}">` +
+        `<td data-col="extra" data-label="Median OT & other" title="${dollars(job.extra)}">` +
           `<span class="extra-cell"><span class="extra-bar" aria-hidden="true"><span style="width:${bar.toFixed(1)}%"></span></span>${money(job.extra)}</span></td>` +
         `<td data-col="change" data-label="5-yr change">${changeCell(job.change, compareYear)}</td>` +
       "</tr>" +
