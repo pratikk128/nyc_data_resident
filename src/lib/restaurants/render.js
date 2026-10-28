@@ -124,12 +124,16 @@ export function categoryListHtml(cmp, benchmark) {
       `<p class="sr-only">${rateText(r.value)} per inspection here vs ${rateText(r.mean)} at ${where}` +
         `${r.mean > 0 ? ` (${timesText(r.value / r.mean)})` : ""}. ` +
         `Cited at ${count(r.inspections)} of ${count(cmp.inspections)} inspections.</p>` +
-      `<div class="cat-bars" aria-hidden="true">` +
-        catBarHtml("Here", r.value, top, "is-here") +
-        catBarHtml(whereShort, r.mean, top, "") +
-      `</div>` +
-      `<p class="cat-meta" aria-hidden="true">Per inspection · cited at <strong>${count(r.inspections)} of ${count(cmp.inspections)}</strong> inspections</p>` +
+      `<p class="cat-meta" aria-hidden="true">Cited at <strong>${count(r.inspections)} of ${count(cmp.inspections)}</strong> inspections</p>` +
       `<p class="cat-blurb">${escape(r.blurb)}</p>` +
+      // The per-inspection numbers are there on request.
+      `<details class="cat-compare"><summary>Compare: here vs ${whereShort === "NYC average" ? whereShort : "similar places"}</summary>` +
+        `<div class="cat-bars" aria-hidden="true">` +
+          catBarHtml("Here", r.value, top, "is-here") +
+          catBarHtml(whereShort, r.mean, top, "") +
+        `</div>` +
+        `<p class="cat-meta" aria-hidden="true">Violations per inspection</p>` +
+      `</details>` +
     `</li>`;
   }).join("") + `</ol>`;
 }
