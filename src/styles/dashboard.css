@@ -38,6 +38,21 @@
 }
 .breadcrumb a { font-weight: 600; }
 
+/* Breadcrumb on the left, "Data updated as of" on the right; stacks on narrow screens */
+.dash-topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+}
+.data-updated {
+  margin: 0;
+  font-size: .875rem;
+  color: var(--ink-soft);
+}
+.data-updated time { font-weight: 600; color: var(--ink); }
+
 .page-head { margin-top: var(--space-4); }
 .page-head h1 {
   font-size: clamp(1.75rem, 1.3rem + 1.8vw, 2.5rem);

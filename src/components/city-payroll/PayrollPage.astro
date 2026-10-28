@@ -42,6 +42,7 @@ const current = SECTIONS.find((s) => s.id === section)!;
   category="City Government"
   tone="blue"
   lastRefreshed={date(payroll.refreshedAt)}
+  dataUpdated={payroll.dataset.sourceUpdatedAt}
 >
   <header class="page-head">
     <h1>City Payroll Spending</h1>
