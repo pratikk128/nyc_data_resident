@@ -7,11 +7,14 @@
  * Search and detail data come from /api/restaurants/* (server-side, cached).
  * A deep link (?camis=50066715) is rendered on the server and passed in as
  * `initial`, so a shared link shows the restaurant without waiting for script.
+ * A search in the URL (?name=&boro=&place=) is rendered there too, as
+ * `initialSearch`, so the form also works as a plain GET without JavaScript.
  */
 import { BOROUGHS } from '../../lib/restaurants/inspections.js';
 import { MAX_NAME_LENGTH, MAX_PLACE_LENGTH } from '../../lib/restaurants/soql.js';
 import { RATE_LIMITED_TEXT } from '../../lib/server/rate-limit.js';
 import RestaurantDetail from './RestaurantDetail.astro';
+import { resultCardsHtml, searchStatusText } from '../../lib/restaurants/render.js';
 import { date } from '../../lib/format.js';
 
 interface Props {
@@ -19,9 +22,15 @@ interface Props {
   initial: any;               // restaurantDetail() result for ?camis=, or null
   initialError: string | null; // 'not-found' | 'upstream' when ?camis= couldn't be loaded
   benchmark: 'citywide' | 'similar';
+  searchInput: { name: string; boro: string; place: string }; // from the URL, to fill the form
+  initialSearch: { data?: { results: any[]; more: boolean }; error?: string } | null;
 }
 
-const { meta, initial, initialError, benchmark } = Astro.props;
+const { meta, initial, initialError, benchmark, searchInput, initialSearch } = Astro.props;
+const initialResults = initialSearch?.data?.results ?? [];
+const initialStatus = initialSearch?.data
+  ? searchStatusText(initialSearch.data, { named: Boolean(searchInput.name.trim()), near: false })
+  : initialSearch?.error ?? '';
 const datasetUrl = meta?.url ?? 'https://data.cityofnewyork.us/d/43nn-pn8j';
 const datasetName = meta?.name ?? 'DOHMH New York City Restaurant Inspection Results';
 // Safe inside <script type="application/json">
@@ -51,21 +60,21 @@ const deepLink = Boolean(initial || initialError);
   <form class="rest-search" role="search" action="/restaurant-inspections/" method="get" novalidate data-search-form>
     <div class="field field-name">
       <label class="filter-label" for="rest-name">Restaurant name</label>
-      <input class="search-input" id="rest-name" name="name" type="search" minlength="2" maxlength={MAX_NAME_LENGTH}
+      <input class="search-input" id="rest-name" name="name" type="search" minlength="2" maxlength={MAX_NAME_LENGTH} value={searchInput.name}
         autocomplete="off" spellcheck="false" placeholder="Try “Joe’s Pizza”"
         aria-describedby="rest-name-hint" aria-controls="rest-results" />
-      <p class="field-hint" id="rest-name-hint">At least 2 letters, or leave it blank and use “Near me”. Results update as you type.</p>
+      <p class="field-hint" id="rest-name-hint">At least 2 letters, or leave it blank and search by street, ZIP or “Near me”. Results update as you type.</p>
     </div>
     <div class="field">
       <label class="filter-label" for="rest-boro">Borough</label>
       <select class="filter-select" id="rest-boro" name="boro">
         <option value="All">All boroughs</option>
-        {BOROUGHS.map((b) => <option value={b}>{b}</option>)}
+        {BOROUGHS.map((b) => <option value={b} selected={b === searchInput.boro}>{b}</option>)}
       </select>
     </div>
     <div class="field">
       <label class="filter-label" for="rest-place">Street or ZIP <span class="field-optional">(optional)</span></label>
-      <input class="search-input" id="rest-place" name="place" type="search" maxlength={MAX_PLACE_LENGTH} autocomplete="off" spellcheck="false"
+      <input class="search-input" id="rest-place" name="place" type="search" maxlength={MAX_PLACE_LENGTH} value={searchInput.place} autocomplete="off" spellcheck="false"
         placeholder="Try “123 Broadway” or “11211”" aria-controls="rest-results" />
     </div>
     <div class="field field-near">
@@ -74,12 +83,18 @@ const deepLink = Boolean(initial || initialError);
         <span data-near-label>Near me</span>
       </button>
     </div>
-    <button type="submit" class="sr-only">Search</button>
+    <button type="submit" class="sr-only" data-submit>Search</button>
+    {/* Without script, "Near me" can't work and results don't update as you type, so a visible Search button takes its place */}
+    <noscript>
+      <style is:inline>[data-near], [data-submit] { display: none !important; }</style>
+      <div class="field field-near"><button type="submit" class="near-btn">Search</button></div>
+    </noscript>
   </form>
 
-  <p class="rest-status" role="status" aria-live="polite" data-status></p>
-  <ul class="rest-results" id="rest-results" aria-label="Matching restaurants" data-results></ul>
-  <p class="rest-keys" data-keys hidden>Tip: use the ↑ and ↓ keys to move through results, and Enter to open one.</p>
+  <p class="rest-status" role="status" aria-live="polite" data-status>{initialStatus}</p>
+  <ul class="rest-results" id="rest-results" aria-label="Matching restaurants" data-results data-ssr={initialSearch ? '' : undefined}
+    set:html={resultCardsHtml(initialResults)}></ul>
+  <p class="rest-keys" data-keys hidden={initialResults.length < 2}>Tip: use the ↑ and ↓ keys to move through results, and Enter to open one.</p>
 </section>
 
 {!deepLink && <RestaurantDetail initial={initial} errorText={errorText} benchmark={benchmark} />}
@@ -147,17 +162,13 @@ const deepLink = Boolean(initial || initialError);
 <script type="application/json" id="rest-initial" set:html={initialJson}></script>
 
 <script>
-  import { detailHtml, resultCardsHtml, categoryListHtml, benchmarkNote, detailHref, similarAvailable } from '../../lib/restaurants/render.js';
-  import { inNyc } from '../../lib/restaurants/soql.js';
+  import { detailHtml, resultCardsHtml, categoryListHtml, benchmarkNote, detailHref, similarAvailable, searchStatusText, UPSTREAM_TEXT } from '../../lib/restaurants/render.js';
+  import { inNyc, normalizeSearch } from '../../lib/restaurants/soql.js';
 
   const MSG = {
-    tooShort: 'Type at least 2 letters of the restaurant name.',
     loading: 'Checking the kitchen…',
-    empty: 'No matches. Try a nearby ZIP code or fewer words.',
-    error: 'Couldn’t reach NYC Open Data. Their servers might be stuck behind a double-parked truck. Try again in a minute.',
+    error: UPSTREAM_TEXT,
     notFound: 'We couldn’t find that restaurant. The link may be mistyped, or the restaurant may have closed and dropped out of the data.',
-    more: (n: number) => `More restaurants match than we can show, so here are the first ${n}. Add a borough or ZIP code to narrow it down.`,
-    moreNear: (n: number) => `More restaurants are nearby than we can show, so here are the first ${n}. Type a name to narrow it down.`,
     nearOutside: '“Near me” only works inside New York City. Try a street or ZIP code instead.'
   };
 
@@ -235,11 +246,13 @@ const deepLink = Boolean(initial || initialError);
     const name = nameInput.value.trim();
     setUrl({ name: name || null, boro: boroSelect.value === 'All' ? null : boroSelect.value, place: placeInput.value.trim() || null });
 
-    // With "near me" on, an empty name lists everything nearby.
-    if (name.length < 2 && !(near && !name)) {
+    // The server's rules: an empty name works with "near me" or a street or ZIP.
+    const place = placeInput.value.trim();
+    const invalid = normalizeSearch({ name, boro: boroSelect.value, where: place, lat: near?.lat, lng: near?.lng }).error;
+    if (invalid) {
       list.replaceChildren();
       keysHint.hidden = true;
-      status.textContent = name || placeInput.value.trim() ? MSG.tooShort : '';
+      status.textContent = name || place ? invalid : '';
       nameInput.setAttribute('aria-invalid', String(name.length === 1));
       return;
     }
@@ -256,10 +269,7 @@ const deepLink = Boolean(initial || initialError);
       if (!res.ok || !Array.isArray(data?.results)) throw new Error('upstream');
       list.innerHTML = resultCardsHtml(data.results);
       keysHint.hidden = data.results.length < 2;
-      const n = data.results.length;
-      status.textContent = n === 0 ? MSG.empty
-        : data.more ? (near && !name ? MSG.moreNear(n) : MSG.more(n))
-        : `${n} ${n === 1 ? 'restaurant matches' : 'restaurants match'}${near ? ' within about half a mile' : ''}.`;
+      status.textContent = searchStatusText(data, { named: Boolean(name), near: Boolean(near) });
     } catch (err: any) {
       if (err.name === 'AbortError') return;
       list.replaceChildren();
@@ -452,8 +462,9 @@ const deepLink = Boolean(initial || initialError);
 
   // ---------- Start ----------
   const params = new URL(location.href).searchParams;
-  fillSearch(params);
   if (current) syncCompareUrl(); // a shared ?compare=similar for a restaurant that can't use it
-  if (nameInput.value.trim().length >= 2) runSearch();
+  // The server already ran the search in the URL, unless the browser kept edited fields.
+  const changed = fillSearch(params);
+  if (list.dataset.ssr === undefined || changed) runSearch();
   if (!current && params.get('camis') && detail.hidden) openRestaurant(params.get('camis')!);
 </script>

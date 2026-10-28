@@ -334,6 +334,15 @@ test("near me works without a name, but not with a 1-letter one", () => {
   assert.ok(normalizeSearch({}).error);
 });
 
+test("a street or ZIP works without a name, but not with a 1-letter one", () => {
+  assert.equal(searchWhere(normalizeSearch({ where: "11211" }).query), "zipcode = '11211'");
+  assert.equal(searchWhere(normalizeSearch({ where: "broadway", boro: "Manhattan" }).query),
+    "boro = 'Manhattan' AND upper(street) like '%BROADWAY%'");
+  assert.ok(normalizeSearch({ where: "b" }).error);
+  assert.ok(normalizeSearch({ boro: "Manhattan" }).error);
+  assert.ok(normalizeSearch({ name: "j", where: "11211" }).error);
+});
+
 test("names are title-cased for display", () => {
   assert.equal(titleCase("JOE'S PIZZA"), "Joe's Pizza");
   assert.equal(titleCase("O'BRIEN'S PUB"), "O'Brien's Pub");

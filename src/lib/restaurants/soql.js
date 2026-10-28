@@ -57,12 +57,16 @@ export function inNyc(lat, lng) {
   return lat > 40.4 && lat < 41 && lng > -74.3 && lng < -73.6;
 }
 
+export const TOO_SHORT_TEXT = "Type at least 2 letters of the restaurant name, or a street or ZIP code.";
+
 // Validates and normalizes raw search input. Returns { error } or { query }.
-// The name can be left out with "near me", to see everything close by.
+// The name can be left out with "near me" or a street or ZIP (2+ characters),
+// to see everything there.
 export function normalizeSearch({ name, boro, where, lat, lng } = {}) {
   const cleanName = likeTerm(name);
   const hasNear = lat != null && lng != null && lat !== "" && lng !== "";
-  if (cleanName.length < 2 && !(hasNear && !cleanName)) return { error: "Type at least 2 letters of the restaurant name." };
+  const hasPlace = likeTerm(where).length >= 2;
+  if (cleanName.length < 2 && !(!cleanName && (hasNear || hasPlace))) return { error: TOO_SHORT_TEXT };
   if (cleanName.length > MAX_NAME_LENGTH) return { error: `Keep the restaurant name under ${MAX_NAME_LENGTH} characters.` };
   if (likeTerm(where).length > MAX_PLACE_LENGTH) return { error: `Keep the street or ZIP under ${MAX_PLACE_LENGTH} characters.` };
   const query = {};

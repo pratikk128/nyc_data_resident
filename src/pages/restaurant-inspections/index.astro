@@ -1,14 +1,17 @@
 ---
 /*
  * NYC Restaurant Inspections. Rendered on demand (not prerendered) so the
- * "Data updated" date comes from the dataset's live metadata and a shared
- * link like ?camis=50066715 opens straight to that restaurant.
+ * "Data updated" date comes from the dataset's live metadata, a shared
+ * link like ?camis=50066715 opens straight to that restaurant, and a search
+ * (?name=&boro=&place=) shows its results even without JavaScript.
  */
 import InspectionsPage from '../../components/restaurant-inspections/InspectionsPage.astro';
 import RestaurantLookup from '../../components/restaurant-inspections/RestaurantLookup.astro';
 import { getMetadata } from '../../lib/server/restaurants.js';
-import { loadRestaurant, isCamis } from '../../lib/server/restaurant-page.js';
-import { RateLimited } from '../../lib/server/rate-limit.js';
+import { loadRestaurant, loadSearch, isCamis } from '../../lib/server/restaurant-page.js';
+import { normalizeSearch } from '../../lib/restaurants/soql.js';
+import { RateLimited, RATE_LIMITED_TEXT } from '../../lib/server/rate-limit.js';
+import { UPSTREAM_TEXT } from '../../lib/restaurants/render.js';
 
 export const prerender = false;
 
@@ -37,9 +40,28 @@ if (camis) {
     }
   }
 }
+// A submitted search. "Near me" needs the browser's location, so it's script-only.
+const params = Astro.url.searchParams;
+const searchInput = { name: params.get('name') ?? '', boro: params.get('boro') ?? 'All', place: params.get('place') ?? '' };
+let initialSearch: { data?: any; error?: string } | null = null;
+let searchFailed = false; // Socrata or the rate limit, not the reader's input
+if (searchInput.name.trim() || searchInput.place.trim() || params.has('boro')) {
+  const { error, query } = normalizeSearch({ name: searchInput.name, boro: searchInput.boro, where: searchInput.place });
+  if (error) initialSearch = { error };
+  else {
+    try {
+      initialSearch = { data: await loadSearch(query, Astro.url, Astro.locals.cfContext, Astro.clientAddress) };
+    } catch (err) {
+      if (!(err instanceof RateLimited)) console.error(err);
+      searchFailed = true;
+      initialSearch = { error: err instanceof RateLimited ? RATE_LIMITED_TEXT : UPSTREAM_TEXT };
+    }
+  }
+}
+
 if (initialError === 'not-found') Astro.response.status = 404;
 if (initialError === 'rate-limited') Astro.response.status = 429;
-Astro.response.headers.set('Cache-Control', initialError ? 'no-store' : 'public, max-age=300');
+Astro.response.headers.set('Cache-Control', initialError || searchFailed ? 'no-store' : 'public, max-age=300');
 
 const benchmark = Astro.url.searchParams.get('compare') === 'similar' ? 'similar' : 'citywide';
 const title = initial ? `${initial.name} inspections | NYC Restaurant Inspections` : 'NYC Restaurant Inspections';
@@ -55,5 +77,6 @@ const description = initial
   path={initial ? `/restaurant-inspections/?camis=${initial.camis}` : '/restaurant-inspections/'}
   meta={meta}
 >
-  <RestaurantLookup meta={meta} initial={initial} initialError={initialError} benchmark={benchmark} />
+  <RestaurantLookup meta={meta} initial={initial} initialError={initialError} benchmark={benchmark}
+    searchInput={searchInput} initialSearch={initialSearch} />
 </InspectionsPage>

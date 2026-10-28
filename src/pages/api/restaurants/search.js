@@ -7,10 +7,10 @@
  * are rate limited per client (SEARCH_RATE_LIMITER in wrangler.jsonc).
  */
 import { normalizeSearch } from "../../../lib/restaurants/soql.js";
-import { searchRestaurants, SEARCH_TTL } from "../../../lib/server/restaurants.js";
-import { edgeCached } from "../../../lib/server/cache.js";
+import { SEARCH_TTL } from "../../../lib/server/restaurants.js";
+import { loadSearch } from "../../../lib/server/restaurant-page.js";
 import { json, upstreamError } from "../../../lib/server/json.js";
-import { checkRateLimit, RateLimited, RATE_LIMITED_TEXT } from "../../../lib/server/rate-limit.js";
+import { RateLimited, RATE_LIMITED_TEXT } from "../../../lib/server/rate-limit.js";
 
 export const prerender = false;
 
@@ -21,13 +21,8 @@ export async function GET({ url, locals, clientAddress }) {
   });
   if (error) return json({ error }, { status: 400 });
 
-  // The cache key is the normalized query, so "joe " and "JOE" share an entry.
-  const key = `restaurants/search/${encodeURIComponent(JSON.stringify(query))}`;
   try {
-    const data = await edgeCached(url, key, SEARCH_TTL, async () => {
-      await checkRateLimit("SEARCH_RATE_LIMITER", clientAddress);
-      return searchRestaurants(query);
-    }, locals.cfContext);
+    const data = await loadSearch(query, url, locals.cfContext, clientAddress);
     return json(data, { maxAge: SEARCH_TTL });
   } catch (err) {
     if (err instanceof RateLimited) {

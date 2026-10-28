@@ -9,6 +9,8 @@ import { gradeInfo, SCORE_BANDS, MIN_REPEAT_INSPECTIONS } from "./inspections.js
 
 export const escape = (str) => String(str ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
+export const UPSTREAM_TEXT = "Couldn’t reach NYC Open Data. Their servers might be stuck behind a double-parked truck. Try again in a minute.";
+
 export const SCORE_HINT = "Lower is better. A = 0–13 points, B = 14–27, C = 28 or more.";
 
 // Big badge: a letter for A/B/C, words for not-yet-graded and pending.
@@ -43,6 +45,18 @@ export function resultCardsHtml(results) {
       `</a></li>`
     );
   }).join("");
+}
+
+// The line above the results. `named`: the search has a name; `near`: "near me" is on.
+export function searchStatusText({ results, more }, { named, near }) {
+  const n = results.length;
+  if (n === 0) return "No matches. Try a nearby ZIP code or fewer words.";
+  if (more) {
+    return named
+      ? `More restaurants match than we can show, so here are the first ${n}. Add a borough or ZIP code to narrow it down.`
+      : `More restaurants ${near ? "are nearby" : "match"} than we can show, so here are the first ${n}. Type a name to narrow it down.`;
+  }
+  return `${n} ${n === 1 ? "restaurant matches" : "restaurants match"}${near ? " within about half a mile" : ""}.`;
 }
 
 // "Cycle Inspection / Initial Inspection" → "Cycle Inspection · Initial Inspection"
