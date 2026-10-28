@@ -1,0 +1,244 @@
+---
+/*
+ * "Has it always been this good?": coliform share and median chlorine for
+ * every month back to 2015, with E. coli detections marked. Data comes from
+ * the daily jobs on the server and is inlined for the chart script (about 140
+ * months, no API call from the page). Tables and CSVs are rendered here.
+ */
+import { historySeries, historyCsvHref } from '../../lib/water/history.js';
+import { historyTakeaway, monthLabel, plainDescription, followUpText, isResample, sharePct } from '../../lib/water/stats.js';
+import { measurementText } from '../../lib/water/parse.js';
+import { REFERENCES } from '../../lib/water/config.js';
+import { count, date } from '../../lib/format.js';
+import sitesFile from '../../data/water-sites.json';
+
+interface Props {
+  monthly: any | null;
+  detections: any | null;
+  error: boolean;
+}
+const { monthly, detections, error } = Astro.props;
+
+const series = monthly?.months.length ? historySeries(monthly, detections?.detections ?? []) : null;
+const takeaway = monthly ? historyTakeaway(monthly.months) : '';
+const range = series ? `${monthLabel(series.months[0], 'short')}–${monthLabel(series.months[series.months.length - 1], 'short')}` : '';
+const gaps: string[] = monthly?.gaps ?? [];
+const ecoliList = Object.values(series?.ecoli ?? {}).flat().sort((a: any, b: any) => b.date.localeCompare(a.date));
+const sites = new Map(sitesFile.sites.map((s) => [s.site, s]));
+const where = (code: string) => (sites.has(code) ? plainDescription(sites.get(code)!.description) : 'Location not in DEP’s site list');
+
+const peak = series ? series.rows.reduce((a, r) => (r.coliTested && r.coliPositive / r.coliTested > (a.coliTested ? a.coliPositive / a.coliTested : -1) ? r : a), series.rows[0]) : null;
+const chlorineValues = series ? Object.values(series.chlorine).filter((v): v is number => v != null) : [];
+// Titles state the finding only when the data supports it.
+const peakShare = peak?.coliTested ? peak.coliPositive / peak.coliTested : 0;
+const coliformTitle = peakShare < REFERENCES.coliform.maxPositiveShare
+  ? 'Coliform has stayed under the 5% review level every month'
+  : 'Share of samples with coliform, by month';
+const chlorineTitle = chlorineValues.length && Math.min(...chlorineValues) > 0 && Math.max(...chlorineValues) <= REFERENCES.chlorine.max
+  ? 'Chlorine has stayed inside the normal range every month'
+  : 'Median chlorine, by month';
+const gapText = gaps.length ? `No samples in the data for ${new Intl.ListFormat('en', { type: 'conjunction' }).format(gaps.map((g) => monthLabel(g, 'short')))}; the lines break there.` : '';
+
+// Rows as arrays to keep the inlined JSON small: [month, samples, coliTested, coliPositive, chlorineMedian].
+const chartData = series && {
+  rows: series.rows.map((r) => [r.month, r.samples, r.coliTested, r.coliPositive, r.chlorineMedian]),
+  ecoli: Object.fromEntries(Object.entries(series.ecoli).map(([k, list]: [string, any]) => [k, list.length])),
+  coliformRef: REFERENCES.coliform.maxPositiveShare,
+  chlorineMax: REFERENCES.chlorine.max
+};
+---
+
+<section class="dash-section" id="history" aria-labelledby="history-title">
+  <header class="section-head">
+    <h2 id="history-title">Has it always been this good?</h2>
+    <p class="section-intro">Month by month since 2015: how often bacteria turned up, and how much chlorine was in the pipes.</p>
+  </header>
+
+  {error && (
+    <p class="callout callout-heads-up" role="alert">
+      Couldn't reach NYC Open Data. Their servers might be stuck behind a double-parked truck. Try again in a minute.
+    </p>
+  )}
+  {!error && !series && <p class="water-empty">No samples in the data yet. Even the pigeons are waiting.</p>}
+
+  {series && (
+    <>
+      <p class="water-takeaway">{takeaway}</p>
+
+      <figure class="chart-frame" id="coliform-frame" aria-labelledby="coliform-title" data-water-chart="coliform" data-chart={JSON.stringify(chartData)}>
+        <div class="chart-head">
+          <div>
+            <h3 class="chart-title" id="coliform-title">{coliformTitle}</h3>
+            <p class="chart-subtitle">
+              Share of routine samples with any coliform bacteria, by month, {range}. Peak:
+              {' '}{peak && sharePct(peak.coliPositive, peak.coliTested)} in {peak && monthLabel(peak.month)}.
+              The dashed line is the 5% level that triggers a federal review.
+            </p>
+          </div>
+        </div>
+        <ul class="legend" aria-label="Legend">
+          <li><span class="swatch water-swatch-line" aria-hidden="true"></span>Coliform, % of samples</li>
+          <li><span class="swatch water-swatch-marker" aria-hidden="true"></span>Month with E. coli found ({ecoliList.length} {ecoliList.length === 1 ? 'sample' : 'samples'} in all)</li>
+        </ul>
+        <div class="chart">
+          <noscript><p class="chart-fallback">Turn on JavaScript to see the chart, or open the table below.</p></noscript>
+          <div class="chart-tooltip" role="status" aria-live="polite" hidden></div>
+        </div>
+        <p class="chart-hint">Hover or tap the chart for a month's numbers. Using a keyboard? Tab to the chart, then use the arrow keys.</p>
+        {gapText && <p class="chart-hint">{gapText}</p>}
+        <div class="chart-actions">
+          <details class="data-table">
+            <summary>See the numbers as a table</summary>
+            <div class="table-scroll" tabindex="0" role="region" aria-label="Bacteria and chlorine by month, table">
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">Month</th>
+                    <th scope="col">Samples</th>
+                    <th scope="col">With coliform</th>
+                    <th scope="col">% with coliform</th>
+                    <th scope="col">With E. coli</th>
+                    <th scope="col">Median chlorine (mg/L)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...series.rows].reverse().map((r) => (
+                    <tr>
+                      <th scope="row">{monthLabel(r.month, 'short')}</th>
+                      {r.samples ? (
+                        <>
+                          <td>{count(r.samples)}</td>
+                          <td>{count(r.coliPositive)}</td>
+                          <td>{sharePct(r.coliPositive, r.coliTested)}</td>
+                          <td>{r.ecoliPositive}</td>
+                          <td>{r.chlorineMedian ?? '–'}</td>
+                        </>
+                      ) : <td colspan="5" class="water-cell-gap">No samples in the data</td>}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </details>
+          <a class="download-link" href={historyCsvHref(series.rows)} download="nyc-drinking-water-by-month.csv">Download CSV</a>
+        </div>
+      </figure>
+
+      <figure class="chart-frame" id="chlorine-frame" aria-labelledby="chlorine-title" data-water-chart="chlorine">
+        <div class="chart-head">
+          <div>
+            <h3 class="chart-title" id="chlorine-title">{chlorineTitle}</h3>
+            <p class="chart-subtitle">
+              Median free chlorine of routine samples, by month, {range}, in mg/L. Monthly medians ranged from
+              {' '}{Math.min(...chlorineValues)} to {Math.max(...chlorineValues)} mg/L. The shaded normal range runs from
+              detectable up to the EPA maximum of 4.0 mg/L, far above the top of this chart.
+            </p>
+          </div>
+        </div>
+        <ul class="legend" aria-label="Legend">
+          <li><span class="swatch water-swatch-line" aria-hidden="true"></span>Median chlorine</li>
+          <li><span class="swatch water-swatch-band" aria-hidden="true"></span>Normal range (detectable to 4.0 mg/L)</li>
+        </ul>
+        <div class="chart">
+          <noscript><p class="chart-fallback">Turn on JavaScript to see the chart. The table above has the same numbers.</p></noscript>
+          <div class="chart-tooltip" role="status" aria-live="polite" hidden></div>
+        </div>
+        <p class="chart-hint">The numbers are in the table under the chart above.</p>
+      </figure>
+
+      <div class="water-ecoli-history">
+        <h3 class="water-h3">Every E. coli detection since {monthLabel(series.months[0])}</h3>
+        {ecoliList.length ? (
+          <div class="table-scroll" tabindex="0" role="region" aria-label="E. coli detections">
+            <table>
+              <thead><tr><th scope="col">Date</th><th scope="col">Station</th><th scope="col">E. coli (MPN/100 mL)</th><th scope="col">Follow-up</th></tr></thead>
+              <tbody>
+                {ecoliList.map((d: any) => (
+                  <tr>
+                    <th scope="row">{date(d.date)}{isResample(d.sampleClass) && <span class="water-cell-sub">Resample</span>}</th>
+                    <td class="water-cell-wrap">{d.site}<span class="water-cell-sub">{where(d.site)}</span></td>
+                    <td>{measurementText(d.ecoli)}</td>
+                    <td class="water-cell-wrap">{followUpText(d)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : <p class="water-note">None in the data.</p>}
+      </div>
+    </>
+  )}
+</section>
+
+<script>
+  import { mountMonthlyLine } from '../../lib/water/charts.js';
+  import { monthLabel, sharePct } from '../../lib/water/stats.js';
+  import { count } from '../../lib/format.js';
+
+  const coliformFrame = document.querySelector<HTMLElement>('[data-water-chart="coliform"]');
+  const chlorineFrame = document.querySelector<HTMLElement>('[data-water-chart="chlorine"]');
+
+  if (coliformFrame && chlorineFrame) {
+    const raw = JSON.parse(coliformFrame.dataset.chart!);
+    const rows: Record<string, { samples: number; coliTested: number; coliPositive: number; chlorineMedian: number | null }> = {};
+    for (const [month, samples, coliTested, coliPositive, chlorineMedian] of raw.rows) {
+      rows[month] = { samples, coliTested, coliPositive, chlorineMedian };
+    }
+    const months: string[] = raw.rows.map((r: any[]) => r[0]);
+    const d = {
+      ...raw,
+      months,
+      rows,
+      coliform: Object.fromEntries(months.map((k) => [k, rows[k].coliTested ? rows[k].coliPositive / rows[k].coliTested : null])),
+      chlorine: Object.fromEntries(months.map((k) => [k, rows[k].chlorineMedian]))
+    };
+    const values = Object.values(d.coliform).filter((v) => v != null) as number[];
+    const peak = Math.max(...values, d.coliformRef);
+    const step = peak > 0.04 ? 0.01 : 0.005;
+    const yMax = Math.ceil((peak * 1.08) / step) * step;
+    const pctTicks = Array.from({ length: Math.round(yMax / step) + 1 }, (_, i) => i * step);
+    const noData = (k: string) => `<p class="tt-title">${monthLabel(k)}</p><p class="tt-note">No samples in the data for this month.</p>`;
+
+    mountMonthlyLine(coliformFrame, {
+      months: d.months,
+      values: d.coliform,
+      yMax,
+      ticks: pctTicks.filter((_, i) => pctTicks.length <= 7 || i % 2 === 0),
+      fmt: (v: number) => `${+(v * 100).toFixed(1)}%`,
+      ref: { value: d.coliformRef, label: '5% federal review trigger' },
+      markers: d.ecoli,
+      summary: `Line chart of the share of samples with coliform bacteria each month from ${monthLabel(d.months[0])} to ` +
+        `${monthLabel(d.months[d.months.length - 1])}. Highest: ${sharePct(Math.max(...values), 1)}. ` +
+        `E. coli was found in ${Object.keys(d.ecoli).length} months. The table below has every month.`,
+      tooltip: (k: string) => {
+        const r = d.rows[k];
+        if (!r?.samples) return noData(k);
+        const e = d.ecoli[k];
+        return `<p class="tt-title">${monthLabel(k)}</p><table class="tt-table"><tbody>` +
+          `<tr><th>With coliform</th><td>${count(r.coliPositive)} of ${count(r.coliTested)} (${sharePct(r.coliPositive, r.coliTested)})</td></tr>` +
+          `<tr><th>With E. coli</th><td>${e ? e : 'None'}</td></tr></tbody></table>`;
+      }
+    });
+
+    const cl = Object.values(d.chlorine).filter((v) => v != null) as number[];
+    const clMax = Math.max(1, Math.ceil(Math.max(...cl) * 1.15 * 4) / 4);
+    mountMonthlyLine(chlorineFrame, {
+      months: d.months,
+      values: d.chlorine,
+      yMax: clMax,
+      ticks: Array.from({ length: Math.round(clMax / 0.25) + 1 }, (_, i) => i * 0.25),
+      fmt: (v: number) => v.toFixed(2),
+      band: { from: 0, to: d.chlorineMax, label: 'Normal range continues up to 4.0 mg/L ↑' },
+      summary: `Line chart of median free chlorine each month from ${monthLabel(d.months[0])} to ` +
+        `${monthLabel(d.months[d.months.length - 1])}, between ${Math.min(...cl)} and ${Math.max(...cl)} mg/L. ` +
+        `The normal range is detectable up to 4.0 mg/L.`,
+      tooltip: (k: string) => {
+        const r = d.rows[k];
+        if (!r?.samples) return noData(k);
+        return `<p class="tt-title">${monthLabel(k)}</p><table class="tt-table"><tbody>` +
+          `<tr><th>Median chlorine</th><td>${r.chlorineMedian ?? '–'} mg/L</td></tr>` +
+          `<tr><th>Samples</th><td>${count(r.samples)}</td></tr></tbody></table>`;
+      }
+    });
+  }
+</script>

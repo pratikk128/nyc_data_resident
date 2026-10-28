@@ -1,0 +1,24 @@
+---
+/*
+ * NYC Drinking Water Quality, default view: "Is my water safe right now?"
+ * Other sections live next to this file (history.astro, near-me.astro).
+ * Rendered on demand from the daily water jobs in KV (src/lib/server/water.js).
+ */
+import WaterPage from '../../components/drinking-water/WaterPage.astro';
+import ReportCardSection from '../../components/drinking-water/ReportCardSection.astro';
+import { getMetadata, getMonthly, getDetections } from '../../lib/server/water.js';
+
+export const prerender = false;
+
+const [meta, monthly, detections] = await Promise.allSettled([getMetadata(), getMonthly(), getDetections()]);
+for (const r of [meta, monthly, detections]) if (r.status === 'rejected') console.error(r.reason);
+const value = <T,>(r: PromiseSettledResult<T>) => (r.status === 'fulfilled' ? r.value : null);
+---
+
+<WaterPage
+  section="now"
+  description="Is NYC tap water safe? A plain-English report card from the city's latest month of drinking water tests: bacteria, chlorine, cloudiness and fluoride."
+  meta={value(meta)}
+>
+  <ReportCardSection monthly={value(monthly)} detections={value(detections)} error={monthly.status === 'rejected'} />
+</WaterPage>

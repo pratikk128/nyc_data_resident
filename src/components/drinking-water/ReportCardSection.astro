@@ -1,0 +1,119 @@
+---
+/*
+ * "Is my water safe right now?": a report card for the latest full month.
+ * Rendered on the server from the daily monthly and detections jobs
+ * (src/lib/server/water.js); no browser script.
+ */
+import { reportCard, monthLabel, hasEcoli, isResample, plainDescription, followUpText, STATUS_TEXT } from '../../lib/water/stats.js';
+import { measurementText } from '../../lib/water/parse.js';
+import { count, date } from '../../lib/format.js';
+import sitesFile from '../../data/water-sites.json';
+
+interface Props {
+  monthly: any | null;
+  detections: any | null;
+  error: boolean;
+}
+const { monthly, detections, error } = Astro.props;
+
+const sites = new Map(sitesFile.sites.map((s) => [s.site, s]));
+const where = (code: string) => {
+  const s = sites.get(code);
+  return s ? plainDescription(s.description) : 'Location not in DEP’s site list';
+};
+
+const month = monthly?.completeMonth ? monthly.months.find((m: any) => m.month === monthly.completeMonth) : null;
+const tiles = month ? reportCard(month) : [];
+const ecoliAll = (detections?.detections ?? []).filter(hasEcoli);
+const ecoliThisMonth = month ? ecoliAll.filter((d: any) => d.date.startsWith(month.month)) : [];
+const lastEcoli = ecoliAll[0] ?? null; // newest first
+const ICON = { green: '✓', amber: '!', red: '✕', none: '–' };
+---
+
+<section class="dash-section" id="now" aria-labelledby="now-title">
+  <header class="section-head">
+    <h2 id="now-title">Is my water safe right now?</h2>
+    <p class="section-intro">
+      {month
+        ? <>Results from <strong>{monthLabel(month.month)}</strong>, the latest full month in the data.</>
+        : <>A report card for the latest full month of samples.</>}
+    </p>
+  </header>
+
+  {error && (
+    <p class="callout callout-heads-up" role="alert">
+      Couldn't reach NYC Open Data. Their servers might be stuck behind a double-parked truck. Try again in a minute.
+    </p>
+  )}
+
+  {!error && !month && (
+    <p class="water-empty">No full month of samples in the data yet. Even the pigeons are waiting. Check back soon.</p>
+  )}
+
+  {month && (
+    <>
+      <p class="water-summary">
+        <strong>{count(month.n)}</strong> routine samples from <strong>{count(month.sites)}</strong> sampling stations
+        across the five boroughs.
+      </p>
+
+      <ul class="water-tiles" aria-label={`Report card for ${monthLabel(month.month)}`}>
+        {tiles.map((t) => (
+          <li class="water-tile" data-status={t.status}>
+            <p class="water-tile-status">
+              <span class="water-status-icon" aria-hidden="true">{ICON[t.status]}</span>
+              {STATUS_TEXT[t.status]}
+            </p>
+            <h3 class="water-tile-label">{t.label}</h3>
+            <p class="water-tile-value">{t.value} <span class="water-tile-unit">{t.valueLabel}</span></p>
+            <p class="water-tile-sentence">{t.sentence}</p>
+            <p class="water-tile-ref">Reference value: {t.reference.rule}</p>
+          </li>
+        ))}
+      </ul>
+      <p class="chart-hint">
+        Colors compare samples with reference values, not an official compliance finding.
+        See “How to read this data” below for sources.
+      </p>
+
+      {ecoliThisMonth.length > 0 ? (
+        <div class="callout callout-heads-up water-ecoli" role="note">
+          <h3 class="water-h3">E. coli found in {monthLabel(month.month)}</h3>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th scope="col">Station</th><th scope="col">Date</th><th scope="col">E. coli (MPN/100 mL)</th><th scope="col">Follow-up</th></tr></thead>
+              <tbody>
+                {ecoliThisMonth.map((d: any) => (
+                  <tr>
+                    <th scope="row">{d.site}<span class="water-cell-sub">{where(d.site)}</span></th>
+                    <td>{date(d.date)}{isResample(d.sampleClass) && <span class="water-cell-sub">Resample</span>}</td>
+                    <td>{measurementText(d.ecoli)}</td>
+                    <td class="water-cell-wrap">{followUpText(d)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p>
+            One positive sample doesn't by itself mean the water was unsafe. When a sample tests positive, DEP
+            resamples: federal rules call for repeat samples within 24 hours at the same station and nearby. It only
+            becomes a violation if those follow-up samples also find coliform bacteria (or aren't taken).
+          </p>
+        </div>
+      ) : (
+        <p class="water-note">
+          <strong>No E. coli in {monthLabel(month.month)}.</strong>
+          {lastEcoli && <> The most recent detection was on {date(lastEcoli.date)} at station {lastEcoli.site}{' '}
+            ({where(lastEcoli.site)}). <a href="/drinking-water/history/">See every detection since 2015</a>.</>}
+        </p>
+      )}
+
+      {monthly.completeMonth !== monthly.months[monthly.months.length - 1]?.month && (
+        <p class="water-note">
+          Samples from {monthLabel(monthly.months[monthly.months.length - 1].month)} are still being added, so this
+          report card uses {monthLabel(month.month)}.
+        </p>
+      )}
+    </>
+  )}
+</section>

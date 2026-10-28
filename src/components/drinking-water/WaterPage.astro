@@ -1,0 +1,71 @@
+---
+/*
+ * Shell shared by the NYC Drinking Water Quality views: page heading, the
+ * section cards, the "Before you read" box (always shown, on every view),
+ * the section in the default slot, the pager and the method and sources.
+ * Each view is its own page in src/pages/drinking-water/ with its own URL.
+ * Pages render on demand so the dates come from the daily data in KV.
+ */
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+import SectionNav from '../SectionNav.astro';
+import SectionPager from '../SectionPager.astro';
+import ContextBox from './ContextBox.astro';
+import AboutSection from './AboutSection.astro';
+import { date } from '../../lib/format.js';
+
+// Add a section here and a page in src/pages/drinking-water/ to add a view.
+const SECTIONS = [
+  {
+    id: 'now',
+    href: '/drinking-water/',
+    label: 'Is my water safe right now?',
+    blurb: 'A report card for the latest full month of street-side samples.'
+  },
+  {
+    id: 'history',
+    href: '/drinking-water/history/',
+    label: 'Has it always been this good?',
+    blurb: 'Bacteria and chlorine month by month, back to 2015.'
+  },
+  {
+    id: 'near-me',
+    href: '/drinking-water/near-me/',
+    label: 'What about near me?',
+    blurb: 'The sampling stations closest to an address, ZIP or borough.'
+  }
+];
+
+interface Props {
+  section: 'now' | 'history' | 'near-me';
+  description: string;
+  meta: { rowsUpdatedAt: string | null } | null;
+}
+
+const { section, description, meta } = Astro.props;
+const current = SECTIONS.find((s) => s.id === section)!;
+Astro.response.headers.set('Cache-Control', 'public, max-age=3600');
+---
+
+<DashboardLayout
+  title={section === 'now' ? 'NYC Drinking Water Quality' : `${current.label} | NYC Drinking Water Quality`}
+  description={description}
+  path={current.href}
+  category="Environment"
+  lastRefreshed={meta?.rowsUpdatedAt ? date(meta.rowsUpdatedAt) : undefined}
+  dataUpdated={meta?.rowsUpdatedAt ?? undefined}
+>
+  <header class="page-head">
+    <h1>NYC Drinking Water Quality</h1>
+    <p>Every month, NYC tests water from hundreds of sampling stations along its pipes. Here's what those tests found, in plain English.</p>
+  </header>
+
+  <SectionNav sections={SECTIONS} current={section} label="NYC Drinking Water Quality sections" />
+
+  <ContextBox meta={meta} />
+
+  <slot />
+
+  <SectionPager sections={SECTIONS} current={section} />
+
+  <AboutSection meta={meta} />
+</DashboardLayout>

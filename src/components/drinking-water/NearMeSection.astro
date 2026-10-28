@@ -1,0 +1,305 @@
+---
+/*
+ * "What about near me?": pick a borough and stations, or search an address or
+ * ZIP for the 3 nearest stations. Each picked station gets a card with 12
+ * months of chlorine and turbidity (sparklines against the citywide median)
+ * and any bacteria found. The station list (from src/data/water-sites.json,
+ * only stations sampled in the last 12 months) is inlined; the card data
+ * comes from /api/water/stations. State lives in the URL:
+ *   ?boro=QUEENS&sites=79150,79450&lat=40.69&lon=-73.76&place=...
+ */
+import { BOROUGHS, NEAREST_COUNT, MAX_SELECTED } from '../../lib/water/config.js';
+import { monthLabel } from '../../lib/water/stats.js';
+
+interface Props {
+  stations: { site: string; place: string; borough: string | null; lat: number; lon: number }[];
+  months: string[];
+  unlocated: number;
+  error: boolean;
+}
+const { stations, months, unlocated, error } = Astro.props;
+const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(months[months.length - 1], 'short')}` : '';
+---
+
+<section class="dash-section" id="near-me" aria-labelledby="near-title"
+  data-near-me data-stations={JSON.stringify(stations)} data-range={range}>
+  <header class="section-head">
+    <h2 id="near-title">What about near me?</h2>
+    <p class="section-intro">
+      Find the sampling stations closest to you and see their last 12 months{range && <> ({range})</>}, next to the
+      citywide median. Stations sit on street mains, so “nearest” is about the pipes under your block, not your building.
+    </p>
+  </header>
+
+  {error ? (
+    <p class="callout callout-heads-up" role="alert">
+      Couldn't reach NYC Open Data. Their servers might be stuck behind a double-parked truck. Try again in a minute.
+    </p>
+  ) : (
+    <>
+      <form class="water-search" data-search novalidate>
+        <div class="field water-field-wide">
+          <label class="filter-label" for="water-q">Address or ZIP code <span class="field-optional">(optional)</span></label>
+          <input class="search-input" id="water-q" name="q" type="search" autocomplete="street-address"
+            placeholder="Try 350 5th Ave, or 11211" maxlength="120" aria-describedby="water-q-hint" />
+          <span class="field-hint" id="water-q-hint">We'll pick the {NEAREST_COUNT} nearest stations.</span>
+        </div>
+        <div class="field water-field-btn">
+          <button class="near-btn water-go" type="submit">Find nearest</button>
+        </div>
+        <div class="field">
+          <label class="filter-label" for="water-boro">Borough</label>
+          <select class="filter-select" id="water-boro" name="boro">
+            <option value="">All boroughs</option>
+            {BOROUGHS.map((b) => <option value={b.value}>{b.label}</option>)}
+          </select>
+        </div>
+        <div class="field water-field-wide">
+          <label class="filter-label" for="water-station">Add a station</label>
+          <select class="filter-select" id="water-station" name="station" aria-describedby="water-station-hint">
+            <option value="">Pick a station…</option>
+          </select>
+          <span class="field-hint" id="water-station-hint">Up to {MAX_SELECTED} at a time. You can also tap a dot on the map.</span>
+        </div>
+      </form>
+
+      <div class="water-suggest" data-suggest hidden></div>
+      <p class="rest-status" role="status" aria-live="polite" data-status></p>
+
+      <div class="c311-map-frame water-map" data-map role="region" aria-label="Map of drinking water sampling stations"></div>
+      <div class="c311-map-legend water-map-legend" aria-hidden="true">
+        <span class="water-key"><span class="water-key-dot"></span>Sampling station</span>
+        <span class="water-key"><span class="water-pin water-pin-inline"><span>1</span></span>Picked station</span>
+        <span class="water-key"><span class="water-key-you"></span>Your search</span>
+      </div>
+      {unlocated > 0 && (
+        <p class="field-hint">
+          {unlocated} {unlocated === 1 ? 'station' : 'stations'} sampled in the last 12 months {unlocated === 1 ? 'isn’t' : 'aren’t'} in
+          DEP's site list, so {unlocated === 1 ? 'it isn’t' : 'they aren’t'} on the map. {unlocated === 1 ? 'Its' : 'Their'} samples
+          still count in the citywide numbers.
+        </p>
+      )}
+
+      <div class="water-cards" data-cards aria-live="polite"></div>
+      <p class="water-empty" data-empty>
+        No stations picked yet. Search an address or ZIP, or pick a borough and a station. The pigeons are
+        standing by.
+      </p>
+      <p class="chart-hint">
+        Sparklines show each month's median at this station (solid) and citywide (dashed). A single month is often only
+        2 or 3 samples here, so small wiggles are normal.
+      </p>
+    </>
+  )}
+</section>
+
+<script>
+  import { mountStationMap } from '../../lib/water/station-map.js';
+  import { stationCardHtml, cardSkeletonHtml, escape } from '../../lib/water/near-me.js';
+  import { drawSparkline } from '../../lib/water/charts.js';
+  import { nearestSites } from '../../lib/water/stats.js';
+  import { BOROUGHS, NEAREST_COUNT, MAX_SELECTED, boroughLabel } from '../../lib/water/config.js';
+  import { parseLocationInput, inNyc } from '../../lib/complaints311/location-input.js';
+  import { resolveLocation } from '../../lib/complaints311/geocode.js';
+  import zipFile from '../../data/zip-centroids.json';
+
+  type Station = { site: string; place: string; borough: string | null; lat: number; lon: number; miles?: number };
+  type Point = { lat: number; lon: number; label: string };
+
+  const root = document.querySelector<HTMLElement>('[data-near-me]');
+  const form = root?.querySelector<HTMLFormElement>('[data-search]');
+
+  if (root && form) {
+    const stations: Station[] = JSON.parse(root.dataset.stations!);
+    const bySite = new Map(stations.map((s) => [s.site, s]));
+    const input = form.querySelector<HTMLInputElement>('#water-q')!;
+    const boroSelect = form.querySelector<HTMLSelectElement>('#water-boro')!;
+    const stationSelect = form.querySelector<HTMLSelectElement>('#water-station')!;
+    const status = root.querySelector<HTMLElement>('[data-status]')!;
+    const suggest = root.querySelector<HTMLElement>('[data-suggest]')!;
+    const cards = root.querySelector<HTMLElement>('[data-cards]')!;
+    const empty = root.querySelector<HTMLElement>('[data-empty]')!;
+    const map = mountStationMap(root.querySelector<HTMLElement>('[data-map]')!, { onPick: (site: string) => add(site) });
+
+    let borough = '';
+    let selected: string[] = [];
+    let point: Point | null = null;
+    let request = 0;
+    const cache = new Map<string, any>(); // site → details, plus the shared context
+    let context: any = null;
+
+    // ---------- URL ----------
+    function readUrl() {
+      const p = new URLSearchParams(location.search);
+      borough = BOROUGHS.some((b) => b.value === p.get('boro')) ? p.get('boro')! : '';
+      selected = (p.get('sites') ?? '').split(',').filter((s) => bySite.has(s)).slice(0, MAX_SELECTED);
+      const lat = Number(p.get('lat')), lon = Number(p.get('lon'));
+      point = p.get('lat') && Number.isFinite(lat) && Number.isFinite(lon) && inNyc(lat, lon)
+        ? { lat, lon, label: (p.get('place') ?? 'your search').slice(0, 120) } : null;
+    }
+    function writeUrl() {
+      const p = new URLSearchParams();
+      if (borough) p.set('boro', borough);
+      if (selected.length) p.set('sites', selected.join(','));
+      if (point) { p.set('lat', String(point.lat)); p.set('lon', String(point.lon)); p.set('place', point.label); }
+      history.replaceState(null, '', p.size ? `?${p}` : location.pathname);
+    }
+
+    // ---------- Drawing ----------
+    function fillStationSelect() {
+      const list = stations.filter((s) => !borough || s.borough === borough)
+        .sort((a, b) => a.place.localeCompare(b.place));
+      stationSelect.innerHTML = `<option value="">Pick a station… (${list.length})</option>` +
+        list.map((s) => `<option value="${escape(s.site)}"${selected.includes(s.site) ? ' disabled' : ''}>` +
+          `${escape(s.place)} (${escape(s.site)})${borough ? '' : ` · ${escape(boroughLabel(s.borough))}`}</option>`).join('');
+    }
+
+    function drawMap() {
+      const shown = stations.filter((s) => !borough || s.borough === borough || selected.includes(s.site));
+      map.update({ stations: shown, selected, point });
+    }
+
+    function withDistance(s: Station): Station {
+      return point ? { ...s, miles: nearestSites([s], point, 1)[0]?.miles } : s;
+    }
+
+    async function drawCards() {
+      const id = ++request;
+      empty.hidden = selected.length > 0;
+      if (!selected.length) { cards.innerHTML = ''; return; }
+      const missing = selected.filter((s) => !cache.has(s));
+      if (missing.length) {
+        cards.setAttribute('aria-busy', 'true');
+        cards.innerHTML = selected.map(() => cardSkeletonHtml()).join('');
+        status.textContent = 'Pulling up the station results…';
+        try {
+          const res = await fetch(`/api/water/stations?sites=${encodeURIComponent(missing.join(','))}`);
+          const data = await res.json().catch(() => null);
+          if (!res.ok || !data?.stations) throw new Error(res.status === 400 && data?.error ? data.error : 'upstream');
+          context = { months: data.months, city: data.city, cityTotals: data.cityTotals };
+          for (const [site, d] of Object.entries(data.stations)) cache.set(site, d);
+        } catch (err: any) {
+          if (id !== request) return;
+          cards.setAttribute('aria-busy', 'false');
+          status.textContent = '';
+          cards.innerHTML = `<p class="c311-error" role="alert">${escape(err.message !== 'upstream' ? err.message
+            : 'Couldn’t reach NYC Open Data. Their servers might be stuck behind a double-parked truck. Try again in a minute.')}` +
+            ` <button type="button" class="near-btn water-retry" data-retry>Try again</button></p>`;
+          return;
+        }
+        if (id !== request) return;
+      }
+      cards.setAttribute('aria-busy', 'false');
+      status.textContent = point
+        ? `The ${selected.length} ${selected.length === 1 ? 'station' : 'stations'} nearest ${point.label}.`
+        : `Showing ${selected.length} ${selected.length === 1 ? 'station' : 'stations'}.`;
+      cards.innerHTML = selected.map((site, index) =>
+        stationCardHtml(withDistance(bySite.get(site)!), cache.get(site), { ...context, index })).join('');
+      cards.querySelectorAll<HTMLElement>('.water-card').forEach((card, i) => {
+        const d = cache.get(selected[i]);
+        if (!d?.totals?.n) return;
+        const city = context.city;
+        const spark = (key: 'cl' | 'turb', field: 'clMed' | 'turbMed', unit: string) => {
+          const slot = card.querySelector<HTMLElement>(`[data-spark="${key}"]`);
+          if (!slot) return;
+          const values = d.series.map((m: any) => m?.[field] ?? null);
+          const cityValues = city.map((m: any) => m?.[field] ?? null);
+          const listed = values.map((v: number | null, j: number) => `${context.months[j]}: ${v ?? 'no samples'}`).join(', ');
+          drawSparkline(slot, values, cityValues, {
+            fmt: (v: number) => String(+v.toFixed(2)),
+            label: `Monthly median ${key === 'cl' ? 'chlorine' : 'turbidity'} at station ${selected[i]}, in ${unit}: ${listed}.`
+          });
+        };
+        spark('cl', 'clMed', 'mg/L');
+        spark('turb', 'turbMed', 'NTU');
+      });
+    }
+
+    function render() {
+      boroSelect.value = borough;
+      fillStationSelect();
+      drawMap();
+      drawCards();
+      writeUrl();
+    }
+
+    // ---------- Actions ----------
+    function add(site: string) {
+      if (!bySite.has(site) || selected.includes(site)) return;
+      selected = [...selected, site].slice(-MAX_SELECTED);
+      render();
+    }
+
+    async function search(text: string) {
+      suggest.hidden = true;
+      const parsed: any = parseLocationInput({ text });
+      if (parsed.kind === 'empty') { status.textContent = 'Type an address or ZIP code first.'; return; }
+      if (parsed.kind === 'error') { status.textContent = parsed.message; return; }
+      if (parsed.kind === 'borough') {
+        borough = parsed.borough; point = null;
+        status.textContent = `Showing stations in ${boroughLabel(borough)}. Pick one from the list or the map.`;
+        render();
+        return;
+      }
+      if (parsed.kind === 'zip') {
+        const c = (zipFile.zips as Record<string, number[]>)[parsed.zip];
+        if (!c) { status.textContent = `We don’t have a location for ZIP ${parsed.zip}. Try an address in it.`; return; }
+        usePoint({ lat: c[0], lon: c[1], label: `ZIP ${parsed.zip}` });
+        return;
+      }
+      status.textContent = 'Looking up that address…';
+      let result: any;
+      try {
+        result = await resolveLocation(parsed);
+      } catch {
+        status.textContent = 'Couldn’t reach the address lookup. Try again in a minute, or pick a borough instead.';
+        return;
+      }
+      if (result.status === 'resolved') { usePoint(result.location); return; }
+      if (result.status === 'choose') {
+        status.textContent = result.reason === 'ambiguous' ? 'That could be a few places. Which one?' : 'No exact match. Did you mean one of these?';
+        suggest.innerHTML = result.suggestions.map((p: any, i: number) =>
+          `<button type="button" class="pay-chip" data-pick="${i}">${escape(p.label)}</button>`).join('');
+        suggest.hidden = false;
+        suggest.querySelectorAll<HTMLButtonElement>('[data-pick]').forEach((b) => b.addEventListener('click', () => {
+          const p = result.suggestions[Number(b.dataset.pick)];
+          suggest.hidden = true;
+          usePoint({ lat: p.lat, lon: p.lon, label: p.label });
+        }));
+        return;
+      }
+      status.textContent = 'No matches. Try a nearby ZIP code or fewer words.';
+    }
+
+    function usePoint(p: { lat: number; lon: number; label: string }) {
+      point = { lat: p.lat, lon: p.lon, label: p.label };
+      const near = nearestSites(stations, point, NEAREST_COUNT);
+      selected = near.map((s) => s.site);
+      borough = near[0]?.borough ?? '';
+      render();
+    }
+
+    form.addEventListener('submit', (e) => { e.preventDefault(); search(input.value); });
+    boroSelect.addEventListener('change', () => {
+      borough = boroSelect.value;
+      point = null;
+      render();
+    });
+    stationSelect.addEventListener('change', () => { if (stationSelect.value) add(stationSelect.value); });
+    cards.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      const remove = target.closest<HTMLElement>('[data-remove]');
+      if (remove) {
+        selected = selected.filter((s) => s !== remove.dataset.remove);
+        if (!selected.length) point = null;
+        render();
+        stationSelect.focus();
+      }
+      if (target.closest('[data-retry]')) drawCards();
+    });
+
+    readUrl();
+    if (point) input.value = point.label;
+    render();
+  }
+</script>

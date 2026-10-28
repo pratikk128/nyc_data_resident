@@ -1,0 +1,34 @@
+---
+/*
+ * "Before you read": what these samples can and can't tell you. Always shown,
+ * never collapsed, on every view of the dashboard.
+ */
+import { DATASET_URL, DATASET_NAME, DATASET_ID, LINKS } from '../../lib/water/config.js';
+import { date } from '../../lib/format.js';
+
+interface Props {
+  meta: { rowsUpdatedAt: string | null } | null;
+}
+const { meta } = Astro.props;
+---
+
+<aside class="callout callout-good water-context" aria-labelledby="water-context-title">
+  <h2 class="water-context-title" id="water-context-title">Good to know before you read</h2>
+  <ul>
+    <li>
+      These samples come from street-side sampling stations on city mains, not your tap. Water quality inside a
+      building can differ.
+    </li>
+    <li>
+      Lead usually comes from building pipes and fixtures, not city mains. NYC offers free lead test kits, which you
+      can request by calling 311 or <a href={LINKS.leadKit}>online from NYC DEP</a>.
+    </li>
+    <li>
+      For the full picture, read NYC DEP's annual <a href={LINKS.annualReport}>Drinking Water Supply and Quality Report</a>.
+    </li>
+    <li>
+      Data: <a href={DATASET_URL}>{DATASET_NAME}</a> (NYC DEP, dataset {DATASET_ID}) on NYC Open Data.{' '}
+      {meta?.rowsUpdatedAt ? <>Last updated <time datetime={meta.rowsUpdatedAt}>{date(meta.rowsUpdatedAt)}</time>.</> : <>Last-updated date unavailable right now.</>}
+    </li>
+  </ul>
+</aside>

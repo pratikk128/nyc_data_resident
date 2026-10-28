@@ -1,0 +1,105 @@
+---
+/*
+ * "How to read this data": reference values with their sources, how the
+ * numbers are worked out, and caveats. Same on every view.
+ */
+import {
+  DATASET_URL, DATASET_NAME, DATASET_ID, REFERENCES, ROUTINE_CLASSES, TILE_THRESHOLDS, SITES_FILE_NAME, LINKS
+} from '../../lib/water/config.js';
+import { date } from '../../lib/format.js';
+
+interface Props {
+  meta: { rowsUpdatedAt: string | null } | null;
+}
+const { meta } = Astro.props;
+const pct = (v: number) => `${Math.round(v * 100)}%`;
+const refs = [
+  { ...REFERENCES.ecoli, extra: null },
+  { ...REFERENCES.coliform, extra: null },
+  { ...REFERENCES.chlorine, extra: { text: 'detectable residual rule (40 CFR 141.72)', url: REFERENCES.chlorine.detectableSource } },
+  { ...REFERENCES.turbidity, extra: null },
+  { ...REFERENCES.fluoride, extra: { text: 'EPA fluoride maximum (40 CFR 141.62)', url: REFERENCES.fluoride.maxSource } }
+];
+---
+
+<section class="dash-section water-about" aria-labelledby="water-about-title">
+  <h2 class="chart-title" id="water-about-title">How to read this data</h2>
+
+  <details class="about-data">
+    <summary>Reference values we compare with</summary>
+    <div class="about-body">
+      <p>
+        These are <strong>reference values</strong>, not an official compliance determination. Many of the rules
+        behind them are judged on monthly or yearly averages, or on repeat samples, while we compare one sample at a
+        time. NYC DEP's annual report says whether the city met each standard.
+      </p>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th scope="col">Measure</th><th scope="col">Reference value</th><th scope="col">Source</th></tr></thead>
+          <tbody>
+            {refs.map((r) => (
+              <tr>
+                <th scope="row">{r.label}</th>
+                <td class="water-ref-cell">{r.rule}</td>
+                <td class="water-ref-cell">
+                  <a href={r.source.url}>{r.source.name}</a>
+                  {r.extra && <>; <a href={r.extra.url}>{r.extra.text}</a></>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+
+  <details class="about-data">
+    <summary>How we calculate this</summary>
+    <div class="about-body">
+      <p>
+        <strong>Which samples.</strong> Shares and medians use routine samples ({ROUTINE_CLASSES.join(' and ')}).
+        Resamples are left out because they're taken where an earlier sample was positive, which would make problems
+        look more common. Every coliform and E. coli detection is listed, resamples included.
+      </p>
+      <p>
+        <strong>“Not detected.”</strong> Lab results like “&lt;1” or “ND” mean the lab found less than it can measure.
+        We count them as zero for bacteria and as within range for chlorine, turbidity and fluoride. Blank results
+        (fluoride is only tested at some stations) and placeholder values like −9 are left out.
+      </p>
+      <p>
+        <strong>In range.</strong> Chlorine is in range when it's detectable (above 0) and at most 4.0 mg/L;
+        turbidity when it's at most 5 NTU; fluoride when it's at most 4.0 mg/L.
+      </p>
+      <p>
+        <strong>Colors.</strong> A tile is green when at least {pct(TILE_THRESHOLDS.green)} of samples are within the
+        reference value, amber from {pct(TILE_THRESHOLDS.amber)}, and red below that. E. coli is green with no
+        detections and amber with any. These cutoffs are ours, not a regulator's.
+      </p>
+      <p>
+        <strong>Latest full month.</strong> The newest month the data runs to the end of, with a typical number of
+        samples. Months still loading are left out.
+      </p>
+      <p>
+        <strong>Station locations</strong> come from DEP's sampling site list ({SITES_FILE_NAME}), converted from New
+        York State Plane coordinates. Boroughs come from NYC's <a href={LINKS.boroughBoundaries}>borough boundaries</a>,
+        and ZIP code points from <a href={LINKS.zipAreas}>ZIP code areas</a>. Addresses are looked up with NYC Planning
+        Labs <a href={LINKS.geosearch}>GeoSearch</a>.
+      </p>
+    </div>
+  </details>
+
+  <footer class="section-sources">
+    <h3 class="sources-title">Where this comes from</h3>
+    <p>
+      <a href={DATASET_URL}>{DATASET_NAME}</a> on NYC Open Data (dataset {DATASET_ID}), published by NYC DEP.
+      {meta?.rowsUpdatedAt && <> Last updated {date(meta.rowsUpdatedAt)}. </>}
+      DEP adds samples about once a month; we check for new data daily.
+    </p>
+    <ul class="caveats">
+      <li>Samples are from street-side stations on city mains. Water in your building's pipes can differ.</li>
+      <li>One sample is a snapshot of one place at one moment. A positive sample is followed up with repeat samples.</li>
+      <li>Some months have no samples in the data, and a few stations have no location in DEP's site list.</li>
+    </ul>
+    <p><a href={DATASET_URL}>Report a data problem</a> to NYC Open Data.</p>
+  </footer>
+</section>

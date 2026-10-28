@@ -1,0 +1,2854 @@
+{
+ "source": {
+  "datasetId": "bkwf-xfky",
+  "file": "OpenData_Distribution_Water_Quality_Sampling_Sites_Updated_2021-0618.xlsx",
+  "url": "https://data.cityofnewyork.us/api/views/bkwf-xfky/files/e93e4856-95f7-48d4-b4c0-fa54989cdbfc?download=true&filename=OpenData_Distribution_Water_Quality_Sampling_Sites_Updated_2021-0618.xlsx",
+  "boroughs": "https://data.cityofnewyork.us/d/wh2p-dxnf",
+  "projection": "EPSG:2263 (NY State Plane Long Island, US ft) → WGS84"
+ },
+ "builtAt": "2026-10-28",
+ "unmatchedDataSites": [
+  {
+   "site": "1000",
+   "samples": 33,
+   "lastSample": "2023-03-31"
+  },
+  {
+   "site": "11700",
+   "samples": 31,
+   "lastSample": "2026-09-29"
+  },
+  {
+   "site": "1S02B",
+   "samples": 696,
+   "lastSample": "2026-09-30"
+  },
+  {
+   "site": "1SCHA",
+   "samples": 158,
+   "lastSample": "2025-03-28"
+  },
+  {
+   "site": "3SC33",
+   "samples": 7,
+   "lastSample": "2025-11-20"
+  },
+  {
+   "site": "44600",
+   "samples": 33,
+   "lastSample": "2026-09-16"
+  },
+  {
+   "site": "C278D",
+   "samples": 1,
+   "lastSample": "2025-03-26"
+  },
+  {
+   "site": null,
+   "samples": 3,
+   "lastSample": "2023-04-11"
+  }
+ ],
+ "sites": [
+  {
+   "site": "10150",
+   "description": "SS - W/S Zerega Ave, 1st SS S/O Hermany Ave, 12\" OPP NYC Sanitation",
+   "borough": "BRONX",
+   "lat": 40.82518,
+   "lon": -73.84328
+  },
+  {
+   "site": "10250",
+   "description": "SS - W/S Nelson Ave, 1st SS N/O W 168th St (OPP school-1248 Nelson Ave), 12\"",
+   "borough": "BRONX",
+   "lat": 40.83875,
+   "lon": -73.92471
+  },
+  {
+   "site": "10550",
+   "description": "SS - W/S Stadium Ave, 1St SS N/O Randolph Pl, 12\"",
+   "borough": "BRONX",
+   "lat": 40.84186,
+   "lon": -73.8204
+  },
+  {
+   "site": "10750",
+   "description": "SS - N/S Bartow Ave, 2nd SS W/O Co-op City Blvd, 20\"",
+   "borough": "BRONX",
+   "lat": 40.86959,
+   "lon": -73.82872
+  },
+  {
+   "site": "10850",
+   "description": "SS - E/S Riverdale Ave, 1st SS S/O W 260th St (IFO church), OPP 5977 Riverdale Ave, 12\"",
+   "borough": "BRONX",
+   "lat": 40.90798,
+   "lon": -73.90368
+  },
+  {
+   "site": "11050",
+   "description": "SS - IFO 1675 W/S University Ave, 2nd SS S/O W 176th St, IFO 1669 University Ave, 12\"",
+   "borough": "BRONX",
+   "lat": 40.84859,
+   "lon": -73.91841
+  },
+  {
+   "site": "11150",
+   "description": "SS - IFO 71E N/S E 183rd St, 1st SS W/O Morris Ave, 12\"",
+   "borough": "BRONX",
+   "lat": 40.85821,
+   "lon": -73.9021
+  },
+  {
+   "site": "11250",
+   "description": "SS - IFO 925 N/S E Tremont Ave, 1st SS E/O Daly Ave, 20\"",
+   "borough": "BRONX",
+   "lat": 40.84183,
+   "lon": -73.88368
+  },
+  {
+   "site": "11350",
+   "description": "SS - W/S Metropolitan Ave, 2nd SS N/O Parkchester Rd (IFO Macy's), 20\"",
+   "borough": "BRONX",
+   "lat": 40.83635,
+   "lon": -73.86113
+  },
+  {
+   "site": "11450",
+   "description": "SS - IFO 920 S/S Co - op City Blvd, 2nd SS W/O Dreiser Loop, 20\"",
+   "borough": "BRONX",
+   "lat": 40.87833,
+   "lon": -73.83043
+  },
+  {
+   "site": "11550",
+   "description": "SS - IFO 1058 S/S E Gun Hill Rd, 1st SS E/O Hone Ave, 12\"",
+   "borough": "BRONX",
+   "lat": 40.87429,
+   "lon": -73.85702
+  },
+  {
+   "site": "11750",
+   "description": "SS - IFO 250 E/S City Island Ave, BTW Carroll & Schofield Sts, 20\"",
+   "borough": "BRONX",
+   "lat": 40.84558,
+   "lon": -73.78577
+  },
+  {
+   "site": "11900",
+   "description": "SS - S/S E 177th St, BTW Walton & Morris Aves, 36\"",
+   "borough": "BRONX",
+   "lat": 40.84978,
+   "lon": -73.90886
+  },
+  {
+   "site": "12000",
+   "description": "SS - OPP 1540 W/S Jerome Ave, 1st SS S/O Goble Pl, 48\"",
+   "borough": "BRONX",
+   "lat": 40.84331,
+   "lon": -73.91564
+  },
+  {
+   "site": "12150",
+   "description": "SS - IFO 963 N/S E 233rd St, 2nd SS W/O Gunther Ave, 12\"",
+   "borough": "BRONX",
+   "lat": 40.89101,
+   "lon": -73.84957
+  },
+  {
+   "site": "12250",
+   "description": "SS - OPP 1134 N/S E 225th St, 2nd SS W/O Schieffelin Ave, 12\"",
+   "borough": "BRONX",
+   "lat": 40.88349,
+   "lon": -73.84728
+  },
+  {
+   "site": "12550",
+   "description": "SS - IFO 352 S/S E Gun Hill Rd, 1st SS W/O Decatur Ave, 20\"",
+   "borough": "BRONX",
+   "lat": 40.87868,
+   "lon": -73.87273
+  },
+  {
+   "site": "13050",
+   "description": "SS - IFO 2431 W/S Eastchester Rd, 2nd SS S/O Mace Ave, 12\"",
+   "borough": "BRONX",
+   "lat": 40.86193,
+   "lon": -73.84346
+  },
+  {
+   "site": "13150",
+   "description": "SS - IFO 2805 W/S Grand Concourse, 2nd SS S/O E 197th St, 20\"",
+   "borough": "BRONX",
+   "lat": 40.8691,
+   "lon": -73.89237
+  },
+  {
+   "site": "13350",
+   "description": "SS - N/S E Fordham Rd, 1st SS E/O Washington Ave, 20\"",
+   "borough": "BRONX",
+   "lat": 40.86039,
+   "lon": -73.88866
+  },
+  {
+   "site": "13550",
+   "description": "SS - IFO 2015 W/S University Ave, 1st SS S/O W 180th St, 12\"",
+   "borough": "BRONX",
+   "lat": 40.85542,
+   "lon": -73.91081
+  },
+  {
+   "site": "13600",
+   "description": "SS - E/S Southern Blvd, BTW E 180th & E 181st Sts, 36\"",
+   "borough": "BRONX",
+   "lat": 40.84609,
+   "lon": -73.88422
+  },
+  {
+   "site": "13700",
+   "description": "SS - W/S Southern Blvd, BTW Garden & E 182nd Sts, 48\"",
+   "borough": "BRONX",
+   "lat": 40.84897,
+   "lon": -73.88298
+  },
+  {
+   "site": "13850",
+   "description": "SS - IFO 1778 E/S Jerome Ave, 1st SS S/O E 176th St, 12\"",
+   "borough": "BRONX",
+   "lat": 40.84841,
+   "lon": -73.91169
+  },
+  {
+   "site": "13900",
+   "description": "SS - S/S E 180th St, BTW Webster & Valentine Aves, IFO School 48\"",
+   "borough": "BRONX",
+   "lat": 40.8521,
+   "lon": -73.89904
+  },
+  {
+   "site": "14000",
+   "description": "SS - IFO 960 S/S E 156th St, BTW Kelly & Beck Sts, 48\"",
+   "borough": "BRONX",
+   "lat": 40.816,
+   "lon": -73.89954
+  },
+  {
+   "site": "14100",
+   "description": "SS -OPP 1540 W/S Jerome Ave, 2nd SS S/O Goble Pl, 48\"",
+   "borough": "BRONX",
+   "lat": 40.84327,
+   "lon": -73.91567
+  },
+  {
+   "site": "14200",
+   "description": "SS - E/S Southern Blvd, BTW E 172nd & E 173rd Sts, OPP 1571 Southern Blvd, 36\"",
+   "borough": "BRONX",
+   "lat": 40.83541,
+   "lon": -73.88877
+  },
+  {
+   "site": "14350",
+   "description": "SS - OPP 3748 W/S Third Ave, 1st SS N/O St Paul's Pl, 20\"",
+   "borough": "BRONX",
+   "lat": 40.83632,
+   "lon": -73.90274
+  },
+  {
+   "site": "14450",
+   "description": "SS - OPP 958 W/S Gerard Ave, 2nd SS S/O E 164th St, 12\"",
+   "borough": "BRONX",
+   "lat": 40.82947,
+   "lon": -73.92386
+  },
+  {
+   "site": "14650",
+   "description": "SS - E/S Concourse Village East, 1st SS N/O E 158th St, 12\"",
+   "borough": "BRONX",
+   "lat": 40.82427,
+   "lon": -73.91905
+  },
+  {
+   "site": "14850",
+   "description": "SS - W/S Jackson Ave, 1st SS S/O St Mary's St, 20\"",
+   "borough": "BRONX",
+   "lat": 40.80858,
+   "lon": -73.91089
+  },
+  {
+   "site": "14950",
+   "description": "SS - N/S E 135th St, 2nd SS W/O Willis Ave, 12\"",
+   "borough": "BRONX",
+   "lat": 40.80772,
+   "lon": -73.92528
+  },
+  {
+   "site": "15050",
+   "description": "SS - W/S Trinity Ave, 2nd SS S/O E 163rd St (IFO school), 16\"",
+   "borough": "BRONX",
+   "lat": 40.82234,
+   "lon": -73.90625
+  },
+  {
+   "site": "15150",
+   "description": "SS - IFO 1420 E/S Grand Concourse, 1st SS S/O E 171st St, 12\"",
+   "borough": "BRONX",
+   "lat": 40.83938,
+   "lon": -73.91308
+  },
+  {
+   "site": "15250",
+   "description": "SS - IFO 4315 W/S Third Ave, 1st SS N/O E 179th St, 20\"",
+   "borough": "BRONX",
+   "lat": 40.84965,
+   "lon": -73.89479
+  },
+  {
+   "site": "15300",
+   "description": "SS - W/S Bailey Ave, BTW W 231st & W 233rd Sts, 48\"",
+   "borough": "BRONX",
+   "lat": 40.87824,
+   "lon": -73.90235
+  },
+  {
+   "site": "15450",
+   "description": "SS - IFO 79E N/S East Gun Hill Rd, 1st SS W/O Rochambeau Ave, IFO 83 E. Gun Hill Rd, 20\"",
+   "borough": "BRONX",
+   "lat": 40.88177,
+   "lon": -73.87958
+  },
+  {
+   "site": "15550",
+   "description": "SS - IFO 2499 W/S Grand Ave, 1st SS S/O W 190th St, OPP 24-84 Grand Ave 12\"",
+   "borough": "BRONX",
+   "lat": 40.86427,
+   "lon": -73.90222
+  },
+  {
+   "site": "16150",
+   "description": "SS - W/S Bronxdale Ave, 2nd SS S/O Rhinelander Ave, 12\"",
+   "borough": "BRONX",
+   "lat": 40.84812,
+   "lon": -73.86043
+  },
+  {
+   "site": "16250",
+   "description": "SS - IFO 251 N/S E 204th St, 1st SS E/O Valentine Ave, 12\"",
+   "borough": "BRONX",
+   "lat": 40.87428,
+   "lon": -73.88446
+  },
+  {
+   "site": "16450",
+   "description": "SS - IFO 3902 E/S White Plains Rd, 1st SS N/O E 222nd St, 20\"",
+   "borough": "BRONX",
+   "lat": 40.88591,
+   "lon": -73.86138
+  },
+  {
+   "site": "16650",
+   "description": "SS - IFO 1541 N/S Westchester Ave, BTW Boynton & Ward Aves,  20\"",
+   "borough": "BRONX",
+   "lat": 40.82879,
+   "lon": -73.87794
+  },
+  {
+   "site": "16950",
+   "description": "SS - W/S Westchester Ave, 1st SS N/O St Peters Ave, 20\"",
+   "borough": "BRONX",
+   "lat": 40.83879,
+   "lon": -73.84447
+  },
+  {
+   "site": "17050",
+   "description": "SS - IFO 4740 E/S White Plains Rd, 1st SS N/O St Ouen St, 20\"",
+   "borough": "BRONX",
+   "lat": 40.90448,
+   "lon": -73.84959
+  },
+  {
+   "site": "17250",
+   "description": "SS - N/S Allerton Ave, 1st SS E/O Throop Ave, 12\"",
+   "borough": "BRONX",
+   "lat": 40.86544,
+   "lon": -73.85083
+  },
+  {
+   "site": "17350",
+   "description": "SS - N/S W 232nd St, 1st SS E/O Arlington Ave, 12\"",
+   "borough": "BRONX",
+   "lat": 40.88399,
+   "lon": -73.91225
+  },
+  {
+   "site": "17450",
+   "description": "SS - IFO 2548 E/S White Plains Rd, 2nd SS N/O Mace Ave, 20\"",
+   "borough": "BRONX",
+   "lat": 40.86425,
+   "lon": -73.86726
+  },
+  {
+   "site": "17550",
+   "description": "SS - IFO 309 N/S E 149th St, 2nd SS W/O Courtlandt Ave, 12\"",
+   "borough": "BRONX",
+   "lat": 40.817,
+   "lon": -73.92081
+  },
+  {
+   "site": "17650",
+   "description": "SS - IFO 1871 N/S Lafayette Ave, 1st SS W/O Underhill Ave, 12\"",
+   "borough": "BRONX",
+   "lat": 40.82181,
+   "lon": -73.86056
+  },
+  {
+   "site": "17750",
+   "description": "SS - IFO 835 W/S Hunts Point Ave, 1st SS S/O Gilbert Pl, 12\"",
+   "borough": "BRONX",
+   "lat": 40.81751,
+   "lon": -73.88863
+  },
+  {
+   "site": "17950",
+   "description": "SS - W/S Kingsbridge Ave, 1st SS N/O W 232nd St, 12\"",
+   "borough": "BRONX",
+   "lat": 40.88123,
+   "lon": -73.90529
+  },
+  {
+   "site": "18000",
+   "description": "SS -S/S of Westbound Bronx & Pelham Pkwy, on Center Median W/O Eastchester Rd, 36\"",
+   "borough": "BRONX",
+   "lat": 40.85791,
+   "lon": -73.84813
+  },
+  {
+   "site": "18100",
+   "description": "SS - IFO 2208 S/S Starling Ave, BTW Castle Hill & Glebe Aves, 48\"",
+   "borough": "BRONX",
+   "lat": 40.83634,
+   "lon": -73.85162
+  },
+  {
+   "site": "18200",
+   "description": "SS - IFO 653 E/S River Ave, BTW E 150th & E 151st Sts, 36\"",
+   "borough": "BRONX",
+   "lat": 40.8223,
+   "lon": -73.92888
+  },
+  {
+   "site": "18300",
+   "description": "SS - E/S Southern Blvd, BTW St Mary's & E 142nd Sts, 36\"",
+   "borough": "BRONX",
+   "lat": 40.80761,
+   "lon": -73.90793
+  },
+  {
+   "site": "18450",
+   "description": "SS - W/S West Farms Rd, 2nd SS S/O E 167th St, OPP 1096 West Farms Rd, 12\"",
+   "borough": "BRONX",
+   "lat": 40.82621,
+   "lon": -73.89059
+  },
+  {
+   "site": "18500",
+   "description": "SS - S/S E 164th St, BTW River & Gerard Aves, 48\"",
+   "borough": "BRONX",
+   "lat": 40.83051,
+   "lon": -73.92392
+  },
+  {
+   "site": "18650",
+   "description": "SS - N/S Dewey Ave, BTW Quincy & Swinton Aves, 12\"",
+   "borough": "BRONX",
+   "lat": 40.82137,
+   "lon": -73.82229
+  },
+  {
+   "site": "18750",
+   "description": "SS - IFO 4977 W/S Henry Hudson Pkwy, 2nd SS S/O W 252nd St, 20\"",
+   "borough": "BRONX",
+   "lat": 40.89809,
+   "lon": -73.90816
+  },
+  {
+   "site": "18800",
+   "description": "SS - IFO 750 S/S E 169th St, BTW Boston Rd & Tinton Ave, 36\"",
+   "borough": "BRONX",
+   "lat": 40.83094,
+   "lon": -73.90005
+  },
+  {
+   "site": "18900",
+   "description": "SS - IFO 3453 W/S Jerome Ave, btw W Gun Hill Rd & E 208th St, 36 inch",
+   "borough": "BRONX",
+   "lat": 40.88177,
+   "lon": -73.88248
+  },
+  {
+   "site": "19000",
+   "description": "SS - IFO 758 S/S E 233rd St, BTW Barnes & Byron Aves, 1st E/O Byron Ave 48\"",
+   "borough": "BRONX",
+   "lat": 40.8926,
+   "lon": -73.8552
+  },
+  {
+   "site": "1S03",
+   "description": "SS - Shaft 3 of City Tunnel No.1 - E/S Goulden Ave, S/O Sedgwick Ave, OPP JPR GH7",
+   "borough": "BRONX",
+   "lat": 40.89196,
+   "lon": -73.85279
+  },
+  {
+   "site": "1S03A",
+   "description": "SS - Shaft 3A of City Tunnel No.2 - S/S E 233rd St, W/O Bronxwood Ave IFO 862 E 233rd St.",
+   "borough": "BRONX",
+   "lat": 40.89228,
+   "lon": -73.85362
+  },
+  {
+   "site": "1S03B",
+   "description": "SS - Shaft 3B of City Tunnel No.3 - W/S Jerome Ave, S/O access road to Mosholu Golf Course (SW corner of entrance to park)",
+   "borough": "BRONX",
+   "lat": 40.88215,
+   "lon": -73.88898
+  },
+  {
+   "site": "1S04",
+   "description": "SS - Shaft 4 of City Tunnel No.1 - IFO 2780 Reservoir Ave, E/S Reservoir Ave, 1st SS N/O Strong St (@ intersection of Reservoir Ave & Goulden)",
+   "borough": "BRONX",
+   "lat": 40.87087,
+   "lon": -73.89761
+  },
+  {
+   "site": "1S07",
+   "description": "SS - Shaft 7 of City Tunnel No.1 - NE/S W 167th St, 1st SE/O Sedgwick Ave IFO 1260 Sedgwick Ave",
+   "borough": "BRONX",
+   "lat": 40.83976,
+   "lon": -73.92858
+  },
+  {
+   "site": "1SCH3",
+   "description": "Jerome Park Reservoir (W205th St & Goulden Ave, Bx) - Croton Distribution Chamber - high pressure service tunnel, Tap #3 in Gatehouse #5, treated water",
+   "borough": "BRONX",
+   "lat": 40.87813,
+   "lon": -73.89271
+  },
+  {
+   "site": "1SCH4",
+   "description": "Jerome Park Reservoir (W205th St & Goulden Ave, Bx) - Croton Distribution Chamber - high pressure service tunnel, Tap in Gatehouse #5, treated water",
+   "borough": "BRONX",
+   "lat": 40.87813,
+   "lon": -73.89271
+  },
+  {
+   "site": "1SCL1",
+   "description": "Jerome Park Reservoir (W205th St & Goulden Ave, Bx) - Croton Distribution Chamber - low pressure service tunnel, Tap in Gatehouse #5, treated water",
+   "borough": "BRONX",
+   "lat": 40.87813,
+   "lon": -73.89271
+  },
+  {
+   "site": "20050",
+   "description": "SS - N/S Ave U, 1st SS W/O E 65th St, 12\"",
+   "borough": "BROOKLYN",
+   "lat": 40.61676,
+   "lon": -73.91198
+  },
+  {
+   "site": "20150",
+   "description": "SS - E/S W 23rd St, 1st SS N/O Mermaid Ave, 12\"",
+   "borough": "BROOKLYN",
+   "lat": 40.57641,
+   "lon": -73.99008
+  },
+  {
+   "site": "20300",
+   "description": "SS - N/S Luquer St, BTW Columbia &  Hicks Sts, 20\"",
+   "borough": "BROOKLYN",
+   "lat": 40.67877,
+   "lon": -74.00413
+  },
+  {
+   "site": "20350",
+   "description": "SS - OPP 74 S/S Sullivan St, 2nd SS E/O Van Brunt St, 20\"",
+   "borough": "BROOKLYN",
+   "lat": 40.67735,
+   "lon": -74.01166
+  },
+  {
+   "site": "20650",
+   "description": "SS - W/S 21st Ave, 2nd SS S/O Cropsey Ave, 12\"",
+   "borough": "BROOKLYN",
+   "lat": 40.59812,
+   "lon": -74.00152
+  },
+  {
+   "site": "20750",
+   "description": "SS - S/S Park Ave, BTW Emerson Pl & Steuben St, 16\"",
+   "borough": "BROOKLYN",
+   "lat": 40.69599,
+   "lon": -73.96288
+  },
+  {
+   "site": "20850",
+   "description": "SS - E/S Union Ave, 1st SS N/O Frost St, IFO 568 Union Ave, 20\"",
+   "borough": "BROOKLYN",
+   "lat": 40.71763,
+   "lon": -73.95212
+  },
+  {
+   "site": "20900",
+   "description": "SS - S/S Sands St. BTW Gold St. and Manhattan Brg. Ent. Ramp, OPP 177 Sands St, 48\"",
+   "borough": "BROOKLYN",
+   "lat": 40.6997,
+   "lon": -73.98344
+  },
+  {
+   "site": "20950",
+   "description": "SS - E/S Clinton St, 2nd SS N/O Pierrepont St, IFO 33 Clinton St, 20\"",
+   "borough": "BROOKLYN",
+   "lat": 40.6955,
+   "lon": -73.99179
+  },
+  {
+   "site": "21000",
+   "description": "SS - N/S Pacific St, BTW Buffalo & Rochester Aves, 48\"",
+   "borough": "BROOKLYN",
+   "lat": 40.67646,
+   "lon": -73.92683
+  },
+  {
+   "site": "21050",
+   "description": "SS - N/S Bergen St, 2nd SS E/O Buffalo Ave, OPP 1770 Bergen St, 12\"",
+   "borough": "BROOKLYN",
+   "lat": 40.6747,
+   "lon": -73.92337
+  },
+  {
+   "site": "21100",
+   "description": "SS - S/S Willoughby Ave, BTW Clinton & Vanderbilt Aves, 66\"",
+   "borough": "BROOKLYN",
+   "lat": 40.69147,
+   "lon": -73.96871
+  },
+  {
+   "site": "21150",
+   "description": "SS - IFO 413 E/S Classon Ave, BTW Greene & Lexington Aves, 20\"",
+   "borough": "BROOKLYN",
+   "lat": 40.68695,
+   "lon": -73.95954
+  },
+  {
+   "site": "21250",
+   "description": "SS - IFO 747 N/S Lafayette Ave, 2nd SS W/O Throop Ave, 12\"",
+   "borough": "BROOKLYN",
+   "lat": 40.69086,
+   "lon": -73.94327
+  },
+  {
+   "site": "21350",
+   "description": "SS - IFO 1135 W/S Decatur St, 2nd SS N/O Evergreen Ave, 12\"",
+   "borough": "BROOKLYN",
+   "lat": 40.68769,
+   "lon": -73.90868
+  },
+  {
+   "site": "21400",
+   "description": "SS - IFO 312 E/S Jefferson St, BTW Irving & Knickerbocker Aves, 60\"",
+   "borough": "BROOKLYN",
+   "lat": 40.70459,
+   "lon": -73.92591
+  },
+  {
+   "site": "21450",
+   "description": "SS - IFO 53 E/S Knickerbocker Ave, 1st SS N/O Grattan St, 20\"",
+   "borough": "BROOKLYN",
+   "lat": 40.7061,
+   "lon": -73.93039
+  },
+  {
+   "site": "21550",
+   "description": "SS - E/S Eldert La, 2nd SS N/O Stanley Ave, IFO 943 Eldert Ln, 12\"",
+   "borough": "BROOKLYN",
+   "lat": 40.66675,
+   "lon": -73.86207
+  },
+  {
+   "site": "21650",
+   "description": "SS - IFO 307 E/S 7th Ave, 1st SS N/O 8th St, 12\"",
+   "borough": "BROOKLYN",
+   "lat": 40.66757,
+   "lon": -73.98091
+  },
+  {
+   "site": "21750",
+   "description": "SS - E/S 7th Ave, 1st SS N/O 52nd St, IFO 5115 7th Ave, 12\"",
+   "borough": "BROOKLYN",
+   "lat": 40.64147,
+   "lon": -74.00681
+  },
+  {
+   "site": "21850",
+   "description": "SS - IFO 37 E/S 7th Ave, 1st SS S/O St Johns Pl, 12\"",
+   "borough": "BROOKLYN",
+   "lat": 40.67631,
+   "lon": -73.9741
+  },
+  {
+   "site": "21900",
+   "description": "SS - N/S Eastern Pkwy (S/S of svc. Rd), BTW New York & Brooklyn Aves, IFO 645 Eastern Pkwy.  Median BTW Svc & Main 48\"",
+   "borough": "BROOKLYN",
+   "lat": 40.66981,
+   "lon": -73.94637
+  },
+  {
+   "site": "21950",
+   "description": "SS - IFO 992 W/S Nostrand Ave, 2nd SS S/O Sullivan Pl, 12\"",
+   "borough": "BROOKLYN",
+   "lat": 40.66442,
+   "lon": -73.95113
+  },
+  {
+   "site": "22050",
+   "description": "SS - IFO 130 E/S Humboldt St, 2nd SS S/O Boerum St, 20\"",
+   "borough": "BROOKLYN",
+   "lat": 40.7055,
+   "lon": -73.94111
+  },
+  {
+   "site": "22250",
+   "description": "SS - IFO 9002 W/S Ft Hamilton Pkwy, 1st SS S/O 90th St, 12\"",
+   "borough": "BROOKLYN",
+   "lat": 40.61813,
+   "lon": -74.02657
+  },
+  {
+   "site": "22300",
+   "description": "SS-E/S 8th Ave BTW 8th & 9th Sts, 72\"",
+   "borough": "BROOKLYN",
+   "lat": 40.6662,
+   "lon": -73.97874
+  },
+  {
+   "site": "22350",
+   "description": "SS - E/S 5th Ave, BTW 49th St & 50th Sts, IFO 4915 5th Ave, 12\"",
+   "borough": "BROOKLYN",
+   "lat": 40.64532,
+   "lon": -74.00998
+  },
+  {
+   "site": "22400",
+   "description": "SS - N/S 65 St, BTW 16th & 17th Aves, IFO 1641 65th St, 60\"",
+   "borough": "BROOKLYN",
+   "lat": 40.62145,
+   "lon": -73.99376
+  },
+  {
+   "site": "22550",
+   "description": "SS - E/S Stillwell Ave, 1st SS N/O Ave S, IFO P.S. 97 OPP 870-86 Stillwell Ave, 20\"",
+   "borough": "BROOKLYN",
+   "lat": 40.60082,
+   "lon": -73.98592
+  },
+  {
+   "site": "22600",
+   "description": "SS - E/S Ft Hamilton Pkwy, BTW 49th & 50th Sts, OPP 4918 Ft. Hamilton Pkwy, 72\"",
+   "borough": "BROOKLYN",
+   "lat": 40.63798,
+   "lon": -73.9981
+  },
+  {
+   "site": "22650",
+   "description": "SS - IFO 5601 E/S Ft Hamilton Pkwy, 1st SS S/O E 56th St, IFO 5517 Ft. Hamilton Pkwy, 20\"",
+   "borough": "BROOKLYN",
+   "lat": 40.63489,
+   "lon": -74.00272
+  },
+  {
+   "site": "22700",
+   "description": "SS - N/S Church Ave, BTW Ocean Pkwy & E 5th St, 48\"",
+   "borough": "BROOKLYN",
+   "lat": 40.64465,
+   "lon": -73.97533
+  },
+  {
+   "site": "22750",
+   "description": "SS - W/S Dahill Rd, 2nd SS S/O 15th Ave, OPP 339 Dahill Rd, 12\"",
+   "borough": "BROOKLYN",
+   "lat": 40.63913,
+   "lon": -73.97988
+  },
+  {
+   "site": "22850",
+   "description": "SS - N/S Beverly Rd, 1st SS E/O E 48th St, IFO 4805 Bevery Rd 16\"",
+   "borough": "BROOKLYN",
+   "lat": 40.64629,
+   "lon": -73.93148
+  },
+  {
+   "site": "22900",
+   "description": "SS -  W/S Washington Park, BTW Willoughby & Myrtle Aves, OPP 175 Washington Pk, 66\"",
+   "borough": "BROOKLYN",
+   "lat": 40.69194,
+   "lon": -73.97369
+  },
+  {
+   "site": "22950",
+   "description": "SS - N/S Myrtle Ave, 2nd SS E/O N Portland Ave, 20\"",
+   "borough": "BROOKLYN",
+   "lat": 40.6934,
+   "lon": -73.97505
+  },
+  {
+   "site": "23000",
+   "description": "SS - E/S Ocean Pkwy (E/S of Svc Rd), BTW Ave H & Ave I, 60\"",
+   "borough": "BROOKLYN",
+   "lat": 40.6277,
+   "lon": -73.97079
+  },
+  {
+   "site": "23150",
+   "description": "SS - E/S Ocean Pkwy, 2nd SS N/O Ave M, IFO 1257 Ocean Pkwy, 12\"",
+   "borough": "BROOKLYN",
+   "lat": 40.61768,
+   "lon": -73.9689
+  },
+  {
+   "site": "23200",
+   "description": "SS - N/S Caton Ave, BTW E 18th St & St Pauls Pl, 48\"",
+   "borough": "BROOKLYN",
+   "lat": 40.65148,
+   "lon": -73.96331
+  },
+  {
+   "site": "23250",
+   "description": "SS - E/S Ocean Ave, 2nd SS S/O Albemarle Rd, 20\"",
+   "borough": "BROOKLYN",
+   "lat": 40.64628,
+   "lon": -73.96019
+  },
+  {
+   "site": "23350",
+   "description": "SS - W/S Ocean Ave, 2nd SS S/O Ditmas Ave, OPP 985 Ocean Ave, 12\"",
+   "borough": "BROOKLYN",
+   "lat": 40.63847,
+   "lon": -73.95892
+  },
+  {
+   "site": "23450",
+   "description": "SS - N/S Jefferson Ave, 2nd SS W/O Lewis Ave, OPP 518 Jefferson Ave,  20\"",
+   "borough": "BROOKLYN",
+   "lat": 40.68485,
+   "lon": -73.93706
+  },
+  {
+   "site": "23550",
+   "description": "SS - E/S Nostrand Ave, 2nd SS N/O Ave K, 20\"",
+   "borough": "BROOKLYN",
+   "lat": 40.62553,
+   "lon": -73.94654
+  },
+  {
+   "site": "23650",
+   "description": "SS - E/S Nostrand Ave, 2nd SS N/O Ave W, 20\"",
+   "borough": "BROOKLYN",
+   "lat": 40.59682,
+   "lon": -73.94108
+  },
+  {
+   "site": "23750",
+   "description": "SS - E/S Ocean Ave, 2nd SS N/O Ave R, IFO 2233 Ocean Ave,  20\"",
+   "borough": "BROOKLYN",
+   "lat": 40.6072,
+   "lon": -73.95275
+  },
+  {
+   "site": "23850",
+   "description": "SS - W/S Ocean Pkwy, 2nd SS S/O Ave V,  IFO 2252 Ocean Pkwy (@ Gravesend Neck, 1st S/O), 20\"",
+   "borough": "BROOKLYN",
+   "lat": 40.59431,
+   "lon": -73.96515
+  },
+  {
+   "site": "23900",
+   "description": "SS - S/S Atlantic Ave, BTW Schenck Ave & Barbey St, 48\"",
+   "borough": "BROOKLYN",
+   "lat": 40.67676,
+   "lon": -73.88885
+  },
+  {
+   "site": "23950",
+   "description": "SS - S/S Liberty Ave, 1st SS E/O Sheridan Ave,  IFO 1146 Liberty Ave, 12\"",
+   "borough": "BROOKLYN",
+   "lat": 40.67867,
+   "lon": -73.86682
+  },
+  {
+   "site": "24050",
+   "description": "SS - IFO 2940 W/S Ocean Ave, 2nd SS S/O Ave Y, 16\"",
+   "borough": "BROOKLYN",
+   "lat": 40.58962,
+   "lon": -73.94969
+  },
+  {
+   "site": "24150",
+   "description": "SS - IFO 2220 S/S Atlantic Ave, 2nd SS E/O Hopkinson Ave (Thomas S. Boyland St), 20\"",
+   "borough": "BROOKLYN",
+   "lat": 40.67629,
+   "lon": -73.9123
+  },
+  {
+   "site": "24250",
+   "description": "SS - W/S 20th Ave, 1st SS S/O 58th St, 12\"",
+   "borough": "BROOKLYN",
+   "lat": 40.62049,
+   "lon": -73.98185
+  },
+  {
+   "site": "24300",
+   "description": "SS - E/S Ocean Pkwy, BTW Ave Z & Belt Pkwy, (median BTW Main & Svc Rd of Ocean Pkwy), 30\"",
+   "borough": "BROOKLYN",
+   "lat": 40.58587,
+   "lon": -73.96619
+  },
+  {
+   "site": "24350",
+   "description": "SS - W/S Brighton 11th St, 2nd SS S/O Cass Pl, IFO 82 Brighton 11th St, 12\"",
+   "borough": "BROOKLYN",
+   "lat": 40.58072,
+   "lon": -73.95726
+  },
+  {
+   "site": "24450",
+   "description": "SS - E/S Brooklyn Ave, 2nd SS S/O Linden Blvd, IFO 887 Brooklyn Ave, 20\"",
+   "borough": "BROOKLYN",
+   "lat": 40.65209,
+   "lon": -73.9438
+  },
+  {
+   "site": "24550",
+   "description": "SS - OPP 4106 N/S Glenwood Rd, 1st SS W/O E 42nd St, 12\"",
+   "borough": "BROOKLYN",
+   "lat": 40.63477,
+   "lon": -73.93652
+  },
+  {
+   "site": "24650",
+   "description": "SS - N/S Linden Blvd, 1st SS E/O Bristol St, 12\"",
+   "borough": "BROOKLYN",
+   "lat": 40.6547,
+   "lon": -73.90859
+  },
+  {
+   "site": "24700",
+   "description": "SS - S/S Ave P, BTW Coney Island Ave & E 12th St, (E/O Coney Island Ave), 60\"",
+   "borough": "BROOKLYN",
+   "lat": 40.60993,
+   "lon": -73.96204
+  },
+  {
+   "site": "24750",
+   "description": "SS - IFO 1660 W/S E 13th St, 2nd SS N/O Quentin Rd, 20\"",
+   "borough": "BROOKLYN",
+   "lat": 40.60876,
+   "lon": -73.96023
+  },
+  {
+   "site": "24850",
+   "description": "SS - N/S New Lots Ave, 1st SS W/O Shepherd Ave, 16\"",
+   "borough": "BROOKLYN",
+   "lat": 40.66784,
+   "lon": -73.87942
+  },
+  {
+   "site": "24950",
+   "description": "SS - IFO 1169 N/S East New York Ave, 2nd SS W/O Ralph Ave, 12\"",
+   "borough": "BROOKLYN",
+   "lat": 40.66674,
+   "lon": -73.92377
+  },
+  {
+   "site": "25050",
+   "description": "SS - W/S Pennsylvania Ave, 1st SS N/O Hegeman Ave, IFO 718 Penn. Ave, 20\"",
+   "borough": "BROOKLYN",
+   "lat": 40.66006,
+   "lon": -73.89185
+  },
+  {
+   "site": "25100",
+   "description": "SS - IFO 630 W/S Howard Ave, BTW Sutter & East New York Aves, 60\"",
+   "borough": "BROOKLYN",
+   "lat": 40.66649,
+   "lon": -73.91976
+  },
+  {
+   "site": "25150",
+   "description": "SS - E/O Mother Gaston Blvd, 2nd SS N/O Livonia Ave, 12\"",
+   "borough": "BROOKLYN",
+   "lat": 40.66367,
+   "lon": -73.90517
+  },
+  {
+   "site": "25250",
+   "description": "SS - S/S Foster Ave, 2nd SS E/O E 101st St, 20\"",
+   "borough": "BROOKLYN",
+   "lat": 40.65047,
+   "lon": -73.90223
+  },
+  {
+   "site": "25350",
+   "description": "SS - W/S Remsen Ave, 1st SS N/O Ave M, 20\"",
+   "borough": "BROOKLYN",
+   "lat": 40.6338,
+   "lon": -73.89897
+  },
+  {
+   "site": "25400",
+   "description": "SS - S/S Pacific St, BTW Franklin & Classon Aves, 48\"",
+   "borough": "BROOKLYN",
+   "lat": 40.67834,
+   "lon": -73.95543
+  },
+  {
+   "site": "25450",
+   "description": "SS - IFO 1030 S/S Park Pl, 2nd SS E/O Brooklyn Ave, 12\"",
+   "borough": "BROOKLYN",
+   "lat": 40.673,
+   "lon": -73.94351
+  },
+  {
+   "site": "25550",
+   "description": "SS - E/S Bedford Ave, 2nd SS S/O Montgomery St, 20\"",
+   "borough": "BROOKLYN",
+   "lat": 40.66525,
+   "lon": -73.95692
+  },
+  {
+   "site": "25900",
+   "description": "SS - S/S Kings Highway, BTW E 35th & E 36th Sts, 60\"",
+   "borough": "BROOKLYN",
+   "lat": 40.62093,
+   "lon": -73.94019
+  },
+  {
+   "site": "25950",
+   "description": "SS - E/S Flatbush Ave, 2nd SS N/O Ave R, IFO 2185 Flatbush Ave, 16\"",
+   "borough": "BROOKLYN",
+   "lat": 40.6168,
+   "lon": -73.9303
+  },
+  {
+   "site": "26300",
+   "description": "SS - W/S Vermont St, BTW Jamaica & Sunnyside Aves, 48\"",
+   "borough": "BROOKLYN",
+   "lat": 40.6797,
+   "lon": -73.89597
+  },
+  {
+   "site": "26500",
+   "description": "SS - IFO 336 W/S 6th Ave, BTW 3rd and 4th St, 66\"",
+   "borough": "BROOKLYN",
+   "lat": 40.67118,
+   "lon": -73.98142
+  },
+  {
+   "site": "26550",
+   "description": "SS - E/S 4th Ave, 1st SS S/O Sackett St, 20\"",
+   "borough": "BROOKLYN",
+   "lat": 40.67788,
+   "lon": -73.98254
+  },
+  {
+   "site": "26700",
+   "description": "SS - IFO 426 S/S Sterling Pl, BTW Underhill & Washington Aves, 72\"",
+   "borough": "BROOKLYN",
+   "lat": 40.67475,
+   "lon": -73.96422
+  },
+  {
+   "site": "26750",
+   "description": "SS - IFO 1110 N/S President St, 2nd SS E/O Bedford Ave, 12\"",
+   "borough": "BROOKLYN",
+   "lat": 40.66831,
+   "lon": -73.954
+  },
+  {
+   "site": "26850",
+   "description": "SS - W/S W 37th St, 2nd SS n/O Neptune Ave, 12\"",
+   "borough": "BROOKLYN",
+   "lat": 40.57848,
+   "lon": -74.0036
+  },
+  {
+   "site": "26950",
+   "description": "SS - IFO 1058 N/S Metropolitan Ave, 2nd SS W/O Vandervoort Ave, 20\"",
+   "borough": "BROOKLYN",
+   "lat": 40.71449,
+   "lon": -73.93458
+  },
+  {
+   "site": "27000",
+   "description": "SS - IFO 383 W/S Hooper St, BTW S 1st & S 2nd Sts, 72\"",
+   "borough": "BROOKLYN",
+   "lat": 40.7081,
+   "lon": -73.95455
+  },
+  {
+   "site": "27350",
+   "description": "SS - OPP 1035 S/S Clarkson Ave, 1st SS W/O E 93rd St, 12\"",
+   "borough": "BROOKLYN",
+   "lat": 40.65894,
+   "lon": -73.92334
+  },
+  {
+   "site": "27450",
+   "description": "SS - IFO 1915 E/S Ocean Ave, 2nd SS N/O Ave O, 20\"",
+   "borough": "BROOKLYN",
+   "lat": 40.61518,
+   "lon": -73.95426
+  },
+  {
+   "site": "27550",
+   "description": "SS - N/S Farragut Rd, BTW E 81st & E 82nd Sts, 12\"",
+   "borough": "BROOKLYN",
+   "lat": 40.63938,
+   "lon": -73.91587
+  },
+  {
+   "site": "27600",
+   "description": "SS - E/S Palmetto St, BTW Bushwick & Evergreen Aves, IFO 80 Palmetto St, 60\"",
+   "borough": "BROOKLYN",
+   "lat": 40.69136,
+   "lon": -73.919
+  },
+  {
+   "site": "27650",
+   "description": "SS - IFO 59 E/S Patchen Ave, 1st SS S/O Lexington Ave, 20\"",
+   "borough": "BROOKLYN",
+   "lat": 40.69022,
+   "lon": -73.92744
+  },
+  {
+   "site": "27750",
+   "description": "SS - IFO 165 N/S S 1st St, 2nd SS W/O Driggs Ave, 20\"",
+   "borough": "BROOKLYN",
+   "lat": 40.71371,
+   "lon": -73.96104
+  },
+  {
+   "site": "27850",
+   "description": "SS - IFO 136 S/S Kent St, 2nd SS E/O Franklin St, 20\"",
+   "borough": "BROOKLYN",
+   "lat": 40.73076,
+   "lon": -73.95554
+  },
+  {
+   "site": "28050",
+   "description": "SS - IFO 579 N/S Macon St, 2nd SS W/O Patchen Ave, 20\"",
+   "borough": "BROOKLYN",
+   "lat": 40.6836,
+   "lon": -73.92815
+  },
+  {
+   "site": "28450",
+   "description": "SS - IFO 2323 NE/S 60th St, 2nd SS W/O McDonald Ave, IFO 2323 60th St, 16\"",
+   "borough": "BROOKLYN",
+   "lat": 40.61499,
+   "lon": -73.97545
+  },
+  {
+   "site": "28550",
+   "description": "SS - E/S W 5th St, 2nd SS S/O Neptune Ave, IFO 2925 W 5th St, 12\"",
+   "borough": "BROOKLYN",
+   "lat": 40.57808,
+   "lon": -73.97228
+  },
+  {
+   "site": "28950",
+   "description": "SS - W/S 14th Ave, 1st SS N/O 52nd St, 20\"",
+   "borough": "BROOKLYN",
+   "lat": 40.63216,
+   "lon": -73.99161
+  },
+  {
+   "site": "29050",
+   "description": "SS - N/S 81st St, 1st SS E/O 19th Ave, 12\"",
+   "borough": "BROOKLYN",
+   "lat": 40.60861,
+   "lon": -73.99713
+  },
+  {
+   "site": "29300",
+   "description": "SS - E/S 5th Ave, BTW 24th & 25th Sts, 66\"",
+   "borough": "BROOKLYN",
+   "lat": 40.65944,
+   "lon": -73.9953
+  },
+  {
+   "site": "29350",
+   "description": "SS - W/S 4th Ave, BTW 28th & 29th Sts, 20\"",
+   "borough": "BROOKLYN",
+   "lat": 40.65876,
+   "lon": -74.00001
+  },
+  {
+   "site": "29450",
+   "description": "SS - IFO 4011 E/S 7th Ave, 1st SS S/O 40th St, 12\"",
+   "borough": "BROOKLYN",
+   "lat": 40.64783,
+   "lon": -74.00021
+  },
+  {
+   "site": "29500",
+   "description": "SS - W/S Ridge Blvd, BTW Bay Ridge Ave & 68th St, 48\"",
+   "borough": "BROOKLYN",
+   "lat": 40.63713,
+   "lon": -74.0285
+  },
+  {
+   "site": "29550",
+   "description": "SS - N/S Bay Ridge Ave, 2nd SS W/O 4th Ave, IFO 335 Bay Ridge Ave 12\"",
+   "borough": "BROOKLYN",
+   "lat": 40.63535,
+   "lon": -74.025
+  },
+  {
+   "site": "29850",
+   "description": "SS - IFO 1425 E/S Pennsylvania Ave, 2nd SS S/O Schroeders Ave, 20\"",
+   "borough": "BROOKLYN",
+   "lat": 40.6469,
+   "lon": -73.88047
+  },
+  {
+   "site": "30050",
+   "description": "SS - IFO 8 E/S Centre Market Place, 2nd SS N/O Grand St, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.72,
+   "lon": -73.99775
+  },
+  {
+   "site": "30150",
+   "description": "SS - E/S 1st Ave, 1st SS S/O E 3rd St,  OPP 49 1st Ave, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.72435,
+   "lon": -73.98746
+  },
+  {
+   "site": "30250",
+   "description": "SS - OPP 280 N/S Madison St, 2nd SS W/O Montgomery St, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.71304,
+   "lon": -73.98642
+  },
+  {
+   "site": "30350",
+   "description": "SS - IFO 90 E/S Pitt St, 2nd SS N/O Rivington St, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.71877,
+   "lon": -73.98206
+  },
+  {
+   "site": "30450",
+   "description": "SS - N/S Water St, 2nd SS E/O Catherine Slip, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.70998,
+   "lon": -73.9953
+  },
+  {
+   "site": "30550",
+   "description": "SS - E/S Water St, 1st SS S/O Maiden La (IFO Wall St Plaza), 20\"",
+   "borough": "MANHATTAN",
+   "lat": 40.70597,
+   "lon": -74.00607
+  },
+  {
+   "site": "30750",
+   "description": "SS - IFO 269 N/S W 140th St, 2nd SS E/O Frederick Douglass Blvd (8th Ave), 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.81943,
+   "lon": -73.94349
+  },
+  {
+   "site": "30850",
+   "description": "SS - IFO 230 S/S E 125th St, 2nd SS E/O 3rd Ave, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.80302,
+   "lon": -73.9345
+  },
+  {
+   "site": "30950",
+   "description": "SS - W/S South End Ave, 2nd SS N/O West Thames St, 20\"",
+   "borough": "MANHATTAN",
+   "lat": 40.70891,
+   "lon": -74.01722
+  },
+  {
+   "site": "31050",
+   "description": "SS - IFO 370 W/S Greenwich St, 1st SS N/O Franklin St, 20\"",
+   "borough": "MANHATTAN",
+   "lat": 40.71958,
+   "lon": -74.01042
+  },
+  {
+   "site": "31200",
+   "description": "SS - W/S Amsterdam Ave, BTW W 177th & W 178th Sts, IFO 2374 Amsterdam Ave, 48\"",
+   "borough": "MANHATTAN",
+   "lat": 40.846,
+   "lon": -73.93258
+  },
+  {
+   "site": "31350",
+   "description": "SS - E/S Bedford St, 1st SS S/O Grove St, IFO 90 Bedford St, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.73233,
+   "lon": -74.00531
+  },
+  {
+   "site": "31450",
+   "description": "SS - IFO 22 N/S Howard St, BTW Crosby & Lafayette Sts, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.71949,
+   "lon": -74.00034
+  },
+  {
+   "site": "31550",
+   "description": "SS - OPP 329 S/S W 18th St, 2nd SS E/O 9th Ave, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.7427,
+   "lon": -74.00193
+  },
+  {
+   "site": "31650",
+   "description": "SS - N/S E 77th St, 2nd SS W/O 3rd Ave, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.77338,
+   "lon": -73.95906
+  },
+  {
+   "site": "31750",
+   "description": "SS - IFO 427 N/S W 26th St, 2nd SS W/O 9th Ave, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.74896,
+   "lon": -74.00111
+  },
+  {
+   "site": "31850",
+   "description": "SS - IFO 82 S/S Warren St, 2nd SS E/O Greenwich St, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.7153,
+   "lon": -74.01064
+  },
+  {
+   "site": "31950",
+   "description": "SS - IFO 313 N/S W 47th St, 2nd SS W/O 8th Ave, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.76106,
+   "lon": -73.98885
+  },
+  {
+   "site": "32050",
+   "description": "SS - IFO 49 N/S W 96th St, 2nd SS W/O Central Park West, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.79269,
+   "lon": -73.96683
+  },
+  {
+   "site": "32150",
+   "description": "SS - W/S St Nicholas Ave, 1st SS N/O 174th St, IFO 1281 St. Nicholas Ave, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.84499,
+   "lon": -73.93705
+  },
+  {
+   "site": "32200",
+   "description": "SS - S/S W 150th St, BTW Convent & St Nicholas Aves, IFO 408 W 150th St 30\"",
+   "borough": "MANHATTAN",
+   "lat": 40.82758,
+   "lon": -73.94347
+  },
+  {
+   "site": "32350",
+   "description": "SS - IFO 116 E/S Ave C, 2nd SS N/O E 7th St, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.72439,
+   "lon": -73.97857
+  },
+  {
+   "site": "32400",
+   "description": "SS - E/S 1st Ave, BTW E 29th & E 30th Sts, 48\"",
+   "borough": "MANHATTAN",
+   "lat": 40.74113,
+   "lon": -73.97524
+  },
+  {
+   "site": "32550",
+   "description": "SS - IFO 271 W/S Ave C, 1st SS S/O E 16th St, 20\"",
+   "borough": "MANHATTAN",
+   "lat": 40.72975,
+   "lon": -73.97501
+  },
+  {
+   "site": "32650",
+   "description": "SS - IFO 14 S/S W 18th St, 2nd SS W/O 5th Ave, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.739,
+   "lon": -73.99316
+  },
+  {
+   "site": "32750",
+   "description": "SS - S/S E 57th St, 2nd SS E/O 3rd Ave, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.7595,
+   "lon": -73.96602
+  },
+  {
+   "site": "32850",
+   "description": "SS - IFO 138 S/S E 37th St, 2nd SS E/O Lexington Ave, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.74804,
+   "lon": -73.9779
+  },
+  {
+   "site": "32950",
+   "description": "SS - W/S 1st Ave, 1st SS S/O E 25th St, IFO 421 1st Ave, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.73797,
+   "lon": -73.97793
+  },
+  {
+   "site": "33050",
+   "description": "SS - N/S W 62nd St, 2nd SS E/O Amsterdam Ave, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.77188,
+   "lon": -73.98501
+  },
+  {
+   "site": "33100",
+   "description": "SS - E/S 10th Ave/Harlem River Dr. (SS S/O Dyckman St on bike path in park), 30\"",
+   "borough": "MANHATTAN",
+   "lat": 40.85857,
+   "lon": -73.92267
+  },
+  {
+   "site": "33150",
+   "description": "SS - IFO 200 W/S Nagle Ave, 2nd SS N/O Dyckman St, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.86229,
+   "lon": -73.92333
+  },
+  {
+   "site": "33250",
+   "description": "SS - IFO 925 W/S West End Ave, 1st SS N/O W 105th St, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.80129,
+   "lon": -73.96896
+  },
+  {
+   "site": "33300",
+   "description": "SS - S/S W 125th St, BTW 7th & 8th Aves (IFO Lane Bryant Store), 48\"",
+   "borough": "MANHATTAN",
+   "lat": 40.80922,
+   "lon": -73.94919
+  },
+  {
+   "site": "33450",
+   "description": "SS - IFO 135 N/S W 112th St, 2nd SS W/O St Nicholas Ave, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.80042,
+   "lon": -73.95365
+  },
+  {
+   "site": "33550",
+   "description": "SS - IFO 115 N/S E 67th St, 2nd SS W/O Lexington Ave, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.7676,
+   "lon": -73.96521
+  },
+  {
+   "site": "33600",
+   "description": "SS - W/S 2nd Ave, BTW E 42nd St & 43rd Sts, IFO 801 2nd Ave, 48\"",
+   "borough": "MANHATTAN",
+   "lat": 40.75013,
+   "lon": -73.97216
+  },
+  {
+   "site": "33700",
+   "description": "SS - IFO 69 W/S St Nicholas Ave, BTW W 113th & W 114th Sts, 48\"",
+   "borough": "MANHATTAN",
+   "lat": 40.8014,
+   "lon": -73.95266
+  },
+  {
+   "site": "33850",
+   "description": "SS - IFO 155 N/S E 85th St, 1st SS E/O Lexington Ave, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.77858,
+   "lon": -73.95536
+  },
+  {
+   "site": "33950",
+   "description": "SS - N/S E 104th St, 2nd SS E/O 3rd Ave, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.78975,
+   "lon": -73.94424
+  },
+  {
+   "site": "34050",
+   "description": "SS - IFO 611 N/S W 181st St, 1st SS W/O St Nicholas Ave, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.84967,
+   "lon": -73.93431
+  },
+  {
+   "site": "34150",
+   "description": "SS - N/S W 151st St, 2nd SS W/O Amsterdam Ave, IFO 529 151st St, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.8297,
+   "lon": -73.94627
+  },
+  {
+   "site": "34200",
+   "description": "SS - S/S W 97th St, BTW Columbus & Amsterdam Ave, 36\"",
+   "borough": "MANHATTAN",
+   "lat": 40.79377,
+   "lon": -73.96777
+  },
+  {
+   "site": "34300",
+   "description": "SS - S/S W 40th St, BTW Broadway & 7th Ave, 48\"",
+   "borough": "MANHATTAN",
+   "lat": 40.75459,
+   "lon": -73.98773
+  },
+  {
+   "site": "34350",
+   "description": "SS - E/S 6th Ave, BTW W 37th & W 38th Sts, IFO 1016 6th Ave, 20\"",
+   "borough": "MANHATTAN",
+   "lat": 40.75204,
+   "lon": -73.98597
+  },
+  {
+   "site": "34550",
+   "description": "SS - IFO 133 N/S 128th St, 2nd SS W/O Lenox Ave, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.81048,
+   "lon": -73.94576
+  },
+  {
+   "site": "34650",
+   "description": "SS - IFO 1066 E/S St Nicholas Ave, BTW W 163rd & W 164th Sts, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.83724,
+   "lon": -73.93995
+  },
+  {
+   "site": "34700",
+   "description": "SS - S/S W 165th St, BTW Edgecombe & Amsterdam Aves, 30\"",
+   "borough": "MANHATTAN",
+   "lat": 40.83726,
+   "lon": -73.93707
+  },
+  {
+   "site": "34850",
+   "description": "SS - OPP 40 N/S W 53rd St, 2nd SS E/O 6th Ave, IFO MOMA 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.76133,
+   "lon": -73.97783
+  },
+  {
+   "site": "34950",
+   "description": "SS - IFO 686 S/S Academy St, 2nd SS W/O Broadway St, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.86711,
+   "lon": -73.92562
+  },
+  {
+   "site": "35000",
+   "description": "SS - S/S W 93rd St, btw Columbus Ave & Central Park West, 30\"",
+   "borough": "MANHATTAN",
+   "lat": 40.79002,
+   "lon": -73.96691
+  },
+  {
+   "site": "35050",
+   "description": "SS - IFO 565 N/S W 125th St, 1st SS W/O Old Broadway, 20\"",
+   "borough": "MANHATTAN",
+   "lat": 40.81533,
+   "lon": -73.95779
+  },
+  {
+   "site": "35100",
+   "description": "SS - E/S Central Park West, BTW W 93rd & W 94th Sts, 30\"",
+   "borough": "MANHATTAN",
+   "lat": 40.78999,
+   "lon": -73.96574
+  },
+  {
+   "site": "35150",
+   "description": "SS - IFO 21 E/S Bennett Ave, 2nd SS N/O W 181st St, 20\"",
+   "borough": "MANHATTAN",
+   "lat": 40.85139,
+   "lon": -73.93611
+  },
+  {
+   "site": "35200",
+   "description": "SS - S/S W 65th St, BTW Broadway & Central Park West, 36\"",
+   "borough": "MANHATTAN",
+   "lat": 40.77227,
+   "lon": -73.98052
+  },
+  {
+   "site": "35350",
+   "description": "SS - IFO 541 N/S W 207th (Emerson) St, 1st SS E/O Sherman Ave, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.86556,
+   "lon": -73.91971
+  },
+  {
+   "site": "35450",
+   "description": "SS - IFO 500 N/S E 76th St, 2nd SS E/O York Ave, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.76898,
+   "lon": -73.9506
+  },
+  {
+   "site": "35550",
+   "description": "SS - N/S Washington Square S, 1st SS W/O Washington Square E (OPP 70 Washington Square E), 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.72971,
+   "lon": -73.99674
+  },
+  {
+   "site": "35650",
+   "description": "SS - N/S W 25th St, 2nd SS W/O Broadway,  OPP 28 W 25th St 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.7437,
+   "lon": -73.99054
+  },
+  {
+   "site": "35750",
+   "description": "SS - N/S W 83rd St, 2nd SS W/O Central Park West, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.78375,
+   "lon": -73.97157
+  },
+  {
+   "site": "35800",
+   "description": "SS - N/S E 85th St, BTW 5th & Madison Aves,  OPP 16 E 85th St, 36\"",
+   "borough": "MANHATTAN",
+   "lat": 40.78035,
+   "lon": -73.95953
+  },
+  {
+   "site": "35900",
+   "description": "SS - IFO 168 W/S 5th Ave, BTW E 21st & E 22nd Sts, 48\"",
+   "borough": "MANHATTAN",
+   "lat": 40.74065,
+   "lon": -73.99038
+  },
+  {
+   "site": "36000",
+   "description": "SS - S/S E 68th St, BTW 5th & Madison Aves, 36\"",
+   "borough": "MANHATTAN",
+   "lat": 40.76955,
+   "lon": -73.96824
+  },
+  {
+   "site": "36100",
+   "description": "SS - IFO 1212 E/S 6th Ave, BTW W 47th & W 48th Sts, 20\"",
+   "borough": "MANHATTAN",
+   "lat": 40.75833,
+   "lon": -73.98142
+  },
+  {
+   "site": "36200",
+   "description": "SS - W/S 5th Ave, BTW W 8th St & Washington Square N, 48\"",
+   "borough": "MANHATTAN",
+   "lat": 40.73175,
+   "lon": -73.99685
+  },
+  {
+   "site": "36350",
+   "description": "SS - IFO 165 N/S E 112th St, 1st SS E/O Lexington Ave, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.79586,
+   "lon": -73.94277
+  },
+  {
+   "site": "36500",
+   "description": "SS - E/S Broadway, BTW Howard & Grand Sts, 30\"",
+   "borough": "MANHATTAN",
+   "lat": 40.72004,
+   "lon": -74.00121
+  },
+  {
+   "site": "36600",
+   "description": "SS - IFO 87 E/S Bowery, BTW Hester & Canal Sts, 36\"",
+   "borough": "MANHATTAN",
+   "lat": 40.71694,
+   "lon": -73.99546
+  },
+  {
+   "site": "36700",
+   "description": "SS - S/S South St, BTW Rutgers Slip & Jefferson Sts, 30\"",
+   "borough": "MANHATTAN",
+   "lat": 40.71008,
+   "lon": -73.98845
+  },
+  {
+   "site": "36950",
+   "description": "SS - W/S Main St. Roosevelt Island (north of bridge) - 2nd SS N/O FDNY SOC circle",
+   "borough": "MANHATTAN",
+   "lat": 40.76789,
+   "lon": -73.94336
+  },
+  {
+   "site": "37300",
+   "description": "SS - IFO 3401 W/S Broadway, BTW W 138th & W 139th Sts, 36\"",
+   "borough": "MANHATTAN",
+   "lat": 40.82217,
+   "lon": -73.9538
+  },
+  {
+   "site": "37450",
+   "description": "SS -OPP 532 N/S W 111st St, 2nd SS W/O Amsterdam Ave, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.80452,
+   "lon": -73.96532
+  },
+  {
+   "site": "37950",
+   "description": "SS - IFO 325 N/S E 12th St, 2nd SS E/O 2nd Ave, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.73059,
+   "lon": -73.98472
+  },
+  {
+   "site": "38150",
+   "description": "SS - IFO 121 N/S W 72nd St, 2nd SS W/O Columbus Ave, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.7779,
+   "lon": -73.9796
+  },
+  {
+   "site": "38250",
+   "description": "SS - IFO 309 N/S E 87th St, 2nd SS W/O 1st Ave, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.77827,
+   "lon": -73.95037
+  },
+  {
+   "site": "38300",
+   "description": "SS - E/S Amsterdam Ave, BTW W 179th & W 180th Sts (IFO DEP Pump Station), 36\"",
+   "borough": "MANHATTAN",
+   "lat": 40.84727,
+   "lon": -73.93141
+  },
+  {
+   "site": "38650",
+   "description": "SS - OPP 238 N/S W 112th St, 2nd SS E/O 8th Ave (Fredrick Douglass), 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.80131,
+   "lon": -73.95575
+  },
+  {
+   "site": "39200",
+   "description": "SS - E/S Amsterdam Ave, BTW W 61st & W 62nd Sts, 48\"",
+   "borough": "MANHATTAN",
+   "lat": 40.7719,
+   "lon": -73.98635
+  },
+  {
+   "site": "39400",
+   "description": "SS - S/S W 62nd St, BTW Columbus Ave & Broadway, 48\"",
+   "borough": "MANHATTAN",
+   "lat": 40.77161,
+   "lon": -73.9827
+  },
+  {
+   "site": "39550",
+   "description": "SS - W/S Park Ave, 1st SS S/O E 95th St, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.78583,
+   "lon": -73.95334
+  },
+  {
+   "site": "39650",
+   "description": "SS - IFO 229 N/S E 49th St, 2nd SS W/O 2nd Ave, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.75475,
+   "lon": -73.96999
+  },
+  {
+   "site": "39750",
+   "description": "SS - IFO 321 N/S E 71st St, 2nd SS W/O 1st Ave, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.76759,
+   "lon": -73.95779
+  },
+  {
+   "site": "39800",
+   "description": "SS - W/S Broadway, BTW W 76th & W 77th Sts, 36\"",
+   "borough": "MANHATTAN",
+   "lat": 40.78211,
+   "lon": -73.98111
+  },
+  {
+   "site": "39950",
+   "description": "SS - IFO 601 W/S West End Ave, 1st SS N/O W 89th St, 12\"",
+   "borough": "MANHATTAN",
+   "lat": 40.79105,
+   "lon": -73.97643
+  },
+  {
+   "site": "3ISL3",
+   "description": "SS - Wards Island, DEP Water Pollution Control Plant, BTW 1st & 2nd security gates, OPP traffic circle",
+   "borough": "MANHATTAN",
+   "lat": 40.78559,
+   "lon": -73.92386
+  },
+  {
+   "site": "3ISL4",
+   "description": "SS - Randalls Island, OPP exit ramp to Qns, next to golf driving range, S/O of Police Launch Repair Shop",
+   "borough": "MANHATTAN",
+   "lat": 40.79899,
+   "lon": -73.92543
+  },
+  {
+   "site": "3SC26",
+   "description": "Shaft 26 of New Croton Aqueduct, 179th St Pumping Station.",
+   "borough": "MANHATTAN",
+   "lat": 40.84695,
+   "lon": -73.93175
+  },
+  {
+   "site": "40150",
+   "description": "SS - N/S 27th Ave, 1st SS E/O 2nd St, IFO 2-07 27th Ave, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.77532,
+   "lon": -73.93501
+  },
+  {
+   "site": "40200",
+   "description": "SS - S/S 19th Ave, BTW 41st & Steinway Sts, IFO 40-14 19th Ave, 60\"",
+   "borough": "QUEENS",
+   "lat": 40.77791,
+   "lon": -73.89906
+  },
+  {
+   "site": "40250",
+   "description": "SS - IFO 22-26 W/S Steinway St, 2nd SS S/O Ditmars Blvd, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.77226,
+   "lon": -73.9069
+  },
+  {
+   "site": "40300",
+   "description": "SS - IFO 12 - 23 SE/S Jackson Ave, BTW 48th & 49th Aves, 72\"",
+   "borough": "QUEENS",
+   "lat": 40.74381,
+   "lon": -73.95
+  },
+  {
+   "site": "40350",
+   "description": "SS - N/S 41st Ave, 2nd SS W/O 21st St, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.75441,
+   "lon": -73.94314
+  },
+  {
+   "site": "40450",
+   "description": "SS - OPP 33-02 N/S 48th Ave, 1st SS E/O 33rd St, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.74085,
+   "lon": -73.93217
+  },
+  {
+   "site": "40550",
+   "description": "SS - W/S 61st (Bush) St, 1st SS S/O 47th Ave, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.73946,
+   "lon": -73.90347
+  },
+  {
+   "site": "40600",
+   "description": "SS - E/S 89th St, BTW Northern Blvd & 32nd Ave, 72\"",
+   "borough": "QUEENS",
+   "lat": 40.75684,
+   "lon": -73.8789
+  },
+  {
+   "site": "40650",
+   "description": "SS - IFO 30-12 W/S 94th St, 1st SS S/O 30th Ave, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.76093,
+   "lon": -73.87501
+  },
+  {
+   "site": "40750",
+   "description": "SS - N/S Northern Blvd, 1st SS W/O 78th St, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.75523,
+   "lon": -73.88939
+  },
+  {
+   "site": "40800",
+   "description": "SS - E/S 62nd St, BTW 37th Ave & Broadway, 48\"",
+   "borough": "QUEENS",
+   "lat": 40.74931,
+   "lon": -73.90046
+  },
+  {
+   "site": "40850",
+   "description": "SS - IFO 4205 E/S 77th St, 1st SS S/O Woodside Ave, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.74331,
+   "lon": -73.88788
+  },
+  {
+   "site": "40950",
+   "description": "SS - W/S 94th St, 2nd SS S/O 41st Rd , Case St, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.74541,
+   "lon": -73.87169
+  },
+  {
+   "site": "41050",
+   "description": "SS - IFO 86-31 W/S 57th Ave, 2nd SS S/O Seabury Ave, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.73305,
+   "lon": -73.87567
+  },
+  {
+   "site": "41100",
+   "description": "SS - IFO 94-03 S/S Alstyne Ave, BTW Junction Blvd & 94th St, 48\"",
+   "borough": "QUEENS",
+   "lat": 40.74257,
+   "lon": -73.87005
+  },
+  {
+   "site": "41150",
+   "description": "SS - OPP 110-08 W/S Colonial Ave, 2nd SS S/O Horace Harding Expwy, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.73712,
+   "lon": -73.84853
+  },
+  {
+   "site": "41250",
+   "description": "SS - SW/S LIE (service Rd), 1st SS E/O 71st St, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.72577,
+   "lon": -73.89004
+  },
+  {
+   "site": "41300",
+   "description": "SS - S/S Cypress Ave, BTW Dekalb Ave & Stockholm St, 60\"",
+   "borough": "BROOKLYN",
+   "lat": 40.70636,
+   "lon": -73.91686
+  },
+  {
+   "site": "41350",
+   "description": "SS - W/S Menahan St, 1st SS N/O Onderdonk Ave, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.70564,
+   "lon": -73.90962
+  },
+  {
+   "site": "41450",
+   "description": "SS - OPP 18-20 W/S Decatur St, 2nd SS S/O Forest Ave, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.69801,
+   "lon": -73.89808
+  },
+  {
+   "site": "41550",
+   "description": "SS - IFO 98-05 N/S 63rd Rd, 1st SS E/O 98th St, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.73196,
+   "lon": -73.8591
+  },
+  {
+   "site": "41600",
+   "description": "SS - IFO 93-29 N/S Queens Blvd, BTW 62nd Dr & 62nd Ave, 72\"",
+   "borough": "QUEENS",
+   "lat": 40.7315,
+   "lon": -73.86544
+  },
+  {
+   "site": "41650",
+   "description": "SS - IFO 106-15 N/S Queens Blvd (service Rd), 2nd SS E/O Yellowstone Blvd, 20\"",
+   "borough": "QUEENS",
+   "lat": 40.72285,
+   "lon": -73.84652
+  },
+  {
+   "site": "41750",
+   "description": "SS - OPP 104-41 SW/S Ditmars Blvd, BTW 24th Rd & 25th Ave, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.76712,
+   "lon": -73.86576
+  },
+  {
+   "site": "41850",
+   "description": "SS - IFO 67-02 W/S Bell Blvd, 1st SS S/O 67th Ave, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.74412,
+   "lon": -73.75999
+  },
+  {
+   "site": "41900",
+   "description": "SS - W/S Fresh Meadow La, Corner N/O Booth Memorial Ave, 20\"",
+   "borough": "QUEENS",
+   "lat": 40.74212,
+   "lon": -73.7968
+  },
+  {
+   "site": "41950",
+   "description": "SS - IFO 170-05 N/S 45th Ave, 1st SS E/O 170th St, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.75583,
+   "lon": -73.79679
+  },
+  {
+   "site": "42100",
+   "description": "SS - S/S Metropolitan Ave, 1st SS E/O 80th St, 48\"",
+   "borough": "QUEENS",
+   "lat": 40.71323,
+   "lon": -73.87121
+  },
+  {
+   "site": "42150",
+   "description": "SS - IFO 68-78 W/S 76th St, 1st N/O 69th Rd, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.7088,
+   "lon": -73.87548
+  },
+  {
+   "site": "42300",
+   "description": "SS - S/S 48th Ave, BTW 42nd & 43rd Sts, 72\"",
+   "borough": "QUEENS",
+   "lat": 40.73962,
+   "lon": -73.92278
+  },
+  {
+   "site": "42350",
+   "description": "SS - IFO 41-18 W/S 39th St, 2nd SS S/O Skillman Ave, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.74707,
+   "lon": -73.92562
+  },
+  {
+   "site": "42700",
+   "description": "SS - OPP 64-65 W/S 210th St, N/O 67th Ave, 48\"",
+   "borough": "QUEENS",
+   "lat": 40.74256,
+   "lon": -73.76532
+  },
+  {
+   "site": "42750",
+   "description": "SS - IFO 64-50A W/S 188th St, 2nd SS S/O 64th Ave, 20\"",
+   "borough": "QUEENS",
+   "lat": 40.73623,
+   "lon": -73.78464
+  },
+  {
+   "site": "42850",
+   "description": "SS - IFO 82-28 W/S Parsons Blvd, BTW Goethals Ave & Village Rd",
+   "borough": "QUEENS",
+   "lat": 40.71762,
+   "lon": -73.80846
+  },
+  {
+   "site": "42950",
+   "description": "SS - IFO 80-56 W/S 193rd St, 1st SS N/O 81st Ave, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.72865,
+   "lon": -73.77692
+  },
+  {
+   "site": "43050",
+   "description": "SS - S/S Park Lane S, 1st SS W/O 102nd St, 20\"",
+   "borough": "QUEENS",
+   "lat": 40.69871,
+   "lon": -73.84723
+  },
+  {
+   "site": "43150",
+   "description": "SS - W/S 88th St, 2nd SS S/O 149th Ave, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.66917,
+   "lon": -73.84733
+  },
+  {
+   "site": "43250",
+   "description": "SS - IFO 87-48 W/S 78th St, 1st SS N/O 88th Ave, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.68989,
+   "lon": -73.86344
+  },
+  {
+   "site": "43550",
+   "description": "SS - W/S 125th St, 1st SS S/O 15th Ave, 20\"",
+   "borough": "QUEENS",
+   "lat": 40.78453,
+   "lon": -73.8431
+  },
+  {
+   "site": "43600",
+   "description": "SS - E/S Union St, BTW Northern Blvd & 35th Ave, 72\"",
+   "borough": "QUEENS",
+   "lat": 40.76507,
+   "lon": -73.82783
+  },
+  {
+   "site": "43650",
+   "description": "SS - E/S Whitestone Expy (service Rd), 2nd SS S/O Downing St, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.7684,
+   "lon": -73.83657
+  },
+  {
+   "site": "43750",
+   "description": "SS - N/S 20th Ave, 2nd SS W/O Whitestone Expy, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.78175,
+   "lon": -73.82936
+  },
+  {
+   "site": "43900",
+   "description": "SS - N/S 39th Ave, BTW 215th Pl & 216th St, IFO 215-37 39th Ave 24\"",
+   "borough": "QUEENS",
+   "lat": 40.76604,
+   "lon": -73.76799
+  },
+  {
+   "site": "43950",
+   "description": "SS - N/S 26th Ave, BTW 210th Pl & 211st St (IFO Sony Theatres), 12\"",
+   "borough": "QUEENS",
+   "lat": 40.77794,
+   "lon": -73.77881
+  },
+  {
+   "site": "44150",
+   "description": "SS - IFO 20-44 W/S 21st St, 2nd SS N/O 21st Ave, 20\"",
+   "borough": "QUEENS",
+   "lat": 40.78314,
+   "lon": -73.91373
+  },
+  {
+   "site": "44250",
+   "description": "SS - IFO 50-33 N/S Broadway, 2nd SS E/O 49th St, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.75488,
+   "lon": -73.91014
+  },
+  {
+   "site": "44350",
+   "description": "SS - IFO 21-55 N/S 34th Ave, 1st SS W/O 24th St, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.76217,
+   "lon": -73.93245
+  },
+  {
+   "site": "44450",
+   "description": "SS - IFO 223-03 N/S Manor Rd, 2nd SS W/O 229th St, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.73273,
+   "lon": -73.74353
+  },
+  {
+   "site": "44550",
+   "description": "SS - N/S 17th Ave, 1st SS E/O 201st St, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.78255,
+   "lon": -73.79234
+  },
+  {
+   "site": "44700",
+   "description": "SS - N/S Jewel Ave, BTW 172nd & 173rd Sts, 60\"",
+   "borough": "QUEENS",
+   "lat": 40.73145,
+   "lon": -73.79715
+  },
+  {
+   "site": "44750",
+   "description": "SS - IFO 67-02 W/S Parsons Blvd, 2nd SS N/O Jewel Ave, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.73456,
+   "lon": -73.81075
+  },
+  {
+   "site": "44950",
+   "description": "SS - W/S Selfridge St, 1st SS N/O Olcott St, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.7134,
+   "lon": -73.85675
+  },
+  {
+   "site": "45000",
+   "description": "SS - W/S Douglaston Pkwy, BTW 67th & 68th Aves, 48\"",
+   "borough": "QUEENS",
+   "lat": 40.75112,
+   "lon": -73.73991
+  },
+  {
+   "site": "45050",
+   "description": "SS - IFO 253-38 S/S 61st Ave, 1st SS W/O 255th St, 20\"",
+   "borough": "QUEENS",
+   "lat": 40.75789,
+   "lon": -73.72505
+  },
+  {
+   "site": "45250",
+   "description": "SS - E/S Beach 58th St, 2nd SS N/O Beach Channel Dr, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.59589,
+   "lon": -73.78813
+  },
+  {
+   "site": "45650",
+   "description": "SS - IFO 107-02 W/S 109th St, 1st SS S/O 107th Ave, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.68171,
+   "lon": -73.83186
+  },
+  {
+   "site": "45700",
+   "description": "SS - E/S Cross Bay Blvd, BTW 156th Ave & Belt Pkwy, 48\"",
+   "borough": "QUEENS",
+   "lat": 40.66486,
+   "lon": -73.84108
+  },
+  {
+   "site": "45750",
+   "description": "SS - N/S 161st Ave, 2nd SS W/O 83rd St, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.65445,
+   "lon": -73.84913
+  },
+  {
+   "site": "45850",
+   "description": "SS - N/S Sutter Ave, 1st SS E/O 91st St,  IFO 91-01 Sutter Ave, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.67658,
+   "lon": -73.84594
+  },
+  {
+   "site": "46100",
+   "description": "SS - IFO 691 S/S Empire Ave, BTW Virginia St & Harris St, 12\" (branch from 48\" into regulator)",
+   "borough": "QUEENS",
+   "lat": 40.60709,
+   "lon": -73.74328
+  },
+  {
+   "site": "46150",
+   "description": "SS - IFO 20-23 S/S Seagirt Blvd, 2nd SS W/O Beach 20th St, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.595,
+   "lon": -73.75495
+  },
+  {
+   "site": "46250",
+   "description": "SS - S/S Beach Channel Dr, 2nd SS E/O Beach 126th St, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.58177,
+   "lon": -73.84786
+  },
+  {
+   "site": "46350",
+   "description": "SS - S/S Astoria Blvd, 1st SS W/O 110th St, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.76012,
+   "lon": -73.86047
+  },
+  {
+   "site": "46450",
+   "description": "SS - IFO 150-03 N/S Northern Blvd, 1st SS E/O 150th St, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.7653,
+   "lon": -73.81437
+  },
+  {
+   "site": "46850",
+   "description": "SS - IFO 63-01 NW/S Eliot Ave, BTW 63rd & 64th Sts, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.71564,
+   "lon": -73.89923
+  },
+  {
+   "site": "46950",
+   "description": "SS - IFO 118-40 S/S Metropolitan Ave, 2nd SS E/O 118th St IFO 118-18",
+   "borough": "QUEENS",
+   "lat": 40.70652,
+   "lon": -73.83336
+  },
+  {
+   "site": "47150",
+   "description": "SS - IFO 147-19 N/S 7th Ave, 2nd SS W/O 149th St, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.7938,
+   "lon": -73.82071
+  },
+  {
+   "site": "47500",
+   "description": "SS - IFO 20-10 W/S Cross Bay Blvd, BTW W 20th & W22nd Rd, 36\"",
+   "borough": "QUEENS",
+   "lat": 40.59846,
+   "lon": -73.82096
+  },
+  {
+   "site": "47550",
+   "description": "SS - E/S Beach 105th St, 2nd SS N/O Shore Front Pkwy, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.58208,
+   "lon": -73.82547
+  },
+  {
+   "site": "47650",
+   "description": "SS - N/S Rockaway Point Blvd, 2nd SS W/O Beach 199th St, 20\" (end of divided h'way)",
+   "borough": "QUEENS",
+   "lat": 40.56083,
+   "lon": -73.90872
+  },
+  {
+   "site": "47750",
+   "description": "SS - IFO 80 - 29 E/S Little Neck Pkwy, 2nd SS N/O 81st Ave, 20\"",
+   "borough": "QUEENS",
+   "lat": 40.74257,
+   "lon": -73.71687
+  },
+  {
+   "site": "47850",
+   "description": "SS - IFO 246-35 N/S Van Zandt Ave, 1st SS W/O 248th St, 12\"",
+   "borough": "QUEENS",
+   "lat": 40.76258,
+   "lon": -73.73696
+  },
+  {
+   "site": "48600",
+   "description": "SS - W/S Rockaway Blvd, BTW S Conduit Ave & 157th St, 48\"",
+   "borough": "QUEENS",
+   "lat": 40.66644,
+   "lon": -73.77994
+  },
+  {
+   "site": "48700",
+   "description": "SS - IFO 160-05 N/S Cross Island Pkwy (service Rd), BTW 160th & 161st Sts, 20\"",
+   "borough": "QUEENS",
+   "lat": 40.78653,
+   "lon": -73.80224
+  },
+  {
+   "site": "49200",
+   "description": "SS - S/S Jewel Ave, BTW Main St & 141st Sts, 72\"",
+   "borough": "QUEENS",
+   "lat": 40.73012,
+   "lon": -73.82366
+  },
+  {
+   "site": "4ISL5",
+   "description": "SS - Rikers Island, traffic island OPP James A. Thomas Ctr, 14-14 Hazen St",
+   "borough": "BRONX",
+   "lat": 40.79721,
+   "lon": -73.8878
+  },
+  {
+   "site": "50050",
+   "description": "SS - N/S Hylan Blvd, 2nd SS W/O Edgewater St, 12\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.61539,
+   "lon": -74.06367
+  },
+  {
+   "site": "50200",
+   "description": "SS - IFO 93 N/S Austin Place, BTW Victory Blvd & Ward Ave, 84\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.63133,
+   "lon": -74.08573
+  },
+  {
+   "site": "50250",
+   "description": "SS - IFO 937 N/S Victory Blvd, 2nd SS E/O Highland Ave, 20\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.62184,
+   "lon": -74.0971
+  },
+  {
+   "site": "50300",
+   "description": "SS - W/S Clove Rd, 1st S/O of Genesee St, SI, 72\" (formerly site 00023)",
+   "borough": "STATEN ISLAND",
+   "lat": 40.61508,
+   "lon": -74.10262
+  },
+  {
+   "site": "50600",
+   "description": "SS - N/S Victory Blvd, BTW Pike St & W/O Westervelt Ave, IFO 199 Victory Blvd, 20\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.63625,
+   "lon": -74.08269
+  },
+  {
+   "site": "50650",
+   "description": "SS - E/S York Ave, 1st SS N/O Pauw St, 8\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.64065,
+   "lon": -74.08784
+  },
+  {
+   "site": "50750",
+   "description": "SS - E/S Woodhull Ave, 1st SS S/O Albourne Ave, 8\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.53088,
+   "lon": -74.19657
+  },
+  {
+   "site": "50850",
+   "description": "SS - IFO 512 W/S Arlene St,1st SS N/O Dawson Ct, 12\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.6051,
+   "lon": -74.166
+  },
+  {
+   "site": "51050",
+   "description": "SS - IFO 163 E/S Tysens La, 2nd SS N/O Coverly St, 12\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.57044,
+   "lon": -74.12745
+  },
+  {
+   "site": "51100",
+   "description": "SS - IFO 1759 NW/S Hylan Blvd, BTW Seaview & Liberty Aves, 48\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.58623,
+   "lon": -74.09256
+  },
+  {
+   "site": "51150",
+   "description": "SS - IFO 650 S/S Tysens La, 2nd SS E/O Falcon Ave, 12\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.56207,
+   "lon": -74.11348
+  },
+  {
+   "site": "51250",
+   "description": "SS - N/S Clarke Ave, 2nd SS W/O Amber St, 8\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.56684,
+   "lon": -74.13781
+  },
+  {
+   "site": "51350",
+   "description": "SS - W/S Clove Rd, 1st SS S/O Tyler Ave (also 1st S/O Broadway), 12\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.62255,
+   "lon": -74.11288
+  },
+  {
+   "site": "51450",
+   "description": "SS - IFO 119 E/S Justin Ave, BTW Hooper & O'Gorman Aves, 12\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.55548,
+   "lon": -74.13421
+  },
+  {
+   "site": "51550",
+   "description": "SS - W/S Huguenot Ave, 1st SS S/O Sinclair Ave, 12\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.54145,
+   "lon": -74.19663
+  },
+  {
+   "site": "51850",
+   "description": "SS - IFO 67 N/S Hill St, 2nd SS W/O Tompkins Ave, 12\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.62125,
+   "lon": -74.0808
+  },
+  {
+   "site": "51900",
+   "description": "SS - N/S Vanderbilt Ave, BTW Bay St & Tompkins Ave, 66\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.62156,
+   "lon": -74.07441
+  },
+  {
+   "site": "51950",
+   "description": "SS - N/S Sobel Ct, 1st SS E/O Bowen St, 12\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.61379,
+   "lon": -74.08329
+  },
+  {
+   "site": "52000",
+   "description": "SS - W/S Clove Rd, Corner of S/O Richmond Terrace, 24\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.63694,
+   "lon": -74.12686
+  },
+  {
+   "site": "52050",
+   "description": "SS - IFO 218 W/S Nicholas Ave, 1st SS S/O Charles Ave, 12\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.63478,
+   "lon": -74.14088
+  },
+  {
+   "site": "52150",
+   "description": "SS - N/S Goethals Rd N, BTW Domain & Cooke Sts, 12\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.61684,
+   "lon": -74.15898
+  },
+  {
+   "site": "52350",
+   "description": "SS - OPP 133 W/S Giffords La, 1st SS N/O Dewey Ave, 12\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.55455,
+   "lon": -74.15184
+  },
+  {
+   "site": "52450",
+   "description": "SS - OPP 526 N/S Travis Ave, 1st SS E/O Merrymount St, 12\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.59072,
+   "lon": -74.15801
+  },
+  {
+   "site": "52550",
+   "description": "SS - IFO 43 N/S Dongan Hills Ave, 2nd SS N/O Jefferson St, 12\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.58808,
+   "lon": -74.1006
+  },
+  {
+   "site": "53500",
+   "description": "SS - E/S Targee St, S/O Baltic Ave, IFO 935 Targee St, 48\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.606,
+   "lon": -74.09087
+  },
+  {
+   "site": "53550",
+   "description": "SS - IFO 130 W/S Lamport Blvd, 2nd SS S/O Kramer St, 8\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.59542,
+   "lon": -74.07782
+  },
+  {
+   "site": "55450",
+   "description": "SS - W/S Seguine Ave, 1st SS S/O Kingsland St, 12\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.51677,
+   "lon": -74.19694
+  },
+  {
+   "site": "56000",
+   "description": "SS - N/S Hylan Blvd, opposite Holten Ave, 24\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.52021,
+   "lon": -74.19505
+  },
+  {
+   "site": "56200",
+   "description": "SS - IFO 855 E/S Bloomingdale Rd, BTW Wirt & Candon Aves, 20\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.54694,
+   "lon": -74.21991
+  },
+  {
+   "site": "56300",
+   "description": "SS - E/S Richmond Ave, 1st SS S/O Vedder Ave, 20\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.62194,
+   "lon": -74.15036
+  },
+  {
+   "site": "56400",
+   "description": "SS - IFO 328 S/S Henderson Ave, BTW Westbury & Brentwood Aves, 20\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.63921,
+   "lon": -74.10362
+  },
+  {
+   "site": "57200",
+   "description": "SS - W/S Richmond Ave, BTW Genesee & Scranton Aves, 48\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.55296,
+   "lon": -74.16822
+  },
+  {
+   "site": "57750",
+   "description": "SS - IFO 264 W/S Lockman Ave, 2nd SS S/O Brabant St, 12\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.63072,
+   "lon": -74.16182
+  },
+  {
+   "site": "58150",
+   "description": "SS - IFO 3262 W/S Richmond Ave, 1st SS N/O Gurley Ave, 12\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.55972,
+   "lon": -74.16971
+  },
+  {
+   "site": "58250",
+   "description": "SS - IFO 578 E/S Drumgoole Rd East, 2nd SS N/O Arden Ave, 12\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.547,
+   "lon": -74.17993
+  },
+  {
+   "site": "58300",
+   "description": "SS - IFO 4299 NW/S Hylan Blvd, BTW W\"ester & Thornycroft Aves, 48\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.5359,
+   "lon": -74.1523
+  },
+  {
+   "site": "58350",
+   "description": "SS - IFO 139 NE/S W\"ester Ave, 2nd SS N/O Hylan Blvd, 8\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.53659,
+   "lon": -74.15446
+  },
+  {
+   "site": "58400",
+   "description": "SS - IFO 408 W/S Woodrow Rd, BTW Arden Ave & Almond St, 20\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.54989,
+   "lon": -74.18791
+  },
+  {
+   "site": "58600",
+   "description": "SS - N/S Hylan Blvd, 1st SS E/O Page Ave, 20\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.50798,
+   "lon": -74.22941
+  },
+  {
+   "site": "58650",
+   "description": "SS - IFO 510 W/S Main St, 2nd SS S/O Hylan Blvd, 12\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.50231,
+   "lon": -74.24467
+  },
+  {
+   "site": "58850",
+   "description": "SS - IFO 255 N/S Westwood Ave, 1st SS W/O Franklin Pl, 12\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.60659,
+   "lon": -74.11917
+  },
+  {
+   "site": "58950",
+   "description": "SS - IFO 1085-15 N/S Castleton Ave, 2nd SS W/O Broadway, 12\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.63449,
+   "lon": -74.11877
+  },
+  {
+   "site": "59050",
+   "description": "SS - IFO 989 N/S Forest Ave, 2nd SS W/O Clove Rd, 12\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.62748,
+   "lon": -74.12256
+  },
+  {
+   "site": "59300",
+   "description": "SS - N/S Victory Blvd, 1st SS E/O Royal Oak Rd, 16\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.6139,
+   "lon": -74.1131
+  },
+  {
+   "site": "59350",
+   "description": "SS - IFO 1824 S/S Victory Blvd, BTW Raymond Ave & Lester St, 12\"",
+   "borough": "STATEN ISLAND",
+   "lat": 40.61292,
+   "lon": -74.12415
+  },
+  {
+   "site": "76150",
+   "description": "SS - IFO 160-20 S/S 85th Ave, BTW 160th & 161st Sts",
+   "borough": "QUEENS",
+   "lat": 40.71235,
+   "lon": -73.80388
+  },
+  {
+   "site": "76300",
+   "description": "SS - N/S Hillside Ave & BTW 213 Pl & 214 St, 16\"",
+   "borough": "QUEENS",
+   "lat": 40.7255,
+   "lon": -73.75303
+  },
+  {
+   "site": "76450",
+   "description": "SS - OPP 139-50 N/S 85th Dr, 2nd SS E/O 139th St",
+   "borough": "QUEENS",
+   "lat": 40.70889,
+   "lon": -73.81569
+  },
+  {
+   "site": "76550",
+   "description": "SS - N/S Baisley Blvd, W/O Smith St",
+   "borough": "QUEENS",
+   "lat": 40.67872,
+   "lon": -73.77914
+  },
+  {
+   "site": "76650",
+   "description": "SS - IFO 87-60 W/S Chevy Chase St, 2nd S/O Henley Rd",
+   "borough": "QUEENS",
+   "lat": 40.71686,
+   "lon": -73.77554
+  },
+  {
+   "site": "76750",
+   "description": "SS - IFO 160-10 S/S 89th Ave, 2nd E/O Parsons Blvd",
+   "borough": "QUEENS",
+   "lat": 40.70607,
+   "lon": -73.8006
+  },
+  {
+   "site": "76850",
+   "description": "SS - IFO 111-46 W/S Farmers Blvd, 1st SS N/O Keeseville Ave",
+   "borough": "QUEENS",
+   "lat": 40.70093,
+   "lon": -73.76459
+  },
+  {
+   "site": "76950",
+   "description": "SS - IFO 90-20 W/S Francis Lewis Blvd, 1st SS S/O 90th Ave",
+   "borough": "QUEENS",
+   "lat": 40.71739,
+   "lon": -73.75685
+  },
+  {
+   "site": "77050",
+   "description": "SS - IFO 93-40 E/S 217th St, S/O 94th Ave (IFO - Queens Village Library)",
+   "borough": "QUEENS",
+   "lat": 40.72001,
+   "lon": -73.73936
+  },
+  {
+   "site": "77150",
+   "description": "SS - N/S Linden Blvd, 1st SS W/O 230th St",
+   "borough": "QUEENS",
+   "lat": 40.69255,
+   "lon": -73.73162
+  },
+  {
+   "site": "77350",
+   "description": "SS - S/S Merrick Blvd, BTW 222nd St & 223rd St, IFO 222-18 Merrick Blvd",
+   "borough": "QUEENS",
+   "lat": 40.67805,
+   "lon": -73.74652
+  },
+  {
+   "site": "77550",
+   "description": "SS - IFO E/S 222nd St, 2nd S/O 91st Rd",
+   "borough": "QUEENS",
+   "lat": 40.72703,
+   "lon": -73.73494
+  },
+  {
+   "site": "77650",
+   "description": "SS - OPP 110-52 E/S 207th St, 1st N/O 111th Ave",
+   "borough": "QUEENS",
+   "lat": 40.70597,
+   "lon": -73.74947
+  },
+  {
+   "site": "77750",
+   "description": "SS - OPP 120-11 W/S 237th St, 1st SS S/O 120th Ave",
+   "borough": "QUEENS",
+   "lat": 40.6853,
+   "lon": -73.72815
+  },
+  {
+   "site": "77850",
+   "description": "SS - N/S 90th Ave, BTW 179th & 180th Sts",
+   "borough": "QUEENS",
+   "lat": 40.71101,
+   "lon": -73.78204
+  },
+  {
+   "site": "78050",
+   "description": "SS - OPP 110-38 E/S Springfield Blvd, 1st S/O 110th Rd",
+   "borough": "QUEENS",
+   "lat": 40.70738,
+   "lon": -73.73883
+  },
+  {
+   "site": "78150",
+   "description": "SS - IFO 85-31 E/S 120th St, 2nd SS N/O Hillside Ave",
+   "borough": "QUEENS",
+   "lat": 40.70222,
+   "lon": -73.83081
+  },
+  {
+   "site": "78350",
+   "description": "SS - N/S Hillside Ave, BTW 189th & 190th Sts",
+   "borough": "QUEENS",
+   "lat": 40.71562,
+   "lon": -73.77247
+  },
+  {
+   "site": "78450",
+   "description": "SS - IFO 88-18 W/S Hollis Court Blvd, 2nd SS S/O Hillside Ave",
+   "borough": "QUEENS",
+   "lat": 40.72323,
+   "lon": -73.75403
+  },
+  {
+   "site": "78550",
+   "description": "SS - W/S Springfield Blvd, 2nd SS S/O 116th Ave",
+   "borough": "QUEENS",
+   "lat": 40.69742,
+   "lon": -73.74332
+  },
+  {
+   "site": "78650",
+   "description": "SS -N/S Linden Blvd, 1st SS E/O 191st St (IFO Queens Library)",
+   "borough": "QUEENS",
+   "lat": 40.6924,
+   "lon": -73.75991
+  },
+  {
+   "site": "78850",
+   "description": "SS - OPP 109-36 E/S 160th St, 2nd SS N/O 110th Ave",
+   "borough": "QUEENS",
+   "lat": 40.69338,
+   "lon": -73.79146
+  },
+  {
+   "site": "79050",
+   "description": "SS - S/S South Conduit Ave, 1st SS E/O 221st St",
+   "borough": "QUEENS",
+   "lat": 40.66542,
+   "lon": -73.75669
+  },
+  {
+   "site": "79150",
+   "description": "SS - IFO 127-11 E/S Farmers Blvd (Keyspan), 2nd SS N/O Merrick Blvd",
+   "borough": "QUEENS",
+   "lat": 40.68085,
+   "lon": -73.76115
+  },
+  {
+   "site": "79450",
+   "description": "SS - OPP 127-18 N/S Foch Blvd, 1st SS W/O 128th St",
+   "borough": "QUEENS",
+   "lat": 40.67589,
+   "lon": -73.80984
+  },
+  {
+   "site": "79550",
+   "description": "SS - OPP 109-11 W/S 127th St, 2nd SS S/O 109th Ave",
+   "borough": "QUEENS",
+   "lat": 40.68366,
+   "lon": -73.81495
+  }
+ ]
+}

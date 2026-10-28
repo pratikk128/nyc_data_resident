@@ -1696,3 +1696,214 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
 .rank-row.is-current .rank-n { color: var(--ink); }
 .rank-row.is-current { margin-inline: calc(-1 * var(--space-2)); padding: var(--space-2); border-radius: var(--radius-md); background: var(--yellow-tint); }
 .rank-note { margin-top: var(--space-4); font-size: .9375rem; color: var(--ink-soft); }
+
+/* =========================================================
+   NYC Drinking Water Quality
+   ========================================================= */
+:root {
+  /* Report card status: Health-tone tints with deep text (≥ 4.8:1). Every tile
+     also says its status in words and an icon, so color is never the only cue. */
+  --status-green: #E5F7EA;
+  --status-green-deep: #1E7A3C;
+  --status-amber: var(--yellow-tint);
+  --status-amber-deep: var(--yellow-deep);
+  --status-red: #FFE8E6;
+  --status-red-deep: #B3261E;
+  --water-line: var(--blue-deep);
+  --water-band: rgba(169, 203, 255, .28);   /* pastel blue, light */
+}
+
+/* "Good to know before you read": always open */
+.water-context { margin-top: var(--space-5); }
+.water-context-title { font-size: 1rem; font-weight: 800; }
+.water-context ul { margin: var(--space-2) 0 0; padding-left: 1.25rem; }
+.water-context li + li { margin-top: var(--space-1); }
+.water-context + .dash-section { margin-top: var(--space-6); }
+
+.water-summary { margin-top: var(--space-4); font-size: 1.0625rem; }
+.water-note { margin-top: var(--space-4); }
+.water-empty { margin-top: var(--space-4); color: var(--ink-soft); }
+.water-h3 { font-size: 1.125rem; font-weight: 800; }
+.water-h4 { font-size: .9375rem; font-weight: 700; }
+
+/* ---------- Report card ---------- */
+.water-tiles {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-3);
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+@media (min-width: 640px) { .water-tiles { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1024px) { .water-tiles { grid-template-columns: repeat(3, 1fr); } }
+.water-tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-top: 6px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+.water-tile[data-status="green"] { border-top-color: var(--status-green-deep); }
+.water-tile[data-status="amber"] { border-top-color: var(--accent-deep); }
+.water-tile[data-status="red"] { border-top-color: var(--status-red-deep); }
+.water-tile-status {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 2px var(--space-3) 2px 2px;
+  border-radius: var(--radius-pill);
+  background: var(--paper);
+  color: var(--ink-soft);
+  font-size: .8125rem;
+  font-weight: 700;
+}
+.water-status-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--line-strong);
+  color: var(--ink);
+  font-size: .8125rem;
+  font-weight: 800;
+}
+.water-tile[data-status="green"] .water-tile-status { background: var(--status-green); color: var(--status-green-deep); }
+.water-tile[data-status="green"] .water-status-icon { background: var(--status-green-deep); color: #fff; }
+.water-tile[data-status="amber"] .water-tile-status { background: var(--status-amber); color: var(--status-amber-deep); }
+.water-tile[data-status="amber"] .water-status-icon { background: var(--yellow); }
+.water-tile[data-status="red"] .water-tile-status { background: var(--status-red); color: var(--status-red-deep); }
+.water-tile[data-status="red"] .water-status-icon { background: var(--status-red-deep); color: #fff; }
+.water-tile-label { margin-top: var(--space-1); font-size: 1rem; font-weight: 700; color: var(--ink-soft); }
+.water-tile-value {
+  font-size: clamp(1.75rem, 1.4rem + 1.5vw, 2.25rem);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.water-tile-unit { font-size: .9375rem; font-weight: 600; letter-spacing: 0; color: var(--ink-soft); }
+.water-tile-sentence { font-size: .9375rem; }
+.water-tile-ref { margin-top: auto; padding-top: var(--space-2); font-size: .8125rem; color: var(--ink-soft); }
+
+.water-ecoli .table-scroll { margin-top: var(--space-3); background: var(--card); }
+.water-ecoli p { margin-top: var(--space-3); }
+.water-cell-sub { display: block; font-size: .8125rem; font-weight: 400; color: var(--ink-soft); }
+.table-scroll .water-cell-wrap, .table-scroll .water-ref-cell { white-space: normal; text-align: left; min-width: 12rem; }
+.table-scroll .water-cell-gap { text-align: left; color: var(--ink-soft); }
+
+/* ---------- History ---------- */
+.water-takeaway {
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-left: 4px solid var(--accent);
+  background: var(--yellow-tint);
+  border-radius: var(--radius-sm);
+  font-size: 1.0625rem;
+  font-weight: 600;
+}
+.water-line { fill: none; stroke: var(--water-line); stroke-width: 2; stroke-linejoin: round; }
+.water-dot { fill: var(--water-line); }
+.water-marker { fill: var(--accent); stroke: var(--ink); stroke-width: 2; }
+.water-band { fill: var(--water-band); }
+.water-band-label, .water-ref-label { font-size: 12px; fill: var(--ink-soft); }
+.water-ref { stroke: var(--ink-soft); stroke-width: 1.5; stroke-dasharray: 5 4; }
+.water-focus-line { stroke: var(--ink-soft); stroke-width: 1; stroke-dasharray: 2 3; }
+.water-focus-dot { fill: var(--card); stroke: var(--ink); stroke-width: 2; }
+.water-line-svg { touch-action: pan-y; }
+.water-swatch-line { height: 3px; border-radius: 2px; background: var(--water-line); }
+.water-swatch-marker { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); box-shadow: inset 0 0 0 2px var(--ink); }
+.water-swatch-band { background: var(--water-band); box-shadow: inset 0 0 0 1px var(--blue); }
+.water-ecoli-history { margin-top: var(--space-6); }
+.water-ecoli-history .table-scroll { margin-top: var(--space-3); }
+
+/* ---------- Near me ---------- */
+.water-search {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+  gap: var(--space-3) var(--space-4);
+  margin-top: var(--space-5);
+}
+@media (min-width: 768px) {
+  .water-search { grid-template-columns: minmax(0, 2fr) auto minmax(0, 1fr) minmax(0, 2fr); }
+  .water-field-btn { padding-top: calc(.9375rem * 1.6 + var(--space-1)); }
+}
+.water-go { min-height: 44px; white-space: nowrap; }
+.water-suggest { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
+.water-suggest[hidden] { display: none; }
+.water-map { height: min(420px, 60vh); }
+.water-map-legend { display: flex; flex-wrap: wrap; gap: var(--space-4); margin-top: var(--space-2); font-size: .8125rem; color: var(--ink-soft); }
+.water-key { display: inline-flex; align-items: center; gap: var(--space-2); }
+.water-key-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--blue-deep); box-shadow: 0 0 0 1.5px #fff, 0 0 0 2.5px var(--line-strong); }
+.water-key-you { width: 12px; height: 12px; border-radius: 50%; background: var(--ink); box-shadow: 0 0 0 3px var(--yellow); }
+
+/* Picked station: a yellow route bullet with its number. Also used on the map (divIcon). */
+.water-pin {
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--yellow);
+  box-shadow: inset 0 0 0 2px var(--ink), 0 1px 3px rgba(28, 42, 68, .3);
+  color: var(--ink);
+  font-weight: 800;
+  font-size: .875rem;
+}
+.leaflet-marker-icon.water-pin { width: 28px; height: 28px; }
+.water-pin-inline { flex-shrink: 0; width: 28px; height: 28px; }
+.water-map-legend .water-pin-inline { width: 18px; height: 18px; font-size: .6875rem; }
+
+.water-cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+}
+.water-cards:empty { display: none; }
+@media (min-width: 768px) { .water-cards { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1100px) { .water-cards { grid-template-columns: repeat(3, 1fr); } }
+.water-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+.water-card-head { display: flex; align-items: flex-start; gap: var(--space-3); }
+.water-card-head > div { flex: 1; min-width: 0; }
+.water-card-title { font-size: 1.0625rem; font-weight: 800; }
+.water-card-place { font-size: .9375rem; overflow-wrap: anywhere; }
+.water-card-meta { font-size: .8125rem; color: var(--ink-soft); }
+.water-remove {
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 1.5px solid var(--link);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  color: var(--link);
+  font: inherit;
+  font-size: .875rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.water-remove:hover { background: var(--link-tint); }
+.water-metric { padding-top: var(--space-3); border-top: 1px solid var(--line); font-size: .9375rem; }
+.water-metric p { margin-top: var(--space-1); }
+.water-spark-slot { min-height: 48px; margin-top: var(--space-1); }
+.water-spark { display: block; overflow: visible; }
+.water-spark-line { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linejoin: round; }
+.water-spark-city { fill: none; stroke: var(--blue-deep); stroke-width: 1.5; stroke-dasharray: 4 3; }
+.water-spark-dot { fill: var(--ink); }
+.water-spark-end { font-size: 12px; font-weight: 700; fill: var(--ink); font-variant-numeric: tabular-nums; }
+.water-detections { margin: var(--space-2) 0 0; padding-left: 1.25rem; }
+.water-card.is-skeleton { min-height: 280px; box-shadow: none; }
+.water-retry { margin-left: var(--space-2); min-height: 44px; }

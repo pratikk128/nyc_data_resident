@@ -1,0 +1,38 @@
+---
+/*
+ * NYC Drinking Water Quality: "What about near me?" The station list comes
+ * from src/data/water-sites.json, narrowed to stations with routine samples in
+ * the last 12 months (the daily stations job); each station's numbers load in
+ * the browser from /api/water/stations.
+ */
+import WaterPage from '../../components/drinking-water/WaterPage.astro';
+import NearMeSection from '../../components/drinking-water/NearMeSection.astro';
+import { getMetadata, getStations } from '../../lib/server/water.js';
+import { plainDescription } from '../../lib/water/stats.js';
+import sitesFile from '../../data/water-sites.json';
+
+export const prerender = false;
+
+const [meta, stations] = await Promise.allSettled([getMetadata(), getStations()]);
+for (const r of [meta, stations]) if (r.status === 'rejected') console.error(r.reason);
+
+const active = stations.status === 'fulfilled' ? new Set(Object.keys(stations.value.totals ?? {})) : new Set<string>();
+const list = sitesFile.sites
+  .filter((s) => active.has(s.site) && s.lat != null && s.lon != null)
+  .map((s) => ({ site: s.site, place: plainDescription(s.description), borough: s.borough, lat: s.lat!, lon: s.lon! }));
+const located = new Set(list.map((s) => s.site));
+const unlocated = [...active].filter((s) => !located.has(s)).length;
+---
+
+<WaterPage
+  section="near-me"
+  description="Find the NYC drinking water sampling stations nearest your address or ZIP and see their last 12 months of chlorine, cloudiness and bacteria results."
+  meta={meta.status === 'fulfilled' ? meta.value : null}
+>
+  <NearMeSection
+    stations={list}
+    months={stations.status === 'fulfilled' ? stations.value.months : []}
+    unlocated={unlocated}
+    error={stations.status === 'rejected'}
+  />
+</WaterPage>

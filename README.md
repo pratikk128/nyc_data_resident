@@ -15,9 +15,12 @@ src/layouts/DashboardLayout.astro   Shared shell for dashboard pages
 src/lib/                  Formatting helpers, payroll stats, chart code
 src/pages/restaurant-inspections/   NYC Restaurant Inspections (rendered on demand)
 src/pages/311-complaints/  311 Complaints in My Neighborhood (rendered on demand)
-src/pages/api/            API routes (Worker): /api/restaurants/search, /api/restaurants/:camis, /api/311/*
+src/pages/drinking-water/  NYC Drinking Water Quality, one page per section (rendered on demand)
+src/components/drinking-water/  WaterPage.astro (heading, section nav, context box, method notes) and the sections
+src/pages/api/            API routes (Worker): /api/restaurants/search, /api/restaurants/:camis, /api/311/*, /api/water/stations
 src/lib/restaurants/      Restaurant logic: SoQL builders, inspection rules, violation categories, rendering
 src/lib/complaints311/    311 logic: config, SoQL, share math, labels, input parsing, geocoding, rendering
+src/lib/water/            Drinking water logic: reference values (config.js), lab value parser, SoQL, stats, charts, map
 src/lib/server/           Server-only: Socrata client (holds the token), caches, daily jobs
 src/worker.js             Worker entry: Astro for requests, cron for daily jobs
 wrangler.jsonc            Worker config: KV namespace, cron trigger
@@ -43,7 +46,7 @@ Production build: `npm run build` (output in `dist/`), preview with `npm run pre
 Live data needs no setup locally (Socrata allows anonymous requests at low volume). To use a token, copy `.dev.vars.example` to `.dev.vars` and fill in `SOCRATA_APP_TOKEN`.
 
 ```sh
-npm test             # restaurant and 311 logic tests
+npm test             # restaurant, 311 and drinking water logic tests
 ```
 
 ## Deploy (Cloudflare Workers)
@@ -66,7 +69,7 @@ All Socrata calls go through `src/lib/server/socrata.js`, which adds the `X-App-
 |---|---|---|
 | Search results | Workers Cache API, keyed by the normalized query | 1 hour |
 | One restaurant | Workers Cache API | 1 hour |
-| Benchmarks (category averages), 311 borough and city baselines and citywide distributions, dataset metadata | KV `DATA_CACHE`, refreshed by the cron | 24 hours (a request recomputes only if KV has nothing newer than 26 h; if Socrata is down the last value is served, kept up to 7 days) |
+| Benchmarks (category averages), 311 borough and city baselines and citywide distributions, drinking water monthly/detections/station aggregates, dataset metadata | KV `DATA_CACHE`, refreshed by the cron | 24 hours (a request recomputes only if KV has nothing newer than 26 h; if Socrata is down the last value is served, kept up to 7 days) |
 | 311 areas (¼ and 1 mile) and ZIPs | Workers Cache API, keyed by lat/lon rounded to 3 decimals + radius + window | 6 hours |
 
 **Adding another dataset's daily aggregate:** write a server module like `src/lib/server/restaurants.js` that exports jobs (`{ key, maxAgeHours, run }`), add them to `DAILY_JOBS` in `src/lib/server/daily-jobs.js`, and read them with `dailyValue(job)`. The one cron run refreshes every job in parallel.
@@ -241,6 +244,22 @@ Quick-filter chips (`JOB_CHIPS` in the script). A chip with no matching title in
 | Caseworker | CASEWORKER |
 | City Planner | CITY PLANNER |
 | Civil Engineer | CIVIL ENGINEER, ASSISTANT CIVIL ENGINEER |
+
+## NYC Drinking Water Quality
+
+`/drinking-water/` explains DEP's street-side water samples from [Drinking Water Quality Distribution Monitoring Data](https://data.cityofnewyork.us/d/bkwf-xfky) (`bkwf-xfky`). Three sections, each its own page (`SECTIONS` in `WaterPage.astro`):
+
+| URL | Question | Section |
+|---|---|---|
+| `/drinking-water/` | Is my water safe right now? (report card for the latest full month) | `ReportCardSection.astro` |
+| `/drinking-water/history/` | Has it always been this good? (coliform % and median chlorine, every month) | `HistorySection.astro` |
+| `/drinking-water/near-me/` | What about near me? (3 nearest stations, 12-month sparklines) | `NearMeSection.astro` |
+
+**Data.** Every measurement column is text (chlorine included). `parseMeasurement()` in `src/lib/water/parse.js` reads `<X` and `ND` as not detected (0 for bacteria), `>X` as at least X, and blanks and negative placeholders (`-9`, `-9.99`) as missing; `soql.js` applies the same rules inside SoQL so all aggregation happens on Socrata. Shares and medians use routine samples (Compliance, Operational); detections list every class. Four daily jobs in `src/lib/server/water.js` (`water:*` in KV) hold everything the pages read, so readers don't wait on Socrata.
+
+**Reference values** (with sources, checked Oct 2026) and the tile color cutoffs are in `src/lib/water/config.js`. They're labeled as reference values, not a compliance determination.
+
+**Station locations** come from DEP's 2021 sampling site spreadsheet, converted to `src/data/water-sites.json` (State Plane EPSG:2263 → lat/lon, borough by point-in-polygon), with ZIP points in `src/data/zip-centroids.json`. Rebuild both with `npm run data:water-sites`; it also lists dataset site codes missing from the spreadsheet.
 
 ## Theme
 

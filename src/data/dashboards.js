@@ -39,6 +39,13 @@ export const dashboards = [
     description: "See what NYC pays its workforce: total payroll, overtime and other pay by agency and year.",
     category: "City Government",
     url: "/city-payroll/"
+  },
+  {
+    id: "drinking-water",
+    title: "NYC Drinking Water Quality",
+    description: "Is the water safe right now? Monthly test results for bacteria, chlorine and more, citywide and near you.",
+    category: "Environment",
+    url: "/drinking-water/"
   }
 ];
 
