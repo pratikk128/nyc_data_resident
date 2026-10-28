@@ -82,7 +82,7 @@ export function streetMatches(typed, place) {
 }
 
 // Only places in the borough or ZIP that was given; if that leaves nothing, the ZIP is dropped first.
-function narrow(places, { borough, zip }) {
+export function narrow(places, { borough, zip }) {
   let out = places;
   if (zip) {
     const inZip = out.filter((p) => p.zip === zip);

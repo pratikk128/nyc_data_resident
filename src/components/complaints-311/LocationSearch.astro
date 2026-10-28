@@ -76,7 +76,7 @@ const { initialLabel, initialPrefix = 'Showing results near:' } = Astro.props;
 <script>
   import { state, subscribe, setLocation, setWindow } from '../../lib/complaints311/store.js';
   import { parseLocationInput, isNycZip, boroughFromText } from '../../lib/complaints311/location-input.js';
-  import { suggest, resolveLocation, placeToLocation } from '../../lib/complaints311/geocode.js';
+  import { suggest, resolveLocation, placeToLocation, narrow } from '../../lib/complaints311/geocode.js';
   import { boroughLabel } from '../../lib/complaints311/config.js';
   import { escape } from '../../lib/complaints311/render.js';
 
@@ -155,8 +155,8 @@ const { initialLabel, initialPrefix = 'Showing results near:' } = Astro.props;
     suggestAbort = new AbortController();
     try {
       const places = await suggest(text, { signal: suggestAbort.signal });
-      const boro = boroSelect.value;
-      const filtered = boro ? places.filter((p) => p.borough === boro) : places;
+      const zip = zipInput.value.trim();
+      const filtered = narrow(places, { borough: boroSelect.value, zip: /^\d{5}$/.test(zip) ? zip : null });
       renderOptions([...local, ...filtered.map((p) => ({ label: p.label, location: placeToLocation(p) }))].slice(0, 6));
     } catch (err: any) {
       if (err.name !== 'AbortError') renderOptions(local); // typing still works; Enter resolves on submit
@@ -239,6 +239,18 @@ const { initialLabel, initialPrefix = 'Showing results near:' } = Astro.props;
   changeBtn.addEventListener('click', () => (form.hidden ? startEditing() : (form.hidden = true, finishEditing())));
 
   windowBtns.forEach((b) => b.addEventListener('click', () => setWindow(b.dataset.window!)));
+
+  // Back and Forward change the place without the form, so the fields follow the URL.
+  // (store.js registers its popstate listener first, so state already holds the new place.)
+  function fillForm() {
+    const loc = state.location;
+    closeOptions();
+    status.textContent = '';
+    input.value = !loc ? '' : loc.kind === 'point' ? loc.label : loc.kind === 'zip' ? loc.zip : boroughLabel(loc.borough);
+    boroSelect.value = loc?.kind === 'zip' ? loc.borough ?? '' : '';
+    zipInput.value = '';
+  }
+  window.addEventListener('popstate', fillForm);
 
   function describe(s: typeof state) {
     const loc = s.location;

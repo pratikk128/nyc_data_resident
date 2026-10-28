@@ -1330,7 +1330,7 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
 .c311-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-2) 0; }
 .c311-chip { font-weight: 600; }
 .c311-map-frame {
-  height: 540px;
+  height: min(540px, 70vh);
   margin-top: var(--space-3);
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-md);
@@ -1373,7 +1373,7 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
   .c311-current { padding: var(--space-3) var(--space-4); }
   .c311-current .copy-link { width: 100%; }
   .c311-control, .c311-control .toggle { width: 100%; }
-  .c311-map-frame { height: 380px; }
+  .c311-map-frame { height: min(380px, 70vh); }
 }
 
 /* =========================================================

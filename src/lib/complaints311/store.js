@@ -129,13 +129,14 @@ function writeUrl(push) {
   const url = new URL(location.href);
   url.search = params.toString();
   if (url.href === location.href) return;
-  if (push) history.pushState(null, "", url);
+  // onStreet isn't in the URL, so the history entry keeps it for Back and Forward.
+  if (push) history.pushState({ onStreet: state.onStreet }, "", url);
   else history.replaceState(history.state, "", url);
 }
 
 export function readUrl() {
   const { location: loc, window: windowKey, area, vs } = locationFromParams(new URL(location.href).searchParams);
-  patch({ location: loc, window: windowKey, area, vs, onStreet: null });
+  patch({ location: loc, window: windowKey, area, vs, onStreet: history.state?.onStreet ?? null });
   load();
 }
 
