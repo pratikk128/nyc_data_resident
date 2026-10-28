@@ -46,7 +46,7 @@ function emptyArea() {
 // One job per window: every borough's counts, and the city's (Unspecified included).
 function baselineJob(windowKey) {
   return {
-    key: `311:baseline:v1:${windowKey}`,
+    key: `311:baseline:v2:${windowKey}`,
     maxAgeHours: 26,
     async run() {
       const since = windowStart(windowKey);

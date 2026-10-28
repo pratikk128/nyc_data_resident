@@ -16,8 +16,9 @@ import {
   parseLocationInput, isNycZip, prettyStreet, placeLabel, locationFromParams, locationToParams
 } from "../src/lib/complaints311/location-input.js";
 import { chooseMatch, resolveLocation, streetMatches } from "../src/lib/complaints311/geocode.js";
-import { windowStart, windowChunks, circle, heatmapParams } from "../src/lib/complaints311/soql.js";
+import { windowStart, windowChunks, circle, heatmapParams, baselineParams } from "../src/lib/complaints311/soql.js";
 import { MIN_IMMEDIATE_REQUESTS, RADII } from "../src/lib/complaints311/config.js";
+import { comparisonView } from "../src/lib/complaints311/view.js";
 
 const close = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) < eps, `${a} ≈ ${b}`);
 
@@ -367,4 +368,27 @@ test("heatmapParams counts per grid cell in the area, filtered on normalized com
   assert.ok(!all.$where.includes("complaint_type"));
   const some = heatmapParams("2025-10-28", "x", ["Noise - Residential", "O'BRIEN"]);
   assert.match(some.$where, /upper\(trim\(complaint_type\)\) IN \('NOISE - RESIDENTIAL', 'O''BRIEN'\)$/);
+});
+
+// ---------- Baselines and the comparison view ----------
+
+test("baselineParams counts only requests with a location, like the radius counts", () => {
+  assert.match(baselineParams("2025-10-28", "complaint_type").$where, /^created_date >= '2025-10-28T00:00:00' AND location IS NOT NULL$/);
+});
+
+test("comparisonView falls back to the 1 mile and says why when the ¼ mile failed", () => {
+  const ready = (data) => ({ status: "ready", data, error: null });
+  const area = { total: 500, types: { NOISE: 500 }, locations: {}, status: { open: 0, closed: 500 } };
+  const state = {
+    location: { kind: "point", lat: 40.7, lon: -73.9 }, window: "12m", area: "immediate", vs: "city", borough: null,
+    immediate: { status: "error", data: null, error: new Error("upstream") },
+    neighborhood: ready(area), zip: { status: "idle" },
+    baseline: ready({ city: area, borough: null })
+  };
+  const failed = comparisonView(state);
+  assert.equal(failed.area, "neighborhood");
+  assert.equal(failed.immediateFailed, true);
+  const low = comparisonView({ ...state, immediate: ready({ ...area, total: 10 }) });
+  assert.equal(low.immediateFailed, false);
+  assert.equal(low.immediateOk, false);
 });

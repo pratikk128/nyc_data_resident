@@ -17,9 +17,9 @@ const { id } = Astro.props;
     <button type="button" class="toggle-btn" data-area="immediate" aria-pressed="false" aria-describedby={`${id}-why`}>Immediate area</button>
     <button type="button" class="toggle-btn" data-area="neighborhood" aria-pressed="true">Neighborhood</button>
   </div>
-  <p class="c311-why" id={`${id}-why`} data-why hidden>
-    Fewer than {MIN_IMMEDIATE_REQUESTS} requests within ¼ mile in this period, too few to compare fairly, so we use the 1 mile neighborhood.
-  </p>
+  <p class="c311-why" id={`${id}-why`} data-why
+    data-low={`Fewer than ${MIN_IMMEDIATE_REQUESTS} requests within ¼ mile in this period, too few to compare fairly, so we use the 1 mile neighborhood.`}
+    data-failed="The ¼ mile counts didn’t load, so we use the 1 mile neighborhood. Try again in a minute." hidden></p>
 </div>
 
 <script>
@@ -41,8 +41,9 @@ const { id } = Astro.props;
       const v: any = comparisonView(s);
       control.hidden = !s.location || v.mode === 'borough';
       if (v.status !== 'ready' || v.mode !== 'radius') return;
+      why.textContent = v.immediateFailed ? why.dataset.failed! : why.dataset.low!;
       immediate.setAttribute('aria-disabled', String(!v.immediateOk));
-      immediate.title = v.immediateOk ? '' : why.textContent!.trim();
+      immediate.title = v.immediateOk ? '' : why.textContent;
       why.hidden = v.immediateOk;
       btns.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.area === v.area)));
     });

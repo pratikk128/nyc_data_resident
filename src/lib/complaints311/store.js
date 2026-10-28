@@ -109,6 +109,11 @@ export function load() {
   if (loc.kind === "zip") {
     track("zip", `/api/311/zip?zip=${encodeURIComponent(loc.zip)}&window=${w}`, gen).then((z) => {
       if (z?.center) loadRadii(z.center, loc.borough ?? z.borough);
+      else if (z && gen === generation) {
+        // Requests name the ZIP but none has a map location, so there's no spot to measure from.
+        const error = new LoadError(404, `None of the requests that mention ZIP code ${loc.zip} have a map location. Try an address or street in it instead.`);
+        patch({ immediate: { status: "error", data: null, error }, neighborhood: { status: "error", data: null, error } });
+      }
     });
     return;
   }

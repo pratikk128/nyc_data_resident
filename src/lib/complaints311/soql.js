@@ -131,11 +131,13 @@ export function heatmapParams(since, where, types = []) {
 
 // ---------- Baselines (run once a day, ~1 minute each) ----------
 // Grouped by borough; the city total is the sum over every borough, Unspecified included.
+// Only requests with a location, like the radius counts they're compared with: types often
+// filed without one would otherwise look rarer near every spot.
 
 export function baselineParams(since, column) {
   return {
     $select: `${F.borough}, ${column}, count(*) AS n`,
-    $where: createdSince(since),
+    $where: `${createdSince(since)} AND ${F.location} IS NOT NULL`,
     $group: `${F.borough}, ${column}`,
     $limit: BIG_LIMIT
   };

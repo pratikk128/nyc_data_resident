@@ -33,11 +33,13 @@ export function comparisonView(state) {
 
   // If the ¼ mile query failed, compare with the 1 mile and say the ¼ mile isn't available.
   const cmp = comparisonArea(imm.status === "ready" ? imm.data.total : 0, state.area);
+  const immediateFailed = imm.status === "error";
   const local = cmp.area === "immediate" ? imm.data : nb.data;
   const hasBorough = Boolean(base.data.borough && boroughName);
   const vs = state.vs === "borough" && hasBorough ? "borough" : "city";
   return {
-    status: "ready", mode: "radius", ...cmp, local, localName: "here",
+    status: "ready", mode: "radius", ...cmp, immediateFailed,
+    local, localName: "here",
     names: { here: cmp.area === "immediate" ? "Within ¼ mile" : "Within 1 mile", borough: hasBorough ? boroughName : null, city: "NYC" },
     baseline: vs === "borough" ? base.data.borough : base.data.city,
     baselineName: vs === "borough" ? `the ${boroughName} average` : "the NYC average",
