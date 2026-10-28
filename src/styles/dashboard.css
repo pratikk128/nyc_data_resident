@@ -434,7 +434,7 @@ details[open] > summary::before { transform: rotate(45deg); }
 }
 
 /* =========================================================
-   Section nav (one page per section, links styled like the toggle)
+   Section nav (one page per section: cards on top, pager at the end)
    ========================================================= */
 .sr-only {
   position: absolute;
@@ -448,31 +448,113 @@ details[open] > summary::before { transform: rotate(45deg); }
   border: 0;
 }
 
-.section-nav { margin-top: var(--space-5); }
-.section-nav ul {
-  display: inline-flex;
-  flex-wrap: wrap;
-  padding: 3px;
+/* Cards: one per section, numbered like route bullets. These are page
+   links, so they look like cards rather than the in-chart .toggle. */
+.section-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+  padding: 0;
+  list-style: none;
+}
+.section-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  height: 100%;
+  padding: var(--space-4) var(--space-5);
   border: 1px solid var(--line-strong);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-lg);
   background: var(--card);
-}
-.section-nav a {
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  padding: 0 var(--space-5);
-  border-radius: var(--radius-pill);
-  color: var(--ink-soft);
-  font-size: .9375rem;
-  font-weight: 700;
+  color: var(--ink);
   text-decoration: none;
-  white-space: nowrap;
+  transition: box-shadow var(--speed) var(--ease), border-color var(--speed) var(--ease), transform var(--speed) var(--ease);
 }
-.section-nav a:hover { color: var(--ink); background: var(--yellow-tint); }
-.section-nav a[aria-current="page"] { background: var(--accent); color: var(--ink); }
-.section-nav a:focus-visible { border-radius: var(--radius-pill); }
-.section-nav + .dash-section { margin-top: var(--space-5); }
+.section-card:hover { border-color: var(--link); box-shadow: var(--shadow-hover); transform: translateY(-2px); }
+.section-card:focus-visible { outline-offset: 3px; border-radius: var(--radius-lg); }
+.section-card[aria-current="page"] {
+  border-color: var(--ink);
+  background: var(--yellow-tint);
+  box-shadow: inset 0 0 0 1px var(--ink);
+  transform: none;
+  cursor: default;
+}
+
+.section-bullet {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--blue);
+  color: var(--ink);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  transition: transform var(--speed) var(--ease);
+}
+.section-card[aria-current="page"] .section-bullet { background: var(--yellow); box-shadow: inset 0 0 0 2px var(--ink); }
+.section-card:not([aria-current]):hover .section-bullet { transform: translateY(-2px); }
+
+.section-card-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.section-card-kicker {
+  font-size: .8125rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.section-card[aria-current="page"] .section-card-kicker { color: var(--yellow-deep); }
+.section-card-title {
+  font-size: 1.125rem;
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+.section-card-blurb {
+  margin-top: 2px;
+  font-size: .9375rem;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+.section-card-arrow {
+  align-self: center;
+  margin-left: auto;
+  color: var(--link);
+  font-size: 1.25rem;
+  font-weight: 700;
+  transition: transform var(--speed) var(--ease);
+}
+.section-card:hover .section-card-arrow { transform: translateX(3px); }
+
+.section-nav + .dash-section { margin-top: var(--space-6); }
+
+/* Previous / next at the end of a section page */
+.section-pager {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+}
+.pager-link {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  text-decoration: none;
+  transition: border-color var(--speed) var(--ease), background-color var(--speed) var(--ease);
+}
+.pager-link:hover { border-color: var(--link); background: var(--yellow-tint); }
+.pager-next { grid-column: 2; text-align: right; }
+.pager-dir { font-size: .8125rem; font-weight: 700; color: var(--ink-soft); }
+.pager-title { font-size: 1.125rem; font-weight: 800; color: var(--link); }
+
+@media (prefers-reduced-motion: reduce) {
+  .section-card, .section-bullet, .section-card-arrow { transition: none; }
+  .section-card:hover, .section-card:not([aria-current]):hover .section-bullet, .section-card:hover .section-card-arrow { transform: none; }
+}
 
 /* =========================================================
    "What do city jobs actually pay?"
@@ -636,9 +718,15 @@ th[aria-sort="none"] .sort-btn:hover .sort-icon::after { content: "↕"; color: 
 
 /* Phones: rows become cards with title, base, total and change */
 @media (max-width: 639px) {
-  .section-nav ul { display: flex; }
-  .section-nav li { flex: 1; }
-  .section-nav a { justify-content: center; padding: 0 var(--space-2); font-size: .875rem; white-space: normal; text-align: center; line-height: 1.2; }
+  /* Compact cards side by side so the section starts above the fold */
+  .section-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+  .section-card { flex-direction: column; gap: var(--space-2); padding: var(--space-3); border-radius: var(--radius-md); }
+  .section-card:focus-visible { border-radius: var(--radius-md); }
+  .section-bullet { width: 28px; height: 28px; font-size: .875rem; }
+  .section-card-title { font-size: 1rem; }
+  .section-card-blurb, .section-card-arrow { display: none; }
+  .section-pager { grid-template-columns: 1fr; }
+  .pager-next { grid-column: auto; }
 
   .jobs-search { flex-basis: 100%; }
   .jobs-sort { display: flex; flex-basis: 100%; }

@@ -1,0 +1,35 @@
+---
+/*
+ * Previous / next links at the end of a multi-section dashboard page, so a
+ * reader who finishes one section has an obvious next step. Takes the same
+ * sections list as SectionNav.
+ */
+import type { Section } from './SectionNav.astro';
+
+interface Props {
+  sections: Section[];
+  current: string;
+}
+
+const { sections, current } = Astro.props;
+const i = sections.findIndex((s) => s.id === current);
+const prev = sections[i - 1];
+const next = sections[i + 1];
+---
+
+{(prev || next) && (
+  <nav class="section-pager" aria-label="More from this dashboard">
+    {prev && (
+      <a class="pager-link pager-prev" href={prev.href} rel="prev">
+        <span class="pager-dir"><span aria-hidden="true">← </span>Previous</span>
+        <span class="pager-title">{prev.label}</span>
+      </a>
+    )}
+    {next && (
+      <a class="pager-link pager-next" href={next.href} rel="next">
+        <span class="pager-dir">Up next<span aria-hidden="true"> →</span></span>
+        <span class="pager-title">{next.label}</span>
+      </a>
+    )}
+  </nav>
+)}

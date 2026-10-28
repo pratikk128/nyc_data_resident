@@ -1,0 +1,45 @@
+---
+/*
+ * Section chooser for a dashboard split into several pages (one question
+ * per page). Each section is a card with a numbered route bullet, its
+ * question and a one-line summary; the current one is marked "You're here".
+ * Use with SectionPager at the end of the page. See DESIGN.md §6.3.
+ */
+export interface Section {
+  id: string;
+  href: string;
+  label: string;  // Short question-style title, e.g. "How much the city spends"
+  blurb: string;  // One line on what the section shows
+}
+
+interface Props {
+  sections: Section[];
+  current: string;
+  label?: string;  // Accessible name for the nav
+}
+
+const { sections, current, label = 'Dashboard sections' } = Astro.props;
+---
+
+<nav class="section-nav" aria-label={label}>
+  <ol class="section-cards">
+    {sections.map((s, i) => {
+      const active = s.id === current;
+      return (
+        <li>
+          <a class="section-card" href={s.href} aria-current={active ? 'page' : undefined}>
+            <span class="section-bullet" aria-hidden="true">{i + 1}</span>
+            <span class="section-card-text">
+              <span class="section-card-kicker">
+                {active ? 'You’re here' : `Part ${i + 1} of ${sections.length}`}
+              </span>
+              <span class="section-card-title">{s.label}</span>
+              <span class="section-card-blurb">{s.blurb}</span>
+            </span>
+            {!active && <span class="section-card-arrow" aria-hidden="true">→</span>}
+          </a>
+        </li>
+      );
+    })}
+  </ol>
+</nav>

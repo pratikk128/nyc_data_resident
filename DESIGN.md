@@ -260,6 +260,12 @@ Build as reusable components with props, not one-off markup.
 ### 6.3 Topic page (e.g., Restaurant Inspections)
 - Intro paragraph (plain English, light humor allowed) → key stats → primary chart → map → searchable table → "How to read this data" → caveats → source links.
 
+**Multi-section dashboards** (e.g. City Payroll Spending): when a dashboard answers more than one question, give each question its own page and URL, and link them with:
+- `SectionNav` (`src/components/SectionNav.astro`) under the page heading: one card per section with a numbered route bullet, a short title and a one-line summary. The current section reads "You're here" (yellow tint, ink border); the others read "Part N of M" with an arrow.
+- `SectionPager` (`src/components/SectionPager.astro`) after the section: "Previous" / "Up next" links.
+- Never use the segmented `.toggle` pill to switch sections. It's reserved for in-chart view switches ($ vs %), and reusing it makes separate sections look like a filter.
+- Keep section titles short (under ~30 characters) so two cards fit side by side at 375px. On phones the summary line is hidden.
+
 ### 6.4 Neighborhood / location page
 - Header with place name and borough bullet → comparable stat cards across topics → mini-maps → "How this compares to the city" chart.
 
