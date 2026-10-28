@@ -17,8 +17,9 @@ import sitesFile from '../../data/water-sites.json';
 interface Props {
   monthly: any | null;
   detections: any | null;
+  detectionsError: boolean;
 }
-const { monthly, detections } = Astro.props;
+const { monthly, detections, detectionsError } = Astro.props;
 
 const series = monthly?.months.length ? historySeries(monthly, detections?.detections ?? []) : null;
 const takeaway = monthly ? historyTakeaway(monthly.months) : '';
@@ -70,7 +71,7 @@ const chartData = series && {
         </div>
         <ul class="legend" aria-label="Legend">
           <li><span class="swatch water-swatch-line" aria-hidden="true"></span>Coliform, % of samples</li>
-          <li><span class="swatch water-swatch-marker" aria-hidden="true"></span>Month with E. coli found</li>
+          {!detectionsError && <li><span class="swatch water-swatch-marker" aria-hidden="true"></span>Month with E. coli found</li>}
           <li><span class="swatch water-swatch-ref" aria-hidden="true"></span>5% level that triggers a federal review</li>
         </ul>
         <div class="chart">
@@ -79,6 +80,7 @@ const chartData = series && {
         </div>
         <p class="chart-hint">Hover, tap or use the arrow keys for a month's numbers.</p>
         {gapText && <p class="chart-hint">{gapText}</p>}
+        {detectionsError && <p class="chart-hint">E. coli detections didn't load, so months with E. coli aren't marked in the chart or counted in the table.</p>}
         <div class="chart-actions">
           <details class="data-table">
             <summary>See the numbers as a table</summary>
@@ -103,7 +105,7 @@ const chartData = series && {
                           <td>{count(r.samples)}</td>
                           <td>{count(r.coliPositive)}</td>
                           <td>{sharePct(r.coliPositive, r.coliTested)}</td>
-                          <td>{r.ecoliPositive}</td>
+                          <td>{detectionsError ? '–' : r.ecoliPositive}</td>
                           <td>{r.chlorineMedian ?? '–'}</td>
                         </>
                       ) : <td colspan="5" class="water-cell-gap">No samples in the data</td>}
@@ -113,12 +115,12 @@ const chartData = series && {
               </table>
             </div>
           </details>
-          <a class="download-link" href={historyCsvHref(series.rows)} download="nyc-drinking-water-by-month.csv">Download CSV</a>
+          <a class="download-link" href={historyCsvHref(detectionsError ? series.rows.map((r) => ({ ...r, ecoliPositive: null })) : series.rows)} download="nyc-drinking-water-by-month.csv">Download CSV</a>
         </div>
       </figure>
 
       <details class="data-table water-ecoli-history">
-        <summary>Every E. coli detection since {monthLabel(series.months[0], 'short')} ({ecoliList.length})</summary>
+        <summary>Every E. coli detection since {monthLabel(series.months[0], 'short')} {detectionsError ? '(didn’t load)' : `(${ecoliList.length})`}</summary>
         <p class="water-note">
           One positive sample isn't a violation by itself. DEP takes repeat samples at the same station and nearby
           within 24 hours.
@@ -139,6 +141,8 @@ const chartData = series && {
               </tbody>
             </table>
           </div>
+        ) : detectionsError ? (
+          <p class="water-note">Couldn't load the detections from NYC Open Data. Try again in a minute.</p>
         ) : <p class="water-note">None in the data.</p>}
       </details>
     </details>

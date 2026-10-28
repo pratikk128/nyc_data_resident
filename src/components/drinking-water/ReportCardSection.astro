@@ -15,8 +15,10 @@ interface Props {
   monthly: any | null;
   detections: any | null;
   error: boolean;
+  /** The detections job failed: the E. coli table and chart markers are missing. */
+  detectionsError: boolean;
 }
-const { monthly, detections, error } = Astro.props;
+const { monthly, detections, error, detectionsError } = Astro.props;
 
 const sites = new Map(sitesFile.sites.map((s) => [s.site, s]));
 const where = (code: string) => {
@@ -103,6 +105,11 @@ const ICON = { green: '✓', amber: '!', red: '✕', none: '–' };
             becomes a violation if those follow-up samples also find coliform bacteria (or aren't taken).
           </p>
         </div>
+      ) : detectionsError && month.ecoli.pos > 0 ? (
+        <p class="callout callout-heads-up water-ecoli" role="alert">
+          E. coli was found in {count(month.ecoli.pos)} {month.ecoli.pos === 1 ? 'sample' : 'samples'} this month, but
+          the station details didn't load from NYC Open Data. Try again in a minute.
+        </p>
       ) : (
         lastEcoli && (
           <p class="water-note">
@@ -119,7 +126,7 @@ const ICON = { green: '✓', amber: '!', red: '✕', none: '–' };
         </p>
       )}
 
-      <HistorySection monthly={monthly} detections={detections} />
+      <HistorySection monthly={monthly} detections={detections} detectionsError={detectionsError} />
     </>
   )}
 </section>
