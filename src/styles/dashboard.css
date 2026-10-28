@@ -1010,6 +1010,10 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
 /* Score chart (reuses .line-svg / .salary-line / .salary-dot) */
 .table-scroll .cell-text { text-align: left; white-space: normal; }
 
+/* Inspection history */
+.history-grade { font-weight: 800; }
+.all-history { max-width: none; }
+
 /* Violation categories */
 .cat-more { margin-top: var(--space-4); max-width: 75ch; font-size: .9375rem; color: var(--ink-soft); }
 .cat-more summary { cursor: pointer; font-weight: 700; color: var(--ink); width: fit-content; }
@@ -1025,6 +1029,7 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
 .cat-row.is-above { border-color: var(--cat-above); box-shadow: inset 4px 0 0 var(--cat-above); }
 .cat-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
 .cat-name { font-weight: 800; }
+.cat-numbers { margin-top: 2px; font-weight: 600; font-variant-numeric: tabular-nums; max-width: 75ch; }
 .cat-blurb { margin-top: 2px; font-size: .875rem; color: var(--ink-soft); max-width: 75ch; }
 
 .rest-about .about-data { margin-top: var(--space-3); }

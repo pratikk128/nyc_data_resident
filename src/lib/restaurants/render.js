@@ -111,14 +111,30 @@ export function categoryListHtml(cmp, benchmark) {
       `inspections and twice as often as ${who}.</p>`;
   }
 
+  const where = benchmark === "citywide" ? "the average NYC restaurant" : "similar restaurants";
   return `<ol class="cat-list">` + rows.map((r) => (
     `<li class="cat-row is-above">` +
       `<div class="cat-head">` +
         `<span class="cat-name">${escape(r.label)}</span>` +
       `</div>` +
+      `<p class="cat-numbers">${rateText(r.value)} per inspection here vs ${rateText(r.mean)} at ${where}` +
+        `${r.mean > 0 ? ` (${timesText(r.value / r.mean)})` : ""}. ` +
+        `Cited at ${count(r.inspections)} of ${count(cmp.inspections)} inspections.</p>` +
       `<p class="cat-blurb">${escape(r.blurb)}</p>` +
     `</li>`
   )).join("") + `</ol>`;
+}
+
+// Violations per inspection: "1.5", "0.4", "0.03". Small means need the extra digit.
+export function rateText(n) {
+  if (n > 0 && n < 0.01) return "under 0.01";
+  return n > 0 && n < 0.1 ? n.toFixed(2) : n.toFixed(1);
+}
+
+// "about 7 times as often"; a ratio under 3 keeps one decimal ("2.4 times").
+export function timesText(ratio) {
+  const n = ratio < 3 ? Math.round(ratio * 10) / 10 : Math.round(ratio);
+  return `${n} times as often`;
 }
 
 export function benchmarkNote(cmp, benchmark) {
@@ -155,6 +171,53 @@ function newerUnscoredNote(d) {
   const what = v.types.length ? `${v.types.map(typeLabel).join(", ")} visit` : "visit";
   return `<p class="chart-hint">From the ${date(d.latest.date)} inspection. A newer ${what} on ${date(v.date)} ` +
     `wasn't a full inspection: it isn't scored and doesn't cite critical violations.</p>`;
+}
+
+// ---------- Inspection history ----------
+
+const HISTORY_SHOWN = 8;
+
+function historyRowHtml(insp) {
+  const info = gradeInfo(insp.grade);
+  const grade = insp.grade ? escape(info.short ?? info.label) : "—";
+  return `<tr><th scope="row">${date(insp.date)}</th>` +
+    `<td class="cell-text">${insp.types.map(typeLabel).join(", ") || "Not listed"}</td>` +
+    `<td>${count(insp.score)}</td>` +
+    `<td class="history-grade" data-tone="${info.tone}">${grade}</td></tr>`;
+}
+
+function historyTableHtml(rows) {
+  return `<div class="table-scroll"><table>` +
+    `<thead><tr><th scope="col">Date</th><th scope="col" class="cell-text">Inspection</th>` +
+    `<th scope="col">Score</th><th scope="col">Grade</th></tr></thead>` +
+    `<tbody>${rows.map(historyRowHtml).join("")}</tbody></table></div>`;
+}
+
+// Is the score going up or down? Latest scored inspection vs the one before it.
+function historySummary(history) {
+  if (history.length < 2) return "This is the only scored inspection on record.";
+  const [now, before] = history;
+  const change = now.score === before.score ? `the same score as`
+    : now.score < before.score ? `${count(before.score - now.score)} points better than`
+    : `${count(now.score - before.score)} points worse than`;
+  return `The latest score is ${change} the inspection before it, on ${date(before.date)}.`;
+}
+
+export function historyHtml(history = []) {
+  if (!history.length) return "";
+  const recent = history.slice(0, HISTORY_SHOWN);
+  const rest = history.slice(HISTORY_SHOWN);
+  const older = rest.length
+    ? `<details class="cat-more all-history"><summary>Show ${count(rest.length)} older ` +
+      `${rest.length === 1 ? "inspection" : "inspections"}</summary>${historyTableHtml(rest)}</details>`
+    : "";
+  return `<section class="rest-block" aria-labelledby="history-title">` +
+    `<h3 class="chart-title" id="history-title">Past inspections</h3>` +
+    `<p class="insp-summary">${historySummary(history)}</p>` +
+    `<p class="chart-hint">${SCORE_HINT} A score of 14 or more at an initial inspection isn't graded; ` +
+    `the grade comes from the re-inspection about a month later.</p>` +
+    historyTableHtml(recent) + older +
+  `</section>`;
 }
 
 // The "similar restaurants" comparison needs an inspection and enough similar restaurants.
@@ -258,5 +321,5 @@ export function detailHtml(d, { benchmark = "citywide" } = {}) {
       `</details>` +
     `</section>`;
 
-  return head + closed + stats + caveat + latestBlock + categories;
+  return head + closed + stats + caveat + latestBlock + historyHtml(d.history) + categories;
 }

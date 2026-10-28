@@ -13,7 +13,7 @@ import {
 } from "../src/lib/restaurants/inspections.js";
 import { categoryFor, violationFamily, CATEGORIES, OTHER } from "../src/lib/restaurants/violation-categories.js";
 import { parseLocation, searchWhere, searchParams, nameRank, milesBetween, normalizeSearch, soqlString, MAX_NAME_LENGTH, MAX_PLACE_LENGTH } from "../src/lib/restaurants/soql.js";
-import { categoryListHtml, detailHtml, resultCardsHtml } from "../src/lib/restaurants/render.js";
+import { categoryListHtml, detailHtml, historyHtml, rateText, resultCardsHtml } from "../src/lib/restaurants/render.js";
 
 const row = (o) => ({ camis: "1", ...o });
 
@@ -384,4 +384,25 @@ test("no inspections in the window isn't shown as an all-clear", () => {
 test("an invalid borough is shown with the header's label", () => {
   assert.equal(boroLabel("0"), "Borough unknown");
   assert.equal(boroLabel("Queens"), "Queens");
+});
+
+test("problem areas show the restaurant's rate, the benchmark and how many inspections cited it", () => {
+  const rows = compareToMeans({ temperature: 1.5 }, { temperature: 0.2 }, { temperature: 4 });
+  const html = categoryListHtml({ since: "2023-10-28", inspections: 6, citywide: { rows } }, "citywide");
+  assert.match(html, /1\.5 per inspection here vs 0\.2 at the average NYC restaurant \(8 times as often\)/);
+  assert.match(html, /Cited at 4 of 6 inspections/);
+  assert.equal(rateText(0.04), "0.04");
+  assert.equal(rateText(0.004), "under 0.01");
+});
+
+test("inspection history lists scored inspections and says which way the score moved", () => {
+  const insp = (date, score, grade = null) => ({ date, types: ["Cycle Inspection / Re-inspection"], score, grade });
+  const html = historyHtml([insp("2026-10-01", 10, "A"), insp("2026-09-01", 24)]);
+  assert.match(html, /Past inspections/);
+  assert.match(html, /14 points better than the inspection before it/);
+  assert.equal((html.match(/<tr>/g) ?? []).length, 3);
+  const many = historyHtml(Array.from({ length: 10 }, (_, i) => insp(`2026-0${(i % 9) + 1}-01`, 12)));
+  assert.match(many, /Show 2 older inspections/);
+  assert.equal(historyHtml([]), "");
+  assert.match(detailHtml(detail({ history: [insp("2026-10-01", 24)] })), /only scored inspection/);
 });

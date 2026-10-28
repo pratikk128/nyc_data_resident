@@ -219,7 +219,9 @@ export async function restaurantDetail(camis) {
     newerUnscored: newest && newest !== latest ? { date: newest.date, types: newest.types } : null,
     // Any visit type can close a restaurant, so this goes by the newest one.
     closedOn: newest && closesRestaurant(newest.actions) ? newest.date : null,
-    inspectionCount: inspections.length,
+    // Scored inspections, newest first, for the history table.
+    history: inspections.filter((insp) => insp.score != null)
+      .map(({ date, types, score, grade }) => ({ date, types, score, grade })),
     categories: categoryComparison(inspections, benchmarks, info.cuisine_description, info.boro)
   };
 }
