@@ -1821,15 +1821,6 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
 .table-scroll .water-cell-gap { text-align: left; color: var(--ink-soft); }
 
 /* ---------- History ---------- */
-.water-takeaway {
-  margin-top: var(--space-4);
-  padding: var(--space-3) var(--space-4);
-  border-left: 4px solid var(--accent);
-  background: var(--yellow-tint);
-  border-radius: var(--radius-sm);
-  font-size: 1.0625rem;
-  font-weight: 600;
-}
 .water-line { fill: none; stroke: var(--water-line); stroke-width: 2; stroke-linejoin: round; }
 .water-dot { fill: var(--water-line); }
 .water-marker { fill: var(--accent); stroke: var(--ink); stroke-width: 2; }
@@ -1842,6 +1833,11 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
 .water-swatch-line { height: 3px; border-radius: 2px; background: var(--water-line); }
 .water-swatch-marker { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); box-shadow: inset 0 0 0 2px var(--ink); }
 .water-swatch-ref { height: 0; border-top: 2px dashed var(--ink-soft); border-radius: 0; background: none; }
+/* History, under the report card: set apart and kept quieter than the results above */
+.water-past { margin-top: var(--space-6); padding-top: var(--space-5); border-top: 1px solid var(--line); }
+.water-past-takeaway { margin-top: var(--space-2); color: var(--ink-soft); max-width: 75ch; }
+.water-past-more { margin-top: var(--space-2); }
+.water-past-more > .chart-frame { margin-top: var(--space-3); }
 .water-ecoli-history { margin-top: var(--space-5); }
 .water-ecoli-history .table-scroll { margin-top: var(--space-3); }
 

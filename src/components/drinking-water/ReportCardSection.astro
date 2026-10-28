@@ -1,9 +1,10 @@
 ---
 /*
- * "Is my water safe right now?": a report card for the latest full month.
- * Rendered on the server from the daily monthly and detections jobs
- * (src/lib/server/water.js); no browser script.
+ * "Is my water safe right now?": a report card for the latest full month,
+ * then a short look back since 2015 (HistorySection). Rendered on the server
+ * from the daily monthly and detections jobs (src/lib/server/water.js).
  */
+import HistorySection from './HistorySection.astro';
 import { reportCard, verdict, monthLabel, hasEcoli, isResample, plainDescription, followUpText, STATUS_TEXT } from '../../lib/water/stats.js';
 import { boroughLabel } from '../../lib/water/config.js';
 import { measurementText } from '../../lib/water/parse.js';
@@ -107,7 +108,7 @@ const ICON = { green: '✓', amber: '!', red: '✕', none: '–' };
           <p class="water-note">
             E. coli is rare. The last detection was on {date(lastEcoli.date)}
             {lastEcoliBorough && <> in {boroughLabel(lastEcoliBorough)}</>}.{' '}
-            <a href="/drinking-water/history/">See the history since 2015</a>.
+            <a href="#history">See the history since 2015</a>.
           </p>
         )
       )}
@@ -117,6 +118,8 @@ const ICON = { green: '✓', amber: '!', red: '✕', none: '–' };
           {monthLabel(monthly.months[monthly.months.length - 1].month)} samples are still coming in.
         </p>
       )}
+
+      <HistorySection monthly={monthly} detections={detections} />
     </>
   )}
 </section>

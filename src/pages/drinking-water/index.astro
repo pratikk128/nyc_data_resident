@@ -1,7 +1,7 @@
 ---
 /*
- * NYC Drinking Water Quality, default view: "Is my water safe right now?"
- * Other sections live next to this file (history.astro, near-me.astro).
+ * NYC Drinking Water Quality, default view: "Is my water safe right now?",
+ * with the history since 2015 below it. "Near me" lives next to this file.
  * Rendered on demand from the daily water jobs in KV (src/lib/server/water.js).
  */
 import WaterPage from '../../components/drinking-water/WaterPage.astro';
@@ -17,7 +17,7 @@ const value = <T,>(r: PromiseSettledResult<T>) => (r.status === 'fulfilled' ? r.
 
 <WaterPage
   section="now"
-  description="Is NYC tap water safe? A plain-English report card from the city's latest month of drinking water tests: bacteria, chlorine, cloudiness and fluoride."
+  description="Is NYC tap water safe? A plain-English report card from the city's latest month of drinking water tests (bacteria, chlorine, cloudiness and fluoride) and how they compare since 2015."
   meta={value(meta)}
 >
   <ReportCardSection monthly={value(monthly)} detections={value(detections)} error={monthly.status === 'rejected'} />

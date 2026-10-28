@@ -1,7 +1,9 @@
 ---
 /*
- * "Has it always been this good?": the coliform share for every month back
- * to 2015, with E. coli detections marked. Data comes from
+ * "Has it always been this good?": a quieter subsection at the end of the
+ * report card (ReportCardSection). One takeaway line shows; the coliform share
+ * for every month back to 2015, with E. coli detections marked, opens on
+ * request. Errors and empty data are reported by the report card. Data comes from
  * the daily jobs on the server and is inlined for the chart script (about 140
  * months, no API call from the page). Tables and CSVs are rendered here.
  */
@@ -15,9 +17,8 @@ import sitesFile from '../../data/water-sites.json';
 interface Props {
   monthly: any | null;
   detections: any | null;
-  error: boolean;
 }
-const { monthly, detections, error } = Astro.props;
+const { monthly, detections } = Astro.props;
 
 const series = monthly?.months.length ? historySeries(monthly, detections?.detections ?? []) : null;
 const takeaway = monthly ? historyTakeaway(monthly.months) : '';
@@ -48,26 +49,18 @@ const chartData = series && {
 };
 ---
 
-<section class="dash-section" id="history" aria-labelledby="history-title">
-  <header class="section-head">
-    <h2 id="history-title">Has it always been this good?</h2>
-  </header>
+{series && (
+  <div class="water-past" id="history" aria-labelledby="history-title">
+    <h3 class="water-h3" id="history-title">Has it always been this good?</h3>
+    <p class="water-past-takeaway">{takeaway}</p>
 
-  {error && (
-    <p class="callout callout-heads-up" role="alert">
-      Couldn't reach NYC Open Data. Their servers might be stuck behind a double-parked truck. Try again in a minute.
-    </p>
-  )}
-  {!error && !series && <p class="water-empty">No samples in the data yet. Even the pigeons are waiting.</p>}
-
-  {series && (
-    <>
-      <p class="water-takeaway">{takeaway}</p>
+    <details class="water-past-more">
+      <summary>See every month since {monthLabel(series.months[0], 'short')}</summary>
 
       <figure class="chart-frame" id="coliform-frame" aria-labelledby="coliform-title" data-water-chart="coliform" data-chart={JSON.stringify(chartData)}>
         <div class="chart-head">
           <div>
-            <h3 class="chart-title" id="coliform-title">{coliformTitle}</h3>
+            <h4 class="chart-title" id="coliform-title">{coliformTitle}</h4>
             <p class="chart-subtitle">
               Share of samples with any coliform bacteria, by month, {range}. The highest was
               {' '}{peak && sharePct(peak.coliPositive, peak.coliTested)} in {peak && monthLabel(peak.month)}.
@@ -148,9 +141,9 @@ const chartData = series && {
           </div>
         ) : <p class="water-note">None in the data.</p>}
       </details>
-    </>
-  )}
-</section>
+    </details>
+  </div>
+)}
 
 <script>
   import { mountMonthlyLine } from '../../lib/water/charts.js';
