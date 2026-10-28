@@ -13,6 +13,7 @@ import snapshot from '../../data/payroll-by-year.json';
 import byAgency from '../../data/payroll-by-agency.json';
 import { money, count, date } from '../../lib/format.js';
 import { payrollCsvHref } from '../../lib/payroll-csv.js';
+import { payrollRowsHtml } from '../../lib/payroll-table.js';
 
 const { years, dataset, checks } = snapshot;
 const latest = years[years.length - 1];
@@ -118,18 +119,7 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
                 <th scope="col">People paid</th>
               </tr>
             </thead>
-            <tbody data-table-body>
-              {years.slice().reverse().map((y) => (
-                <tr>
-                  <th scope="row">FY{y.fiscalYear}</th>
-                  <td data-pay="regular">{money(y.regular, 2)}</td>
-                  <td data-pay="overtime">{money(y.overtime, 2)}</td>
-                  <td data-pay="other">{money(y.other, 2)}</td>
-                  <td>{money(y.total, 2)}</td>
-                  <td>{count(y.peoplePaid)}</td>
-                </tr>
-              ))}
-            </tbody>
+            <tbody data-table-body set:html={payrollRowsHtml(years)} />
           </table>
         </div>
       </details>
@@ -198,6 +188,7 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
   import { mountWorkforceChart, missingYearsSentence } from '../../lib/workforce-chart.js';
   import { money, count, percent } from '../../lib/format.js';
   import { payrollCsvHref } from '../../lib/payroll-csv.js';
+  import { payrollRowsHtml } from '../../lib/payroll-table.js';
 
   type Year = (typeof snapshot.years)[number];
   type Agency = { id: string; label: string; years: Year[] };
@@ -281,20 +272,10 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
     // ---------- Agency + pay types → stats, chart, table, CSV ----------
     let current: { years: Year[]; agency?: Agency } = { years: snapshot.years };
 
-    // With pay types filtered, Total sums only the selected ones, matching the total card.
-    function tableRows(years: Year[], keys: PayKey[]) {
-      const total = (y: Year) => (allPay() ? y.total : keys.reduce((acc, k) => acc + y[k], 0));
-      return years.slice().reverse().map((y) =>
-        `<tr><th scope="row">FY${y.fiscalYear}</th><td data-pay="regular">${money(y.regular, 2)}</td>` +
-        `<td data-pay="overtime">${money(y.overtime, 2)}</td><td data-pay="other">${money(y.other, 2)}</td>` +
-        `<td>${money(total(y), 2)}</td><td>${count(y.peoplePaid)}</td></tr>`
-      ).join('');
-    }
-
     function updateTableAndCsv() {
       const { years, agency } = current;
       const keys = selectedPay();
-      tbody.innerHTML = tableRows(years, keys);
+      tbody.innerHTML = payrollRowsHtml(years, keys);
       totalHead.textContent = allPay() ? 'Total' : 'Total, selected pay';
       csvLink.href = payrollCsvHref(years, keys);
       const parts = ['nyc-payroll', agency?.id, allPay() ? undefined : keys.join('-'), 'by-fiscal-year'];

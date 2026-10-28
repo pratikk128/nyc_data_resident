@@ -49,7 +49,8 @@ function changeCell(change, compareYear, minEmployees) {
   return `${arrow ? `<span class="delta-arrow" aria-hidden="true">${arrow}</span> ` : ""}${sign}${percent(Math.abs(change))}`;
 }
 
-// maxExtra scales the inline bar so the largest extra in the list fills the cell.
+// maxExtra scales the inline bar. Pass the largest extra across all jobs, not
+// just the rows shown, so bar lengths compare across pages, searches and chips.
 export function jobRowsHtml(jobs, { maxExtra, compareYear, minEmployees, expanded = new Set() }) {
   return jobs.map((job) => {
     const id = `job-${slug(job.title)}`;

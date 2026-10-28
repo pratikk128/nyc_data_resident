@@ -413,6 +413,7 @@ async function main() {
 
   const jobs = buildJobs(jobRows, headcountRows);
   if (jobs.jobs.length === 0) throw new Error("Job title query returned no titles; not overwriting the snapshot.");
+  checks.warnings.push(...jobs.warnings);
   if (jobs.latestFY !== years[years.length - 1].fiscalYear) {
     checks.warnings.push(`Job titles end in FY${jobs.latestFY} but payroll totals end in FY${years[years.length - 1].fiscalYear}.`);
   }
@@ -458,7 +459,6 @@ async function main() {
     `  "chips": [\n${jobs.chips.map((c) => `    ${JSON.stringify(c)}`).join(",\n")}\n  ],\n` +
     `  "jobs": [\n${jobs.jobs.map((j) => `    ${JSON.stringify(j)}`).join(",\n")}\n  ]\n}\n`
   );
-  checks.warnings.push(...jobs.warnings);
 
   console.log(`\nWrote ${years.length} fiscal years (FY${years[0].fiscalYear}–FY${years[years.length - 1].fiscalYear}) to src/data/payroll-by-year.json\n`);
   for (const y of years) {

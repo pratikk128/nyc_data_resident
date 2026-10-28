@@ -226,17 +226,19 @@ const SORT_OPTIONS = [
       });
       const sortValue = `${sort.key}-${sort.dir}`;
       const listed = Array.from(sortSelect.options).some((o) => o !== customSort && o.value === sortValue);
-      customSort.hidden = listed;
-      if (!listed) customSort.text = customSortLabel(sort);
+      if (listed) customSort.remove();
+      else {
+        customSort.text = customSortLabel(sort);
+        if (!customSort.parentNode) sortSelect.add(customSort);
+      }
       sortSelect.value = listed ? sortValue : customSort.value;
     }
 
     // Column headers can sort in ways the dropdown doesn't list (e.g. fewest
     // employees first); this option names that sort so the dropdown never shows a stale one.
+    // It's added only while such a sort is active: Safari ignores `hidden` on <option>.
     const customSort = new Option('', 'custom');
     customSort.disabled = true;
-    customSort.hidden = true;
-    sortSelect.add(customSort);
 
     function customSortLabel({ key, dir }: Sort) {
       const col = COLUMNS.find((c) => c.key === key)!;

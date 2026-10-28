@@ -10,14 +10,16 @@
  * Returns { update(years, subject), setPayTypes(keys) } to redraw with
  * different data or with only some pay types ("regular", "overtime", "other").
  *
- * Keyboard: the chart is one tab stop; Left/Right/Home/End move between
- * years and show that year's details. Escape hides them.
+ * Keyboard: the chart is one tab stop (role="img" with a summary label);
+ * Left/Right/Home/End move between years and show that year's details.
+ * Escape hides them.
  *
  * Every fiscal year from the first to the last gets a slot, so a year with no
  * rows (an agency that paused, then came back) shows as an empty slot rather
  * than its neighbors closing up.
  */
 import { money, count, percent } from "./format.js";
+import { niceStep } from "./chart-scale.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -70,13 +72,6 @@ export function mountWorkforceChart(frame, initialYears, initialSubject = "NYC p
   });
 
   // ---------- Scales ----------
-  function niceStep(max, targetTicks) {
-    const raw = max / targetTicks;
-    const mag = Math.pow(10, Math.floor(Math.log10(raw)));
-    const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= raw);
-    return step;
-  }
-
   function scaleFor(height) {
     if (mode === "share") return { max: 1, ticks: [0, 0.25, 0.5, 0.75, 1], fmt: (v) => percent(v, 0) };
     const peak = Math.max(1, ...years.map(shownTotal)); // tiny agencies can net to $0 or less
@@ -138,7 +133,9 @@ export function mountWorkforceChart(frame, initialYears, initialSubject = "NYC p
     svg = el("svg", {
       width, height, viewBox: `0 0 ${width} ${height}`,
       class: "chart-svg",
-      role: "application",
+      // role="img", not "application": screen readers keep their own keys and
+      // read the summary; the arrow keys below are for sighted keyboard users.
+      role: "img",
       tabindex: "0",
       "aria-roledescription": "bar chart",
       "aria-label": summaryLabel()
@@ -228,7 +225,7 @@ export function mountWorkforceChart(frame, initialYears, initialSubject = "NYC p
     return `Stacked bar chart of ${subject}, ${what}, FY${first.fiscalYear} to FY${last.fiscalYear}. ` +
       `${capitalize(types)} went from ${money(shownTotal(first))} to ${money(shownTotal(last))}. ` +
       (missingYearsSentence(years) && `${missingYearsSentence(years)} `) +
-      "Use the left and right arrow keys to hear each year.";
+      "The table below the chart lists every year.";
   }
 
   function capitalize(str) {

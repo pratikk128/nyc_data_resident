@@ -11,6 +11,7 @@
  * salarySentence(job) returns the one-line summary shown under the chart.
  */
 import { money, count } from "./format.js";
+import { niceStep } from "./chart-scale.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -19,13 +20,6 @@ function el(name, attrs = {}, parent) {
   for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
   if (parent) parent.appendChild(node);
   return node;
-}
-
-// Same tick steps as the workforce chart, so axes read alike across sections.
-function niceStep(max, targetTicks) {
-  const raw = max / targetTicks;
-  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
-  return [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= raw);
 }
 
 export function salarySentence(job, minEmployees = 25) {
