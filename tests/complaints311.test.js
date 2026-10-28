@@ -129,6 +129,13 @@ test("location types fold into plain groups, blanks into Other / Not specified",
   assert.equal(locationGroup("Club/Bar/Restaurant"), "Restaurant, bar or food vendor");
   assert.equal(locationGroup("Park/Playground"), "Park or playground");
   assert.equal(locationGroup("House of Worship"), OTHER_LOCATION);
+  assert.equal(locationGroup("Warehouse"), "Store or business");
+  assert.equal(locationGroup("Firehouse"), OTHER_LOCATION);
+  assert.equal(locationGroup("Courthouse"), OTHER_LOCATION);
+  assert.equal(locationGroup("Club House"), OTHER_LOCATION);
+  assert.equal(locationGroup("Private House"), "Residential building");
+  assert.equal(locationGroup("Barber Shop"), "Store or business");
+  assert.equal(locationGroup("Bar"), "Restaurant, bar or food vendor");
   assert.equal(locationGroup("Construction Site"), OTHER_LOCATION);
   assert.equal(locationGroup(null), OTHER_LOCATION);
   assert.equal(locationGroup("N/A"), OTHER_LOCATION);

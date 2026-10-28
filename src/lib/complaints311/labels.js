@@ -124,10 +124,10 @@ export const OTHER_LOCATION = "Other / Not specified";
 
 // Order matters: the first group whose test matches wins.
 export const LOCATION_GROUPS = [
-  { key: "Residential building", test: /resid|family|dwelling|apartment|apt\b|apt\.|house|private house|hallway|lobby|stairwell|common area|roof|basement|^residence$/i },
+  { key: "Residential building", test: /resid|family|dwelling|apartment|apt\b|apt\.|\bhouse\b|hallway|lobby|stairwell|common area|roof|basement|^residence$/i },
   { key: "Street or sidewalk", test: /street|sidewalk|curb|gutter|alley|crosswalk|intersection|vehicle lane|median|traffic island|above address|highway|bridge|parking lot/i },
-  { key: "Store or business", test: /store|commercial|comercial|business|retail|office|non-residential|tattoo|salon|spa|nail|beauty|cinema|theat|mixed use/i },
-  { key: "Restaurant, bar or food vendor", test: /restaurant|bar|club|deli|bakery|food|vendor|cafe|café/i },
+  { key: "Store or business", test: /store|commercial|comercial|business|retail|office|non-residential|warehouse|tattoo|barber|salon|spa|nail|beauty|cinema|theat|mixed use/i },
+  { key: "Restaurant, bar or food vendor", test: /restaurant|\bbars?\b|club|deli|bakery|food|vendor|cafe|café/i },
   { key: "Park or playground", test: /park|playground|beach|garden/i },
   { key: "Subway, bus, taxi or ferry", test: /subway|bus|taxi|ferry|train|station|airport|terminal/i },
   { key: "Sewer or catch basin", test: /sewer|catch basin/i },
@@ -138,7 +138,8 @@ const NOT_SPECIFIED = /^(n\/a|na|none|unknown|other.*|)$/i;
 // Checked before the groups: these contain a word another group keys on.
 const OVERRIDES = [
   { test: /non-residential/i, key: "Store or business" },
-  { test: /worship/i, key: OTHER_LOCATION }
+  { test: /worship/i, key: OTHER_LOCATION },
+  { test: /club ?house/i, key: OTHER_LOCATION }
 ];
 
 // "RESIDENTIAL BUILDING" → "Residential building"; blanks and oddballs → "Other / Not specified".
