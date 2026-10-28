@@ -1138,6 +1138,22 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
   border-left: 3px solid var(--blue-deep);
   font-size: .9375rem;
 }
+/* Against the rest of the city: a track from fewest to most requests, with a marker. */
+.c311-rank { margin-top: var(--space-3); font-size: .9375rem; }
+.c311-rank.c311-loading { margin-bottom: 0; }
+.c311-rank-how { color: var(--ink-soft); }
+.c311-rank-bar { position: relative; height: 8px; margin-top: var(--space-2); border-radius: 4px; background: var(--line-strong); }
+.c311-rank-marker {
+  position: absolute;
+  top: -4px;
+  width: 4px;
+  height: 16px;
+  margin-left: -2px;
+  border-radius: 2px;
+  background: var(--ink);
+}
+.c311-rank-ends { display: flex; justify-content: space-between; margin-top: 4px; font-size: .8125rem; color: var(--ink-soft); }
+
 .c311-sentence { margin-top: var(--space-3); font-weight: 600; max-width: 65ch; }
 .c311-h4 { margin-top: var(--space-5); font-size: .9375rem; font-weight: 700; }
 .c311-loading { color: var(--ink-soft); margin: var(--space-3) 0; }

@@ -11,8 +11,9 @@
 import { typeKey, typeLabel, locationGroup, OTHER_LOCATION } from "./labels.js";
 import {
   STATUS_CLOSED, MIN_IMMEDIATE_REQUESTS, MIN_LOCAL_COUNT, ABOVE_RATIO, BELOW_RATIO,
-  TOP_LOCATION_TYPES, TOP_COMPLAINT_TYPES, AREAS
+  TOP_LOCATION_TYPES, TOP_COMPLAINT_TYPES, AREAS, GRID_CELLS_PER_DEGREE, DISTRIBUTION_QUANTILES
 } from "./config.js";
+import { inNyc } from "./location-input.js";
 import { count } from "../format.js";
 
 // ---------- Folding Socrata rows ----------
@@ -153,6 +154,91 @@ export function locationComparison(local, borough, city, n = TOP_LOCATION_TYPES)
     city: Math.max(0, rest("city"))
   });
   return rows;
+}
+
+// ---------- Against the rest of the city ----------
+
+const METERS_PER_DEGREE = 111320;
+
+/*
+ * cells: [{ y, x, n }], requests per grid cell (soql.js gridCountParams). For every
+ * cell with a request, counts the requests in cells whose centres are within each
+ * radius of its centre, and returns each sorted distribution cut to `quantiles`
+ * evenly spaced values: { samples, [radiusKey]: [lowest, ..., highest] }.
+ * Cells outside NYC (junk coordinates) are dropped.
+ */
+export function circleDistributions(cells, radii, {
+  cellsPerDegree = GRID_CELLS_PER_DEGREE, quantiles = DISTRIBUTION_QUANTILES
+} = {}) {
+  const inCity = cells.filter((c) => inNyc((c.y + 0.5) / cellsPerDegree, (c.x + 0.5) / cellsPerDegree) && c.n > 0);
+  if (!inCity.length) return { samples: 0, ...Object.fromEntries(Object.keys(radii).map((k) => [k, []])) };
+
+  let y0 = Infinity, y1 = -Infinity, x0 = Infinity, x1 = -Infinity;
+  for (const c of inCity) {
+    y0 = Math.min(y0, c.y); y1 = Math.max(y1, c.y);
+    x0 = Math.min(x0, c.x); x1 = Math.max(x1, c.x);
+  }
+  const H = y1 - y0 + 1, W = x1 - x0 + 1;
+  // Row prefix sums: row[r * (W + 1) + i] is the sum of the row's first i cells.
+  const rows = new Float64Array(H * (W + 1));
+  for (const c of inCity) rows[(c.y - y0) * (W + 1) + (c.x - x0) + 1] += c.n;
+  for (let r = 0; r < H; r++) {
+    for (let i = 1; i <= W; i++) rows[r * (W + 1) + i] += rows[r * (W + 1) + i - 1];
+  }
+
+  const midLat = ((y0 + y1) / 2 + 0.5) / cellsPerDegree;
+  const cellH = METERS_PER_DEGREE / cellsPerDegree;
+  const cellW = cellH * Math.cos((midLat * Math.PI) / 180);
+
+  const out = { samples: inCity.length };
+  for (const [key, meters] of Object.entries(radii)) {
+    // For each row offset, how many cells either side fall inside the circle.
+    const reach = Math.floor(meters / cellH);
+    const half = [];
+    for (let dy = -reach; dy <= reach; dy++) half.push([dy, Math.floor(Math.sqrt(meters ** 2 - (dy * cellH) ** 2) / cellW)]);
+
+    const counts = new Float64Array(inCity.length);
+    inCity.forEach((c, i) => {
+      const cy = c.y - y0, cx = c.x - x0;
+      let total = 0;
+      for (const [dy, dx] of half) {
+        const r = cy + dy;
+        if (r < 0 || r >= H) continue;
+        const lo = Math.max(0, cx - dx), hi = Math.min(W, cx + dx + 1);
+        total += rows[r * (W + 1) + hi] - rows[r * (W + 1) + lo];
+      }
+      counts[i] = total;
+    });
+    counts.sort();
+    out[key] = Array.from({ length: quantiles }, (_, k) =>
+      counts[Math.round((k * (counts.length - 1)) / Math.max(1, quantiles - 1))]);
+  }
+  return out;
+}
+
+/*
+ * Where `n` falls in a distribution from circleDistributions(): the share of
+ * locations with fewer requests, the share with more, and a 0–1 position for
+ * a marker (the middle of any tie).
+ */
+export function cityRank(quantiles, n) {
+  if (!quantiles?.length) return null;
+  let below = 0, above = 0;
+  for (const v of quantiles) {
+    if (v < n) below++;
+    else if (v > n) above++;
+  }
+  below /= quantiles.length;
+  above /= quantiles.length;
+  return { below, above, position: (below + 1 - above) / 2 };
+}
+
+// "More requests than 72%" / "Fewer requests than 40%", never 100% (the sample is a sample).
+export function cityRankText(rank) {
+  const whole = (share) => Math.min(99, Math.floor(share * 100));
+  return rank.below >= 0.5
+    ? { more: true, pct: whole(rank.below) }
+    : { more: false, pct: whole(rank.above) };
 }
 
 // "2.3×" — one decimal under 10, whole numbers above, "<0.1×" for next to none.

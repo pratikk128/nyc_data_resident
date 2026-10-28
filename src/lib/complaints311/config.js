@@ -46,11 +46,10 @@ export const AREAS = {
   }
 };
 
-// Time windows, by created_date. "all" starts when the dataset does.
+// Time windows, by created_date.
 export const WINDOWS = {
   "3m": { key: "3m", months: 3, label: "Last 3 months", phrase: "in the last 3 months" },
-  "12m": { key: "12m", months: 12, label: "Last 12 months", phrase: "in the last 12 months" },
-  all: { key: "all", since: "2020-01-01", label: "Since 2020", phrase: "since 2020" }
+  "12m": { key: "12m", months: 12, label: "Last 12 months", phrase: "in the last 12 months" }
 };
 export const DEFAULT_WINDOW = "12m";
 
@@ -66,6 +65,17 @@ export const MAX_COMPARE_SHOWN = 5;
 // Kept small so each slice of the share bar stays wide enough to see.
 export const TOP_LOCATION_TYPES = 6;
 export const TOP_COMPLAINT_TYPES = 5;
+
+/*
+ * "More than 72% of NYC locations": the city is cut into cells of 1/GRID_CELLS_PER_DEGREE
+ * degree (about 111 m north–south, 84 m east–west), requests are counted per cell, and
+ * the ¼ and 1 mile circles are summed around every cell that has a request. The daily
+ * job keeps DISTRIBUTION_QUANTILES evenly spaced values of each sorted distribution.
+ */
+export const GRID_CELLS_PER_DEGREE = 1000;
+export const DISTRIBUTION_QUANTILES = 1001;
+// The 12 month grid in one query takes Socrata over 4 minutes; in 3 month pieces run at once, under 1.
+export const GRID_CHUNK_MONTHS = 3;
 
 export const STATUS_CLOSED = "Closed";
 

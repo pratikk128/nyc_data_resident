@@ -1,5 +1,5 @@
 /*
- * GET /api/311/area?lat=40.748&lon=-73.986&area=immediate|neighborhood&window=3m|12m|all
+ * GET /api/311/area?lat=40.748&lon=-73.986&area=immediate|neighborhood&window=3m|12m
  * 311 requests within a radius: total, by complaint type, by location type,
  * open vs closed. → { total, types, locations, status, ... } or { error }
  *

@@ -3,20 +3,21 @@
  * query text comes from src/lib/complaints311/soql.js and the math from stats.js.
  *
  * Borough and city baselines (share of requests by complaint type, by location
- * type and open vs closed, for each time window) take Socrata about
- * a minute per query, so they're daily jobs kept in KV. Areas around a point,
+ * type and open vs closed, for each time window) and the citywide distribution
+ * of ¼ and 1 mile counts take Socrata about a minute per query, so they're
+ * daily jobs kept in KV. Areas around a point,
  * and ZIPs, take a few seconds and are cached at the edge for AREA_TTL.
  */
 import { soql, datasetMetadata } from "./socrata.js";
 import { dailyValue } from "./cache.js";
 import {
-  DATASET_ID, FIELDS as F, WINDOWS, RADII, BOROUGHS, UNSPECIFIED_BOROUGH, STATUS_CLOSED
+  DATASET_ID, FIELDS as F, WINDOWS, RADII, BOROUGHS, UNSPECIFIED_BOROUGH, STATUS_CLOSED, GRID_CHUNK_MONTHS
 } from "../complaints311/config.js";
 import {
-  windowStart, circle, typeCountParams, locationTypeCountParams, statusCountParams,
-  boroughCountParams, zipSummaryParams, baselineParams
+  windowStart, windowChunks, circle, typeCountParams, locationTypeCountParams, statusCountParams,
+  boroughCountParams, zipSummaryParams, baselineParams, gridCountParams
 } from "../complaints311/soql.js";
-import { typeCounts, locationCounts, statusCounts, sum } from "../complaints311/stats.js";
+import { typeCounts, locationCounts, statusCounts, sum, circleDistributions } from "../complaints311/stats.js";
 import { typeKey, locationGroup } from "../complaints311/labels.js";
 
 export const AREA_TTL = 6 * 3600;      // areas and ZIPs: the data updates once a day
@@ -85,7 +86,44 @@ function baselineJob(windowKey) {
 
 export const baselineJobs = Object.fromEntries(Object.keys(WINDOWS).map((w) => [w, baselineJob(w)]));
 
-export const complaints311DailyJobs = [metadataJob, ...Object.values(baselineJobs)];
+/*
+ * One job per window: how many requests fall within ¼ and 1 mile of every
+ * ~100 m grid cell in the city that has any, so a spot's counts can be ranked
+ * against the rest of NYC. The grid query runs in GRID_CHUNK_MONTHS pieces at
+ * once (a cell can appear in several; its counts are added up).
+ */
+function distributionJob(windowKey) {
+  return {
+    key: `311:distribution:v1:${windowKey}`,
+    maxAgeHours: 26,
+    async run() {
+      const since = windowStart(windowKey);
+      const through = today();
+      const started = Date.now();
+      const chunks = await Promise.all(windowChunks(windowKey, GRID_CHUNK_MONTHS).map((c) =>
+        soql(DATASET_ID, gridCountParams(c.since, c.until), { timeoutMs: BASELINE_TIMEOUT_MS })));
+      const cells = new Map();
+      for (const row of chunks.flat()) {
+        if (row.y == null || row.x == null) continue; // no coordinates
+        const key = `${row.y},${row.x}`;
+        const cell = cells.get(key) ?? { y: Number(row.y), x: Number(row.x), n: 0 };
+        cell.n += Number(row.n);
+        cells.set(key, cell);
+      }
+      const dist = circleDistributions([...cells.values()], RADII);
+      console.log(`311 distribution ${windowKey}: ${Date.now() - started} ms, ${dist.samples} locations`);
+      return { window: windowKey, since, through, computedAt: new Date().toISOString(), ...dist };
+    }
+  };
+}
+
+export const distributionJobs = Object.fromEntries(Object.keys(WINDOWS).map((w) => [w, distributionJob(w)]));
+
+export const complaints311DailyJobs = [metadataJob, ...Object.values(baselineJobs), ...Object.values(distributionJobs)];
+
+export function distribution(windowKey) {
+  return dailyValue(distributionJobs[windowKey]);
+}
 
 export function getMetadata() {
   return dailyValue(metadataJob);

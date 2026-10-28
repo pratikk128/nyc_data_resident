@@ -4,7 +4,7 @@
  * section subscribes and redraws its own part, so a slow query only holds up
  * the sections that need it.
  *
- * state.immediate / .neighborhood / .zip / .baseline are each
+ * state.immediate / .neighborhood / .zip / .baseline / .distribution are each
  *   { status: "idle" | "loading" | "ready" | "error", data, error }
  * and state.borough is the borough the comparisons use (from the geocoder, the
  * ZIP, or the most common borough among nearby requests).
@@ -24,7 +24,8 @@ export const state = {
   immediate: IDLE,
   neighborhood: IDLE,
   zip: IDLE,
-  baseline: IDLE
+  baseline: IDLE,
+  distribution: IDLE
 };
 
 const listeners = new Set();
@@ -77,7 +78,7 @@ export function load() {
   controller?.abort();
   controller = new AbortController();
   const loc = state.location;
-  patch({ immediate: IDLE, neighborhood: IDLE, zip: IDLE, baseline: IDLE, borough: loc?.borough ?? null });
+  patch({ immediate: IDLE, neighborhood: IDLE, zip: IDLE, baseline: IDLE, distribution: IDLE, borough: loc?.borough ?? null });
   if (!loc) return;
 
   const w = encodeURIComponent(state.window);
@@ -93,6 +94,9 @@ export function load() {
     loadBaseline(loc.borough);
     return;
   }
+
+  // A spot's counts are ranked against the rest of the city; not needed for a whole borough.
+  track("distribution", `/api/311/distribution?window=${w}`, gen);
 
   const loadRadii = (center, borough) => {
     if (borough) loadBaseline(borough);

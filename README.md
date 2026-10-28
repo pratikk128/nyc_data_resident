@@ -66,7 +66,7 @@ All Socrata calls go through `src/lib/server/socrata.js`, which adds the `X-App-
 |---|---|---|
 | Search results | Workers Cache API, keyed by the normalized query | 1 hour |
 | One restaurant | Workers Cache API | 1 hour |
-| Benchmarks (category averages), 311 borough and city baselines, dataset metadata | KV `DATA_CACHE`, refreshed by the cron | 24 hours (a request recomputes only if KV has nothing newer than 26 h; if Socrata is down the last value is served, kept up to 7 days) |
+| Benchmarks (category averages), 311 borough and city baselines and citywide distributions, dataset metadata | KV `DATA_CACHE`, refreshed by the cron | 24 hours (a request recomputes only if KV has nothing newer than 26 h; if Socrata is down the last value is served, kept up to 7 days) |
 | 311 areas (¼ and 1 mile) and ZIPs | Workers Cache API, keyed by lat/lon rounded to 3 decimals + radius + window | 6 hours |
 
 **Adding another dataset's daily aggregate:** write a server module like `src/lib/server/restaurants.js` that exports jobs (`{ key, maxAgeHours, run }`), add them to `DAILY_JOBS` in `src/lib/server/daily-jobs.js`, and read them with `dailyValue(job)`. The one cron run refreshes every job in parallel.
@@ -169,7 +169,7 @@ All tunables are in `src/lib/complaints311/config.js`: `RADII` (402 m and 1,609 
 - `status`: only `Closed` counts as closed; Open, In Progress, Assigned, Pending, Started and Unspecified count as still open.
 - About 2% of requests have no coordinates and so aren't in any radius.
 
-**Timing.** The ¼ mile takes Socrata ~2 s, the 1 mile ~3–12 s (4–5 queries each, in parallel; each is logged as `311 radius ...`). The borough and city baselines group the whole window by borough and take about a minute per query, so they're daily jobs (`311:baseline:v1:<window>`) that the cron fills. Before the first cron run (fresh deploy, local dev) the first request for each window waits for them, a few minutes without an app token.
+**Timing.** The ¼ mile takes Socrata ~2 s, the 1 mile ~3–12 s (4–5 queries each, in parallel; each is logged as `311 radius ...`). The borough and city baselines group the whole window by borough and take about a minute per query, so they're daily jobs (`311:baseline:v1:<window>`) that the cron fills. The "more requests than 72% of NYC locations" line under each radius comes from `311:distribution:v1:<window>`: requests counted on a ~100 m grid (`gridCountParams`, run in 3 month pieces at once since the 12 month grid in one query takes Socrata over 4 minutes), then summed within ¼ and 1 mile of every cell with a request (`circleDistributions` in `stats.js`) and kept as 1,001 quantiles per radius. The page fetches it from `/api/311/distribution`. Before the first cron run (fresh deploy, local dev) the first request for each window waits for them, a few minutes without an app token.
 
 The map section is a placeholder; its props and the plan for it are at the top of `src/lib/complaints311/heatmap.js`.
 

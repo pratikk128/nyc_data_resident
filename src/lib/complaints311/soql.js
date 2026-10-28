@@ -8,7 +8,7 @@
  * coordinates (about 2% of requests) have no `location`, so within_circle()
  * leaves them out on its own; a separate IS NOT NULL test would only slow it down.
  */
-import { FIELDS as F, WINDOWS, UNSPECIFIED_BOROUGH } from "./config.js";
+import { FIELDS as F, WINDOWS, UNSPECIFIED_BOROUGH, GRID_CELLS_PER_DEGREE } from "./config.js";
 
 const BIG_LIMIT = "50000";
 
@@ -16,19 +16,35 @@ export function soqlString(value) {
   return `'${String(value).replace(/'/g, "''")}'`;
 }
 
+// `months` before `today`, as YYYY-MM-DD. Clamped: Mar 31 minus 1 month is Feb 28/29, not Mar 3.
+function monthsBefore(today, months) {
+  const d = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+  const day = d.getUTCDate();
+  d.setUTCDate(1);
+  d.setUTCMonth(d.getUTCMonth() - months);
+  const lastDay = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+  d.setUTCDate(Math.min(day, lastDay));
+  return d.toISOString().slice(0, 10);
+}
+
 // Calendar-day cutoff for a window, as YYYY-MM-DD. "12m" on 2026-10-28 → 2025-10-28.
 export function windowStart(windowKey, today = new Date()) {
   const w = WINDOWS[windowKey];
   if (!w) throw new Error(`Unknown window ${windowKey}`);
-  if (w.since) return w.since;
-  const d = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
-  const day = d.getUTCDate();
-  d.setUTCDate(1);
-  d.setUTCMonth(d.getUTCMonth() - w.months);
-  // Clamp: Mar 31 minus 1 month is Feb 28/29, not Mar 3.
-  const lastDay = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
-  d.setUTCDate(Math.min(day, lastDay));
-  return d.toISOString().slice(0, 10);
+  return monthsBefore(today, w.months);
+}
+
+/*
+ * A window cut into pieces of `months`, oldest first: [{ since, until }], with
+ * `until` null on the newest. "12m" in 3 month pieces → 4 pieces.
+ */
+export function windowChunks(windowKey, months, today = new Date()) {
+  const total = WINDOWS[windowKey].months;
+  const out = [];
+  for (let m = total; m > 0; m -= months) {
+    out.push({ since: monthsBefore(today, m), until: m - months > 0 ? monthsBefore(today, m - months) : null });
+  }
+  return out;
 }
 
 const createdSince = (since) => `${F.created} >= '${since}T00:00:00'`;
@@ -103,5 +119,19 @@ export function baselineParams(since, column) {
     $where: createdSince(since),
     $group: `${F.borough}, ${column}`,
     $limit: BIG_LIMIT
+  };
+}
+
+/*
+ * Requests per grid cell, citywide: y and x are floor(latitude × GRID_CELLS_PER_DEGREE)
+ * and the same for longitude. Rows without coordinates come back as one group with no y/x.
+ */
+export function gridCountParams(since, until) {
+  const g = GRID_CELLS_PER_DEGREE;
+  return {
+    $select: `floor(${F.latitude} * ${g}) AS y, floor(${F.longitude} * ${g}) AS x, count(*) AS n`,
+    $where: createdSince(since) + (until ? ` AND ${F.created} < '${until}T00:00:00'` : ""),
+    $group: "y, x",
+    $limit: "500000"
   };
 }

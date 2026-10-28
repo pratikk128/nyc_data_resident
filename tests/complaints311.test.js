@@ -8,14 +8,15 @@ import assert from "node:assert/strict";
 
 import {
   shares, ratio, compareShares, comparisonArea, typeCounts, locationCounts, statusCounts,
-  topTypes, openShare, overviewSentence, locationComparison, ratioText
+  topTypes, openShare, overviewSentence, locationComparison, ratioText,
+  circleDistributions, cityRank, cityRankText
 } from "../src/lib/complaints311/stats.js";
 import { typeKey, typeLabel, locationGroup, OTHER_LOCATION } from "../src/lib/complaints311/labels.js";
 import {
   parseLocationInput, isNycZip, prettyStreet, placeLabel, locationFromParams, locationToParams
 } from "../src/lib/complaints311/location-input.js";
 import { chooseMatch, resolveLocation, streetMatches } from "../src/lib/complaints311/geocode.js";
-import { windowStart, circle } from "../src/lib/complaints311/soql.js";
+import { windowStart, windowChunks, circle } from "../src/lib/complaints311/soql.js";
 import { MIN_IMMEDIATE_REQUESTS, RADII } from "../src/lib/complaints311/config.js";
 
 const close = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) < eps, `${a} ≈ ${b}`);
@@ -151,7 +152,7 @@ test("overview sentence comes from the numbers", () => {
     overviewSentence(summary, { where: "within about a 5-minute walk", phrase: "in the last 12 months" }),
     "Within about a 5-minute walk, residents filed 820 requests in the last 12 months. Noise from homes came up most often."
   );
-  assert.match(overviewSentence({ total: 0, types: {} }, { where: "within about a 5-minute walk", phrase: "since 2020" }), /nobody filed/);
+  assert.match(overviewSentence({ total: 0, types: {} }, { where: "within about a 5-minute walk", phrase: "in the last 3 months" }), /nobody filed/);
   assert.deepEqual(topTypes({ B: 2, A: 2, C: 5 }, 2).map((t) => t.key), ["C", "A"]);
 });
 
@@ -172,7 +173,7 @@ test("location comparison keeps the top groups and folds the rest into Other", (
 test("window cutoffs are calendar days, clamped to the month's end", () => {
   assert.equal(windowStart("12m", new Date("2026-10-28T15:00:00Z")), "2025-10-28");
   assert.equal(windowStart("3m", new Date("2026-05-31T00:00:00Z")), "2026-02-28");
-  assert.equal(windowStart("all"), "2020-01-01");
+  assert.throws(() => windowStart("all"));
 });
 
 test("radius queries use within_circle on the location point", () => {
@@ -321,4 +322,47 @@ test("ZIPs and boroughs resolve without GeoSearch", async () => {
 test("nothing found", async () => {
   const r = await resolveLocation(parseLocationInput({ text: "Asdfgh" }), { search: async () => [] });
   assert.equal(r.status, "not-found");
+});
+
+// ---------- Against the rest of the city ----------
+
+test("windowChunks cuts a window into consecutive pieces, newest open-ended", () => {
+  const today = new Date("2026-10-28T12:00:00Z");
+  assert.deepEqual(windowChunks("12m", 3, today), [
+    { since: "2025-10-28", until: "2026-01-28" },
+    { since: "2026-01-28", until: "2026-04-28" },
+    { since: "2026-04-28", until: "2026-07-28" },
+    { since: "2026-07-28", until: null }
+  ]);
+  assert.deepEqual(windowChunks("3m", 3, today), [{ since: "2026-07-28", until: null }]);
+});
+
+test("circleDistributions sums the cells within each radius of every cell with requests", () => {
+  // Cells are 1/1000 degree: ~111 m north–south, ~84 m east–west in NYC.
+  const cells = [
+    { y: 40750, x: -73990, n: 10 },
+    { y: 40751, x: -73990, n: 5 },   // ~111 m north: inside 200 m
+    { y: 40750, x: -73987, n: 1 },   // ~253 m east: outside 200 m
+    { y: 0, x: 0, n: 999 }           // junk coordinates: dropped
+  ];
+  const d = circleDistributions(cells, { small: 200, big: 1000 }, { quantiles: 3 });
+  assert.equal(d.samples, 3);
+  // Within 200 m: 15, 15 and 1 → sorted [1, 15, 15].
+  assert.deepEqual(d.small, [1, 15, 15]);
+  assert.deepEqual(d.big, [16, 16, 16]);
+});
+
+test("cityRank and cityRankText place a count among the quantiles", () => {
+  const q = Array.from({ length: 101 }, (_, i) => i * 10); // 0, 10, ..., 1000
+  const r = cityRank(q, 725);
+  close(r.below, 73 / 101);
+  close(r.above, 28 / 101);
+  assert.deepEqual(cityRankText(r), { more: true, pct: 72 });
+  // A quiet spot reads the other way round.
+  assert.deepEqual(cityRankText(cityRank(q, 95)), { more: false, pct: 90 });
+  // Never "100%".
+  assert.deepEqual(cityRankText(cityRank(q, 5000)), { more: true, pct: 99 });
+  // Ties put the marker in the middle of the tie.
+  close(cityRank([5, 5, 5, 5], 5).position, 0.5);
+  assert.equal(cityRank([], 5), null);
 });

@@ -122,7 +122,7 @@ export function placeLabel({ houseNumber, street, name, borough, zip }) {
 // ?lat=40.7484&lon=-73.9857&place=350+5th+Avenue,+Manhattan+10118&boro=MANHATTAN&zip=10118
 // ?zip=11211               (a ZIP on its own)
 // ?boro=QUEENS             (a borough on its own)
-// plus &window=3m|12m|all, &area=immediate, &vs=city
+// plus &window=3m|12m, &area=immediate, &vs=city
 
 // Roughly the five boroughs, so a URL can't point the radius queries anywhere else.
 export function inNyc(lat, lon) {
