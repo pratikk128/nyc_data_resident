@@ -16,7 +16,7 @@ import {
   parseLocationInput, isNycZip, prettyStreet, placeLabel, locationFromParams, locationToParams
 } from "../src/lib/complaints311/location-input.js";
 import { chooseMatch, resolveLocation, streetMatches } from "../src/lib/complaints311/geocode.js";
-import { windowStart, windowChunks, circle } from "../src/lib/complaints311/soql.js";
+import { windowStart, windowChunks, circle, heatmapParams } from "../src/lib/complaints311/soql.js";
 import { MIN_IMMEDIATE_REQUESTS, RADII } from "../src/lib/complaints311/config.js";
 
 const close = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) < eps, `${a} ≈ ${b}`);
@@ -357,4 +357,14 @@ test("cityRank and cityRankText place a count among the quantiles", () => {
   // Never "100%".
   assert.deepEqual(cityRankText(cityRank(q, 5000)), { more: true, pct: 99 });
   assert.equal(cityRank([], 5), null);
+});
+
+// ---------- Heat map ----------
+
+test("heatmapParams counts per grid cell in the area, filtered on normalized complaint types", () => {
+  const all = heatmapParams("2025-10-28", "within_circle(location, 40.748, -73.986, 1609)");
+  assert.equal(all.$group, "y, x");
+  assert.ok(!all.$where.includes("complaint_type"));
+  const some = heatmapParams("2025-10-28", "x", ["Noise - Residential", "O'BRIEN"]);
+  assert.match(some.$where, /upper\(trim\(complaint_type\)\) IN \('NOISE - RESIDENTIAL', 'O''BRIEN'\)$/);
 });

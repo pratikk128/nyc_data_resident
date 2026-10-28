@@ -1,33 +1,30 @@
 ---
 /*
- * "Map: where complaints happen near you (coming soon)". The container is
- * sized for the map, and the complaint-type filter already works (it's held in
- * state and handed to onComplaintTypeChange); nothing draws yet. The map's
- * props and the plan for it are in src/lib/complaints311/heatmap.js.
+ * "Map: where complaints happen near you". A heat map of requests within
+ * 1 mile, with the ¼ mile outlined, and a filter for the area's top complaint
+ * types. The drawing and data loading are in src/lib/complaints311/heatmap.js.
  */
-import { RADII } from '../../lib/complaints311/config.js';
 ---
 
 <section class="dash-section c311-map" id="map" aria-labelledby="map-title" data-heatmap hidden>
   <header class="section-head">
-    <h2 id="map-title">Map: where complaints happen near you (coming soon)</h2>
-    <p class="section-intro">A heat map of where requests were made within 1 mile, with your ¼ mile outlined.</p>
+    <h2 id="map-title">Map: where complaints happen near you</h2>
+    <p class="section-intro">A heat map of where requests were made within 1 mile, with your ¼ mile outlined. Brighter means more requests.</p>
   </header>
 
   <fieldset class="c311-map-filter" data-heatmap-filter hidden>
     <legend class="filter-label">Show complaint types</legend>
     <div class="c311-chips" data-heatmap-options></div>
-    <p class="field-hint" role="status" aria-live="polite" data-heatmap-status>Showing all complaint types.</p>
   </fieldset>
+  <p class="field-hint" role="status" aria-live="polite" data-heatmap-status></p>
 
-  <div class="c311-map-frame" data-heatmap-canvas>
-    <svg class="c311-map-rings" viewBox="0 0 200 200" aria-hidden="true">
-      <circle cx="100" cy="100" r="92" class="ring-outer" />
-      <circle cx="100" cy="100" r={92 * RADII.immediate / RADII.neighborhood} class="ring-inner" />
-      <circle cx="100" cy="100" r="2.5" class="ring-center" />
-    </svg>
-    <p class="c311-map-note">The map is on its way. For now, the lists above cover the same requests.</p>
+  <div class="c311-map-frame" data-heatmap-canvas role="img" aria-label="Heat map of 311 requests within 1 mile"></div>
+  <div class="c311-map-legend" aria-hidden="true">
+    <span>Fewer requests</span><span class="c311-map-ramp"></span><span>More</span>
+    <span class="c311-map-key"><span class="c311-map-key-ring"></span>¼ mile</span>
+    <span class="c311-map-key"><span class="c311-map-key-ring outer"></span>1 mile</span>
   </div>
+  <p class="field-hint">The lists above cover the same requests. About 2% of requests have no location and aren’t on the map.</p>
 </section>
 
 <script>
@@ -51,6 +48,7 @@ import { RADII } from '../../lib/complaints311/config.js';
     map.update({
       center: nb.data.center,
       radiusMeters: RADII.neighborhood,
+      window: nb.data.window,
       dateRange: { since: nb.data.since, through: nb.data.through },
       complaintTypes,
       selectedTypes,

@@ -8,7 +8,8 @@
  * coordinates (about 2% of requests) have no `location`, so within_circle()
  * leaves them out on its own; a separate IS NOT NULL test would only slow it down.
  */
-import { FIELDS as F, WINDOWS, UNSPECIFIED_BOROUGH, GRID_CELLS_PER_DEGREE } from "./config.js";
+import { FIELDS as F, WINDOWS, UNSPECIFIED_BOROUGH, GRID_CELLS_PER_DEGREE, HEATMAP_CELLS_PER_DEGREE } from "./config.js";
+import { typeKey } from "./labels.js";
 
 const BIG_LIMIT = "50000";
 
@@ -107,6 +108,24 @@ export function zipSummaryParams(since, zip) {
     $group: F.borough,
     $order: "n DESC",
     $limit: "10"
+  };
+}
+
+/*
+ * The heat map: requests per small grid cell in an area, y and x as in gridCountParams().
+ * `types` are typeKey() values; empty means every type. typeKey() also collapses inner
+ * spaces, which SoQL can't, but no complaint_type has a doubled space.
+ */
+export function heatmapParams(since, where, types = []) {
+  const g = HEATMAP_CELLS_PER_DEGREE;
+  const typeTest = types.length
+    ? ` AND upper(trim(${F.type})) IN (${types.map((t) => soqlString(typeKey(t))).join(", ")})`
+    : "";
+  return {
+    $select: `floor(${F.latitude} * ${g}) AS y, floor(${F.longitude} * ${g}) AS x, count(*) AS n`,
+    $where: area(since, where) + typeTest,
+    $group: "y, x",
+    $limit: BIG_LIMIT
   };
 }
 

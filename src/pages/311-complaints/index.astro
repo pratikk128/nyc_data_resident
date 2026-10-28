@@ -11,7 +11,7 @@ import LocationSearch from '../../components/complaints-311/LocationSearch.astro
 import OverviewSection from '../../components/complaints-311/OverviewSection.astro';
 import AboveAverageSection from '../../components/complaints-311/AboveAverageSection.astro';
 import LocationTypesSection from '../../components/complaints-311/LocationTypesSection.astro';
-import HeatmapPlaceholder from '../../components/complaints-311/HeatmapPlaceholder.astro';
+import HeatmapSection from '../../components/complaints-311/HeatmapSection.astro';
 import AboutSection from '../../components/complaints-311/AboutSection.astro';
 import { getMetadata } from '../../lib/server/complaints311.js';
 import { locationFromParams } from '../../lib/complaints311/location-input.js';
@@ -54,7 +54,7 @@ const title = initialLabel ? `311 complaints near ${initialLabel}` : '311 Compla
   <OverviewSection />
   <AboveAverageSection />
   <LocationTypesSection />
-  <HeatmapPlaceholder />
+  <HeatmapSection />
   <AboutSection meta={meta} />
 </DashboardLayout>
 

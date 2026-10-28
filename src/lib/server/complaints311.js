@@ -11,11 +11,12 @@
 import { soql, datasetMetadata } from "./socrata.js";
 import { dailyValue } from "./cache.js";
 import {
-  DATASET_ID, FIELDS as F, WINDOWS, RADII, BOROUGHS, UNSPECIFIED_BOROUGH, STATUS_CLOSED, GRID_CHUNK_MONTHS
+  DATASET_ID, FIELDS as F, WINDOWS, RADII, BOROUGHS, UNSPECIFIED_BOROUGH, STATUS_CLOSED, GRID_CHUNK_MONTHS,
+  HEATMAP_CELLS_PER_DEGREE
 } from "../complaints311/config.js";
 import {
   windowStart, windowChunks, circle, typeCountParams, locationTypeCountParams, statusCountParams,
-  boroughCountParams, zipSummaryParams, baselineParams, gridCountParams
+  boroughCountParams, zipSummaryParams, baselineParams, gridCountParams, heatmapParams
 } from "../complaints311/soql.js";
 import { typeCounts, locationCounts, statusCounts, sum, circleDistributions } from "../complaints311/stats.js";
 import { typeKey, locationGroup } from "../complaints311/labels.js";
@@ -23,6 +24,7 @@ import { typeKey, locationGroup } from "../complaints311/labels.js";
 export const AREA_TTL = 6 * 3600;      // areas and ZIPs: the data updates once a day
 export const BASELINE_TTL = 3600;      // the baseline API response (the value itself lives in KV)
 const BASELINE_TIMEOUT_MS = 240000;    // ~1 minute each on a good day
+const HEATMAP_TIMEOUT_MS = 45000;      // a few seconds warm, but a cold 1 mile query can pass the default 20
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -180,6 +182,31 @@ export async function radiusSummary(lat, lon, areaKey, windowKey) {
   console.log(`311 radius ${areaKey} (${RADII[areaKey]} m) ${windowKey} at ${roundCoord(lat)},${roundCoord(lon)}: ` +
     `${Date.now() - started} ms, ${summary.total} requests`);
   return { ...summary, area: areaKey, center: { lat: roundCoord(lat), lon: roundCoord(lon) }, radius: RADII[areaKey] };
+}
+
+/*
+ * The heat map: requests per ~50 m cell within the 1 mile circle, as
+ * [lat, lon, n] at each cell's middle. `types` (typeKey() values) narrows it.
+ */
+export async function heatmapCells(lat, lon, windowKey, types = []) {
+  const since = windowStart(windowKey);
+  const g = HEATMAP_CELLS_PER_DEGREE;
+  const started = Date.now();
+  const where = circle(roundCoord(lat), roundCoord(lon), RADII.neighborhood);
+  const rows = await soql(DATASET_ID, heatmapParams(since, where, types), { timeoutMs: HEATMAP_TIMEOUT_MS });
+  const cells = [];
+  for (const r of rows) {
+    if (r.y == null || r.x == null) continue;
+    cells.push([Math.round(((Number(r.y) + 0.5) / g) * 1e5) / 1e5, Math.round(((Number(r.x) + 0.5) / g) * 1e5) / 1e5, Number(r.n)]);
+  }
+  console.log(`311 heatmap ${windowKey} at ${roundCoord(lat)},${roundCoord(lon)} (${types.length} types): ` +
+    `${Date.now() - started} ms, ${cells.length} cells`);
+  return {
+    window: windowKey, since, through: today(),
+    center: { lat: roundCoord(lat), lon: roundCoord(lon) }, radius: RADII.neighborhood,
+    total: cells.reduce((a, c) => a + c[2], 0),
+    cells
+  };
 }
 
 /*

@@ -77,6 +77,12 @@ export const DISTRIBUTION_QUANTILES = 1001;
 // The 12 month grid in one query takes Socrata over 4 minutes; in 3 month pieces run at once, under 1.
 export const GRID_CHUNK_MONTHS = 3;
 
+// Heat map: requests counted per 1/HEATMAP_CELLS_PER_DEGREE degree cell (about 55 m × 42 m)
+// within the 1 mile circle, so the browser gets a couple of thousand weighted points.
+export const HEATMAP_CELLS_PER_DEGREE = 2000;
+// The heat map filter: at most this many complaint types at once (the area's top 10 are offered).
+export const MAX_HEATMAP_TYPES = 10;
+
 export const STATUS_CLOSED = "Closed";
 
 // Borough values as the dataset spells them, with display names.
