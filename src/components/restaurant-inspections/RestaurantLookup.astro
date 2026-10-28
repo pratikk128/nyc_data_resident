@@ -9,6 +9,8 @@
  * `initial`, so a shared link shows the restaurant without waiting for script.
  */
 import { BOROUGHS } from '../../lib/restaurants/inspections.js';
+import { MAX_NAME_LENGTH, MAX_PLACE_LENGTH } from '../../lib/restaurants/soql.js';
+import { RATE_LIMITED_TEXT } from '../../lib/server/rate-limit.js';
 import RestaurantDetail from './RestaurantDetail.astro';
 import { date } from '../../lib/format.js';
 
@@ -26,6 +28,8 @@ const datasetName = meta?.name ?? 'DOHMH New York City Restaurant Inspection Res
 const initialJson = JSON.stringify(initial ?? null).replace(/</g, '\\u003c');
 const errorText = initialError === 'not-found'
   ? 'We couldn’t find that restaurant. The link may be mistyped, or the restaurant may have closed and dropped out of the data.'
+  : initialError === 'rate-limited'
+    ? RATE_LIMITED_TEXT
   : initialError
     ? 'Couldn’t reach NYC Open Data. Their servers might be stuck behind a double-parked truck. Try again in a minute.'
     : '';
@@ -47,7 +51,7 @@ const deepLink = Boolean(initial || initialError);
   <form class="rest-search" role="search" action="/restaurant-inspections/" method="get" novalidate data-search-form>
     <div class="field field-name">
       <label class="filter-label" for="rest-name">Restaurant name</label>
-      <input class="search-input" id="rest-name" name="name" type="search" required minlength="2"
+      <input class="search-input" id="rest-name" name="name" type="search" required minlength="2" maxlength={MAX_NAME_LENGTH}
         autocomplete="off" spellcheck="false" placeholder="Try “Joe’s Pizza”"
         aria-describedby="rest-name-hint" aria-controls="rest-results" />
       <p class="field-hint" id="rest-name-hint">At least 2 letters. Results update as you type.</p>
@@ -61,7 +65,7 @@ const deepLink = Boolean(initial || initialError);
     </div>
     <div class="field">
       <label class="filter-label" for="rest-place">Street or ZIP <span class="field-optional">(optional)</span></label>
-      <input class="search-input" id="rest-place" name="place" type="search" autocomplete="off" spellcheck="false"
+      <input class="search-input" id="rest-place" name="place" type="search" maxlength={MAX_PLACE_LENGTH} autocomplete="off" spellcheck="false"
         placeholder="Try “123 Broadway” or “11211”" aria-controls="rest-results" />
     </div>
     <div class="field field-near">
@@ -151,7 +155,7 @@ const deepLink = Boolean(initial || initialError);
     nearOutside: '“Near me” only works inside New York City. Try a street or ZIP code instead.'
   };
 
-  // A message meant for the reader (the server's 400 text). Anything else
+  // A message meant for the reader (the server's 400 or 429 text). Anything else
   // thrown during a search is shown as MSG.error, never as the raw browser text.
   class ShownError extends Error {}
   const DEBOUNCE_MS = 300;
@@ -240,7 +244,7 @@ const deepLink = Boolean(initial || initialError);
     try {
       const res = await fetch(searchUrl(), { signal: searchAbort.signal });
       const data = await res.json().catch(() => null); // an HTML error page from the platform
-      if (res.status === 400 && typeof data?.error === 'string') throw new ShownError(data.error);
+      if ((res.status === 400 || res.status === 429) && typeof data?.error === 'string') throw new ShownError(data.error);
       if (!res.ok || !Array.isArray(data?.results)) throw new Error('upstream');
       list.innerHTML = resultCardsHtml(data.results);
       keysHint.hidden = data.results.length < 2;
@@ -364,6 +368,10 @@ const deepLink = Boolean(initial || initialError);
     try {
       const res = await fetch(`/api/restaurants/${encodeURIComponent(camis)}`, { signal: detailAbort.signal });
       if (res.status === 404) return showDetailError(MSG.notFound);
+      if (res.status === 429) {
+        const data = await res.json().catch(() => null);
+        return showDetailError(typeof data?.error === 'string' ? data.error : MSG.error);
+      }
       if (!res.ok) throw new Error('upstream');
       showDetail(await res.json());
       detailBody.querySelector<HTMLElement>('#restaurant-title')?.focus({ preventScroll: true });

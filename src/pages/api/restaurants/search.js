@@ -2,15 +2,19 @@
  * GET /api/restaurants/search?name=joe&boro=Manhattan&place=123+Broadway&lat=&lng=
  * Up to 25 restaurants (one per camis) with their latest grade.
  * → { results: [...], more: boolean } or { error }
+ *
+ * Queries that miss the edge cache go to Socrata on our app token, so those
+ * are rate limited per client (SEARCH_RATE_LIMITER in wrangler.jsonc).
  */
 import { normalizeSearch } from "../../../lib/restaurants/soql.js";
 import { searchRestaurants, SEARCH_TTL } from "../../../lib/server/restaurants.js";
 import { edgeCached } from "../../../lib/server/cache.js";
 import { json, upstreamError } from "../../../lib/server/json.js";
+import { checkRateLimit, RateLimited, RATE_LIMITED_TEXT } from "../../../lib/server/rate-limit.js";
 
 export const prerender = false;
 
-export async function GET({ url, locals }) {
+export async function GET({ url, locals, clientAddress }) {
   const p = url.searchParams;
   const { error, query } = normalizeSearch({
     name: p.get("name"), boro: p.get("boro"), where: p.get("place"), lat: p.get("lat"), lng: p.get("lng")
@@ -20,9 +24,15 @@ export async function GET({ url, locals }) {
   // The cache key is the normalized query, so "joe " and "JOE" share an entry.
   const key = `restaurants/search/${encodeURIComponent(JSON.stringify(query))}`;
   try {
-    const data = await edgeCached(url, key, SEARCH_TTL, () => searchRestaurants(query), locals.cfContext);
+    const data = await edgeCached(url, key, SEARCH_TTL, async () => {
+      await checkRateLimit("SEARCH_RATE_LIMITER", clientAddress);
+      return searchRestaurants(query);
+    }, locals.cfContext);
     return json(data, { maxAge: SEARCH_TTL });
   } catch (err) {
+    if (err instanceof RateLimited) {
+      return json({ error: RATE_LIMITED_TEXT }, { status: 429 });
+    }
     return upstreamError(err);
   }
 }

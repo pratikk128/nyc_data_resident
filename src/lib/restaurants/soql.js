@@ -9,18 +9,21 @@ import { BOROUGHS, NOT_INSPECTED_DATE } from "./inspections.js";
 export const SEARCH_LIMIT = 25;
 const SEARCH_FETCH = 60; // a camis can have several name/address spellings; dedupe, then cut to 25
 const NEAR_ME_MILES = 0.5;
+// Longer than any name or address in the data; keeps LIKE patterns small.
+export const MAX_NAME_LENGTH = 80;
+export const MAX_PLACE_LENGTH = 100;
 
 // A SoQL string literal: single quotes doubled.
 export function soqlString(value) {
   return `'${String(value).replace(/'/g, "''")}'`;
 }
 
-// Upper-cased, trimmed, whitespace collapsed, with the like wildcard removed
-// so user input only ever matches literally. Apostrophes (straight or the
-// curly ones phones type) become a word break, so "Joe’s" finds "JOE'S" and
-// "JOES" alike.
+// Upper-cased, trimmed, whitespace collapsed, with the like wildcards (% and
+// _) taken out so user input only ever matches literally. Apostrophes
+// (straight or the curly ones phones type) and underscores become a word
+// break, so "Joe’s" finds "JOE'S" and "JOES" alike.
 function likeTerm(value) {
-  return String(value ?? "").toUpperCase().replace(/%/g, "").replace(/['‘’ʼ`]/g, " ").replace(/\s+/g, " ").trim();
+  return String(value ?? "").toUpperCase().replace(/%/g, "").replace(/['‘’ʼ`_]/g, " ").replace(/\s+/g, " ").trim();
 }
 
 // Each word in order, anything between: "joe pizza" finds "JOE'S PIZZA" and
@@ -58,6 +61,8 @@ export function inNyc(lat, lng) {
 export function normalizeSearch({ name, boro, where, lat, lng } = {}) {
   const cleanName = likeTerm(name);
   if (cleanName.length < 2) return { error: "Type at least 2 letters of the restaurant name." };
+  if (cleanName.length > MAX_NAME_LENGTH) return { error: `Keep the restaurant name under ${MAX_NAME_LENGTH} characters.` };
+  if (likeTerm(where).length > MAX_PLACE_LENGTH) return { error: `Keep the street or ZIP under ${MAX_PLACE_LENGTH} characters.` };
   const query = { name: cleanName };
   if (boro && boro !== "All") {
     if (!BOROUGHS.includes(boro)) return { error: "Pick a borough from the list." };

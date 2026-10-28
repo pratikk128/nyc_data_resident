@@ -11,7 +11,7 @@ import {
   perInspection, compareToMeans, cutoffDate, gradeInfo, scoreBand, titleCase, boroLabel
 } from "../src/lib/restaurants/inspections.js";
 import { categoryFor, violationFamily, CATEGORIES, OTHER } from "../src/lib/restaurants/violation-categories.js";
-import { parseLocation, searchWhere, normalizeSearch, soqlString } from "../src/lib/restaurants/soql.js";
+import { parseLocation, searchWhere, normalizeSearch, soqlString, MAX_NAME_LENGTH, MAX_PLACE_LENGTH } from "../src/lib/restaurants/soql.js";
 import { categoryBarsHtml } from "../src/lib/restaurants/render.js";
 
 const row = (o) => ({ camis: "1", ...o });
@@ -187,6 +187,14 @@ test("search needs 2+ letters and a real borough; % is matched literally", () =>
   assert.ok(normalizeSearch({ name: "joe", boro: "Narnia" }).error);
   assert.equal(normalizeSearch({ name: "joe", boro: "All" }).query.boro, undefined);
   assert.equal(normalizeSearch({ name: "50%" }).query.name, "50");
+});
+
+test("_ is not a wildcard, and over-long input is rejected", () => {
+  assert.equal(normalizeSearch({ name: "j_e" }).query.name, "J E");
+  assert.ok(normalizeSearch({ name: "__" }).error);
+  assert.ok(normalizeSearch({ name: "a".repeat(MAX_NAME_LENGTH + 1) }).error);
+  assert.ok(normalizeSearch({ name: "joe", where: "1".repeat(MAX_PLACE_LENGTH + 1) }).error);
+  assert.ok(normalizeSearch({ name: "a".repeat(MAX_NAME_LENGTH) }).query);
 });
 
 test("curly and straight apostrophes search the same way", () => {
