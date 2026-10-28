@@ -1,0 +1,324 @@
+---
+/*
+ * "What do city jobs actually pay?"
+ * Median pay by job title for full-time, active, annual-salary employees.
+ * The first page of the table (default sort) is rendered at build time from
+ * src/data/payroll-jobs.json; the script at the bottom handles search, chips,
+ * sorting, paging and the per-title salary chart from the same snapshot.
+ */
+import snapshot from '../../data/payroll-jobs.json';
+import payroll from '../../data/payroll-by-year.json';
+import { date } from '../../lib/format.js';
+import { COLUMNS, DEFAULT_SORT, PAGE_SIZE, sortJobs, jobRowsHtml } from '../../lib/jobs-table.js';
+
+const { jobs, chips, latestFiscalYear: fy, compareFiscalYear, minEmployees, checks } = snapshot;
+const { dataset } = payroll;
+const maxExtra = Math.max(...jobs.map((j) => j.extra));
+const firstPage = sortJobs(jobs, DEFAULT_SORT).slice(0, PAGE_SIZE);
+
+const SORT_OPTIONS = [
+  { value: 'employees-desc', label: 'Most employees' },
+  { value: 'base-desc', label: 'Highest median base salary' },
+  { value: 'base-asc', label: 'Lowest median base salary' },
+  { value: 'total-desc', label: 'Highest median total pay' },
+  { value: 'extra-desc', label: 'Most extra from OT & other pay' },
+  { value: 'change-desc', label: 'Biggest 5-yr raise' },
+  { value: 'label-asc', label: 'Job title, A–Z' }
+];
+---
+
+<section class="dash-section" id="jobs" aria-labelledby="jobs-title">
+  <header class="section-head">
+    <h2 id="jobs-title">What do city jobs actually pay?</h2>
+    <p class="section-intro">
+      Salaries for full-time city jobs in FY{fy}. “Total pay” includes overtime and other pay.
+    </p>
+  </header>
+
+  {!checks.latestYearLooksComplete && (
+    <aside class="callout callout-heads-up" role="note">
+      <strong>Heads up:</strong> FY{fy} may not be fully loaded yet, so treat these numbers as preliminary.
+    </aside>
+  )}
+
+  <div class="jobs-controls">
+    <div class="jobs-search">
+      <label class="filter-label" for="jobs-q">Search job titles</label>
+      <input class="search-input" id="jobs-q" type="search" name="q" placeholder="Try “nurse” or “engineer”"
+        autocomplete="off" spellcheck="false" aria-controls="jobs-table" />
+    </div>
+    <div class="jobs-sort">
+      <label class="filter-label" for="jobs-sort">Sort by</label>
+      <select class="filter-select" id="jobs-sort">
+        {SORT_OPTIONS.map((o) => <option value={o.value}>{o.label}</option>)}
+      </select>
+    </div>
+  </div>
+
+  {chips.length > 0 && (
+    <div class="chip-row" role="group" aria-label="Popular jobs">
+      {chips.map((c) => (
+        <button type="button" class="job-chip" data-chip={c.id} aria-pressed="false" aria-controls="jobs-table">{c.label}</button>
+      ))}
+    </div>
+  )}
+
+  <p class="jobs-status" aria-live="polite" data-status>
+    Showing 1–{firstPage.length} of {jobs.length} job titles
+  </p>
+
+  <div class="table-scroll jobs-table-wrap" tabindex="0" role="region" aria-label="Median pay by job title, table">
+    <table class="jobs-table" id="jobs-table">
+      <caption class="sr-only">
+        Median pay by job title, FY{fy}. Full-time, active employees on annual salaries; titles with {minEmployees} or more employees.
+        Select a job title to see its salary history.
+      </caption>
+      <thead>
+        <tr>
+          {COLUMNS.map((c) => (
+            <th scope="col" data-col={c.key}
+              aria-sort={c.key === DEFAULT_SORT.key ? 'descending' : 'none'}>
+              <button type="button" class="sort-btn" data-sort={c.key}>
+                {c.label}<span class="sort-icon" aria-hidden="true"></span>
+              </button>
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody data-rows set:html={jobRowsHtml(firstPage, { maxExtra, compareYear: compareFiscalYear })} />
+    </table>
+    <p class="jobs-empty" data-empty hidden>
+      No job titles match. Try fewer letters or a broader word, like “engineer.”
+    </p>
+  </div>
+
+  <div class="pager" data-pager>
+    <button type="button" class="pager-btn" data-page="prev" disabled>← Previous 25</button>
+    <button type="button" class="pager-btn" data-page="next" disabled={jobs.length <= PAGE_SIZE}>Next 25 →</button>
+  </div>
+
+  <details class="about-data">
+    <summary>About this data</summary>
+    <div class="about-body">
+      <p>
+        <strong>Who's included.</strong> Full-time employees paid an annual salary (pay basis “per Annum”) who were
+        active on June 30, {fy}, with a base salary above $0. Hourly and per-diem workers, people on leave and people
+        who left during the year are excluded. Job titles with fewer than {minEmployees} such employees in FY{fy}
+        aren't shown.
+      </p>
+      <p>
+        <strong>Base salary</strong> is each person's annual salary rate at the end of the fiscal year (June 30).
+        Raises during the year aren't shown separately.
+      </p>
+      <p>
+        <strong>Total pay</strong> is what people were actually paid during the fiscal year: regular pay plus overtime
+        plus other pay (lump sums, differentials, retroactive pay), before taxes. Overtime and lump sums vary a lot
+        from year to year. Someone who started partway through the year, took unpaid time or got a raise late in the
+        year can have total pay below their base salary, so “Extra from OT & other pay” can be negative.
+      </p>
+      <p>
+        <strong>Medians, not averages.</strong> Half of the people in a title earn more than the median and half earn
+        less. “Extra from OT & other pay” is median total pay minus median base salary.
+        The 5-yr change compares median base salary in FY{compareFiscalYear} and FY{fy}; it's blank when the title had
+        fewer than {minEmployees} employees in FY{compareFiscalYear}.
+      </p>
+      <p>
+        <strong>Job titles</strong> are shown as they appear in the payroll data (trimmed and matched without regard to
+        capitalization). The same job can be split across similar titles, and a title can be renamed over time.
+      </p>
+      <p>
+        <strong>Dollars are nominal</strong>, not adjusted for inflation.
+      </p>
+      <p>
+        <strong>Aggregates only.</strong> This page shows medians by job title. It doesn't show or look up individual
+        employees.
+      </p>
+    </div>
+  </details>
+
+  <footer class="section-sources">
+    <h3 class="sources-title">Where this comes from</h3>
+    <p>
+      <a href={dataset.url}>{dataset.name}</a> on NYC Open Data (dataset {dataset.id}).
+      Source updated {date(dataset.sourceUpdatedAt)} · Last refreshed here {date(snapshot.refreshedAt)}.
+    </p>
+    <ul class="caveats">
+      <li>Full-time, annual-salary, active employees only; hourly and per-diem workers are excluded.</li>
+      <li>Base salary is the end-of-fiscal-year rate; mid-year raises are not shown separately.</li>
+      <li>Total pay includes overtime and lump sums/retro pay, which vary year to year.</li>
+      <li>Dollars are nominal: not adjusted for inflation.</li>
+      <li>Aggregates only: no individual employee names or lookups.</li>
+    </ul>
+  </footer>
+</section>
+
+<script>
+  import snapshot from '../../data/payroll-jobs.json';
+  import { COLUMNS, DEFAULT_SORT, PAGE_SIZE, sortJobs, jobRowsHtml } from '../../lib/jobs-table.js';
+  import { drawSalaryLine, salarySentence } from '../../lib/salary-line-chart.js';
+
+  type Job = (typeof snapshot.jobs)[number];
+  type Sort = { key: string; dir: 'asc' | 'desc' };
+
+  const section = document.querySelector<HTMLElement>('#jobs');
+
+  if (section) {
+    const { jobs, chips, compareFiscalYear: compareYear, minEmployees } = snapshot;
+    const byTitle = new Map(jobs.map((j) => [j.title, j]));
+    const maxExtra = Math.max(...jobs.map((j) => j.extra));
+
+    const search = section.querySelector<HTMLInputElement>('#jobs-q')!;
+    const sortSelect = section.querySelector<HTMLSelectElement>('#jobs-sort')!;
+    const chipButtons = Array.from(section.querySelectorAll<HTMLButtonElement>('.job-chip'));
+    const headers = Array.from(section.querySelectorAll<HTMLElement>('.jobs-table thead th'));
+    const tbody = section.querySelector<HTMLElement>('[data-rows]')!;
+    const tableWrap = section.querySelector<HTMLElement>('.jobs-table-wrap')!;
+    const status = section.querySelector<HTMLElement>('[data-status]')!;
+    const empty = section.querySelector<HTMLElement>('[data-empty]')!;
+    const prev = section.querySelector<HTMLButtonElement>('[data-page="prev"]')!;
+    const next = section.querySelector<HTMLButtonElement>('[data-page="next"]')!;
+
+    let sort: Sort = { ...DEFAULT_SORT } as Sort;
+    let chip = '';
+    let page = 0;
+    const expanded = new Set<string>();
+
+    // Every word must appear somewhere in the title: "civil eng" finds "Civil Engineer".
+    function filtered(): Job[] {
+      const words = search.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+      const chipTitles = chips.find((c) => c.id === chip)?.titles;
+      return jobs.filter((j) =>
+        (!chipTitles || chipTitles.includes(j.title)) &&
+        words.every((w) => j.label.toLowerCase().includes(w))
+      );
+    }
+
+    function render() {
+      const list = sortJobs(filtered(), sort);
+      const pages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+      page = Math.min(page, pages - 1);
+      const shown = list.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+      tbody.innerHTML = jobRowsHtml(shown, { maxExtra, compareYear, expanded });
+      tbody.querySelectorAll<HTMLElement>('.job-row.is-open').forEach(drawDetail);
+
+      empty.hidden = list.length > 0;
+      status.textContent = list.length
+        ? `Showing ${page * PAGE_SIZE + 1}–${page * PAGE_SIZE + shown.length} of ${list.length} job ${list.length === 1 ? 'title' : 'titles'}`
+        : 'No job titles match';
+      prev.disabled = page === 0;
+      next.disabled = page >= pages - 1;
+      section!.querySelector<HTMLElement>('[data-pager]')!.hidden = pages === 1;
+
+      headers.forEach((th) => {
+        const active = th.dataset.col === sort.key;
+        th.setAttribute('aria-sort', active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none');
+      });
+      const sortValue = `${sort.key}-${sort.dir}`;
+      if (Array.from(sortSelect.options).some((o) => o.value === sortValue)) sortSelect.value = sortValue;
+    }
+
+    function drawDetail(row: HTMLElement) {
+      const job = byTitle.get(row.dataset.title!)!;
+      const detail = row.nextElementSibling as HTMLElement;
+      const chart = detail.querySelector<HTMLElement>('.job-chart')!;
+      const hasSmallYears = drawSalaryLine(chart, job, minEmployees);
+      detail.querySelector('.job-sentence')!.textContent = salarySentence(job, minEmployees) +
+        (hasSmallYears ? ` Hollow dots mark years with fewer than ${minEmployees} employees.` : '');
+    }
+
+    function toggle(row: HTMLElement) {
+      const title = row.dataset.title!;
+      const open = !expanded.has(title);
+      if (open) expanded.add(title); else expanded.delete(title);
+      row.classList.toggle('is-open', open);
+      row.querySelector('.job-toggle')!.setAttribute('aria-expanded', String(open));
+      (row.nextElementSibling as HTMLElement).hidden = !open;
+      if (open) drawDetail(row);
+    }
+
+    function syncUrl() {
+      const url = new URL(location.href);
+      const set = (k: string, v: string) => (v ? url.searchParams.set(k, v) : url.searchParams.delete(k));
+      set('q', search.value.trim());
+      set('chip', chip);
+      const isDefault = sort.key === DEFAULT_SORT.key && sort.dir === DEFAULT_SORT.dir;
+      set('sort', isDefault ? '' : `${sort.key}-${sort.dir}`);
+      history.replaceState(null, '', url);
+    }
+
+    function setChip(id: string) {
+      chip = id;
+      chipButtons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.chip === chip)));
+    }
+
+    function update() {
+      page = 0;
+      render();
+      syncUrl();
+    }
+
+    // ---------- Events ----------
+    // Rows: the title button is the keyboard target; a click anywhere on the row works too.
+    tbody.addEventListener('click', (e) => {
+      const row = (e.target as HTMLElement).closest<HTMLElement>('.job-row');
+      if (row) toggle(row);
+    });
+
+    headers.forEach((th) => th.querySelector('button')!.addEventListener('click', () => {
+      const key = th.dataset.col!;
+      const text = COLUMNS.find((c) => c.key === key)?.text;
+      sort = sort.key === key
+        ? { key, dir: sort.dir === 'asc' ? 'desc' : 'asc' }
+        : { key, dir: text ? 'asc' : 'desc' };
+      update();
+    }));
+
+    sortSelect.addEventListener('change', () => {
+      const [key, dir] = sortSelect.value.split('-');
+      sort = { key, dir: dir as Sort['dir'] };
+      update();
+    });
+
+    // Typing starts a fresh search; picking a chip clears the search box.
+    search.addEventListener('input', () => {
+      setChip('');
+      update();
+    });
+
+    chipButtons.forEach((b) => b.addEventListener('click', () => {
+      setChip(chip === b.dataset.chip ? '' : b.dataset.chip!);
+      search.value = '';
+      update();
+    }));
+
+    function goTo(delta: number) {
+      page += delta;
+      render();
+      tableWrap.focus({ preventScroll: true });
+      section!.querySelector('.jobs-controls')!.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }
+    prev.addEventListener('click', () => goTo(-1));
+    next.addEventListener('click', () => goTo(1));
+
+    // Redraw open charts when the table width changes (rotation, resize).
+    let lastWidth = tableWrap.clientWidth;
+    new ResizeObserver(() => {
+      if (tableWrap.clientWidth === lastWidth) return;
+      lastWidth = tableWrap.clientWidth;
+      tbody.querySelectorAll<HTMLElement>('.job-row.is-open').forEach(drawDetail);
+    }).observe(tableWrap);
+
+    // Shared links: ?chip=firefighter, ?q=nurse, ?sort=base-desc. Unknown values
+    // fall back to the defaults. Setting them here also resets choices the
+    // browser restored on back/forward.
+    const params = new URL(location.href).searchParams;
+    const fromUrlChip = params.get('chip') ?? '';
+    setChip(chips.some((c) => c.id === fromUrlChip) ? fromUrlChip : '');
+    search.value = chip ? '' : params.get('q') ?? '';
+    const [key, dir] = (params.get('sort') ?? '').split('-');
+    if (COLUMNS.some((c) => c.key === key) && (dir === 'asc' || dir === 'desc')) sort = { key, dir };
+    sortSelect.value = `${DEFAULT_SORT.key}-${DEFAULT_SORT.dir}`;
+    render();
+  }
+</script>

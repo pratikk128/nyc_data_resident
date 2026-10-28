@@ -1,0 +1,15 @@
+---
+/*
+ * City Payroll Spending, default view: "How much does NYC spend on its
+ * workforce?" Other sections live next to this file (jobs.astro, ...).
+ */
+import PayrollPage from '../../components/city-payroll/PayrollPage.astro';
+import WorkforceSection from '../../components/city-payroll/WorkforceSection.astro';
+---
+
+<PayrollPage
+  section="spending"
+  description="How much NYC spends on its workforce: total payroll, overtime and other pay by fiscal year, from NYC Open Data."
+>
+  <WorkforceSection />
+</PayrollPage>

@@ -1,0 +1,48 @@
+---
+/*
+ * Shell shared by the City Payroll Spending views: page heading plus the
+ * section nav. Each section is its own page (src/pages/city-payroll/) so it
+ * has its own URL; the section itself goes in the default slot.
+ */
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+import payroll from '../../data/payroll-by-year.json';
+import { date } from '../../lib/format.js';
+
+// Add a section here and a page in src/pages/city-payroll/ to add a view.
+const SECTIONS = [
+  { id: 'spending', href: '/city-payroll/', label: 'How much the city spends' },
+  { id: 'jobs', href: '/city-payroll/jobs/', label: 'What city jobs pay' }
+];
+
+interface Props {
+  section: 'spending' | 'jobs';
+  description: string;
+}
+
+const { section, description } = Astro.props;
+const current = SECTIONS.find((s) => s.id === section)!;
+---
+
+<DashboardLayout
+  title={section === 'spending' ? 'City Payroll Spending' : `${current.label} | City Payroll Spending`}
+  description={description}
+  path={current.href}
+  category="City Government"
+  tone="blue"
+  lastRefreshed={date(payroll.refreshedAt)}
+>
+  <header class="page-head">
+    <h1>City Payroll Spending</h1>
+    <p>What it costs to pay the people who run the city, in plain numbers: salaries, overtime and other pay across every agency.</p>
+  </header>
+
+  <nav class="section-nav" aria-label="Dashboard sections">
+    <ul>
+      {SECTIONS.map((s) => (
+        <li><a href={s.href} aria-current={s.id === section ? 'page' : undefined}>{s.label}</a></li>
+      ))}
+    </ul>
+  </nav>
+
+  <slot />
+</DashboardLayout>
