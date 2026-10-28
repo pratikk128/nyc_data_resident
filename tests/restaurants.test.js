@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 
 import {
   latestGrade, groupInspections, isInspected, countByCategory, totalsFromFamilies,
-  perInspection, compareToMeans, ratioLabel, cutoffDate, gradeInfo, scoreBand, titleCase
+  perInspection, compareToMeans, cutoffDate, gradeInfo, scoreBand, titleCase
 } from "../src/lib/restaurants/inspections.js";
 import { categoryFor, violationFamily, CATEGORIES, OTHER } from "../src/lib/restaurants/violation-categories.js";
 import { parseLocation, searchWhere, normalizeSearch, soqlString } from "../src/lib/restaurants/soql.js";
@@ -142,21 +142,17 @@ test("restaurant counts only use critical violations inside the window", () => {
   assert.equal(countByCategory(insp, "2023-10-27").temperature, 2);
 });
 
-test("above-mean categories sort first, biggest ratio first", () => {
+test("above-mean categories sort first, furthest above first", () => {
   const counts = { temperature: 2, hygiene: 6, maintenance: 1 };
   const means = { temperature: 1, hygiene: 2, maintenance: 2 };
   const rows = compareToMeans(counts, means);
   assert.deepEqual(rows.slice(0, 2).map((r) => r.id), ["hygiene", "temperature"]);
-  assert.equal(rows[0].ratio, 3);
-  assert.equal(ratioLabel(rows[0]), "3.0× city average");
   assert.equal(rows.find((r) => r.id === "maintenance").above, false);
 });
 
 test("a category with a zero mean is above it with any violation", () => {
   const r = compareToMeans({ other: 1 }, { other: 0 }).find((x) => x.id === "other");
   assert.equal(r.above, true);
-  assert.equal(r.ratio, null);
-  assert.match(ratioLabel(r), /which is 0/);
 });
 
 test("lookback cutoff is N years before today", () => {

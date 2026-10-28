@@ -978,14 +978,6 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
 .cat-row.is-above { border-color: var(--bar-above); box-shadow: inset 4px 0 0 var(--bar-above); }
 .cat-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
 .cat-name { font-weight: 800; }
-.cat-flag {
-  padding: 2px 10px;
-  border-radius: var(--radius-pill);
-  background: var(--bar-above-tint);
-  color: var(--bar-above);
-  font-size: .8125rem;
-  font-weight: 700;
-}
 .cat-blurb { margin-top: 2px; font-size: .875rem; color: var(--ink-soft); max-width: 75ch; }
 
 .rest-about .about-data { margin-top: var(--space-3); }

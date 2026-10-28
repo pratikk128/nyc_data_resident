@@ -159,29 +159,20 @@ export function perInspection(totals, inspections) {
 }
 
 // One entry per category: the restaurant's rate, the mean, and whether it's
-// above. Above-mean categories come first (biggest ratio first), then the
+// above. Above-mean categories come first (furthest above first), then the
 // rest in config order.
 export function compareToMeans(counts, means) {
   const rows = CATEGORIES.map((c, i) => {
     const value = counts[c.id] ?? 0;
     const mean = means[c.id] ?? 0;
     const above = value > mean;
-    const ratio = mean > 0 ? value / mean : null;
-    return { id: c.id, label: c.label, blurb: c.blurb, value, mean, above, ratio, order: i };
+    return { id: c.id, label: c.label, blurb: c.blurb, value, mean, above, order: i };
   });
   return rows.sort((a, b) =>
     (b.above - a.above) ||
-    (a.above ? (b.ratio ?? Infinity) - (a.ratio ?? Infinity) : 0) ||
+    (a.above ? (b.value - b.mean) - (a.value - a.mean) : 0) ||
     a.order - b.order
   );
-}
-
-// "2.3× city average"; a plain label when the mean is zero.
-export function ratioLabel(row, benchmark = "city") {
-  const what = benchmark === "city" ? "city average" : "average for similar restaurants";
-  if (!row.above) return null;
-  if (row.ratio == null) return `Above the ${what} (which is 0)`;
-  return `${row.ratio >= 10 ? Math.round(row.ratio) : row.ratio.toFixed(1)}× ${what}`;
 }
 
 // ---------- Display ----------

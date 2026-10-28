@@ -5,7 +5,7 @@
  * the detail on the server). Data shapes come from src/lib/server/restaurants.js.
  */
 import { date, count } from "../format.js";
-import { gradeInfo, ratioLabel, SCORE_BANDS } from "./inspections.js";
+import { gradeInfo, SCORE_BANDS } from "./inspections.js";
 
 export const escape = (str) => String(str ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
@@ -67,18 +67,14 @@ export function categoryBarsHtml(cmp, benchmark) {
     return `<p class="insp-summary">This restaurant's critical violations per inspection aren't above ${who} in any category.</p>`;
   }
 
-  return `<ol class="cat-bars">` + rows.map((r) => {
-    const label = ratioLabel(r, benchmark === "citywide" ? "city" : "similar");
-    return (
-      `<li class="cat-row is-above">` +
-        `<div class="cat-head">` +
-          `<span class="cat-name">${escape(r.label)}</span>` +
-          `<span class="cat-flag"><span aria-hidden="true">▲ </span>${escape(label)}</span>` +
-        `</div>` +
-        `<p class="cat-blurb">${escape(r.blurb)}</p>` +
-      `</li>`
-    );
-  }).join("") + `</ol>`;
+  return `<ol class="cat-bars">` + rows.map((r) => (
+    `<li class="cat-row is-above">` +
+      `<div class="cat-head">` +
+        `<span class="cat-name">${escape(r.label)}</span>` +
+      `</div>` +
+      `<p class="cat-blurb">${escape(r.blurb)}</p>` +
+    `</li>`
+  )).join("") + `</ol>`;
 }
 
 export function benchmarkNote(cmp, benchmark) {
