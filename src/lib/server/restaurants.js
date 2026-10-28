@@ -28,10 +28,10 @@ export const metadataJob = {
   run: () => datasetMetadata(DATASET_ID)
 };
 
-// Citywide and same-cuisine-and-borough critical-violation totals per category, plus the number
+// Citywide and same-cuisine-and-borough violation totals per category, plus the number
 // of inspections in the window (the denominator for the mean) and of restaurants behind them.
 export const benchmarksJob = {
-  key: `restaurants:benchmarks:critical-per-inspection:v2:${LOOKBACK_YEARS}y`,
+  key: `restaurants:benchmarks:violations-per-inspection:v3:${LOOKBACK_YEARS}y`,
   maxAgeHours: 26,
   async run() {
     const since = cutoffDate(new Date(), LOOKBACK_YEARS);

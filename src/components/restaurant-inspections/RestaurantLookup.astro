@@ -2,7 +2,7 @@
 /*
  * "Look up a restaurant": search by name (plus borough, street or ZIP, or
  * near me) or browse near me, pick a result, see its latest grade and inspection and the
- * categories where its critical violations per inspection are at least twice the average.
+ * categories where its violations per inspection are at least twice the average.
  *
  * Search and detail data come from /api/restaurants/* (server-side, cached).
  * A deep link (?camis=50066715) is rendered on the server and passed in as
@@ -108,8 +108,8 @@ const deepLink = Boolean(initial || initialError);
       </p>
       <p>
         <strong>Violation categories</strong> group violation codes by their first two digits (for example, every code
-        starting with 02 is about food temperature). We compare critical violations per inspection: a restaurant's
-        critical violations in a category divided by its inspections in the window, against the total for every
+        starting with 02 is about food temperature). We compare all violations per inspection, critical or not: a restaurant's
+        violations in a category divided by its inspections in the window, against the total for every
         restaurant divided by every inspection in the same window, including inspections with none. “Similar
         restaurants” means the same cuisine in the same borough. These averages are recalculated once a day.
       </p>

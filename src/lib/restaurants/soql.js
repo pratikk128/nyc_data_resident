@@ -145,12 +145,12 @@ export function restaurantCountParams(since, { bySimilar = false } = {}) {
 const CITATION_KEY = "camis || '|' || inspection_date::text || '|' || trim(violation_code) || '|' || " +
   "coalesce(violation_description, '')";
 
-// Numerator: cited critical violations per code family ("02", "15", ...).
+// Numerator: cited violations per code family ("02", "15", ...).
 export function familyCountParams(since, { bySimilar = false } = {}) {
   const keys = bySimilar ? "cuisine_description, boro, " : "";
   return {
     $select: `${keys}substring(violation_code, 1, 2) AS fam, count(distinct ${CITATION_KEY}) AS n`,
-    $where: `${inWindow(since)} AND violation_code IS NOT NULL AND critical_flag = 'Critical'`,
+    $where: `${inWindow(since)} AND violation_code IS NOT NULL`,
     $group: `${keys}fam`,
     $limit: "50000"
   };

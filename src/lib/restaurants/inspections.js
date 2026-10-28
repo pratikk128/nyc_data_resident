@@ -126,13 +126,13 @@ export function emptyCounts() {
   return Object.fromEntries(CATEGORIES.map((c) => [c.id, 0]));
 }
 
-// Cited critical violations per category on or after `since`, from one
+// Cited violations per category on or after `since`, from one
 // restaurant's grouped inspections.
 export function countByCategory(inspections, since) {
   const counts = emptyCounts();
   for (const insp of inspections) {
     if (insp.date < since) continue;
-    for (const v of insp.violations) if (v.critical === "Critical") counts[v.category] += 1;
+    for (const v of insp.violations) counts[v.category] += 1;
   }
   return counts;
 }

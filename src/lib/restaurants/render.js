@@ -68,7 +68,7 @@ export function categoryListHtml(cmp, benchmark) {
   const rows = cmp[benchmark].rows.filter((r) => r.above);
   if (!rows.length) {
     const who = benchmark === "citywide" ? "the city average" : "the average for similar restaurants";
-    return `<p class="insp-summary">This restaurant's critical violations per inspection aren't at least twice ${who} in any category.</p>`;
+    return `<p class="insp-summary">This restaurant's violations per inspection aren't at least twice ${who} in any category.</p>`;
   }
 
   return `<ol class="cat-list">` + rows.map((r) => (
@@ -182,12 +182,12 @@ export function detailHtml(d, { benchmark = "citywide" } = {}) {
     `<section class="rest-block chart-frame" aria-labelledby="cats-title" data-categories>` +
       `<div class="chart-head">` +
         `<div><h3 class="chart-title" id="cats-title">Violation categories worse than the rest</h3>` +
-        `<p class="chart-subtitle">Critical violations cited per inspection since ${date(cmp.since)} (last ${cmp.years} years). ` +
-        `Only categories where this restaurant averages at least twice as many critical violations per inspection as the rest are shown.</p></div>` +
+        `<p class="chart-subtitle">Violations cited per inspection since ${date(cmp.since)} (last ${cmp.years} years). ` +
+        `Only categories where this restaurant averages at least twice as many violations per inspection as the rest are shown.</p></div>` +
         toggle +
       `</div>` +
       similarNote +
-      `<p class="cat-note"><strong>Good to know:</strong> These are critical violations inspectors cited, not a safety rating. ` +
+      `<p class="cat-note"><strong>Good to know:</strong> These are all violations inspectors cited, critical or not, not a safety rating. ` +
       `Dividing by the number of inspections keeps restaurants that are inspected more often from looking worse just for that.</p>` +
       `<p class="cat-scope" data-cat-note aria-live="polite">${benchmarkNote(cmp, shown)}</p>` +
       `<div data-cat-list>${categoryListHtml(cmp, shown)}</div>` +
