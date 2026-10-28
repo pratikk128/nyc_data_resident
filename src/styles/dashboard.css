@@ -1223,18 +1223,8 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
 .c311-control .toggle-btn[aria-disabled="true"] { color: var(--ink-soft); text-decoration: line-through; cursor: not-allowed; background: transparent; }
 .c311-why { max-width: 36ch; font-size: .8125rem; color: var(--ink-soft); }
 
-.c311-tip { position: relative; display: inline-flex; }
-.c311-tip-btn {
-  min-height: 44px;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--link);
-  font-weight: 700;
-  text-decoration: underline dotted;
-  text-underline-offset: 3px;
-  cursor: help;
-}
+.c311-tip { position: relative; }
+.c311-tip > summary { text-decoration: underline dotted; text-underline-offset: 3px; }
 .c311-tip-text {
   position: absolute;
   z-index: 4;
@@ -1247,11 +1237,7 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
   background: var(--card);
   box-shadow: var(--shadow-hover);
   font-size: .875rem;
-  visibility: hidden;
-  opacity: 0;
-  transition: opacity 150ms ease;
 }
-.c311-tip:hover .c311-tip-text, .c311-tip:focus-within .c311-tip-text { visibility: visible; opacity: 1; }
 
 .c311-scope { margin-top: var(--space-4); font-size: .9375rem; color: var(--ink-soft); }
 
@@ -1388,9 +1374,6 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
   .c311-current .copy-link { width: 100%; }
   .c311-control, .c311-control .toggle { width: 100%; }
   .c311-map-frame { height: 380px; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .c311-tip-text { transition: none; }
 }
 
 /* =========================================================

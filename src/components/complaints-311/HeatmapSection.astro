@@ -18,13 +18,14 @@
   </fieldset>
   <p class="field-hint" role="status" aria-live="polite" data-heatmap-status></p>
 
-  <div class="c311-map-frame" data-heatmap-canvas role="img" aria-label="Heat map of 311 requests within 1 mile"></div>
+  <!-- role="region", not "img": "img" would hide Leaflet's zoom buttons from screen readers. -->
+  <div class="c311-map-frame" data-heatmap-canvas role="region" aria-label="Heat map of 311 requests within 1 mile" aria-describedby="map-note"></div>
   <div class="c311-map-legend" aria-hidden="true">
     <span>Fewer requests</span><span class="c311-map-ramp"></span><span>More</span>
     <span class="c311-map-key"><span class="c311-map-key-ring"></span>¼ mile</span>
     <span class="c311-map-key"><span class="c311-map-key-ring outer"></span>1 mile</span>
   </div>
-  <p class="field-hint">The lists above cover the same requests. About 2% of requests have no location and aren’t on the map.</p>
+  <p class="field-hint" id="map-note">The lists above cover the same requests. About 2% of requests have no location and aren’t on the map.</p>
 </section>
 
 <script>

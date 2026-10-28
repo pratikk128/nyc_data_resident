@@ -26,10 +26,10 @@ import { HOW_WE_CALCULATE } from '../../lib/complaints311/render.js';
         <button type="button" class="toggle-btn" data-vs="city" aria-pressed="false">NYC average</button>
       </div>
     </div>
-    <span class="c311-tip">
-      <button type="button" class="c311-tip-btn" aria-describedby="how-calc">How we calculate this</button>
-      <span class="c311-tip-text" role="tooltip" id="how-calc">{HOW_WE_CALCULATE}</span>
-    </span>
+    <details class="c311-tip" data-how-calc>
+      <summary>How we calculate this</summary>
+      <p class="c311-tip-text">{HOW_WE_CALCULATE}</p>
+    </details>
   </div>
 
   <div class="c311-compare-body" data-compare-body aria-live="polite" aria-busy="false"></div>
@@ -52,6 +52,17 @@ import { HOW_WE_CALCULATE } from '../../lib/complaints311/render.js';
   vsBtns.forEach((b) => b.addEventListener('click', () => {
     if (b.getAttribute('aria-disabled') !== 'true') setView({ vs: b.dataset.vs });
   }));
+
+  // "How we calculate this" opens on click or tap; Escape or a click elsewhere closes it.
+  const howCalc = section.querySelector<HTMLDetailsElement>('[data-how-calc]')!;
+  howCalc.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || !howCalc.open) return;
+    howCalc.open = false;
+    howCalc.querySelector('summary')!.focus();
+  });
+  document.addEventListener('click', (e) => {
+    if (howCalc.open && !howCalc.contains(e.target as Node)) howCalc.open = false;
+  });
 
   // "Show N more" / "Show fewer" in each column (the body is redrawn, so delegate).
   body.addEventListener('click', (e) => {
