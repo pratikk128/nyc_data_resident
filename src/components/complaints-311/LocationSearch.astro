@@ -13,8 +13,9 @@ import { MAX_INPUT_LENGTH } from '../../lib/complaints311/location-input.js';
 
 interface Props {
   initialLabel: string | null; // "Showing results near" text for a shared link, rendered before script runs
+  initialPrefix?: string;
 }
-const { initialLabel } = Astro.props;
+const { initialLabel, initialPrefix = 'Showing results near:' } = Astro.props;
 ---
 
 <section class="dash-section c311-where" id="where" aria-labelledby="where-title">
@@ -25,7 +26,7 @@ const { initialLabel } = Astro.props;
 
   <div class="c311-current" data-current hidden={!initialLabel}>
     <div class="c311-current-text">
-      <p class="c311-current-label"><span data-current-prefix>Showing results near:</span> <strong data-current-label>{initialLabel}</strong></p>
+      <p class="c311-current-label"><span data-current-prefix>{initialPrefix}</span> <strong data-current-label>{initialLabel}</strong></p>
       <p class="c311-current-note" data-current-note hidden></p>
     </div>
     <button type="button" class="copy-link" data-change aria-controls="c311-form" aria-expanded="false">Change location</button>
@@ -140,7 +141,7 @@ const { initialLabel } = Astro.props;
   function localOptions(text: string): Option[] {
     const out: Option[] = [];
     const t = text.trim();
-    if (/^\d{5}$/.test(t) && isNycZip(t)) out.push({ label: `ZIP code ${t}`, hint: 'Centered on the middle of the ZIP', location: { kind: 'zip', zip: t } });
+    if (/^\d{5}$/.test(t) && isNycZip(t)) out.push({ label: `ZIP code ${t}`, hint: 'The area around the middle of the ZIP', location: { kind: 'zip', zip: t } });
     const boro = boroughFromText(t);
     if (boro) out.push({ label: `${boroughLabel(boro)}`, hint: 'The whole borough', location: { kind: 'borough', borough: boro } });
     return out;
@@ -250,8 +251,8 @@ const { initialLabel } = Astro.props;
     if (loc.kind === 'zip') {
       const boro = boroughLabel(s.borough ?? loc.borough);
       return {
-        prefix: 'Showing results near:', label: `ZIP code ${loc.zip}${boro ? `, ${boro}` : ''}`,
-        note: 'We use the middle of the ZIP code as your spot.'
+        prefix: 'Showing results for:', label: `Around ZIP ${loc.zip}${boro ? `, ${boro}` : ''}`,
+        note: `We measure from the average location of requests in ZIP ${loc.zip}, so the counts below cover the area around that spot, including nearby blocks in other ZIPs.`
       };
     }
     return {

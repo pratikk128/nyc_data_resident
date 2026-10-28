@@ -30,11 +30,11 @@ try {
 const { location } = locationFromParams(Astro.url.searchParams);
 const initialLabel = !location ? null
   : location.kind === 'point' ? location.label
-  : location.kind === 'zip' ? `ZIP code ${location.zip}`
+  : location.kind === 'zip' ? `Around ZIP ${location.zip}`
   : `${boroughLabel(location.borough)} (whole borough)`;
 
 Astro.response.headers.set('Cache-Control', 'public, max-age=300');
-const title = initialLabel ? `311 complaints near ${initialLabel}` : '311 Complaints in My Neighborhood';
+const title = initialLabel ? `311 complaints ${location?.kind === 'zip' ? `around ZIP ${location.zip}` : `near ${initialLabel}`}` : '311 Complaints in My Neighborhood';
 ---
 
 <DashboardLayout
@@ -50,7 +50,7 @@ const title = initialLabel ? `311 complaints near ${initialLabel}` : '311 Compla
     <p>New Yorkers file millions of 311 requests a year about noise, heat, trash, parking and more. Here's what your neighbors are asking the city to fix.</p>
   </header>
 
-  <LocationSearch initialLabel={initialLabel} />
+  <LocationSearch initialLabel={initialLabel} initialPrefix={location?.kind === 'point' ? 'Showing results near:' : 'Showing results for:'} />
   <OverviewSection />
   <AboveAverageSection />
   <LocationTypesSection />
