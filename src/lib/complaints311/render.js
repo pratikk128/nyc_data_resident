@@ -43,7 +43,7 @@ export function errorHtml(err) {
 // ---------- Overview card ----------
 
 /*
- * "More requests than 72% of NYC locations". quantiles: the window's distribution
+ * "More requests than 72% of NYC blocks with any 311 requests". quantiles: the window's distribution
  * for this radius (circleDistributions()); "loading" draws a placeholder line,
  * null nothing.
  */
@@ -54,7 +54,7 @@ export function cityRankHtml(quantiles, total, { radiusName }) {
   const { more, pct: p } = cityRankText(rank);
   return (
     `<div class="c311-rank">` +
-      `<p>${more ? "More" : "Fewer"} requests than <strong>${p}%</strong> of NYC locations` +
+      `<p>${more ? "More" : "Fewer"} requests than <strong>${p}%</strong> of NYC blocks with any 311 requests` +
         `<span class="c311-rank-how">, counting ${escape(radiusName)} around each</span></p>` +
     `</div>`
   );

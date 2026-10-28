@@ -67,9 +67,9 @@ export const TOP_LOCATION_TYPES = 6;
 export const TOP_COMPLAINT_TYPES = 5;
 
 /*
- * "More than 72% of NYC locations": the city is cut into cells of 1/GRID_CELLS_PER_DEGREE
- * degree (about 111 m north–south, 84 m east–west), requests are counted per cell, and
- * the ¼ and 1 mile circles are summed around every cell that has a request. The daily
+ * "More than 72% of NYC blocks with any 311 requests": the city is cut into cells of
+ * 1/GRID_CELLS_PER_DEGREE degree (about 111 m north–south, 84 m east–west), requests are counted per
+ * cell, and the ¼ and 1 mile circles are summed around every cell that has a request. The daily
  * job keeps DISTRIBUTION_QUANTILES evenly spaced values of each sorted distribution.
  */
 export const GRID_CELLS_PER_DEGREE = 1000;
