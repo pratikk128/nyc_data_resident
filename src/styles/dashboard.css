@@ -965,14 +965,11 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
 .table-scroll .cell-text { text-align: left; white-space: normal; }
 
 /* Violation categories */
-.cat-note {
-  margin-top: var(--space-4);
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-md);
-  background: var(--blue-tint);
-  max-width: 75ch;
-}
-.cat-scope { margin-top: var(--space-3); font-size: .9375rem; color: var(--ink-soft); }
+.cat-more { margin-top: var(--space-4); max-width: 75ch; font-size: .9375rem; color: var(--ink-soft); }
+.cat-more summary { cursor: pointer; font-weight: 700; color: var(--ink); width: fit-content; }
+.cat-scope { margin-top: var(--space-2); }
+.cat-facts { margin-top: var(--space-2); padding-left: 1.25em; display: grid; gap: var(--space-1); }
+.cat-more .chart-hint { margin-top: var(--space-2); }
 .cat-list { display: grid; gap: var(--space-3); margin-top: var(--space-3); padding: 0; list-style: none; }
 .cat-row {
   padding: var(--space-3) var(--space-4);

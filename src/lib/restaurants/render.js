@@ -68,7 +68,7 @@ export function categoryListHtml(cmp, benchmark) {
   const rows = cmp[benchmark].rows.filter((r) => r.above);
   if (!rows.length) {
     const who = benchmark === "citywide" ? "the city average" : "the average for similar restaurants";
-    return `<p class="insp-summary">This restaurant's violations per inspection aren't at least twice ${who} in any category.</p>`;
+    return `<p class="insp-summary">Nothing stands out. This restaurant isn't cited twice as often as ${who} in any category.</p>`;
   }
 
   return `<ol class="cat-list">` + rows.map((r) => (
@@ -178,19 +178,24 @@ export function detailHtml(d, { benchmark = "citywide" } = {}) {
     `${escape(cmp.similar.cuisine || "restaurants of this cuisine")} in ${escape(cmp.similar.boro)} inspected in this window; ` +
     `there ${cmp.similar.restaurants === 1 ? "was" : "were"} ${count(cmp.similar.restaurants)}, so this shows the citywide average only.</p>`;
 
+  // What matters up top; how it's worked out sits behind "How we compare".
   const categories =
     `<section class="rest-block chart-frame" aria-labelledby="cats-title" data-categories>` +
       `<div class="chart-head">` +
-        `<div><h3 class="chart-title" id="cats-title">Violation categories worse than the rest</h3>` +
-        `<p class="chart-subtitle">Violations cited per inspection since ${date(cmp.since)} (last ${cmp.years} years). ` +
-        `Only categories where this restaurant averages at least twice as many violations per inspection as the rest are shown.</p></div>` +
+        `<div><h3 class="chart-title" id="cats-title">Problem areas</h3>` +
+        `<p class="chart-subtitle">Kinds of violations inspectors cited here at least twice as often as at other restaurants.</p></div>` +
         toggle +
       `</div>` +
-      similarNote +
-      `<p class="cat-note"><strong>Good to know:</strong> These are all violations inspectors cited, critical or not, not a safety rating. ` +
-      `Dividing by the number of inspections keeps restaurants that are inspected more often from looking worse just for that.</p>` +
-      `<p class="cat-scope" data-cat-note aria-live="polite">${benchmarkNote(cmp, shown)}</p>` +
       `<div data-cat-list>${categoryListHtml(cmp, shown)}</div>` +
+      `<details class="cat-more">` +
+        `<summary>How we compare</summary>` +
+        `<p class="cat-scope" data-cat-note aria-live="polite">${benchmarkNote(cmp, shown)}</p>` +
+        `<ul class="cat-facts">` +
+          `<li>Counts every violation cited since ${date(cmp.since)} (the last ${cmp.years} years), critical or not. It isn't a safety rating.</li>` +
+          `<li>Counts are divided by the number of inspections, so a restaurant that's inspected more often doesn't look worse just for that.</li>` +
+        `</ul>` +
+        similarNote +
+      `</details>` +
     `</section>`;
 
   return head + stats + caveat + latestBlock + categories;
