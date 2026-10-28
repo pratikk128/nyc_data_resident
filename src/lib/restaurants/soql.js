@@ -132,11 +132,16 @@ export function restaurantCountParams(since, { bySimilar = false } = {}) {
   };
 }
 
+// One citation per inspection, code and text, the same de-duplication
+// groupInspections() applies to a single restaurant's rows.
+const CITATION_KEY = "camis || '|' || inspection_date::text || '|' || trim(violation_code) || '|' || " +
+  "coalesce(violation_description, '')";
+
 // Numerator: cited critical violations per code family ("02", "15", ...).
 export function familyCountParams(since, { bySimilar = false } = {}) {
   const keys = bySimilar ? "cuisine_description, boro, " : "";
   return {
-    $select: `${keys}substring(violation_code, 1, 2) AS fam, count(*) AS n`,
+    $select: `${keys}substring(violation_code, 1, 2) AS fam, count(distinct ${CITATION_KEY}) AS n`,
     $where: `${inWindow(since)} AND violation_code IS NOT NULL AND critical_flag = 'Critical'`,
     $group: `${keys}fam`,
     $limit: "50000"
