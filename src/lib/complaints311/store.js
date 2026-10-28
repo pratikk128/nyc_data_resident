@@ -50,11 +50,13 @@ export class LoadError extends Error {
 
 async function getJson(url, signal) {
   const res = await fetch(url, { signal });
-  const data = await res.json().catch(() => null); // an HTML error page from the platform
+  // An HTML error page from the platform parses to null; an abort mid-body still rejects.
+  const data = await res.json().catch((err) => { if (err.name === "AbortError") throw err; return null; });
   if (!res.ok) {
     const shown = (res.status === 400 || res.status === 429) && typeof data?.error === "string" ? data.error : null;
     throw new LoadError(res.status, shown);
   }
+  if (data === null || typeof data !== "object") throw new LoadError(res.status, null); // a 200 that isn't our JSON
   return data;
 }
 
