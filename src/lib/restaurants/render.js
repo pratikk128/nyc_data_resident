@@ -68,7 +68,7 @@ export function categoryListHtml(cmp, benchmark) {
   const rows = cmp[benchmark].rows.filter((r) => r.above);
   if (!rows.length) {
     const who = benchmark === "citywide" ? "the city average" : "the average for similar restaurants";
-    return `<p class="insp-summary">This restaurant's critical violations per inspection aren't above ${who} in any category.</p>`;
+    return `<p class="insp-summary">This restaurant's critical violations per inspection aren't at least twice ${who} in any category.</p>`;
   }
 
   return `<ol class="cat-list">` + rows.map((r) => (
@@ -183,7 +183,7 @@ export function detailHtml(d, { benchmark = "citywide" } = {}) {
       `<div class="chart-head">` +
         `<div><h3 class="chart-title" id="cats-title">Violation categories worse than the rest</h3>` +
         `<p class="chart-subtitle">Critical violations cited per inspection since ${date(cmp.since)} (last ${cmp.years} years). ` +
-        `Only categories where this restaurant averages more critical violations per inspection than the rest are shown.</p></div>` +
+        `Only categories where this restaurant averages at least twice as many critical violations per inspection as the rest are shown.</p></div>` +
         toggle +
       `</div>` +
       similarNote +

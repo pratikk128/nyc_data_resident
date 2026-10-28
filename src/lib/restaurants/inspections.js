@@ -158,14 +158,18 @@ export function perInspection(totals, inspections) {
   );
 }
 
+// How many times the mean a restaurant's rate has to be for a category to
+// count as worse than the rest.
+export const ABOVE_FACTOR = 2;
+
 // One entry per category: the restaurant's rate, the mean, and whether it's
-// above. Above-mean categories come first (furthest above first), then the
-// rest in config order.
+// at least ABOVE_FACTOR times the mean. Those come first (furthest above
+// first), then the rest in config order.
 export function compareToMeans(counts, means) {
   const rows = CATEGORIES.map((c, i) => {
     const value = counts[c.id] ?? 0;
     const mean = means[c.id] ?? 0;
-    const above = value > mean;
+    const above = value > 0 && value >= mean * ABOVE_FACTOR;
     return { id: c.id, label: c.label, blurb: c.blurb, value, mean, above, order: i };
   });
   return rows.sort((a, b) =>

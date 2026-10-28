@@ -793,7 +793,7 @@ th[aria-sort="none"] .sort-btn:hover .sort-icon::after { content: "↕"; color: 
   --critical: #B3261E;     /* on --critical-tint 5.6:1 */
   --critical-tint: #FFE8E6;
 
-  /* Violation categories above the average (orange) */
+  /* Violation categories at least twice the average (orange) */
   --cat-above: var(--callout-heads-up-deep);
 }
 

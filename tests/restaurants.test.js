@@ -151,6 +151,16 @@ test("above-mean categories sort first, furthest above first", () => {
   assert.equal(rows.find((r) => r.id === "maintenance").above, false);
 });
 
+test("a category under twice the mean isn't flagged", () => {
+  const rows = compareToMeans({ temperature: 1.9, hygiene: 2 }, { temperature: 1, hygiene: 1 });
+  assert.equal(rows.find((r) => r.id === "temperature").above, false);
+  assert.equal(rows.find((r) => r.id === "hygiene").above, true);
+});
+
+test("a category with no violations isn't flagged even with a zero mean", () => {
+  assert.equal(compareToMeans({}, {}).find((x) => x.id === "other").above, false);
+});
+
 test("a category with a zero mean is above it with any violation", () => {
   const r = compareToMeans({ other: 1 }, { other: 0 }).find((x) => x.id === "other");
   assert.equal(r.above, true);
