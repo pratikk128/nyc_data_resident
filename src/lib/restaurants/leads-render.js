@@ -77,7 +77,7 @@ export function leadCardHtml(lead, group, descriptions) {
         `<p class="lead-list-title">${escape(group.label)}: ${plural(lead.groupViolationCount, "violation")}</p>` +
         `<ul class="lead-violations">${violationItems(lead.violations, descriptions)}</ul>` +
         (lead.other.length
-          ? `<details class="lead-other"><summary>Other critical violations (${lead.other.length})</summary>` +
+          ? `<details class="lead-other"><summary>Violations for other service types (${lead.other.length})</summary>` +
             `<ul class="lead-violations">${violationItems(lead.other, descriptions)}</ul></details>`
           : "") +
       `</div>` +

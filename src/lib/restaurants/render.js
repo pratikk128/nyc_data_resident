@@ -5,7 +5,7 @@
  * the detail on the server). Data shapes come from src/lib/server/restaurants.js.
  */
 import { date, count } from "../format.js";
-import { gradeInfo, SCORE_BANDS } from "./inspections.js";
+import { gradeInfo, SCORE_BANDS, MIN_REPEAT_INSPECTIONS } from "./inspections.js";
 
 export const escape = (str) => String(str ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
@@ -65,10 +65,17 @@ export function categoryListHtml(cmp, benchmark) {
   if (!cmp.inspections) {
     return `<p class="insp-summary">This restaurant has no inspections in this window (since ${date(cmp.since)}), so there's nothing to compare.</p>`;
   }
+  // Fewer inspections than a pattern needs: say so rather than "nothing stands out".
+  if (cmp.inspections < MIN_REPEAT_INSPECTIONS) {
+    return `<p class="insp-summary">This restaurant has had ${count(cmp.inspections)} ` +
+      `${cmp.inspections === 1 ? "inspection" : "inspections"} since ${date(cmp.since)}. A problem area needs at least ` +
+      `${MIN_REPEAT_INSPECTIONS}, so it's too soon to spot a pattern.</p>`;
+  }
   const rows = cmp[benchmark].rows.filter((r) => r.above);
   if (!rows.length) {
     const who = benchmark === "citywide" ? "the city average" : "the average for similar restaurants";
-    return `<p class="insp-summary">Nothing stands out. This restaurant isn't cited twice as often as ${who} in any category.</p>`;
+    return `<p class="insp-summary">Nothing stands out. No kind of violation was cited here at ${MIN_REPEAT_INSPECTIONS} or more ` +
+      `inspections and twice as often as ${who}.</p>`;
   }
 
   return `<ol class="cat-list">` + rows.map((r) => (
@@ -201,7 +208,8 @@ export function detailHtml(d, { benchmark = "citywide" } = {}) {
     `<section class="rest-block chart-frame" aria-labelledby="cats-title" data-categories>` +
       `<div class="chart-head">` +
         `<div><h3 class="chart-title" id="cats-title">Problem areas</h3>` +
-        `<p class="chart-subtitle">Kinds of violations inspectors cited here at least twice as often as at other restaurants.</p></div>` +
+        `<p class="chart-subtitle">Kinds of violations inspectors keep finding here: cited at ${MIN_REPEAT_INSPECTIONS} or more ` +
+        `inspections, and at least twice as often as at other restaurants.</p></div>` +
         toggle +
       `</div>` +
       `<div data-cat-list>${categoryListHtml(cmp, shown)}</div>` +
@@ -211,6 +219,7 @@ export function detailHtml(d, { benchmark = "citywide" } = {}) {
         `<ul class="cat-facts">` +
           `<li>Counts every violation cited since ${date(cmp.since)} (the last ${cmp.years} years), critical or not. It isn't a safety rating.</li>` +
           `<li>Counts are divided by the number of inspections, so a restaurant that's inspected more often doesn't look worse just for that.</li>` +
+          `<li>A kind of violation has to show up at ${MIN_REPEAT_INSPECTIONS} or more separate inspections, so one bad day isn't a pattern.</li>` +
         `</ul>` +
         similarNote +
       `</details>` +

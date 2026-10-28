@@ -135,7 +135,7 @@ export function buildLeads(violationRows, inspectionRows, config = LEADS_CONFIG)
 
 // ---------- Page: one group, one window ----------
 
-// This group's violations on or after `since`, and the rest ("other critical").
+// This group's violations on or after `since`, and the rest (other service types).
 export function groupStats(restaurant, groupId, since) {
   const inWindow = restaurant.violations.filter((v) => v.date >= since);
   const violations = inWindow.filter((v) => groupsFor(v.code).includes(groupId));

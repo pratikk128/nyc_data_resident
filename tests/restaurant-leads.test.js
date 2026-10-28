@@ -305,3 +305,14 @@ test("cards escape names, link the phone and start with the back inert", async (
   assert.match(html, /data-tier="closed"/);
   assert.equal(emptyStateText(pest, 7), "No critical pest violations in the last 7 days. Try 30 days.");
 });
+
+test("other groups' violations are labelled by service type, not as critical", async () => {
+  const { leadCardHtml } = await import("../src/lib/restaurants/leads-render.js");
+  const { businessGroup } = await import("../src/lib/restaurants/business-groups.js");
+  // 10D (ventilation) isn't critical, so "Other critical violations" would be wrong.
+  const violations = [...pests(1), { code: "10D", date: "2026-10-01", critical: false }];
+  const [l] = rankLeads([lead("a", { violations })], "pest-control", { since: "2026-09-25" });
+  const html = leadCardHtml(l, businessGroup("pest-control"), {});
+  assert.match(html, /Violations for other service types \(1\)/);
+  assert.doesNotMatch(html, /Other critical/);
+});

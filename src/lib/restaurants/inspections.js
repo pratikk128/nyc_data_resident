@@ -157,6 +157,16 @@ export function countByCategory(inspections, since) {
   return counts;
 }
 
+// Inspections on or after `since` that cited each category at least once.
+export function inspectionsByCategory(inspections, since) {
+  const counts = emptyCounts();
+  for (const insp of inspections) {
+    if (insp.date < since) continue;
+    for (const cat of new Set(insp.violations.map((v) => v.category))) counts[cat] += 1;
+  }
+  return counts;
+}
+
 // Add Socrata rows of { fam, n } (violation code family → cited count) into
 // per-category totals.
 export function totalsFromFamilies(rows) {
@@ -182,15 +192,25 @@ export function perInspection(totals, inspections) {
 // count as worse than the rest.
 export const ABOVE_FACTOR = 2;
 
-// One entry per category: the restaurant's rate, the mean, and whether it's
-// at least ABOVE_FACTOR times the mean. Those come first (furthest above
-// first), then the rest in config order.
-export function compareToMeans(counts, means) {
+// ...and how many separate inspections have to have cited it, so one bad day
+// isn't a pattern. The ratio alone flagged about 7 in 10 restaurants (rare
+// categories have tiny means), and repeats alone flagged as many (common ones
+// are cited at most inspections); together, about 1 in 7.
+export const MIN_REPEAT_INSPECTIONS = 3;
+
+// rates: the restaurant's violations per inspection by category. citedAt: how
+// many of its inspections cited each category (inspectionsByCategory()).
+// One entry per category: the rate, the mean, and whether it's at least
+// ABOVE_FACTOR times the mean and cited at MIN_REPEAT_INSPECTIONS or more
+// inspections. Those come first (furthest above first), then the rest in
+// config order.
+export function compareToMeans(rates, means, citedAt) {
   const rows = CATEGORIES.map((c, i) => {
-    const value = counts[c.id] ?? 0;
+    const value = rates[c.id] ?? 0;
     const mean = means[c.id] ?? 0;
-    const above = value > 0 && value >= mean * ABOVE_FACTOR;
-    return { id: c.id, label: c.label, blurb: c.blurb, value, mean, above, order: i };
+    const inspections = citedAt[c.id] ?? 0;
+    const above = value > 0 && value >= mean * ABOVE_FACTOR && inspections >= MIN_REPEAT_INSPECTIONS;
+    return { id: c.id, label: c.label, blurb: c.blurb, value, mean, inspections, above, order: i };
   });
   return rows.sort((a, b) =>
     (b.above - a.above) ||

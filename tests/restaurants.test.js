@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import {
   latestGrade, groupInspections, isInspected, countByCategory, totalsFromFamilies,
   perInspection, compareToMeans, cutoffDate, gradeInfo, scoreBand, titleCase, boroLabel,
-  latestScored, closesRestaurant
+  latestScored, closesRestaurant, inspectionsByCategory, MIN_REPEAT_INSPECTIONS
 } from "../src/lib/restaurants/inspections.js";
 import { categoryFor, violationFamily, CATEGORIES, OTHER } from "../src/lib/restaurants/violation-categories.js";
 import { parseLocation, searchWhere, normalizeSearch, soqlString, MAX_NAME_LENGTH, MAX_PLACE_LENGTH } from "../src/lib/restaurants/soql.js";
@@ -193,27 +193,63 @@ test("restaurant counts use every violation inside the window, critical or not",
   assert.equal(countByCategory(insp, "2023-10-27").temperature, 3);
 });
 
+// Every category cited at enough inspections, so only the ratio decides.
+const REPEATED = Object.fromEntries(["temperature", "hygiene", "maintenance", "other"].map((id) => [id, MIN_REPEAT_INSPECTIONS]));
+
 test("above-mean categories sort first, furthest above first", () => {
   const counts = { temperature: 2, hygiene: 6, maintenance: 1 };
   const means = { temperature: 1, hygiene: 2, maintenance: 2 };
-  const rows = compareToMeans(counts, means);
+  const rows = compareToMeans(counts, means, REPEATED);
   assert.deepEqual(rows.slice(0, 2).map((r) => r.id), ["hygiene", "temperature"]);
   assert.equal(rows.find((r) => r.id === "maintenance").above, false);
 });
 
 test("a category under twice the mean isn't flagged", () => {
-  const rows = compareToMeans({ temperature: 1.9, hygiene: 2 }, { temperature: 1, hygiene: 1 });
+  const rows = compareToMeans({ temperature: 1.9, hygiene: 2 }, { temperature: 1, hygiene: 1 }, REPEATED);
   assert.equal(rows.find((r) => r.id === "temperature").above, false);
   assert.equal(rows.find((r) => r.id === "hygiene").above, true);
 });
 
 test("a category with no violations isn't flagged even with a zero mean", () => {
-  assert.equal(compareToMeans({}, {}).find((x) => x.id === "other").above, false);
+  assert.equal(compareToMeans({}, {}, REPEATED).find((x) => x.id === "other").above, false);
 });
 
-test("a category with a zero mean is above it with any violation", () => {
-  const r = compareToMeans({ other: 1 }, { other: 0 }).find((x) => x.id === "other");
+test("a category with a zero mean is above it with any violation cited at enough inspections", () => {
+  const r = compareToMeans({ other: 1 }, { other: 0 }, REPEATED).find((x) => x.id === "other");
   assert.equal(r.above, true);
+});
+
+test("a category has to be cited at 3+ separate inspections, however far above the mean", () => {
+  // One bad day: a rare category (source) far above the mean, at one inspection.
+  const once = compareToMeans({ source: 1 }, { source: 0.026 }, { source: 1 }).find((r) => r.id === "source");
+  assert.equal(once.above, false);
+  const twice = compareToMeans({ source: 1 }, { source: 0.026 }, { source: MIN_REPEAT_INSPECTIONS - 1 }).find((r) => r.id === "source");
+  assert.equal(twice.above, false);
+  const repeated = compareToMeans({ source: 1 }, { source: 0.026 }, { source: MIN_REPEAT_INSPECTIONS }).find((r) => r.id === "source");
+  assert.equal(repeated.above, true);
+  assert.equal(repeated.inspections, MIN_REPEAT_INSPECTIONS);
+});
+
+test("each inspection counts once per category, however many codes it cited there", () => {
+  const insp = groupInspections([
+    row({ inspection_date: "2026-01-05T00:00:00.000", violation_code: "02G", critical_flag: "Critical" }),
+    row({ inspection_date: "2026-01-05T00:00:00.000", violation_code: "02B", critical_flag: "Critical" }),
+    row({ inspection_date: "2025-03-05T00:00:00.000", violation_code: "02H", critical_flag: "Not Critical" }),
+    row({ inspection_date: "2025-03-05T00:00:00.000", violation_code: "06D", critical_flag: "Critical" }),
+    row({ inspection_date: "2022-01-05T00:00:00.000", violation_code: "02B", critical_flag: "Critical" })
+  ]);
+  const at = inspectionsByCategory(insp, "2023-10-27");
+  assert.equal(at.temperature, 2);
+  assert.equal(at.hygiene, 1);
+  assert.equal(at.source, 0);
+});
+
+test("too few inspections for a pattern isn't shown as an all-clear", () => {
+  const rows = compareToMeans({ source: 1 }, { source: 0.026 }, { source: 2 });
+  const html = categoryListHtml({ since: "2023-10-28", inspections: 2, citywide: { rows } }, "citywide");
+  assert.match(html, /2 inspections since/);
+  assert.match(html, /too soon to spot a pattern/);
+  assert.doesNotMatch(html, /Nothing stands out/);
 });
 
 test("lookback cutoff is N years before today", () => {
@@ -284,7 +320,7 @@ test("names are title-cased for display", () => {
 });
 
 test("no inspections in the window isn't shown as an all-clear", () => {
-  const rows = compareToMeans(perInspection({}, 0), {});
+  const rows = compareToMeans(perInspection({}, 0), {}, {});
   const cmp = { since: "2023-10-28", inspections: 0, citywide: { rows } };
   const html = categoryListHtml(cmp, "citywide");
   assert.match(html, /no inspections in this window/);

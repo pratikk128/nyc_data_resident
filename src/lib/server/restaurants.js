@@ -11,7 +11,7 @@ import {
   latestInspectionParams, leadViolationParams, leadInspectionParams
 } from "../restaurants/soql.js";
 import {
-  day, isInspected, latestGrade, groupInspections, latestScored, closesRestaurant, cutoffDate, countByCategory,
+  day, isInspected, latestGrade, groupInspections, latestScored, closesRestaurant, cutoffDate, countByCategory, inspectionsByCategory,
   totalsFromFamilies, perInspection, compareToMeans, titleCase, addressLine, boroLabel,
   NOT_INSPECTED_DATE
 } from "../restaurants/inspections.js";
@@ -169,6 +169,7 @@ function categoryComparison(inspections, benchmarks, cuisine, boro) {
   const counts = countByCategory(inspections, benchmarks.since);
   const inWindow = inspections.filter((insp) => insp.date >= benchmarks.since).length;
   const rates = perInspection(counts, inWindow);
+  const citedAt = inspectionsByCategory(inspections, benchmarks.since);
   const city = benchmarks.citywide;
   const group = benchmarks.similar[similarKey(cuisine, boro)];
   const similarOk = group && group.restaurants >= MIN_SIMILAR_RESTAURANTS;
@@ -180,9 +181,9 @@ function categoryComparison(inspections, benchmarks, cuisine, boro) {
     computedAt: benchmarks.computedAt,
     total: Object.values(counts).reduce((a, b) => a + b, 0),
     inspections: inWindow,
-    citywide: { restaurants: city.restaurants, rows: compareToMeans(rates, perInspection(city.totals, city.inspections)) },
+    citywide: { restaurants: city.restaurants, rows: compareToMeans(rates, perInspection(city.totals, city.inspections), citedAt) },
     similar: similarOk
-      ? { restaurants: group.restaurants, cuisine, boro: boroText, rows: compareToMeans(rates, perInspection(group.totals, group.inspections)) }
+      ? { restaurants: group.restaurants, cuisine, boro: boroText, rows: compareToMeans(rates, perInspection(group.totals, group.inspections), citedAt) }
       : { restaurants: group?.restaurants ?? 0, cuisine, boro: boroText, rows: null, minRestaurants: MIN_SIMILAR_RESTAURANTS }
   };
 }
