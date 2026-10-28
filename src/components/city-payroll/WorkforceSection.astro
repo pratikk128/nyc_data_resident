@@ -5,7 +5,8 @@
  * the payroll snapshot for all agencies; the stacked bar chart is drawn in
  * the browser by the script at the bottom (same data, no API calls from the
  * page). Picking an agency swaps in that agency's rows and redraws the stats,
- * chart, table and CSV link in place.
+ * chart, table and CSV link in place. The pay type checkboxes narrow the
+ * total card, chart and table to regular pay, overtime and/or other pay.
  */
 import StatCard from '../StatCard.astro';
 import snapshot from '../../data/payroll-by-year.json';
@@ -49,6 +50,12 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
         {byAgency.agencies.map((a) => <option value={a.id}>{a.label}</option>)}
       </optgroup>
     </select>
+    <fieldset class="pay-filter">
+      <legend class="filter-label">Pay types</legend>
+      <label class="pay-chip"><input type="checkbox" name="pay" value="regular" checked /><span class="swatch swatch-regular" aria-hidden="true"></span>Regular pay</label>
+      <label class="pay-chip"><input type="checkbox" name="pay" value="overtime" checked /><span class="swatch swatch-overtime" aria-hidden="true"></span>Overtime</label>
+      <label class="pay-chip"><input type="checkbox" name="pay" value="other" checked /><span class="swatch swatch-other" aria-hidden="true"></span>Other pay</label>
+    </fieldset>
   </div>
 
   <div class="stat-grid" aria-live="polite">
@@ -81,9 +88,9 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
     </div>
 
     <ul class="legend" aria-label="Legend">
-      <li><span class="swatch swatch-regular" aria-hidden="true"></span>Regular pay</li>
-      <li><span class="swatch swatch-overtime" aria-hidden="true"></span>Overtime</li>
-      <li><span class="swatch swatch-other" aria-hidden="true"></span>Other pay <span class="legend-note">(lump sums, differentials, retro pay)</span></li>
+      <li data-pay="regular"><span class="swatch swatch-regular" aria-hidden="true"></span>Regular pay</li>
+      <li data-pay="overtime"><span class="swatch swatch-overtime" aria-hidden="true"></span>Overtime</li>
+      <li data-pay="other"><span class="swatch swatch-other" aria-hidden="true"></span>Other pay <span class="legend-note">(lump sums, differentials, retro pay)</span></li>
     </ul>
 
     <div class="chart" id="workforce-chart" data-chart="workforce">
@@ -100,9 +107,9 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
             <thead>
               <tr>
                 <th scope="col">Fiscal year</th>
-                <th scope="col">Regular pay</th>
-                <th scope="col">Overtime</th>
-                <th scope="col">Other pay</th>
+                <th scope="col" data-pay="regular">Regular pay</th>
+                <th scope="col" data-pay="overtime">Overtime</th>
+                <th scope="col" data-pay="other">Other pay</th>
                 <th scope="col">Total</th>
                 <th scope="col">People paid</th>
               </tr>
@@ -111,9 +118,9 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
               {years.slice().reverse().map((y) => (
                 <tr>
                   <th scope="row">FY{y.fiscalYear}</th>
-                  <td>{money(y.regular, 2)}</td>
-                  <td>{money(y.overtime, 2)}</td>
-                  <td>{money(y.other, 2)}</td>
+                  <td data-pay="regular">{money(y.regular, 2)}</td>
+                  <td data-pay="overtime">{money(y.overtime, 2)}</td>
+                  <td data-pay="other">{money(y.other, 2)}</td>
                   <td>{money(y.total, 2)}</td>
                   <td>{count(y.peoplePaid)}</td>
                 </tr>
@@ -232,44 +239,97 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
 
     function tableRows(years: Year[]) {
       return years.slice().reverse().map((y) =>
-        `<tr><th scope="row">FY${y.fiscalYear}</th><td>${money(y.regular, 2)}</td><td>${money(y.overtime, 2)}</td>` +
-        `<td>${money(y.other, 2)}</td><td>${money(y.total, 2)}</td><td>${count(y.peoplePaid)}</td></tr>`
+        `<tr><th scope="row">FY${y.fiscalYear}</th><td data-pay="regular">${money(y.regular, 2)}</td>` +
+        `<td data-pay="overtime">${money(y.overtime, 2)}</td><td data-pay="other">${money(y.other, 2)}</td>` +
+        `<td>${money(y.total, 2)}</td><td>${count(y.peoplePaid)}</td></tr>`
       ).join('');
+    }
+
+    // ---------- Pay types ----------
+    const PAY_TYPES = [
+      { key: 'regular', label: 'Regular pay' },
+      { key: 'overtime', label: 'Overtime' },
+      { key: 'other', label: 'Other pay' }
+    ] as const;
+    type PayKey = (typeof PAY_TYPES)[number]['key'];
+    const payBoxes = Array.from(section.querySelectorAll<HTMLInputElement>('input[name="pay"]'));
+    const legendItems = Array.from(section.querySelectorAll<HTMLElement>('.legend [data-pay]'));
+
+    const selectedPay = () => payBoxes.filter((b) => b.checked).map((b) => b.value as PayKey);
+    const allPay = () => selectedPay().length === PAY_TYPES.length;
+
+    // "Overtime", "Regular pay + other pay"
+    function payLabel(keys: PayKey[]) {
+      return PAY_TYPES.filter((p) => keys.includes(p.key))
+        .map((p, i) => (i ? p.label.toLowerCase() : p.label)).join(' + ');
+    }
+
+    function applyPayTypes() {
+      const keys = selectedPay();
+      // Keep at least one pay type selected
+      payBoxes.forEach((b) => (b.disabled = b.checked && keys.length === 1));
+      legendItems.forEach((el) => (el.hidden = !keys.includes(el.dataset.pay as PayKey)));
+      // Table rows are re-rendered on agency change, so hide columns with a class
+      // on the wrapper rather than on each cell.
+      PAY_TYPES.forEach((p) => tableRegion.classList.toggle(`hide-${p.key}`, !keys.includes(p.key)));
+      chart.setPayTypes(keys);
+    }
+
+    // ---------- Agency + pay types → stats, chart, table, CSV ----------
+    let current: { years: Year[]; agency?: Agency } = { years: snapshot.years };
+
+    function updateTotalCard() {
+      const { years, agency } = current;
+      const last = years[years.length - 1];
+      const keys = selectedPay();
+
+      if (allPay()) {
+        if (!agency) return setCard(cards.total, initial.cards.total);
+        const ended = last.fiscalYear < cityLatest.fiscalYear;
+        const shareOfCity = last.total / cityLatest.total;
+        return setCard(cards.total, [
+          `Total payroll, FY${last.fiscalYear}`,
+          money(last.total),
+          ended
+            ? `No payroll records after FY${last.fiscalYear}`
+            : `${shareOfCity < 0.001 ? 'Less than 0.1%' : percent(shareOfCity)} of all city payroll`
+        ]);
+      }
+
+      const sum = keys.reduce((acc, k) => acc + last[k], 0);
+      const shareOfTotal = last.total > 0 ? sum / last.total : 0;
+      setCard(cards.total, [
+        `${payLabel(keys)}, FY${last.fiscalYear}`,
+        money(sum),
+        `${percent(shareOfTotal)} of ${agency ? `${agency.label}'s` : 'all city'} payroll`
+      ]);
     }
 
     async function apply(id: string) {
       const agency = id ? (await loadAgencies()).find((a) => a.id === id) : undefined;
       if (select.value !== id) return; // a newer choice was made while loading
+      current = { years: agency?.years ?? snapshot.years, agency };
 
       if (!agency) {
         chart.update(snapshot.years, 'NYC payroll');
         subject.textContent = initial.subject;
         tbody.innerHTML = initial.table;
         tableRegion.setAttribute('aria-label', initial.tableLabel ?? '');
-        setCard(cards.total, initial.cards.total);
         setCard(cards.people, initial.cards.people);
         csvLink.href = payrollCsvHref(snapshot.years);
         csvLink.download = 'nyc-payroll-by-fiscal-year.csv';
+        updateTotalCard();
         return;
       }
 
       const { years, label } = agency;
       const last = years[years.length - 1];
       const range = years.length > 1 ? `FY${years[0].fiscalYear}–FY${last.fiscalYear}` : `FY${last.fiscalYear}`;
-      const ended = last.fiscalYear < cityLatest.fiscalYear;
-      const shareOfCity = last.total / cityLatest.total;
 
       chart.update(years, `${label} payroll`);
       subject.textContent = `${label}, ${range}.`;
       tbody.innerHTML = tableRows(years);
       tableRegion.setAttribute('aria-label', `${label} payroll by fiscal year, table`);
-      setCard(cards.total, [
-        `Total payroll, FY${last.fiscalYear}`,
-        money(last.total),
-        ended
-          ? `No payroll records after FY${last.fiscalYear}`
-          : `${shareOfCity < 0.001 ? 'Less than 0.1%' : percent(shareOfCity)} of all city payroll`
-      ]);
       setCard(cards.people, [
         `People paid, FY${last.fiscalYear}`,
         count(last.peoplePaid),
@@ -277,19 +337,40 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
       ]);
       csvLink.href = payrollCsvHref(years);
       csvLink.download = `nyc-payroll-${agency.id}-by-fiscal-year.csv`;
+      updateTotalCard();
+    }
+
+    function syncUrl() {
+      const url = new URL(location.href);
+      if (select.value) url.searchParams.set('agency', select.value);
+      else url.searchParams.delete('agency');
+      if (allPay()) url.searchParams.delete('pay');
+      else url.searchParams.set('pay', selectedPay().join(','));
+      history.replaceState(null, '', url);
     }
 
     select.addEventListener('change', () => {
       apply(select.value);
-      const url = new URL(location.href);
-      if (select.value) url.searchParams.set('agency', select.value);
-      else url.searchParams.delete('agency');
-      history.replaceState(null, '', url);
+      syncUrl();
     });
 
-    // Shared links: ?agency=fire-department. Unknown ids fall back to citywide.
-    const fromUrl = new URL(location.href).searchParams.get('agency') ?? '';
-    select.value = fromUrl; // also resets a choice the browser restored on back/forward
+    payBoxes.forEach((box) => box.addEventListener('change', () => {
+      applyPayTypes();
+      updateTotalCard();
+      syncUrl();
+    }));
+
+    // Shared links: ?agency=fire-department&pay=overtime. Unknown values fall back
+    // to citywide / all pay types. Setting them here also resets choices the
+    // browser restored on back/forward.
+    const params = new URL(location.href).searchParams;
+    select.value = params.get('agency') ?? '';
+    const fromUrlPay = (params.get('pay') ?? '').split(',').filter((k) => PAY_TYPES.some((p) => p.key === k));
+    payBoxes.forEach((b) => (b.checked = !fromUrlPay.length || fromUrlPay.includes(b.value)));
+    if (!allPay()) {
+      applyPayTypes();
+      updateTotalCard();
+    }
     if (select.value) apply(select.value);
   }
 </script>

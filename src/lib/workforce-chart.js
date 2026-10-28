@@ -7,7 +7,8 @@
  *   years    Rows from src/data/payroll-by-year.json (or one agency's rows
  *            from payroll-by-agency.json, same shape).
  *   subject  Whose payroll this is, for the screen reader summary.
- * Returns { update(years, subject) } to redraw with different data.
+ * Returns { update(years, subject), setPayTypes(keys) } to redraw with
+ * different data or with only some pay types ("regular", "overtime", "other").
  *
  * Keyboard: the chart is one tab stop; Left/Right/Home/End move between
  * years and show that year's details. Escape hides them.
@@ -34,6 +35,7 @@ export function mountWorkforceChart(frame, initialYears, initialSubject = "NYC p
   let years = initialYears;
   let subject = initialSubject;
   let mode = "dollars";
+  let shown = SEGMENTS; // pay types currently drawn, in stacking order
   let active = years.length - 1; // keyboard focus starts on the latest year
   let svg = null;
 
@@ -56,7 +58,7 @@ export function mountWorkforceChart(frame, initialYears, initialSubject = "NYC p
 
   function scaleFor(height) {
     if (mode === "share") return { max: 1, ticks: [0, 0.25, 0.5, 0.75, 1], fmt: (v) => percent(v, 0) };
-    const peak = Math.max(1, ...years.map((y) => y.total)); // tiny agencies can net to $0 or less
+    const peak = Math.max(1, ...years.map(shownTotal)); // tiny agencies can net to $0 or less
     const step = niceStep(peak, height < 320 ? 4 : 5);
     const max = Math.ceil(peak / step) * step;
     const ticks = [];
@@ -73,6 +75,10 @@ export function mountWorkforceChart(frame, initialYears, initialSubject = "NYC p
   function value(year, key) {
     const v = Math.max(0, year[key]); // yearly sums are positive; guard the stack anyway
     return mode === "share" ? share(v, year.total) : v;
+  }
+
+  function shownTotal(year) {
+    return shown.reduce((sum, seg) => sum + Math.max(0, year[seg.key]), 0);
   }
 
   function share(part, total) {
@@ -136,7 +142,7 @@ export function mountWorkforceChart(frame, initialYears, initialSubject = "NYC p
       el("rect", { x: m.left + band * i, y: m.top, width: band, height: plotH, class: "bar-hit" }, g);
 
       let base = 0;
-      SEGMENTS.forEach((seg) => {
+      shown.forEach((seg) => {
         const v = value(year, seg.key);
         const top = y(base + v);
         el("rect", {
@@ -171,10 +177,16 @@ export function mountWorkforceChart(frame, initialYears, initialSubject = "NYC p
   function summaryLabel() {
     const first = years[0];
     const last = years[years.length - 1];
-    const what = mode === "share" ? "share of total pay by type" : "total pay in dollars";
+    const all = shown.length === SEGMENTS.length;
+    const types = all ? "total pay" : shown.map((s) => s.label.toLowerCase()).join(" and ");
+    const what = mode === "share" ? `${all ? "pay by type" : types} as a share of total pay` : `${types} in dollars`;
     return `Stacked bar chart of ${subject}, ${what}, FY${first.fiscalYear} to FY${last.fiscalYear}. ` +
-      `Total pay went from ${money(first.total)} to ${money(last.total)}. ` +
+      `${capitalize(types)} went from ${money(shownTotal(first))} to ${money(shownTotal(last))}. ` +
       "Use the left and right arrow keys to hear each year.";
+  }
+
+  function capitalize(str) {
+    return str.charAt(0).toUpperCase() + str.slice(1);
   }
 
   // ---------- Tooltip ----------
@@ -187,18 +199,19 @@ export function mountWorkforceChart(frame, initialYears, initialSubject = "NYC p
     tooltip.innerHTML =
       `<p class="tt-title">FY${year.fiscalYear}</p>` +
       '<table class="tt-table"><tbody>' +
-      SEGMENTS.slice().reverse().map((seg) =>
+      shown.slice().reverse().map((seg) =>
         `<tr><th scope="row"><span class="swatch swatch-${seg.key}" aria-hidden="true"></span>${seg.label}</th>` +
         `<td>${money(year[seg.key])}</td><td class="tt-share">${percent(share(year[seg.key], year.total))}</td></tr>`
       ).join("") +
-      `<tr class="tt-total"><th scope="row">Total</th><td>${money(year.total)}</td><td class="tt-share">100%</td></tr>` +
+      // With some pay types hidden, the total row still covers all pay so shares add up to it
+      `<tr class="tt-total"><th scope="row">${shown.length === SEGMENTS.length ? "Total" : "Total, all pay"}</th><td>${money(year.total)}</td><td class="tt-share">100%</td></tr>` +
       "</tbody></table>" +
       `<p class="tt-people">${count(year.peoplePaid)} people paid</p>`;
     tooltip.hidden = false;
 
     // Position beside the bar, kept inside the chart box
     const chartBox = chart.getBoundingClientRect();
-    const barBox = g.querySelector(".seg-regular").getBoundingClientRect();
+    const barBox = g.querySelector(".seg").getBoundingClientRect();
     const tipW = tooltip.offsetWidth;
     let left = barBox.right - chartBox.left + 8;
     if (left + tipW > chartBox.width) left = barBox.left - chartBox.left - tipW - 8;
@@ -238,6 +251,11 @@ export function mountWorkforceChart(frame, initialYears, initialSubject = "NYC p
       years = nextYears;
       subject = nextSubject;
       active = years.length - 1;
+      hideTooltip();
+      render();
+    },
+    setPayTypes(keys) {
+      shown = SEGMENTS.filter((seg) => keys.includes(seg.key));
       hideTooltip();
       render();
     }
