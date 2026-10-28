@@ -35,10 +35,10 @@ const dashboards = [
     url: "#"
   },
   {
-    id: "city-budget",
-    title: "City Budget Spending",
-    description: "Follow how NYC allocates and spends public money across agencies and programs.",
+    id: "city-payroll",
+    title: "City Payroll Spending",
+    description: "See what NYC pays its workforce: total payroll, overtime and other pay by agency and year.",
     category: "City Government",
-    url: "/city-budget/"
+    url: "/city-payroll/"
   }
 ];

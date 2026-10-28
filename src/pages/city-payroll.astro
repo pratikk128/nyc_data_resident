@@ -1,25 +1,25 @@
 ---
 /*
- * City Budget Spending dashboard. Each insight is its own section component
- * in src/components/city-budget/; add new ones below WorkforceSection.
+ * City Payroll Spending dashboard. Each insight is its own section component
+ * in src/components/city-payroll/; add new ones below WorkforceSection.
  */
 import DashboardLayout from '../layouts/DashboardLayout.astro';
-import WorkforceSection from '../components/city-budget/WorkforceSection.astro';
+import WorkforceSection from '../components/city-payroll/WorkforceSection.astro';
 import payroll from '../data/payroll-by-year.json';
 import { date } from '../lib/format.js';
 ---
 
 <DashboardLayout
-  title="City Budget Spending"
+  title="City Payroll Spending"
   description="How much NYC spends on its workforce: total payroll, overtime and other pay by fiscal year, from NYC Open Data."
-  path="/city-budget/"
+  path="/city-payroll/"
   category="City Government"
   tone="blue"
   lastRefreshed={date(payroll.refreshedAt)}
 >
   <header class="page-head">
-    <h1>City Budget Spending</h1>
-    <p>Where NYC's money goes, in plain numbers. We're starting with what it costs to pay the people who run the city.</p>
+    <h1>City Payroll Spending</h1>
+    <p>What it costs to pay the people who run the city, in plain numbers: salaries, overtime and other pay across every agency.</p>
   </header>
 
   <WorkforceSection />

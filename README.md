@@ -9,8 +9,8 @@ Built with [Astro](https://docs.astro.build). The page's interactivity is plain 
 ```
 src/pages/index.astro     Landing page markup
 src/styles/landing.css    Landing page styles (theme tokens at the top in :root)
-src/pages/city-budget.astro   City Budget Spending dashboard (one section per insight)
-src/components/city-budget/   Dashboard sections, e.g. WorkforceSection.astro
+src/pages/city-payroll.astro   City Payroll Spending dashboard (one section per insight)
+src/components/city-payroll/   Dashboard sections, e.g. WorkforceSection.astro
 src/layouts/DashboardLayout.astro   Shared shell for dashboard pages
 src/lib/                  Formatting helpers, payroll stats, chart code
 src/data/                 Precomputed data snapshots (generated, committed)
