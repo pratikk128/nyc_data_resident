@@ -60,8 +60,8 @@ export const MIN_IMMEDIATE_REQUESTS = 100;
 export const MIN_LOCAL_COUNT = 20;
 export const ABOVE_RATIO = 1.25;
 export const BELOW_RATIO = 0.75;
-// The highest-ratio types shown up front; the rest sit behind "Show N more".
-export const MAX_ABOVE_SHOWN = 8;
+// More / less common: the strongest types shown in each column; the rest sit behind "Show N more".
+export const MAX_COMPARE_SHOWN = 5;
 // Location types: the top N groups by local share are drawn; the rest fold into "Other / Not specified".
 export const TOP_LOCATION_TYPES = 8;
 export const TOP_COMPLAINT_TYPES = 5;

@@ -6,8 +6,9 @@
  * Series colors live in dashboard.css (.c311-s-here / -borough / -city).
  */
 import { count, percent } from "../format.js";
-import { ratioSentence, topTypes, openShare } from "./stats.js";
-import { MIN_LOCAL_COUNT, ABOVE_RATIO, BELOW_RATIO, MAX_ABOVE_SHOWN } from "./config.js";
+import { ratioText, topTypes, openShare } from "./stats.js";
+import { typeLabel } from "./labels.js";
+import { MIN_LOCAL_COUNT, ABOVE_RATIO, BELOW_RATIO, MAX_COMPARE_SHOWN } from "./config.js";
 
 export const escape = (str) => String(str ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
@@ -86,48 +87,52 @@ export function overviewCardHtml(summary, { title, sub, sentence, phrase, note =
 
 // ---------- Above / below average ----------
 
-function ratioRowHtml(row, baselineName, max, localName) {
-  const width = Math.min(100, (row.ratio / max) * 100);
-  const avg = (1 / max) * 100;
+// One complaint type: name and ratio, with the shares behind it on expand.
+function compareItemHtml(row, baselineName, localName, extra) {
   return (
-    `<li class="c311-ratio-row${row.ratio >= 1 ? " is-above" : " is-below"}">` +
-      `<p class="c311-ratio-text">${escape(ratioSentence(row, baselineName, localName)).replace(/^([^:]+):/, "<strong>$1</strong>:")}</p>` +
-      `<div class="c311-ratio-track" aria-hidden="true">` +
-        `<span class="c311-ratio-fill" style="width:${width.toFixed(1)}%"></span>` +
-        `<span class="c311-ratio-avg" style="left:${avg.toFixed(1)}%"></span>` +
-      `</div>` +
-      `<p class="c311-ratio-detail">${pct(row.localShare)} of requests ${escape(localName)} (${count(row.count)}) vs. ` +
+    `<li${extra ? " data-extra hidden" : ""}><details class="c311-cmp-item">` +
+      `<summary><span class="c311-cmp-name">${escape(typeLabel(row.key))}</span>` +
+      `<span class="c311-cmp-ratio">${ratioText(row.ratio)}</span></summary>` +
+      `<p class="c311-cmp-detail">${pct(row.localShare)} of requests ${escape(localName)} (${count(row.count)}) vs. ` +
         `${pct(row.baseShare)} for ${escape(baselineName.replace(/^the /, ""))}</p>` +
-    `</li>`
+    `</details></li>`
+  );
+}
+
+function compareColumnHtml(rows, { title, empty, kind, baselineName, localName }) {
+  const more = rows.length - MAX_COMPARE_SHOWN;
+  return (
+    `<div class="c311-cmp-col is-${kind}">` +
+      `<h3 class="c311-cmp-title">${escape(title)}</h3>` +
+      (rows.length
+        ? `<ol class="c311-cmp-list">${rows.map((r, i) => compareItemHtml(r, baselineName, localName, i >= MAX_COMPARE_SHOWN)).join("")}</ol>` +
+          (more > 0
+            ? `<button type="button" class="c311-cmp-more" data-show-more aria-expanded="false" data-more="Show ${more} more">Show ${more} more</button>`
+            : "")
+        : `<p class="c311-empty">${escape(empty)}</p>`) +
+    `</div>`
   );
 }
 
 /*
- * result: compareShares() output. baselineName: "the Brooklyn average".
- * localName: "here" / "in Queens".
+ * result: compareShares() output, drawn as two columns: more common and less
+ * common. baselineName: "the Brooklyn average". localName: "here" / "in Queens".
  */
 export function compareListHtml(result, { baselineName, localName = "here" }) {
-  const max = Math.max(2, ...result.above.map((r) => r.ratio)) * 1.05;
-  const shown = result.above.slice(0, MAX_ABOVE_SHOWN);
-  const more = result.above.slice(MAX_ABOVE_SHOWN);
-  const above = result.above.length
-    ? `<ol class="c311-ratio-list">${shown.map((r) => ratioRowHtml(r, baselineName, max, localName)).join("")}</ol>` +
-      (more.length
-        ? `<details class="c311-more"><summary>Show ${more.length} more</summary>` +
-            `<ol class="c311-ratio-list" start="${MAX_ABOVE_SHOWN + 1}">${more.map((r) => ratioRowHtml(r, baselineName, max, localName)).join("")}</ol>` +
-          `</details>`
-        : "") +
-      `<p class="chart-hint">The line in each bar marks the average (1×).</p>`
-    : `<p class="c311-empty">Nothing stands out. No complaint type with at least ${MIN_LOCAL_COUNT} requests is ` +
-      `${ABOVE_RATIO}× as common ${escape(localName)} as ${escape(baselineName)}.</p>`;
-
-  const below = result.below.length
-    ? `<details class="c311-below"><summary>Less common than average (${result.below.length})</summary>` +
-        `<ol class="c311-ratio-list is-compact">${result.below.map((r) => ratioRowHtml(r, baselineName, 1.05, localName)).join("")}</ol>` +
-      `</details>`
-    : `<p class="c311-below-none">No complaint type is notably less common (${BELOW_RATIO}× or under) ${escape(localName)}.</p>`;
-
-  return above + below;
+  const opts = { baselineName, localName };
+  return (
+    `<div class="c311-cmp">` +
+      compareColumnHtml(result.above, {
+        ...opts, kind: "above", title: `More common ${localName}`,
+        empty: `Nothing stands out. No type with at least ${MIN_LOCAL_COUNT} requests is ${ABOVE_RATIO}× as common or more.`
+      }) +
+      compareColumnHtml(result.below, {
+        ...opts, kind: "below", title: `Less common ${localName}`,
+        empty: `No type is notably rarer (${BELOW_RATIO}× or under).`
+      }) +
+    `</div>` +
+    `<p class="chart-hint">Select a complaint type to see the numbers behind it.</p>`
+  );
 }
 
 // ---------- Location types ----------

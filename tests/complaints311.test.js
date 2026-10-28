@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 
 import {
   shares, ratio, compareShares, comparisonArea, typeCounts, locationCounts, statusCounts,
-  topTypes, openShare, overviewSentence, locationComparison, locationSentence, ratioText, ratioSentence
+  topTypes, openShare, overviewSentence, locationComparison, locationSentence, ratioText
 } from "../src/lib/complaints311/stats.js";
 import { typeKey, typeLabel, locationGroup, OTHER_LOCATION } from "../src/lib/complaints311/labels.js";
 import {
@@ -79,14 +79,12 @@ test("above is sorted highest ratio first, below lowest first", () => {
   assert.deepEqual(above.map((r) => r.key), ["A", "B"]);
 });
 
-test("ratio text and sentences", () => {
+test("ratio text", () => {
   assert.equal(ratioText(2.345), "2.3×");
   assert.equal(ratioText(1.25), "1.3×");
   assert.equal(ratioText(12.4), "12×");
-  assert.equal(ratioSentence({ key: "RODENT", ratio: 2.3 }, "the Brooklyn average"),
-    "Rodents: 2.3× more common here than the Brooklyn average");
-  assert.equal(ratioSentence({ key: "NOISE - RESIDENTIAL", ratio: 0.6 }, "the NYC average"),
-    "Noise from homes: 40% less common here than the NYC average");
+  assert.equal(ratioText(0.6), "0.6×");
+  assert.equal(ratioText(0.01), "<0.1×");
 });
 
 // ---------- Low-data fallback ----------

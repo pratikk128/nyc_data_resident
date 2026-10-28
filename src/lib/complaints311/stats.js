@@ -168,16 +168,9 @@ export function locationSentence(rows, { where = "near you", baselineName = "the
   return `Where complaints happen ${where} looks a lot like ${baselineName}.`;
 }
 
-// "2.3×" — one decimal under 10, whole numbers above.
+// "2.3×" — one decimal under 10, whole numbers above, "<0.1×" for next to none.
 export function ratioText(r) {
+  if (r < 0.05) return "<0.1×";
   if (r >= 10) return `${Math.round(r)}×`;
   return `${(Math.round(r * 10) / 10).toFixed(1)}×`;
-}
-
-// "Rodents: 2.3× more common here than the Brooklyn average" (localName: "here", "in Queens")
-export function ratioSentence(row, baselineName, localName = "here") {
-  const label = typeLabel(row.key);
-  if (row.ratio >= 1) return `${label}: ${ratioText(row.ratio)} more common ${localName} than ${baselineName}`;
-  const pct = Math.round((1 - row.ratio) * 100);
-  return `${label}: ${pct}% less common ${localName} than ${baselineName}`;
 }
