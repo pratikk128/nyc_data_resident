@@ -331,7 +331,7 @@ const latestRows = byAgency.agencies.flatMap((a) => {
       const keys = selectedPay();
       tbody.innerHTML = payrollRowsHtml(years, keys);
       totalHead.textContent = allPay() ? 'Total' : 'Total, selected pay';
-      csvLink.href = payrollCsvHref(years, keys);
+      csvLink.href = payrollCsvHref(years, keys, agency?.label);
       const parts = ['nyc-payroll', agency?.id, allPay() ? undefined : keys.join('-'), 'by-fiscal-year'];
       csvLink.download = `${parts.filter(Boolean).join('-')}.csv`;
     }
