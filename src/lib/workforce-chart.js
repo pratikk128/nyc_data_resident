@@ -166,7 +166,11 @@ export function mountWorkforceChart(frame, initialYears, initialSubject = "NYC p
     // Baseline
     el("line", { x1: m.left, x2: width - m.right, y1: y(0), y2: y(0), class: "chart-baseline", "aria-hidden": "true" }, svg);
 
-    svg.addEventListener("pointerleave", hideTooltip);
+    // Touch and pen fire pointerleave as soon as they lift, which would hide the
+    // tooltip right after a tap; for those, a tap outside the chart hides it.
+    svg.addEventListener("pointerleave", (e) => {
+      if (e.pointerType === "mouse") hideTooltip();
+    });
     svg.addEventListener("keydown", onKey);
     svg.addEventListener("focus", () => show(active));
     svg.addEventListener("blur", hideTooltip);
@@ -237,6 +241,9 @@ export function mountWorkforceChart(frame, initialYears, initialSubject = "NYC p
 
   // ---------- Init ----------
   render();
+  document.addEventListener("pointerdown", (e) => {
+    if (!tooltip.hidden && !chart.contains(e.target)) hideTooltip();
+  });
   let lastWidth = chart.clientWidth;
   new ResizeObserver(() => {
     if (chart.clientWidth !== lastWidth) {

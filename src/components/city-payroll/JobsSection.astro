@@ -215,7 +215,23 @@ const SORT_OPTIONS = [
         th.setAttribute('aria-sort', active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none');
       });
       const sortValue = `${sort.key}-${sort.dir}`;
-      if (Array.from(sortSelect.options).some((o) => o.value === sortValue)) sortSelect.value = sortValue;
+      const listed = Array.from(sortSelect.options).some((o) => o !== customSort && o.value === sortValue);
+      customSort.hidden = listed;
+      if (!listed) customSort.text = customSortLabel(sort);
+      sortSelect.value = listed ? sortValue : customSort.value;
+    }
+
+    // Column headers can sort in ways the dropdown doesn't list (e.g. fewest
+    // employees first); this option names that sort so the dropdown never shows a stale one.
+    const customSort = new Option('', 'custom');
+    customSort.disabled = true;
+    customSort.hidden = true;
+    sortSelect.add(customSort);
+
+    function customSortLabel({ key, dir }: Sort) {
+      const col = COLUMNS.find((c) => c.key === key)!;
+      const order = col.text ? (dir === 'asc' ? 'A–Z' : 'Z–A') : (dir === 'asc' ? 'lowest first' : 'highest first');
+      return `${col.label.replace(/^# /, 'Number of ')}, ${order}`;
     }
 
     function drawDetail(row: HTMLElement) {
@@ -318,7 +334,6 @@ const SORT_OPTIONS = [
     search.value = chip ? '' : params.get('q') ?? '';
     const [key, dir] = (params.get('sort') ?? '').split('-');
     if (COLUMNS.some((c) => c.key === key) && (dir === 'asc' || dir === 'desc')) sort = { key, dir };
-    sortSelect.value = `${DEFAULT_SORT.key}-${DEFAULT_SORT.dir}`;
     render();
   }
 </script>

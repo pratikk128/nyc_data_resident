@@ -58,6 +58,10 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
     </fieldset>
   </div>
 
+  <p class="callout callout-heads-up" role="alert" data-agency-error hidden>
+    Couldn't load agency data. Check your connection and pick the agency again.
+  </p>
+
   <div class="stat-grid" aria-live="polite">
     <StatCard
       name="total"
@@ -199,9 +203,15 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
   type Agency = { id: string; label: string; years: Year[] };
 
   // The per-agency file is ~200 KB, so it loads only once someone picks an agency.
+  // A failed load isn't cached, so picking an agency again retries it.
   let agencies: Promise<Agency[]> | null = null;
   const loadAgencies = () =>
-    (agencies ??= import('../../data/payroll-by-agency.json').then((m) => m.default.agencies));
+    (agencies ??= import('../../data/payroll-by-agency.json')
+      .then((m) => m.default.agencies)
+      .catch((err) => {
+        agencies = null;
+        throw err;
+      }));
 
   const section = document.querySelector<HTMLElement>('#workforce');
   const frame = section?.querySelector<HTMLElement>('.chart-frame');
@@ -213,6 +223,7 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
     const tbody = section.querySelector<HTMLElement>('[data-table-body]')!;
     const tableRegion = section.querySelector<HTMLElement>('.table-scroll')!;
     const csvLink = section.querySelector<HTMLAnchorElement>('.download-link')!;
+    const loadError = section.querySelector<HTMLElement>('[data-agency-error]')!;
     const cards = {
       total: section.querySelector<HTMLElement>('[data-stat="total"]')!,
       people: section.querySelector<HTMLElement>('[data-stat="people"]')!
@@ -306,8 +317,20 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
     }
 
     async function apply(id: string) {
-      const agency = id ? (await loadAgencies()).find((a) => a.id === id) : undefined;
+      let agency: Agency | undefined;
+      try {
+        agency = id ? (await loadAgencies()).find((a) => a.id === id) : undefined;
+      } catch {
+        if (select.value !== id) return;
+        // Go back to what's on screen (citywide or the last agency that loaded)
+        // so the dropdown doesn't name an agency whose numbers aren't shown.
+        select.value = current.agency?.id ?? '';
+        syncUrl();
+        loadError.hidden = false;
+        return;
+      }
       if (select.value !== id) return; // a newer choice was made while loading
+      loadError.hidden = true;
       current = { years: agency?.years ?? snapshot.years, agency };
 
       if (!agency) {
