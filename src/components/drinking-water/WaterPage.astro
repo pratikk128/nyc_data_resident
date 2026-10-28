@@ -37,7 +37,8 @@ interface Props {
 
 const { section, description, meta } = Astro.props;
 const current = SECTIONS.find((s) => s.id === section)!;
-Astro.response.headers.set('Cache-Control', 'public, max-age=3600');
+// Production only: in dev a cached page hides edits for an hour.
+if (import.meta.env.PROD) Astro.response.headers.set('Cache-Control', 'public, max-age=3600');
 ---
 
 <DashboardLayout

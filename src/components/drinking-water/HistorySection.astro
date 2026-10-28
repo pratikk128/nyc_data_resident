@@ -3,7 +3,7 @@
  * "Has it always been this good?": a quieter subsection at the end of the
  * report card (ReportCardSection). One takeaway line shows; the coliform share
  * for every month back to 2015, with E. coli detections marked, opens on
- * request. Errors and empty data are reported by the report card. Data comes from
+ * request (opened for #history links). Errors and empty data are reported by the report card. Data comes from
  * the daily jobs on the server and is inlined for the chart script (about 140
  * months, no API call from the page). Tables and CSVs are rendered here.
  */
@@ -50,7 +50,7 @@ const chartData = series && {
 ---
 
 {series && (
-  <div class="water-past" id="history" aria-labelledby="history-title">
+  <section class="water-past" id="history" aria-labelledby="history-title">
     <h3 class="water-h3" id="history-title">Has it always been this good?</h3>
     <p class="water-past-takeaway">{takeaway}</p>
 
@@ -142,7 +142,7 @@ const chartData = series && {
         ) : <p class="water-note">None in the data.</p>}
       </details>
     </details>
-  </div>
+  </section>
 )}
 
 <script>
@@ -151,6 +151,12 @@ const chartData = series && {
   import { count } from '../../lib/format.js';
 
   const coliformFrame = document.querySelector<HTMLElement>('[data-water-chart="coliform"]');
+
+  // "#history" links (and the old /drinking-water/history/ URL) land on the chart, not a closed toggle.
+  const more = document.querySelector<HTMLDetailsElement>('.water-past-more');
+  const openForHash = () => { if (more && location.hash === '#history') more.open = true; };
+  openForHash();
+  addEventListener('hashchange', openForHash);
 
   if (coliformFrame) {
     const raw = JSON.parse(coliformFrame.dataset.chart!);

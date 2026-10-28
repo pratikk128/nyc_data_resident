@@ -208,7 +208,7 @@ export function verdict(tiles) {
 }
 
 /*
- * One sentence for the history page:
+ * One sentence for the history subsection:
  * "Since January 2015, 99.6% of 160,312 routine samples had no coliform bacteria, and E. coli turned up in 6."
  */
 export function historyTakeaway(months) {

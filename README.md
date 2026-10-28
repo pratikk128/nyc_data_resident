@@ -247,13 +247,14 @@ Quick-filter chips (`JOB_CHIPS` in the script). A chip with no matching title in
 
 ## NYC Drinking Water Quality
 
-`/drinking-water/` explains DEP's street-side water samples from [Drinking Water Quality Distribution Monitoring Data](https://data.cityofnewyork.us/d/bkwf-xfky) (`bkwf-xfky`). Three sections, each its own page (`SECTIONS` in `WaterPage.astro`):
+`/drinking-water/` explains DEP's street-side water samples from [Drinking Water Quality Distribution Monitoring Data](https://data.cityofnewyork.us/d/bkwf-xfky) (`bkwf-xfky`). Two sections, each its own page (`SECTIONS` in `WaterPage.astro`):
 
 | URL | Question | Section |
 |---|---|---|
-| `/drinking-water/` | Is my water safe right now? (report card for the latest full month) | `ReportCardSection.astro` |
-| `/drinking-water/history/` | Has it always been this good? (coliform % and median chlorine, every month) | `HistorySection.astro` |
+| `/drinking-water/` | Is my water safe right now? (report card for the latest full month, then "Has it always been this good?": one takeaway line and, behind a toggle, coliform % and median chlorine for every month) | `ReportCardSection.astro`, `HistorySection.astro` |
 | `/drinking-water/near-me/` | What about near me? (3 nearest stations, 12-month sparklines) | `NearMeSection.astro` |
+
+The old `/drinking-water/history/` URL redirects to `/drinking-water/#history` (`astro.config.mjs`), which opens the history toggle.
 
 **Data.** Every measurement column is text (chlorine included). `parseMeasurement()` in `src/lib/water/parse.js` reads `<X` and `ND` as not detected (0 for bacteria), `>X` as at least X, and blanks and negative placeholders (`-9`, `-9.99`) as missing; `soql.js` applies the same rules inside SoQL so all aggregation happens on Socrata. Shares and medians use routine samples (Compliance, Operational); detections list every class. Four daily jobs in `src/lib/server/water.js` (`water:*` in KV) hold everything the pages read, so readers don't wait on Socrata.
 
