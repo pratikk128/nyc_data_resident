@@ -15,6 +15,6 @@ export function payrollRowsHtml(years, payTypes = PAY_KEYS) {
   return years.slice().reverse().map((y) =>
     `<tr><th scope="row">FY${y.fiscalYear}</th><td data-pay="regular">${money(y.regular, 2)}</td>` +
     `<td data-pay="overtime">${money(y.overtime, 2)}</td><td data-pay="other">${money(y.other, 2)}</td>` +
-    `<td>${money(total(y), 2)}</td><td>${count(y.peoplePaid)}</td></tr>`
+    `<td>${money(total(y), 2)}</td><td>${count(y.activeJune30)}</td><td>${count(y.peoplePaid)}</td></tr>`
   ).join("");
 }

@@ -640,6 +640,13 @@ details[open] > summary::before { transform: rotate(45deg); }
 .job-chip[aria-pressed="true"] { background: var(--accent); border-color: var(--ink); }
 .job-chip:focus-visible { border-radius: var(--radius-pill); }
 
+.jobs-note {
+  margin-top: var(--space-4);
+  max-width: 68ch;
+  font-size: .875rem;
+  color: var(--ink-soft);
+}
+
 .jobs-status {
   margin-top: var(--space-4);
   font-size: .875rem;
@@ -702,6 +709,14 @@ th[aria-sort="none"] .sort-btn:hover .sort-icon::after { content: "↕"; color: 
   transition: transform 150ms ease;
 }
 .job-toggle[aria-expanded="true"] .job-chevron { transform: translateY(-3px) rotate(45deg); }
+/* Lines up under the job name, past the chevron */
+.job-agencies {
+  display: block;
+  padding-left: calc(7px + var(--space-2));
+  font-size: .8125rem;
+  font-weight: 400;
+  color: var(--ink-soft);
+}
 
 /* Overtime accent, same as the workforce chart */
 .extra-cell { display: inline-flex; align-items: center; justify-content: flex-end; gap: var(--space-2); width: 100%; }
@@ -730,6 +745,7 @@ th[aria-sort="none"] .sort-btn:hover .sort-icon::after { content: "↕"; color: 
 .salary-dot.is-small { fill: var(--card); stroke: var(--ink); }
 .salary-end { font-size: 12px; font-weight: 700; fill: var(--ink); font-variant-numeric: tabular-nums; }
 .job-sentence { margin-top: var(--space-2); font-size: .9375rem; }
+.job-agency-sentence { margin-top: var(--space-1); font-size: .875rem; color: var(--ink-soft); }
 
 .jobs-empty { padding: var(--space-5); color: var(--ink-soft); text-align: center; }
 

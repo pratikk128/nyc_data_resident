@@ -257,7 +257,7 @@ export function mountWorkforceChart(frame, initialYears, initialSubject = "NYC p
         ? `<p class="tt-note">${capitalize(negative.map((seg) => seg.label.toLowerCase()).join(" and "))} netted below $0 ` +
           "(refunds and corrections), so it isn't drawn and shares leave it out.</p>"
         : "") +
-      `<p class="tt-people">${count(year.peoplePaid)} people paid</p>`;
+      `<p class="tt-people">${count(year.activeJune30)} active on June 30 · ${count(year.peoplePaid)} people paid</p>`;
     tooltip.hidden = false;
 
     // Position beside the bar, kept inside the chart box

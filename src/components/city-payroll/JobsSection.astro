@@ -64,6 +64,11 @@ const SORT_OPTIONS = [
     </div>
   )}
 
+  <p class="jobs-note">
+    Each job title combines every agency that uses it, so a title like Administrative Staff Analyst pools pay from dozens of
+    agencies. Open a title to see which agencies employ the most people in it.
+  </p>
+
   <p class="jobs-status" aria-live="polite" data-status>
     Showing 1–{firstPage.length} of {jobs.length} job titles
   </p>
@@ -134,6 +139,12 @@ const SORT_OPTIONS = [
       <p>
         <strong>Job titles</strong> are shown as they appear in the payroll data (trimmed and matched without regard to
         capitalization). The same job can be split across similar titles, and a title can be renamed over time.
+      </p>
+      <p>
+        <strong>All agencies combined.</strong> Each title's medians and counts pool every agency that uses it.
+        Titles like Administrative Staff Analyst or Computer Systems Manager exist at dozens of agencies, and pay for the
+        same title can differ between them. The details under each title list the agencies with the most people in
+        it in FY{fy}.
       </p>
       <p>
         <strong>Dollars are nominal</strong>, not adjusted for inflation.
@@ -287,10 +298,14 @@ const SORT_OPTIONS = [
     }
 
     // ---------- Events ----------
-    // Rows: the title button is the keyboard target; a click anywhere on the row works too.
+    // Rows: the title button is the keyboard target; a click anywhere on the row works too,
+    // unless it ends a text selection (someone copying a title or number).
     tbody.addEventListener('click', (e) => {
-      const row = (e.target as HTMLElement).closest<HTMLElement>('.job-row');
-      if (row) toggle(row);
+      const target = e.target as HTMLElement;
+      const row = target.closest<HTMLElement>('.job-row');
+      if (!row) return;
+      if (!target.closest('.job-toggle') && !(getSelection()?.isCollapsed ?? true)) return;
+      toggle(row);
     });
 
     headers.forEach((th) => th.querySelector('button')!.addEventListener('click', () => {

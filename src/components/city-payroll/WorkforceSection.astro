@@ -21,6 +21,8 @@ const { years, dataset, checks } = snapshot;
 const latest = years[years.length - 1];
 const first = years[0];
 const range = `FY${first.fiscalYear}–FY${latest.fiscalYear}`;
+const peopleContext = (y: (typeof years)[number]) =>
+  `On the payroll on the last day of FY${y.fiscalYear}. ${count(y.peoplePaid)} people were paid at some point that year.`;
 
 const latestTotal = (agency) => agency.years.find((y) => y.fiscalYear === latest.fiscalYear)?.total ?? 0;
 const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latestTotal(a)).slice(0, 10);
@@ -82,10 +84,10 @@ const latestRows = byAgency.agencies.flatMap((a) => {
     />
     <StatCard
       name="people"
-      label={`People paid, FY${latest.fiscalYear}`}
-      value={count(latest.peoplePaid)}
-      change={yearChange(years, (y) => y.peoplePaid, count)}
-      context="Anyone paid during the year, incl. part-time and seasonal"
+      label={`Active employees, June 30, ${latest.fiscalYear}`}
+      value={count(latest.activeJune30)}
+      change={yearChange(years, (y) => y.activeJune30, count)}
+      context={peopleContext(latest)}
     />
   </div>
 
@@ -148,6 +150,7 @@ const latestRows = byAgency.agencies.flatMap((a) => {
                 <th scope="col" data-pay="overtime">Overtime</th>
                 <th scope="col" data-pay="other">Other pay</th>
                 <th scope="col" data-total-head>Total</th>
+                <th scope="col">Active June 30</th>
                 <th scope="col">People paid</th>
               </tr>
             </thead>
@@ -173,10 +176,10 @@ const latestRows = byAgency.agencies.flatMap((a) => {
         back pay from new labor contracts is paid out.
       </p>
       <p>
-        <strong>People paid isn't headcount.</strong> We count every pay record in the year: full-time
-        and part-time staff, seasonal and per-diem workers, and people who left or retired partway
-        through. Someone paid by two agencies may appear twice. On any given day, the city employs fewer
-        people than this number.
+        <strong>Active employees</strong> are people whose status was “active” on June 30, the last day of the
+        fiscal year, including part-time and per-diem staff. People on leave are left out. <em>People paid</em>, in
+        the table, counts every pay record in the year, so it also includes seasonal workers and people who left
+        partway through.
       </p>
       <p>
         <strong>Agencies.</strong> Agency names come from the payroll data. The Department of Education is
@@ -411,7 +414,7 @@ const latestRows = byAgency.agencies.flatMap((a) => {
         subject.textContent = initial.subject;
         tableRegion.setAttribute('aria-label', initial.tableLabel ?? '');
         setCard(cards.people, initial.cards.people);
-        setChange(cards.people, yearChange(snapshot.years, (y) => y.peoplePaid, count));
+        setChange(cards.people, yearChange(snapshot.years, (y) => y.activeJune30, count));
         updateTableAndCsv();
         updateTotalCard();
         return;
@@ -425,11 +428,11 @@ const latestRows = byAgency.agencies.flatMap((a) => {
       subject.textContent = [`${label}, ${range}.`, missingYearsSentence(years)].filter(Boolean).join(' ');
       tableRegion.setAttribute('aria-label', `${label} payroll by fiscal year, table`);
       setCard(cards.people, [
-        `People paid, FY${last.fiscalYear}`,
-        count(last.peoplePaid),
-        initial.cards.people[2]
+        `Active employees, June 30, ${last.fiscalYear}`,
+        count(last.activeJune30),
+        `On the payroll on the last day of FY${last.fiscalYear}. ${count(last.peoplePaid)} people were paid at some point that year.`
       ]);
-      setChange(cards.people, yearChange(years, (y) => y.peoplePaid, count));
+      setChange(cards.people, yearChange(years, (y) => y.activeJune30, count));
       updateTableAndCsv();
       updateTotalCard();
     }

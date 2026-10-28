@@ -5,9 +5,9 @@
     "url": "https://data.cityofnewyork.us/City-Government/Citywide-Payroll-Data-Fiscal-Year-/k397-673e",
     "sourceUpdatedAt": "2026-04-16"
   },
-  "refreshedAt": "2026-10-27",
+  "refreshedAt": "2026-10-28",
   "query": {
-    "$select": "fiscal_year, count(*) AS employees, sum(regular_gross_paid) AS regular, sum(total_ot_paid) AS overtime, sum(total_other_pay) AS other",
+    "$select": "fiscal_year, count(*) AS employees, sum(case(leave_status_as_of_june_30 = 'ACTIVE', 1, true, 0)) AS active, sum(regular_gross_paid) AS regular, sum(total_ot_paid) AS overtime, sum(total_other_pay) AS other",
     "$group": "fiscal_year",
     "$order": "fiscal_year"
   },
@@ -19,6 +19,7 @@
     {
       "fiscalYear": 2014,
       "peoplePaid": 509525,
+      "activeJune30": 454121,
       "regular": 20179297982,
       "overtime": 1534108557,
       "other": 1149076638,
@@ -27,6 +28,7 @@
     {
       "fiscalYear": 2015,
       "peoplePaid": 577880,
+      "activeJune30": 467773,
       "regular": 21489226230,
       "overtime": 1700475563,
       "other": 1144388079,
@@ -35,6 +37,7 @@
     {
       "fiscalYear": 2016,
       "peoplePaid": 544817,
+      "activeJune30": 469903,
       "regular": 22518163244,
       "overtime": 1881359570,
       "other": 1118600334,
@@ -43,6 +46,7 @@
     {
       "fiscalYear": 2017,
       "peoplePaid": 562266,
+      "activeJune30": 494029,
       "regular": 24009971085,
       "overtime": 1961935755,
       "other": 1174035611,
@@ -51,6 +55,7 @@
     {
       "fiscalYear": 2018,
       "peoplePaid": 546161,
+      "activeJune30": 488506,
       "regular": 24438455327,
       "overtime": 1898494167,
       "other": 1212369893,
@@ -59,6 +64,7 @@
     {
       "fiscalYear": 2019,
       "peoplePaid": 592431,
+      "activeJune30": 498196,
       "regular": 26459862033,
       "overtime": 1874009991,
       "other": 1183095416,
@@ -67,6 +73,7 @@
     {
       "fiscalYear": 2020,
       "peoplePaid": 590210,
+      "activeJune30": 482955,
       "regular": 25591888871,
       "overtime": 1961703942,
       "other": 2864981583,
@@ -75,6 +82,7 @@
     {
       "fiscalYear": 2021,
       "peoplePaid": 573477,
+      "activeJune30": 473227,
       "regular": 25721335420,
       "overtime": 1796557248,
       "other": 2313230195,
@@ -83,6 +91,7 @@
     {
       "fiscalYear": 2022,
       "peoplePaid": 613008,
+      "activeJune30": 485293,
       "regular": 26558726202,
       "overtime": 2440510366,
       "other": 2740086014,
@@ -91,6 +100,7 @@
     {
       "fiscalYear": 2023,
       "peoplePaid": 552938,
+      "activeJune30": 469697,
       "regular": 26177390745,
       "overtime": 2530124947,
       "other": 2406777858,
@@ -99,6 +109,7 @@
     {
       "fiscalYear": 2024,
       "peoplePaid": 562898,
+      "activeJune30": 475442,
       "regular": 29238520496,
       "overtime": 3059251068,
       "other": 3383895994,
@@ -107,6 +118,7 @@
     {
       "fiscalYear": 2025,
       "peoplePaid": 550219,
+      "activeJune30": 485064,
       "regular": 29236361674,
       "overtime": 2922389823,
       "other": 2437182945,

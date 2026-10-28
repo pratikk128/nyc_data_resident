@@ -26,10 +26,17 @@ const OUT_FILE = new URL("../src/data/payroll-by-year.json", import.meta.url);
 const AGENCY_OUT_FILE = new URL("../src/data/payroll-by-agency.json", import.meta.url);
 const JOBS_OUT_FILE = new URL("../src/data/payroll-jobs.json", import.meta.url);
 
+// Exact values checked against the data by checkFilterValues() before each run.
+const PAY_BASIS = "per Annum";
+const LEAVE_STATUS = "ACTIVE";
+
 // Negative values (refunds, retro adjustments) are kept in the sums on purpose.
+// "employees" counts every pay record in the year; "active" only those still
+// active on June 30, the last day of the fiscal year.
 const QUERY = {
-  $select: "fiscal_year, count(*) AS employees, sum(regular_gross_paid) AS regular, " +
-    "sum(total_ot_paid) AS overtime, sum(total_other_pay) AS other",
+  $select: "fiscal_year, count(*) AS employees, " +
+    `sum(case(leave_status_as_of_june_30 = '${LEAVE_STATUS}', 1, true, 0)) AS active, ` +
+    "sum(regular_gross_paid) AS regular, sum(total_ot_paid) AS overtime, sum(total_other_pay) AS other",
   $group: "fiscal_year",
   $order: "fiscal_year",
   $limit: "1000"
@@ -44,12 +51,10 @@ const AGENCY_QUERY = {
 };
 
 // "What do city jobs actually pay?": full-time annual salaries of active
-// employees. Exact values checked against the data by checkFilterValues()
-// before each run.
-const PAY_BASIS = "per Annum";
-const LEAVE_STATUS = "ACTIVE";
+// employees.
 const MIN_EMPLOYEES = 25;  // titles with fewer full-year employees in the latest year are left out
 const CHANGE_YEARS = 5;    // "5-yr change in median base salary"
+const TOP_AGENCIES = 3;    // agencies named in each title's details
 
 const ACTIVE_SALARIED = `pay_basis = '${PAY_BASIS}' AND leave_status_as_of_june_30 = '${LEAVE_STATUS}' ` +
   "AND base_salary > 0 AND title_description IS NOT NULL";
@@ -73,13 +78,14 @@ function jobsQuery(fiscalYears) {
   };
 }
 
-// "# employees": everyone active in the title in the latest year, full year or not.
+// "# employees": everyone active in the title in the latest year, full year or
+// not, split by agency so the page can say which agencies a title spans.
 function headcountQuery(fiscalYear) {
   return {
-    $select: "upper(trim(title_description)) AS title, count(*) AS employees",
+    $select: "upper(trim(title_description)) AS title, agency_name, count(*) AS employees",
     $where: `${ACTIVE_SALARIED} AND fiscal_year = ${fiscalYear}`,
-    $group: "title",
-    $order: "title",
+    $group: "title, agency_name",
+    $order: "title, agency_name",
     $limit: "100000"
   };
 }
@@ -231,6 +237,9 @@ function checkYears(years) {
     if (y.total < MIN_PLAUSIBLE_TOTAL || y.total > MAX_PLAUSIBLE_TOTAL) {
       warnings.push(`FY${y.fiscalYear} total ($${(y.total / 1e9).toFixed(1)}B) is outside the plausible range.`);
     }
+    if (!(y.activeJune30 > 0 && y.activeJune30 <= y.peoplePaid)) {
+      warnings.push(`FY${y.fiscalYear} has ${y.activeJune30} active on June 30 vs. ${y.peoplePaid} people paid.`);
+    }
   }
 
   for (let i = 1; i < years.length; i++) {
@@ -264,6 +273,7 @@ function toYear(r) {
   return {
     fiscalYear: Number(r.fiscal_year),
     peoplePaid: Number(r.employees),
+    activeJune30: Number(r.active),
     regular,
     overtime,
     other,
@@ -281,7 +291,7 @@ function buildAgencies(rows) {
     const years = byName.get(name);
     const y = toYear(r);
     const prev = years.get(y.fiscalYear);
-    if (prev) for (const k of ["peoplePaid", "regular", "overtime", "other", "total"]) prev[k] += y[k];
+    if (prev) for (const k of ["peoplePaid", "activeJune30", "regular", "overtime", "other", "total"]) prev[k] += y[k];
     else years.set(y.fiscalYear, y);
   }
 
@@ -317,9 +327,20 @@ async function checkFilterValues() {
 // One entry per title with >= MIN_EMPLOYEES full-year employees in the latest
 // year: latest-year medians, the change since CHANGE_YEARS earlier, and every
 // year's median base. rows come from jobsQuery(), headcountRows from
-// headcountQuery() for the latest year.
+// headcountQuery() for the latest year. Medians pool every agency that uses
+// the title; agencyCount and topAgencies say which ones.
 function buildJobs(rows, headcountRows) {
-  const headcount = new Map(headcountRows.map((r) => [r.title, Number(r.employees)]));
+  const headcount = new Map();
+  const agenciesByTitle = new Map();
+  for (const r of headcountRows) {
+    if (!r.title) continue;
+    const n = Number(r.employees);
+    headcount.set(r.title, (headcount.get(r.title) ?? 0) + n);
+    if (!agenciesByTitle.has(r.title)) agenciesByTitle.set(r.title, new Map());
+    const byAgency = agenciesByTitle.get(r.title);
+    const label = r.agency_name ? agencyLabel(AGENCY_ALIASES[r.agency_name] ?? r.agency_name) : "Unknown agency";
+    byAgency.set(label, (byAgency.get(label) ?? 0) + n);
+  }
   const byTitle = new Map();
   for (const r of rows) {
     if (!r.title || r.fiscal_year == null) continue;
@@ -340,11 +361,15 @@ function buildJobs(rows, headcountRows) {
     const latest = years.find((y) => y.fiscalYear === latestFY);
     if (!latest || latest.employees < MIN_EMPLOYEES) continue;
     const then = years.find((y) => y.fiscalYear === compareFY);
+    const agencies = [...(agenciesByTitle.get(title) ?? [])].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
     jobs.push({
       title,
       label: titleLabel(title),
       employees: headcount.get(title) ?? latest.employees,
       fullYearEmployees: latest.employees,
+      agencyCount: agencies.length,
+      // [agency label, employees], largest first
+      topAgencies: agencies.slice(0, TOP_AGENCIES),
       base: latest.base,
       extra: latest.extra,
       change: then && then.employees >= MIN_EMPLOYEES ? Number((latest.base / then.base - 1).toFixed(4)) : null,
@@ -462,7 +487,10 @@ async function main() {
 
   console.log(`\nWrote ${years.length} fiscal years (FY${years[0].fiscalYear}–FY${years[years.length - 1].fiscalYear}) to src/data/payroll-by-year.json\n`);
   for (const y of years) {
-    console.log(`  FY${y.fiscalYear}  $${(y.total / 1e9).toFixed(2)}B  ${y.peoplePaid.toLocaleString("en-US")} people paid`);
+    console.log(
+      `  FY${y.fiscalYear}  $${(y.total / 1e9).toFixed(2)}B  ${y.peoplePaid.toLocaleString("en-US")} people paid, ` +
+      `${y.activeJune30.toLocaleString("en-US")} active on June 30`
+    );
   }
   console.log(`\nWrote ${agencies.length} agencies to src/data/payroll-by-agency.json`);
   console.log(`\nWrote ${jobs.jobs.length} job titles (FY${jobs.latestFY}, ${MIN_EMPLOYEES}+ full-year employees) to src/data/payroll-jobs.json`);
