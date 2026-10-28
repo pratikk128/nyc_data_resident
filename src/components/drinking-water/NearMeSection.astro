@@ -1,9 +1,9 @@
 ---
 /*
  * "What about near me?": pick a borough and stations, or search an address or
- * ZIP for the 3 nearest stations. Each picked station gets a card with 12
- * months of chlorine and turbidity (sparklines against the citywide median)
- * and any bacteria found. The station list (from src/data/water-sites.json,
+ * ZIP for the 3 nearest stations. Each picked station gets a card with any
+ * bacteria found over 12 months, a chlorine sparkline against the citywide
+ * median, and a one-line cloudiness comparison. The station list (from src/data/water-sites.json,
  * only stations sampled in the last 12 months) is inlined; the card data
  * comes from /api/water/stations. State lives in the URL:
  *   ?boro=QUEENS&sites=79150,79450&lat=40.69&lon=-73.76&place=...
@@ -14,10 +14,9 @@ import { monthLabel } from '../../lib/water/stats.js';
 interface Props {
   stations: { site: string; place: string; borough: string | null; lat: number; lon: number }[];
   months: string[];
-  unlocated: number;
   error: boolean;
 }
-const { stations, months, unlocated, error } = Astro.props;
+const { stations, months, error } = Astro.props;
 const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(months[months.length - 1], 'short')}` : '';
 ---
 
@@ -26,8 +25,7 @@ const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(
   <header class="section-head">
     <h2 id="near-title">What about near me?</h2>
     <p class="section-intro">
-      Find the sampling stations closest to you and see their last 12 months{range && <> ({range})</>}, next to the
-      citywide median. Stations sit on street mains, so “nearest” is about the pipes under your block, not your building.
+      Search your address to see the 3 nearest sampling stations and their last 12 months{range && <> ({range})</>}.
     </p>
   </header>
 
@@ -72,13 +70,6 @@ const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(
         <span class="water-key"><span class="water-pin water-pin-inline"><span>1</span></span>Picked station</span>
         <span class="water-key"><span class="water-key-you"></span>Your search</span>
       </div>
-      {unlocated > 0 && (
-        <p class="field-hint">
-          {unlocated} {unlocated === 1 ? 'station' : 'stations'} sampled in the last 12 months {unlocated === 1 ? 'isn’t' : 'aren’t'} in
-          DEP's site list, so {unlocated === 1 ? 'it isn’t' : 'they aren’t'} on the map. {unlocated === 1 ? 'Its' : 'Their'} samples
-          still count in the citywide numbers.
-        </p>
-      )}
 
       <div class="water-cards" data-cards aria-live="polite"></div>
       <p class="water-empty" data-empty>
@@ -86,8 +77,8 @@ const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(
         standing by.
       </p>
       <p class="chart-hint">
-        Sparklines show each month's median at this station (solid) and citywide (dashed). A single month is often only
-        2 or 3 samples here, so small wiggles are normal.
+        Chlorine lines: this station (solid) vs. citywide (dashed). Each month is only a few samples, so small wiggles
+        are normal.
       </p>
     </>
   )}
@@ -211,7 +202,6 @@ const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(
           });
         };
         spark('cl', 'clMed', 'mg/L');
-        spark('turb', 'turbMed', 'NTU');
       });
     }
 

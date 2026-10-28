@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 
 import { parseMeasurement, isDetected, measurementText } from "../src/lib/water/parse.js";
 import {
-  normalizeMonth, latestCompleteMonth, missingMonths, reportCard, historyTakeaway, sharePct, tileStatus,
+  normalizeMonth, latestCompleteMonth, missingMonths, reportCard, verdict, historyTakeaway, summerShare, sharePct, tileStatus,
   nearestSites, addMonths, monthLabel, normalizeDetection, hasEcoli, plainDescription
 } from "../src/lib/water/stats.js";
 import { monthlyParams, siteMonthlyParams, detectionParams } from "../src/lib/water/soql.js";
@@ -138,11 +138,11 @@ test("report card: five tiles; E. coli amber on any detection", () => {
   const clean = reportCard(row("2026-09", 1124));
   assert.deepEqual(clean.map((t) => t.key), ["ecoli", "coliform", "chlorine", "turbidity", "fluoride"]);
   assert.ok(clean.every((t) => t.status === "green"));
-  assert.match(clean[2].sentence, /Chlorine keeps germs from growing in the pipes\. Levels were in the normal range in 100% of samples\./);
+  assert.equal(clean[2].sentence, "Keeps germs out of the pipes. In the normal range in 100% of samples.");
 
   const tiles = reportCard(row("2026-08", 1100, { ecoli_pos: "1", coli_pos: "9", cl_ok: "1098" }));
   assert.equal(tiles[0].status, "amber");
-  assert.match(tiles[0].sentence, /turned up in 1 of 1,100 samples/);
+  assert.match(tiles[0].sentence, /Found in 1 of 1,100 samples/);
   assert.equal(tiles[1].value, "99.2%");
   assert.equal(tiles[2].status, "green");
 });
@@ -150,6 +150,24 @@ test("report card: five tiles; E. coli amber on any detection", () => {
 test("report card leaves fluoride out when no samples were tested for it", () => {
   const tiles = reportCard(row("2026-09", 1000, { fl_n: "0", fl_ok: "0", fl_med: null }));
   assert.equal(tiles.length, 4);
+});
+
+test("verdict: all clear when every tile is green, else names the ones to check", () => {
+  assert.deepEqual(verdict(reportCard(row("2026-09", 1124))),
+    { status: "green", title: "All clear", sentence: "Every measure was in its normal range." });
+  const v = verdict(reportCard(row("2026-08", 1100, { ecoli_pos: "1" })));
+  assert.equal(v.status, "amber");
+  assert.equal(v.title, "Mostly clear");
+  assert.equal(v.sentence, "4 of 5 measures were in their normal range. Check E. coli below.");
+  assert.match(verdict(reportCard(row("2026-08", 100, { coli_pos: "20" }))).sentence, /Check coliform bacteria below/);
+});
+
+test("summer share counts coliform detections in June through September", () => {
+  const months = [...year("2015-01", 12, 1000)];
+  months[6] = row(months[6].month, 1000, { coli_pos: "3" });  // July
+  months[0] = row(months[0].month, 1000, { coli_pos: "1" });  // January
+  assert.deepEqual(summerShare(months), { share: 0.75, positives: 4 });
+  assert.equal(summerShare([...year("2015-01", 12, 1000)]), null);
 });
 
 test("history takeaway summarizes bacteria-free samples over the period", () => {

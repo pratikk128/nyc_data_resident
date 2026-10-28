@@ -20,8 +20,6 @@ const active = stations.status === 'fulfilled' ? new Set(Object.keys(stations.va
 const list = sitesFile.sites
   .filter((s) => active.has(s.site) && s.lat != null && s.lon != null)
   .map((s) => ({ site: s.site, place: plainDescription(s.description), borough: s.borough, lat: s.lat!, lon: s.lon! }));
-const located = new Set(list.map((s) => s.site));
-const unlocated = [...active].filter((s) => !located.has(s)).length;
 ---
 
 <WaterPage
@@ -32,7 +30,6 @@ const unlocated = [...active].filter((s) => !located.has(s)).length;
   <NearMeSection
     stations={list}
     months={stations.status === 'fulfilled' ? stations.value.months : []}
-    unlocated={unlocated}
     error={stations.status === 'rejected'}
   />
 </WaterPage>

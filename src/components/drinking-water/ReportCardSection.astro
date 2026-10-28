@@ -4,7 +4,8 @@
  * Rendered on the server from the daily monthly and detections jobs
  * (src/lib/server/water.js); no browser script.
  */
-import { reportCard, monthLabel, hasEcoli, isResample, plainDescription, followUpText, STATUS_TEXT } from '../../lib/water/stats.js';
+import { reportCard, verdict, monthLabel, hasEcoli, isResample, plainDescription, followUpText, STATUS_TEXT } from '../../lib/water/stats.js';
+import { boroughLabel } from '../../lib/water/config.js';
 import { measurementText } from '../../lib/water/parse.js';
 import { count, date } from '../../lib/format.js';
 import sitesFile from '../../data/water-sites.json';
@@ -24,20 +25,17 @@ const where = (code: string) => {
 
 const month = monthly?.completeMonth ? monthly.months.find((m: any) => m.month === monthly.completeMonth) : null;
 const tiles = month ? reportCard(month) : [];
+const headline = month ? verdict(tiles) : null;
 const ecoliAll = (detections?.detections ?? []).filter(hasEcoli);
 const ecoliThisMonth = month ? ecoliAll.filter((d: any) => d.date.startsWith(month.month)) : [];
 const lastEcoli = ecoliAll[0] ?? null; // newest first
+const lastEcoliBorough = lastEcoli ? sites.get(lastEcoli.site)?.borough : null;
 const ICON = { green: '✓', amber: '!', red: '✕', none: '–' };
 ---
 
 <section class="dash-section" id="now" aria-labelledby="now-title">
   <header class="section-head">
     <h2 id="now-title">Is my water safe right now?</h2>
-    <p class="section-intro">
-      {month
-        ? <>Results from <strong>{monthLabel(month.month)}</strong>, the latest full month in the data.</>
-        : <>A report card for the latest full month of samples.</>}
-    </p>
   </header>
 
   {error && (
@@ -52,10 +50,16 @@ const ICON = { green: '✓', amber: '!', red: '✕', none: '–' };
 
   {month && (
     <>
-      <p class="water-summary">
-        <strong>{count(month.n)}</strong> routine samples from <strong>{count(month.sites)}</strong> sampling stations
-        across the five boroughs.
-      </p>
+      <div class="water-verdict" data-status={headline!.status}>
+        <p class="water-verdict-title">
+          <span class="water-status-icon" aria-hidden="true">{ICON[headline!.status]}</span>
+          {headline!.title} in {monthLabel(month.month)}
+        </p>
+        <p>
+          {headline!.sentence} Based on {count(month.n)} samples from {count(month.sites)} street-side stations
+          across the five boroughs.
+        </p>
+      </div>
 
       <ul class="water-tiles" aria-label={`Report card for ${monthLabel(month.month)}`}>
         {tiles.map((t) => (
@@ -67,13 +71,11 @@ const ICON = { green: '✓', amber: '!', red: '✕', none: '–' };
             <h3 class="water-tile-label">{t.label}</h3>
             <p class="water-tile-value">{t.value} <span class="water-tile-unit">{t.valueLabel}</span></p>
             <p class="water-tile-sentence">{t.sentence}</p>
-            <p class="water-tile-ref">Reference value: {t.reference.rule}</p>
           </li>
         ))}
       </ul>
       <p class="chart-hint">
-        Colors compare samples with reference values, not an official compliance finding.
-        See “How to read this data” below for sources.
+        Colors compare samples with reference values. They're not an official compliance finding.
       </p>
 
       {ecoliThisMonth.length > 0 ? (
@@ -101,17 +103,18 @@ const ICON = { green: '✓', amber: '!', red: '✕', none: '–' };
           </p>
         </div>
       ) : (
-        <p class="water-note">
-          <strong>No E. coli in {monthLabel(month.month)}.</strong>
-          {lastEcoli && <> The most recent detection was on {date(lastEcoli.date)} at station {lastEcoli.site}{' '}
-            ({where(lastEcoli.site)}). <a href="/drinking-water/history/">See every detection since 2015</a>.</>}
-        </p>
+        lastEcoli && (
+          <p class="water-note">
+            E. coli is rare. The last detection was on {date(lastEcoli.date)}
+            {lastEcoliBorough && <> in {boroughLabel(lastEcoliBorough)}</>}.{' '}
+            <a href="/drinking-water/history/">See the history since 2015</a>.
+          </p>
+        )
       )}
 
       {monthly.completeMonth !== monthly.months[monthly.months.length - 1]?.month && (
         <p class="water-note">
-          Samples from {monthLabel(monthly.months[monthly.months.length - 1].month)} are still being added, so this
-          report card uses {monthLabel(month.month)}.
+          {monthLabel(monthly.months[monthly.months.length - 1].month)} samples are still coming in.
         </p>
       )}
     </>

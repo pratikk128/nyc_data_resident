@@ -1713,14 +1713,38 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
   --water-band: rgba(169, 203, 255, .28);   /* pastel blue, light */
 }
 
-/* "Good to know before you read": always open */
-.water-context { margin-top: var(--space-5); }
+/* "What this doesn't cover": always open, after the results */
+.water-context { margin-top: var(--space-6); }
 .water-context-title { font-size: 1rem; font-weight: 800; }
 .water-context ul { margin: var(--space-2) 0 0; padding-left: 1.25rem; }
 .water-context li + li { margin-top: var(--space-1); }
-.water-context + .dash-section { margin-top: var(--space-6); }
 
-.water-summary { margin-top: var(--space-4); font-size: 1.0625rem; }
+/* Report card headline: the answer first */
+.water-verdict {
+  margin-top: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border-left: 6px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  font-size: 1.0625rem;
+}
+.water-verdict p + p { margin-top: var(--space-1); color: var(--ink-soft); }
+.water-verdict-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: clamp(1.5rem, 1.25rem + 1vw, 2rem);
+  font-weight: 800;
+  line-height: 1.15;
+}
+.water-verdict .water-status-icon { width: 32px; height: 32px; font-size: 1.125rem; flex-shrink: 0; }
+.water-verdict[data-status="green"] { border-left-color: var(--status-green-deep); background: var(--status-green); }
+.water-verdict[data-status="green"] .water-status-icon { background: var(--status-green-deep); color: #fff; }
+.water-verdict[data-status="amber"] { border-left-color: var(--accent-deep); background: var(--status-amber); }
+.water-verdict[data-status="amber"] .water-status-icon { background: var(--yellow); }
+.water-verdict[data-status="red"] { border-left-color: var(--status-red-deep); background: var(--status-red); }
+.water-verdict[data-status="red"] .water-status-icon { background: var(--status-red-deep); color: #fff; }
+
 .water-note { margin-top: var(--space-4); }
 .water-empty { margin-top: var(--space-4); color: var(--ink-soft); }
 .water-h3 { font-size: 1.125rem; font-weight: 800; }
@@ -1789,7 +1813,6 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
 }
 .water-tile-unit { font-size: .9375rem; font-weight: 600; letter-spacing: 0; color: var(--ink-soft); }
 .water-tile-sentence { font-size: .9375rem; }
-.water-tile-ref { margin-top: auto; padding-top: var(--space-2); font-size: .8125rem; color: var(--ink-soft); }
 
 .water-ecoli .table-scroll { margin-top: var(--space-3); background: var(--card); }
 .water-ecoli p { margin-top: var(--space-3); }
@@ -1818,8 +1841,8 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
 .water-line-svg { touch-action: pan-y; }
 .water-swatch-line { height: 3px; border-radius: 2px; background: var(--water-line); }
 .water-swatch-marker { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); box-shadow: inset 0 0 0 2px var(--ink); }
-.water-swatch-band { background: var(--water-band); box-shadow: inset 0 0 0 1px var(--blue); }
-.water-ecoli-history { margin-top: var(--space-6); }
+.water-swatch-ref { height: 0; border-top: 2px dashed var(--ink-soft); border-radius: 0; background: none; }
+.water-ecoli-history { margin-top: var(--space-5); }
 .water-ecoli-history .table-scroll { margin-top: var(--space-3); }
 
 /* ---------- Near me ---------- */

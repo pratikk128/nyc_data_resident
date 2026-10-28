@@ -1,8 +1,8 @@
 ---
 /*
  * Shell shared by the NYC Drinking Water Quality views: page heading, the
- * section cards, the "Before you read" box (always shown, on every view),
- * the section in the default slot, the pager and the method and sources.
+ * section cards, the section in the default slot, the "What this doesn't
+ * cover" box (always shown, on every view), the pager and the method and sources.
  * Each view is its own page in src/pages/drinking-water/ with its own URL.
  * Pages render on demand so the dates come from the daily data in KV.
  */
@@ -61,9 +61,9 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=3600');
 
   <SectionNav sections={SECTIONS} current={section} label="NYC Drinking Water Quality sections" />
 
-  <ContextBox meta={meta} />
-
   <slot />
+
+  <ContextBox />
 
   <SectionPager sections={SECTIONS} current={section} />
 

@@ -93,10 +93,10 @@ const refs = [
     <p>
       <a href={DATASET_URL}>{DATASET_NAME}</a> on NYC Open Data (dataset {DATASET_ID}), published by NYC DEP.
       {meta?.rowsUpdatedAt && <> Last updated {date(meta.rowsUpdatedAt)}. </>}
-      DEP adds samples about once a month; we check for new data daily.
+      DEP adds samples about once a month; we check for new data daily. For whether the city met each standard, read
+      DEP's annual <a href={LINKS.annualReport}>Drinking Water Supply and Quality Report</a>.
     </p>
     <ul class="caveats">
-      <li>Samples are from street-side stations on city mains. Water in your building's pipes can differ.</li>
       <li>One sample is a snapshot of one place at one moment. A positive sample is followed up with repeat samples.</li>
       <li>Some months have no samples in the data, and a few stations have no location in DEP's site list.</li>
     </ul>

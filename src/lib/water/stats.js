@@ -125,7 +125,7 @@ const samples = (k) => `${count(k)} ${k === 1 ? "sample" : "samples"}`;
 
 /*
  * The four or five report card tiles for one month (normalized).
- * Each: { key, label, status, value, valueLabel, sentence, reference }
+ * Each: { key, label, status, value, valueLabel, sentence }
  */
 export function reportCard(m) {
   const tiles = [];
@@ -136,12 +136,10 @@ export function reportCard(m) {
     label: "E. coli",
     status: m.ecoli.n ? (m.ecoli.pos ? "amber" : "green") : "none",
     value: sharePct(ecoliClean, m.ecoli.n),
-    valueLabel: "with no E. coli",
+    valueLabel: "of samples clear",
     sentence: !m.ecoli.n ? "No E. coli results this month."
-      : m.ecoli.pos
-        ? `E. coli is a sign of sewage or animal waste. It turned up in ${m.ecoli.pos} of ${samples(m.ecoli.n)}; details are below.`
-        : `E. coli is a sign of sewage or animal waste. None was found in any of the ${samples(m.ecoli.n)}.`,
-    reference: R.ecoli
+      : `A sign of sewage. ${m.ecoli.pos ? `Found in ${m.ecoli.pos} of ${samples(m.ecoli.n)}; details below.`
+        : `Found in none of ${samples(m.ecoli.n)}.`}`
   });
 
   const coliClean = m.coli.n - m.coli.pos;
@@ -151,12 +149,10 @@ export function reportCard(m) {
     label: "Coliform bacteria",
     status: tileStatus(coliShare),
     value: sharePct(coliClean, m.coli.n),
-    valueLabel: "with no coliform",
+    valueLabel: "of samples clear",
     sentence: !m.coli.n ? "No coliform results this month."
-      : `Coliform bacteria are usually harmless but can signal a way in for germs. ` +
-        (m.coli.pos ? `${m.coli.pos} of ${samples(m.coli.n)} had some; the federal review trigger is more than 5%.`
-          : `None turned up in any of the ${samples(m.coli.n)}.`),
-    reference: R.coliform
+      : `Usually harmless. ${m.coli.pos ? `${m.coli.pos} of ${samples(m.coli.n)} had some; a review starts above 5%.`
+        : `None in ${samples(m.coli.n)}.`}`
   });
 
   tiles.push({
@@ -166,19 +162,17 @@ export function reportCard(m) {
     value: m.cl.med == null ? "–" : `${fmt(m.cl.med)} mg/L`,
     valueLabel: "median",
     sentence: !m.cl.n ? "No chlorine results this month."
-      : `Chlorine keeps germs from growing in the pipes. Levels were in the normal range in ${sharePct(m.cl.ok, m.cl.n)} of samples.`,
-    reference: R.chlorine
+      : `Keeps germs out of the pipes. In the normal range in ${sharePct(m.cl.ok, m.cl.n)} of samples.`
   });
 
   tiles.push({
     key: "turbidity",
-    label: "Cloudiness (turbidity)",
+    label: "Cloudiness",
     status: tileStatus(m.turb.n ? m.turb.ok / m.turb.n : null),
     value: m.turb.med == null ? "–" : `${fmt(m.turb.med)} NTU`,
     valueLabel: "median",
-    sentence: !m.turb.n ? "No turbidity results this month."
-      : `Cloudy water can shield germs from chlorine. ${sharePct(m.turb.ok, m.turb.n)} of samples were at or under the state’s 5 NTU standard.`,
-    reference: R.turbidity
+    sentence: !m.turb.n ? "No cloudiness results this month."
+      : `${sharePct(m.turb.ok, m.turb.n)} of samples under the state’s 5 NTU standard.`
   });
 
   if (m.fl?.n) {
@@ -188,12 +182,29 @@ export function reportCard(m) {
       status: tileStatus(m.fl.ok / m.fl.n),
       value: m.fl.med == null ? "–" : `${fmt(m.fl.med)} mg/L`,
       valueLabel: "median",
-      sentence: `Fluoride is added to help prevent cavities; the city aims for about 0.7 mg/L. ` +
-        `${sharePct(m.fl.ok, m.fl.n)} of the ${samples(m.fl.n)} tested were under the EPA’s 4.0 mg/L maximum.`,
-      reference: R.fluoride
+      sentence: `Added to prevent cavities. The city aims for about ${R.fluoride.target} mg/L.`
     });
   }
   return tiles;
+}
+
+/*
+ * The headline for a month's report card, from its tiles:
+ * { status, title, sentence }. Worst tile wins; "none" tiles are skipped.
+ */
+export function verdict(tiles) {
+  const scored = tiles.filter((t) => t.status !== "none");
+  const off = scored.filter((t) => t.status !== "green");
+  const status = off.some((t) => t.status === "red") ? "red" : off.length ? "amber" : "green";
+  const names = new Intl.ListFormat("en", { type: "conjunction" }).format(off.map((t) => t.label.replace(/^[A-Z](?=[a-z])/, (c) => c.toLowerCase())));  // "E. coli" stays
+  if (status === "green") {
+    return { status, title: "All clear", sentence: `Every measure was in its normal range.` };
+  }
+  return {
+    status,
+    title: status === "red" ? "Some results need a look" : "Mostly clear",
+    sentence: `${scored.length - off.length} of ${scored.length} measures were in their normal range. Check ${names} below.`
+  };
 }
 
 /*
@@ -211,6 +222,19 @@ export function historyTakeaway(months) {
   const e = ecoli === 0 ? "and none had E. coli"
     : `and E. coli turned up in ${count(ecoli)} (${sharePct(ecoli, tested)})`;
   return `${span}, ${sharePct(tested - pos, tested)} of ${count(tested)} routine samples were free of coliform bacteria, ${e}.`;
+}
+
+/*
+ * Share of all routine coliform detections that fell in June–September:
+ * { share, positives }, or null when there were none.
+ */
+export function summerShare(months) {
+  let pos = 0, summer = 0;
+  for (const m of months) {
+    pos += m.coli.pos;
+    if (["06", "07", "08", "09"].includes(m.month.slice(5))) summer += m.coli.pos;
+  }
+  return pos ? { share: summer / pos, positives: pos } : null;
 }
 
 // ---------- Detections ----------

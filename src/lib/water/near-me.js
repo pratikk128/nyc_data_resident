@@ -66,20 +66,18 @@ export function stationCardHtml(station, details, ctx) {
   const c = ctx.cityTotals;
   return (
     `<article class="water-card">${head}` +
-      `<p class="water-card-meta">${count(t.n)} routine samples, ${escape(range)}</p>` +
+      `<div class="water-metric">` +
+        `<h4 class="water-h4">Bacteria</h4>` +
+        bacteriaHtml(details, range) +
+      `</div>` +
       `<div class="water-metric">` +
         `<h4 class="water-h4">Chlorine (mg/L)</h4>` +
         `<div class="water-spark-slot" data-spark="cl"></div>` +
         `<p>${escape(compareText(t.clMed, c?.clMed, "mg/L"))}</p>` +
       `</div>` +
       `<div class="water-metric">` +
-        `<h4 class="water-h4">Cloudiness, turbidity (NTU)</h4>` +
-        `<div class="water-spark-slot" data-spark="turb"></div>` +
+        `<h4 class="water-h4">Cloudiness (NTU)</h4>` +
         `<p>${escape(compareText(t.turbMed, c?.turbMed, "NTU"))}</p>` +
-      `</div>` +
-      `<div class="water-metric">` +
-        `<h4 class="water-h4">Bacteria</h4>` +
-        bacteriaHtml(details, range) +
       `</div>` +
     `</article>`
   );
