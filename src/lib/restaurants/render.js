@@ -48,35 +48,13 @@ function typeLabel(type) {
   return escape(type).replace(/ \/ /g, " · ");
 }
 
-function violationHtml(v) {
-  const tag = v.critical === "Critical"
-    ? `<span class="crit-tag crit-critical">Critical</span>`
-    : v.critical === "Not Critical"
-      ? `<span class="crit-tag crit-minor">Not critical</span>`
-      : `<span class="crit-tag crit-na">Not applicable</span>`;
+function criticalViolationsHtml(latest) {
+  const critical = latest.violations.filter((v) => v.critical === "Critical");
+  if (!critical.length) return `<p class="insp-summary">No critical violations were cited at the latest inspection.</p>`;
   return (
-    `<li class="violation${v.critical === "Critical" ? " is-critical" : ""}">` +
-      `<div class="violation-head">${tag}<span class="violation-code">Code ${escape(v.code)}</span></div>` +
-      `<p class="violation-text">${escape(v.description)}</p>` +
-    `</li>`
-  );
-}
-
-function latestInspectionHtml(latest) {
-  const critical = latest.violations.filter((v) => v.critical === "Critical").length;
-  const n = latest.violations.length;
-  const summary = n === 0
-    ? "No violations were recorded at this inspection."
-    : `${count(n)} ${n === 1 ? "violation" : "violations"} cited, ${count(critical)} of them critical.` +
-      (critical ? " The critical ones:" : "");
-  return (
-    `<dl class="insp-facts">` +
-      `<div><dt>Inspection type</dt><dd>${latest.types.map(typeLabel).join("<br>") || "Not listed"}</dd></div>` +
-      `<div><dt>Score</dt><dd>${latest.score == null ? "Not scored" : `${count(latest.score)} points`}</dd></div>` +
-      `<div class="insp-action"><dt>Result</dt><dd>${latest.actions.map(escape).join("<br>") || "Not listed"}</dd></div>` +
-    `</dl>` +
-    `<p class="insp-summary">${summary}</p>` +
-    (critical ? `<ul class="violations">${latest.violations.filter((v) => v.critical === "Critical").map(violationHtml).join("")}</ul>` : "")
+    `<ul class="violations">` +
+      critical.map((v) => `<li class="violation is-critical"><p class="violation-text">${escape(v.description)}</p></li>`).join("") +
+    `</ul>`
   );
 }
 
@@ -165,6 +143,7 @@ export function detailHtml(d, { benchmark = "citywide" } = {}) {
         `<p class="stat-label">Latest grade</p>` +
         `<div class="grade-card-row">${gradeBadge(d.latestGrade?.grade)}` +
           `<p class="stat-context">${gradeContext(d)}</p></div>` +
+        (latest ? `<p class="stat-context grade-type">Latest inspection type: ${latest.types.map(typeLabel).join(", ") || "Not listed"}</p>` : "") +
       `</div>` +
       `<div class="stat-card">` +
         `<p class="stat-label">Score at the latest inspection</p>` +
@@ -187,8 +166,8 @@ export function detailHtml(d, { benchmark = "citywide" } = {}) {
 
   const latestBlock =
     `<section class="rest-block" aria-labelledby="latest-title">` +
-      `<h3 class="chart-title" id="latest-title">Latest inspection</h3>` +
-      latestInspectionHtml(latest) +
+      `<h3 class="chart-title" id="latest-title">Critical violations at the latest inspection</h3>` +
+      criticalViolationsHtml(latest) +
     `</section>`;
 
   const toggle = similarOk
