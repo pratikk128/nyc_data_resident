@@ -1,0 +1,50 @@
+---
+/*
+ * "Compare: Immediate area / Neighborhood", shared by the comparison sections
+ * (every copy shows the same choice, kept in store.js state and the URL).
+ * "Immediate area" is unavailable when the ¼ mile has too few requests; it
+ * stays focusable (aria-disabled) so the reason can be read.
+ */
+import { MIN_IMMEDIATE_REQUESTS } from '../../lib/complaints311/config.js';
+
+interface Props { id: string }
+const { id } = Astro.props;
+---
+
+<div class="c311-control" data-area-toggle>
+  <span class="filter-label" id={`${id}-area-label`}>Compare</span>
+  <div class="toggle" role="group" aria-labelledby={`${id}-area-label`}>
+    <button type="button" class="toggle-btn" data-area="immediate" aria-pressed="false" aria-describedby={`${id}-why`}>Immediate area</button>
+    <button type="button" class="toggle-btn" data-area="neighborhood" aria-pressed="true">Neighborhood</button>
+  </div>
+  <p class="c311-why" id={`${id}-why`} data-why hidden>
+    Fewer than {MIN_IMMEDIATE_REQUESTS} requests within ¼ mile in this period, too few to compare fairly, so we use the 1 mile neighborhood.
+  </p>
+</div>
+
+<script>
+  import { subscribe, setView } from '../../lib/complaints311/store.js';
+  import { comparisonView } from '../../lib/complaints311/view.js';
+
+  for (const control of document.querySelectorAll<HTMLElement>('[data-area-toggle]')) {
+    const btns = Array.from(control.querySelectorAll<HTMLButtonElement>('[data-area]'));
+    const immediate = btns.find((b) => b.dataset.area === 'immediate')!;
+    const why = control.querySelector<HTMLElement>('[data-why]')!;
+    const unavailable = () => immediate.getAttribute('aria-disabled') === 'true';
+
+    btns.forEach((b) => b.addEventListener('click', () => {
+      if (b === immediate && unavailable()) { why.hidden = false; return; }
+      setView({ area: b.dataset.area });
+    }));
+
+    subscribe((s) => {
+      const v: any = comparisonView(s);
+      control.hidden = !s.location || v.mode === 'borough';
+      if (v.status !== 'ready' || v.mode !== 'radius') return;
+      immediate.setAttribute('aria-disabled', String(!v.immediateOk));
+      immediate.title = v.immediateOk ? '' : why.textContent!.trim();
+      why.hidden = v.immediateOk;
+      btns.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.area === v.area)));
+    });
+  }
+</script>

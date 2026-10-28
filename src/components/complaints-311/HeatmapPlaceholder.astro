@@ -1,0 +1,60 @@
+---
+/*
+ * "Map: where complaints happen near you (coming soon)". The container is
+ * sized for the map, and the complaint-type filter already works (it's held in
+ * state and handed to onComplaintTypeChange); nothing draws yet. The map's
+ * props and the plan for it are in src/lib/complaints311/heatmap.js.
+ */
+import { RADII } from '../../lib/complaints311/config.js';
+---
+
+<section class="dash-section c311-map" id="map" aria-labelledby="map-title" data-heatmap hidden>
+  <header class="section-head">
+    <h2 id="map-title">Map: where complaints happen near you (coming soon)</h2>
+    <p class="section-intro">A heat map of where requests were made within 1 mile, with your ¼ mile outlined.</p>
+  </header>
+
+  <fieldset class="c311-map-filter" data-heatmap-filter hidden>
+    <legend class="filter-label">Show complaint types</legend>
+    <div class="c311-chips" data-heatmap-options></div>
+    <p class="field-hint" role="status" aria-live="polite" data-heatmap-status>Showing all complaint types.</p>
+  </fieldset>
+
+  <div class="c311-map-frame" data-heatmap-canvas>
+    <svg class="c311-map-rings" viewBox="0 0 200 200" aria-hidden="true">
+      <circle cx="100" cy="100" r="92" class="ring-outer" />
+      <circle cx="100" cy="100" r={92 * RADII.immediate / RADII.neighborhood} class="ring-inner" />
+      <circle cx="100" cy="100" r="2.5" class="ring-center" />
+    </svg>
+    <p class="c311-map-note">The map is on its way. For now, the lists above cover the same requests.</p>
+  </div>
+</section>
+
+<script>
+  import { subscribe } from '../../lib/complaints311/store.js';
+  import { mountHeatmap } from '../../lib/complaints311/heatmap.js';
+  import { topTypes } from '../../lib/complaints311/stats.js';
+  import { RADII } from '../../lib/complaints311/config.js';
+
+  const root = document.querySelector<HTMLElement>('[data-heatmap]')!;
+  const map = mountHeatmap(root);
+  let selectedTypes: string[] = [];
+  let shownFor: unknown = null;
+
+  subscribe((s) => {
+    const nb = s.neighborhood;
+    if (!s.location || s.location.kind === 'borough') { shownFor = null; map.update(null); return; }
+    if (nb.status !== 'ready' || nb.data === shownFor) return;
+    shownFor = nb.data;
+    const complaintTypes = topTypes(nb.data.types, 10).map((t) => t.key);
+    selectedTypes = selectedTypes.filter((k) => complaintTypes.includes(k));
+    map.update({
+      center: nb.data.center,
+      radiusMeters: RADII.neighborhood,
+      dateRange: { since: nb.data.since, through: nb.data.through },
+      complaintTypes,
+      selectedTypes,
+      onComplaintTypeChange: (selected) => { selectedTypes = selected; }
+    });
+  });
+</script>

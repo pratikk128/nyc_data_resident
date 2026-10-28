@@ -1,0 +1,64 @@
+---
+/*
+ * 311 Complaints in My Neighborhood. Rendered on demand (not prerendered) so
+ * the "Data updated" date comes from the dataset's live metadata. The place
+ * and view settings live in the URL (?lat=&lon=&place=, ?zip=, ?boro=, plus
+ * &window=, &area=, &vs=; see location-input.js); each section loads its own
+ * data in the browser from /api/311/*, so a slow one doesn't hold up the rest.
+ */
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+import LocationSearch from '../../components/complaints-311/LocationSearch.astro';
+import OverviewSection from '../../components/complaints-311/OverviewSection.astro';
+import AboveAverageSection from '../../components/complaints-311/AboveAverageSection.astro';
+import LocationTypesSection from '../../components/complaints-311/LocationTypesSection.astro';
+import HeatmapPlaceholder from '../../components/complaints-311/HeatmapPlaceholder.astro';
+import AboutSection from '../../components/complaints-311/AboutSection.astro';
+import { getMetadata } from '../../lib/server/complaints311.js';
+import { locationFromParams } from '../../lib/complaints311/location-input.js';
+import { boroughLabel } from '../../lib/complaints311/config.js';
+import { date } from '../../lib/format.js';
+
+export const prerender = false;
+
+let meta = null;
+try {
+  meta = await getMetadata();
+} catch (err) {
+  console.error(err); // the page still works; it just can't show the date
+}
+
+const { location } = locationFromParams(Astro.url.searchParams);
+const initialLabel = !location ? null
+  : location.kind === 'point' ? location.label
+  : location.kind === 'zip' ? `ZIP code ${location.zip}`
+  : `${boroughLabel(location.borough)} (whole borough)`;
+
+Astro.response.headers.set('Cache-Control', 'public, max-age=300');
+const title = initialLabel ? `311 complaints near ${initialLabel}` : '311 Complaints in My Neighborhood';
+---
+
+<DashboardLayout
+  title={title}
+  description="See what your neighbors report to 311, from noise to heat to rodents, and what's more common near you than across the borough or city."
+  path="/311-complaints/"
+  category="City Government"
+  lastRefreshed={meta?.rowsUpdatedAt ? date(meta.rowsUpdatedAt) : undefined}
+  dataUpdated={meta?.rowsUpdatedAt ?? undefined}
+>
+  <header class="page-head">
+    <h1>311 Complaints in My Neighborhood</h1>
+    <p>New Yorkers file millions of 311 requests a year about noise, heat, trash, parking and more. Here's what your neighbors are asking the city to fix.</p>
+  </header>
+
+  <LocationSearch initialLabel={initialLabel} />
+  <OverviewSection />
+  <AboveAverageSection />
+  <LocationTypesSection />
+  <HeatmapPlaceholder />
+  <AboutSection meta={meta} />
+</DashboardLayout>
+
+<script>
+  import { readUrl } from '../../lib/complaints311/store.js';
+  readUrl();
+</script>

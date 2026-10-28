@@ -14,8 +14,10 @@ src/components/city-payroll/   PayrollPage.astro (shared heading + section nav) 
 src/layouts/DashboardLayout.astro   Shared shell for dashboard pages
 src/lib/                  Formatting helpers, payroll stats, chart code
 src/pages/restaurant-inspections/   NYC Restaurant Inspections (rendered on demand)
-src/pages/api/            API routes (Worker): /api/restaurants/search, /api/restaurants/:camis
+src/pages/311-complaints/  311 Complaints in My Neighborhood (rendered on demand)
+src/pages/api/            API routes (Worker): /api/restaurants/search, /api/restaurants/:camis, /api/311/*
 src/lib/restaurants/      Restaurant logic: SoQL builders, inspection rules, violation categories, rendering
+src/lib/complaints311/    311 logic: config, SoQL, share math, labels, input parsing, geocoding, rendering
 src/lib/server/           Server-only: Socrata client (holds the token), caches, daily jobs
 src/worker.js             Worker entry: Astro for requests, cron for daily jobs
 wrangler.jsonc            Worker config: KV namespace, cron trigger
@@ -41,7 +43,7 @@ Production build: `npm run build` (output in `dist/`), preview with `npm run pre
 Live data needs no setup locally (Socrata allows anonymous requests at low volume). To use a token, copy `.dev.vars.example` to `.dev.vars` and fill in `SOCRATA_APP_TOKEN`.
 
 ```sh
-npm test             # restaurant logic tests
+npm test             # restaurant and 311 logic tests
 ```
 
 ## Deploy (Cloudflare Workers)
@@ -64,7 +66,8 @@ All Socrata calls go through `src/lib/server/socrata.js`, which adds the `X-App-
 |---|---|---|
 | Search results | Workers Cache API, keyed by the normalized query | 1 hour |
 | One restaurant | Workers Cache API | 1 hour |
-| Benchmarks (category averages), dataset metadata | KV `DATA_CACHE`, refreshed by the cron | 24 hours (a request recomputes only if KV has nothing newer than 26 h; if Socrata is down the last value is served, kept up to 7 days) |
+| Benchmarks (category averages), 311 borough and city baselines, dataset metadata | KV `DATA_CACHE`, refreshed by the cron | 24 hours (a request recomputes only if KV has nothing newer than 26 h; if Socrata is down the last value is served, kept up to 7 days) |
+| 311 areas (¼ and 1 mile) and ZIPs | Workers Cache API, keyed by lat/lon rounded to 3 decimals + radius + window | 6 hours |
 
 **Adding another dataset's daily aggregate:** write a server module like `src/lib/server/restaurants.js` that exports jobs (`{ key, maxAgeHours, run }`), add them to `DAILY_JOBS` in `src/lib/server/daily-jobs.js`, and read them with `dailyValue(job)`. The one cron run refreshes every job in parallel.
 
@@ -139,6 +142,36 @@ substring(violation_code, 1, 2) AS fam, count(*) WHERE ... AND violation_code IS
 ```
 
 Mean per category = cited violations ÷ every restaurant inspected in the window (restaurants with zero still count).
+
+## 311 Complaints in My Neighborhood
+
+`/311-complaints/` shows what people near a spot asked 311 for, from NYC Open Data's [311 Service Requests from 2020 to Present](https://data.cityofnewyork.us/d/erm2-nwe9) (`erm2-nwe9`), live. The place and view are in the URL so links can be shared:
+
+| Param | Meaning |
+|---|---|
+| `lat`, `lon`, `place` | A spot (from the address lookup) and its label; `boro`, `zip` ride along when known |
+| `zip` | A ZIP on its own: centered on the average location of requests that name it |
+| `boro` | A borough on its own (`QUEENS`): the borough against the city, no radius |
+| `window` | `3m`, `12m` (default) or `all` (since Jan 1, 2020), by `created_date` |
+| `area` | `immediate` to compare the ¼ mile instead of the 1 mile |
+| `vs` | `city` to compare with NYC instead of the borough |
+
+All tunables are in `src/lib/complaints311/config.js`: `RADII` (402 m and 1,609 m), `MIN_IMMEDIATE_REQUESTS` (100: below this the ¼ mile is shown but comparisons use the 1 mile), `MIN_LOCAL_COUNT` (20), `ABOVE_RATIO` (1.25), `BELOW_RATIO` (0.75), `TOP_LOCATION_TYPES` (8). All SoQL lives in `soql.js`; every query aggregates server-side (`count(*)` with `$group`), and radius queries use `within_circle(location, lat, lon, meters)`, which skips rows without coordinates.
+
+**Comparisons are shares, not counts:** a type's share of requests here ÷ its share in the borough (or city). Borough baselines leave out `borough = 'Unspecified'`; the city baseline includes it.
+
+**Addresses** are looked up in the browser with NYC Planning Labs [GeoSearch](https://geosearch.planninglabs.nyc/) (free, no key). ZIPs and borough names are recognized before GeoSearch (it reads "11211" as a house number). A typed address only resolves when GeoSearch's house number and street match it, otherwise the reader picks from suggestions; a street with no borough is searched in each borough and the reader picks one.
+
+**Data quirks** (handled in `labels.js` and `stats.js`):
+
+- `complaint_type` casing varies (`HEAT/HOT WATER`, `Noise`); counts merge on the upper-cased name and show plain labels (`TYPE_LABELS`).
+- `location_type` has ~150 spellings for a few kinds of place (`RESIDENTIAL BUILDING`, `3+ Family Apt. Building`, `Comercial`); `LOCATION_GROUPS` folds them, and blanks (~12%) go to "Other / Not specified".
+- `status`: only `Closed` counts as closed; Open, In Progress, Assigned, Pending, Started and Unspecified count as still open.
+- About 2% of requests have no coordinates and so aren't in any radius.
+
+**Timing.** The ¼ mile takes Socrata ~2 s, the 1 mile ~3–12 s (4–5 queries each, in parallel; each is logged as `311 radius ...`). The borough and city baselines group the whole window by borough and take about a minute per query, so they're daily jobs (`311:baseline:v1:<window>`) that the cron fills. Before the first cron run (fresh deploy, local dev) the first request for each window waits for them, a few minutes without an app token.
+
+The map section is a placeholder; its props and the plan for it are at the top of `src/lib/complaints311/heatmap.js`.
 
 ## Refresh the payroll data
 

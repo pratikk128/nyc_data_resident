@@ -1,0 +1,284 @@
+---
+/*
+ * "Where should we look?": one search box (address, street, ZIP or borough)
+ * with suggestions as you type, plus optional borough and ZIP fields. Once a
+ * place is picked it collapses to "Showing results near: …" with a time-period
+ * switch and a "Change location" button. The place lives in the URL (store.js).
+ *
+ * Suggestions come from NYC Planning Labs GeoSearch, called from the browser
+ * (no key, no Socrata token involved); see src/lib/complaints311/geocode.js.
+ */
+import { BOROUGHS, WINDOWS } from '../../lib/complaints311/config.js';
+import { MAX_INPUT_LENGTH } from '../../lib/complaints311/location-input.js';
+
+interface Props {
+  initialLabel: string | null; // "Showing results near" text for a shared link, rendered before script runs
+}
+const { initialLabel } = Astro.props;
+---
+
+<section class="dash-section c311-where" id="where" aria-labelledby="where-title">
+  <header class="section-head">
+    <h2 id="where-title">Where should we look?</h2>
+    <p class="section-intro">Type an address, a street, a ZIP code or a borough. We'll show what people nearby asked 311 for.</p>
+  </header>
+
+  <div class="c311-current" data-current hidden={!initialLabel}>
+    <div class="c311-current-text">
+      <p class="c311-current-label"><span data-current-prefix>Showing results near:</span> <strong data-current-label>{initialLabel}</strong></p>
+      <p class="c311-current-note" data-current-note hidden></p>
+    </div>
+    <button type="button" class="copy-link" data-change aria-controls="c311-form" aria-expanded="false">Change location</button>
+  </div>
+
+  <form class="c311-form" id="c311-form" role="search" novalidate data-form hidden={Boolean(initialLabel)}>
+    <div class="field c311-field-main">
+      <label class="filter-label" for="c311-q">Address, street, ZIP code or borough</label>
+      <div class="c311-combo">
+        <input class="search-input" id="c311-q" name="q" type="text" role="combobox" aria-autocomplete="list"
+          aria-expanded="false" aria-controls="c311-suggest" aria-describedby="c311-q-hint"
+          autocomplete="off" spellcheck="false" maxlength={MAX_INPUT_LENGTH}
+          placeholder="Try “350 5th Ave, Manhattan” or “11211”" data-q />
+        <ul class="c311-suggest" id="c311-suggest" role="listbox" aria-label="Suggested places" hidden data-suggest></ul>
+      </div>
+      <p class="field-hint" id="c311-q-hint">Suggestions appear as you type. Use ↑ and ↓ to move through them and Enter to pick one.</p>
+    </div>
+    <div class="field">
+      <label class="filter-label" for="c311-boro">Borough <span class="field-optional">(optional)</span></label>
+      <select class="filter-select" id="c311-boro" name="boro" data-boro>
+        <option value="">Any borough</option>
+        {BOROUGHS.map((b) => <option value={b.value}>{b.label}</option>)}
+      </select>
+    </div>
+    <div class="field c311-field-zip">
+      <label class="filter-label" for="c311-zip">ZIP <span class="field-optional">(optional)</span></label>
+      <input class="search-input" id="c311-zip" name="zip" type="text" inputmode="numeric" maxlength="5"
+        autocomplete="postal-code" placeholder="11211" data-zip />
+    </div>
+    <div class="field c311-field-go">
+      <button type="submit" class="c311-go">Show my area</button>
+    </div>
+  </form>
+
+  <p class="rest-status" role="status" aria-live="polite" data-status></p>
+
+  <div class="c311-window" data-window-wrap hidden={!initialLabel}>
+    <span class="filter-label" id="c311-window-label">Time period</span>
+    <div class="toggle" role="group" aria-labelledby="c311-window-label">
+      {Object.values(WINDOWS).map((w) => (
+        <button type="button" class="toggle-btn" data-window={w.key} aria-pressed={w.key === '12m' ? 'true' : 'false'}>{w.label}</button>
+      ))}
+    </div>
+  </div>
+</section>
+
+<script>
+  import { state, subscribe, setLocation, setWindow } from '../../lib/complaints311/store.js';
+  import { parseLocationInput, isNycZip, boroughFromText } from '../../lib/complaints311/location-input.js';
+  import { suggest, resolveLocation, placeToLocation } from '../../lib/complaints311/geocode.js';
+  import { boroughLabel } from '../../lib/complaints311/config.js';
+  import { escape } from '../../lib/complaints311/render.js';
+
+  const MSG = {
+    looking: 'Looking that up…',
+    notFound: 'We couldn’t find that in New York City. Check the spelling, or try a ZIP code or borough.',
+    inexact: 'We couldn’t find that exact address in NYC. Did you mean one of these?',
+    ambiguous: (what: string) => `“${what}” is in more than one place. Pick the one you mean:`,
+    error: 'The address lookup isn’t answering right now. Try a ZIP code or borough, or try again in a minute.',
+    empty: 'Type an address, a street, a ZIP code or a borough.'
+  };
+  const DEBOUNCE_MS = 250;
+
+  const section = document.getElementById('where')!;
+  const form = section.querySelector<HTMLFormElement>('[data-form]')!;
+  const input = section.querySelector<HTMLInputElement>('[data-q]')!;
+  const boroSelect = section.querySelector<HTMLSelectElement>('[data-boro]')!;
+  const zipInput = section.querySelector<HTMLInputElement>('[data-zip]')!;
+  const list = section.querySelector<HTMLUListElement>('[data-suggest]')!;
+  const status = section.querySelector<HTMLElement>('[data-status]')!;
+  const current = section.querySelector<HTMLElement>('[data-current]')!;
+  const currentPrefix = section.querySelector<HTMLElement>('[data-current-prefix]')!;
+  const currentLabel = section.querySelector<HTMLElement>('[data-current-label]')!;
+  const currentNote = section.querySelector<HTMLElement>('[data-current-note]')!;
+  const changeBtn = section.querySelector<HTMLButtonElement>('[data-change]')!;
+  const windowWrap = section.querySelector<HTMLElement>('[data-window-wrap]')!;
+  const windowBtns = Array.from(section.querySelectorAll<HTMLButtonElement>('[data-window]'));
+
+  // ---------- Suggestions (combobox) ----------
+  // Each option is a ready-to-use location: a GeoSearch place, a ZIP or a borough.
+  type Option = { label: string; hint?: string; location: any };
+  let options: Option[] = [];
+  let active = -1;
+  let timer = 0;
+  let suggestAbort: AbortController | null = null;
+  let editing = false;
+
+  function renderOptions(opts: Option[]) {
+    options = opts;
+    active = -1;
+    list.innerHTML = opts.map((o, i) =>
+      `<li role="option" id="c311-opt-${i}" aria-selected="false" class="c311-option" data-i="${i}">` +
+      `<span>${escape(o.label)}</span>${o.hint ? `<span class="c311-option-hint">${escape(o.hint)}</span>` : ''}</li>`).join('');
+    const open = opts.length > 0;
+    list.hidden = !open;
+    input.setAttribute('aria-expanded', String(open));
+    input.removeAttribute('aria-activedescendant');
+  }
+
+  function highlight(i: number) {
+    active = i;
+    list.querySelectorAll<HTMLElement>('[role="option"]').forEach((el, j) => el.setAttribute('aria-selected', String(j === i)));
+    if (i >= 0) {
+      input.setAttribute('aria-activedescendant', `c311-opt-${i}`);
+      list.children[i]?.scrollIntoView({ block: 'nearest' });
+    } else input.removeAttribute('aria-activedescendant');
+  }
+
+  const closeOptions = () => renderOptions([]);
+
+  // ZIP and borough suggestions come from the text itself; GeoSearch adds addresses.
+  function localOptions(text: string): Option[] {
+    const out: Option[] = [];
+    const t = text.trim();
+    if (/^\d{5}$/.test(t) && isNycZip(t)) out.push({ label: `ZIP code ${t}`, hint: 'Centered on the middle of the ZIP', location: { kind: 'zip', zip: t } });
+    const boro = boroughFromText(t);
+    if (boro) out.push({ label: `${boroughLabel(boro)}`, hint: 'The whole borough', location: { kind: 'borough', borough: boro } });
+    return out;
+  }
+
+  async function updateSuggestions() {
+    const text = input.value.trim();
+    suggestAbort?.abort();
+    const local = localOptions(text);
+    if (text.length < 3 || /^\d+$/.test(text)) { renderOptions(local); return; }
+    suggestAbort = new AbortController();
+    try {
+      const places = await suggest(text, { signal: suggestAbort.signal });
+      const boro = boroSelect.value;
+      const filtered = boro ? places.filter((p) => p.borough === boro) : places;
+      renderOptions([...local, ...filtered.map((p) => ({ label: p.label, location: placeToLocation(p) }))].slice(0, 6));
+    } catch (err: any) {
+      if (err.name !== 'AbortError') renderOptions(local); // typing still works; Enter resolves on submit
+    }
+  }
+
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    status.textContent = '';
+    timer = window.setTimeout(updateSuggestions, DEBOUNCE_MS);
+  });
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' && options.length) { e.preventDefault(); highlight(Math.min(active + 1, options.length - 1)); }
+    else if (e.key === 'ArrowUp' && options.length) { e.preventDefault(); highlight(Math.max(active - 1, -1)); }
+    else if (e.key === 'Enter' && active >= 0) { e.preventDefault(); pick(options[active]); }
+    else if (e.key === 'Escape' && options.length) { e.preventDefault(); closeOptions(); }
+  });
+
+  // mousedown so the input keeps focus (a click would blur it first and close the list).
+  list.addEventListener('mousedown', (e) => {
+    const li = (e.target as HTMLElement).closest<HTMLElement>('[role="option"]');
+    if (!li) return;
+    e.preventDefault();
+    pick(options[Number(li.dataset.i)]);
+  });
+  input.addEventListener('blur', () => setTimeout(closeOptions, 150));
+
+  function pick(option: Option) {
+    closeOptions();
+    clearTimeout(timer);
+    status.textContent = '';
+    input.value = option.label;
+    finishEditing();
+    setLocation(option.location);
+  }
+
+  // ---------- Submit: work out what was typed ----------
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearTimeout(timer);
+    suggestAbort?.abort();
+    const parsed = parseLocationInput({ text: input.value, borough: boroSelect.value, zip: zipInput.value });
+    if (parsed.kind === 'empty') { status.textContent = MSG.empty; input.focus(); return; }
+    if (parsed.kind === 'error') { status.textContent = parsed.message; return; }
+
+    status.textContent = MSG.looking;
+    try {
+      const result = await resolveLocation(parsed);
+      if (result.status === 'resolved') {
+        status.textContent = '';
+        closeOptions();
+        finishEditing();
+        setLocation(result.location, { onStreet: result.onStreet ?? null });
+      } else if (result.status === 'choose') {
+        status.textContent = result.reason === 'inexact' ? MSG.inexact : MSG.ambiguous((parsed as any).text);
+        renderOptions(result.suggestions.map((p: any) => ({ label: p.label, location: placeToLocation(p) })));
+        input.focus();
+      } else {
+        status.textContent = MSG.notFound;
+        closeOptions();
+      }
+    } catch {
+      status.textContent = MSG.error;
+    }
+  });
+
+  // ---------- Current location ----------
+  function startEditing() {
+    editing = true;
+    form.hidden = false;
+    changeBtn.setAttribute('aria-expanded', 'true');
+    input.focus();
+    input.select();
+  }
+  function finishEditing() {
+    editing = false;
+    changeBtn.setAttribute('aria-expanded', 'false');
+  }
+  changeBtn.addEventListener('click', () => (form.hidden ? startEditing() : (form.hidden = true, finishEditing())));
+
+  windowBtns.forEach((b) => b.addEventListener('click', () => setWindow(b.dataset.window!)));
+
+  function describe(s: typeof state) {
+    const loc = s.location;
+    if (loc.kind === 'borough') {
+      return {
+        prefix: 'Showing results for:', label: `${boroughLabel(loc.borough)} (whole borough)`,
+        note: `A whole borough is too big for a walking-distance view, so this shows ${boroughLabel(loc.borough)} as a whole, compared with the whole city.`
+      };
+    }
+    if (loc.kind === 'zip') {
+      const boro = boroughLabel(s.borough ?? loc.borough);
+      return {
+        prefix: 'Showing results near:', label: `ZIP code ${loc.zip}${boro ? `, ${boro}` : ''}`,
+        note: 'We use the middle of the ZIP code as your spot.'
+      };
+    }
+    return {
+      prefix: 'Showing results near:', label: loc.label,
+      note: s.onStreet ? `We picked one spot on ${s.onStreet}. Add a house number to look at a different stretch.` : ''
+    };
+  }
+
+  subscribe((s) => {
+    const has = Boolean(s.location);
+    current.hidden = !has;
+    windowWrap.hidden = !has;
+    if (!editing) form.hidden = has;
+    windowBtns.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.window === s.window)));
+    if (!has) return;
+    const d = describe(s);
+    currentPrefix.textContent = d.prefix;
+    currentLabel.textContent = d.label;
+    currentNote.textContent = d.note;
+    currentNote.hidden = !d.note;
+  });
+
+  // A ZIP that no request names (or a lookup that failed) puts the form back up.
+  subscribe((s) => {
+    if (s.location?.kind === 'zip' && s.zip.status === 'error' && s.zip.error?.status === 404) {
+      status.textContent = `No 311 requests mention ZIP code ${s.location.zip} in this period. Check the ZIP, or try a street or borough.`;
+      form.hidden = false;
+    }
+  });
+</script>

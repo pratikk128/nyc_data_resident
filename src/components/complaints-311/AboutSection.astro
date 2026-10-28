@@ -1,0 +1,72 @@
+---
+/*
+ * "How to read this data": method notes, the source and its freshness, and caveats.
+ */
+import {
+  DATASET_URL, DATASET_NAME, DATASET_ID, MIN_IMMEDIATE_REQUESTS, MIN_LOCAL_COUNT, ABOVE_RATIO, BELOW_RATIO
+} from '../../lib/complaints311/config.js';
+import { date } from '../../lib/format.js';
+
+interface Props {
+  meta: { rowsUpdatedAt: string | null } | null;
+}
+const { meta } = Astro.props;
+---
+
+<section class="dash-section c311-about" aria-labelledby="c311-about-title">
+  <h2 class="chart-title" id="c311-about-title">How to read this data</h2>
+  <details class="about-data">
+    <summary>About this data</summary>
+    <div class="about-body">
+      <p>
+        <strong>Distances.</strong> “Immediate area” is every request within ¼ mile (402 m) of your spot, about a
+        5-minute walk. “Neighborhood” is within 1 mile (1,609 m), about a 20-minute walk. Requests without a map location
+        (about 2 in 100) aren't counted in either.
+      </p>
+      <p>
+        <strong>Time periods</strong> go by the date each request was made. “Since 2020” starts on Jan 1, 2020, when this
+        dataset begins.
+      </p>
+      <p>
+        <strong>More or less common.</strong> Areas differ in size and population, so we compare shares, not counts.
+        “2× more common here” means that complaint type makes up twice as big a share of requests here as in the
+        borough (or the city). We list types at {ABOVE_RATIO}× or more that have at least {MIN_LOCAL_COUNT} requests
+        here, and types at {BELOW_RATIO}× or less where the average would predict at least {MIN_LOCAL_COUNT}.
+      </p>
+      <p>
+        <strong>Small areas.</strong> When the ¼ mile has fewer than {MIN_IMMEDIATE_REQUESTS} requests in the period,
+        we compare using the 1 mile neighborhood, since a handful of requests can swing a share a lot.
+      </p>
+      <p>
+        <strong>Borough and city averages</strong> include every request in the period. Requests with no borough
+        listed count toward the city but not any borough. The borough comes from the address you picked, or for a
+        ZIP code, from the requests that name it.
+      </p>
+      <p>
+        <strong>Open vs. closed.</strong> “Closed” is the city's own status. Everything else (open, in progress,
+        assigned, pending) counts as still open.
+      </p>
+      <p>
+        <strong>Names.</strong> We use plain names for complaint types (“No heat or hot water” for HEAT/HOT WATER) and
+        group the many ways places are written (“3+ Family Apt. Building”, “RESIDENTIAL BUILDING”) into a few kinds of
+        place. Blank or unclear ones go under “Other / Not specified”.
+      </p>
+    </div>
+  </details>
+
+  <footer class="section-sources">
+    <h3 class="sources-title">Where this comes from</h3>
+    <p>
+      <a href={DATASET_URL}>{DATASET_NAME}</a> on NYC Open Data (dataset {DATASET_ID}). Data updated daily by NYC 311.
+      {meta?.rowsUpdatedAt && <> Last updated {date(meta.rowsUpdatedAt)}. </>}
+      Nearby counts are refreshed every few hours and borough and city averages daily. Addresses are looked up with
+      NYC Planning Labs <a href="https://geosearch.planninglabs.nyc/">GeoSearch</a>.
+    </p>
+    <ul class="caveats">
+      <li>311 data shows requests people made, not every problem that exists. Some blocks call 311 more than others.</li>
+      <li>One problem can get several requests, and one person can make many.</li>
+      <li>Locations are where the request says the problem is, which can be approximate.</li>
+    </ul>
+    <p><a href={DATASET_URL}>Report a data problem</a> to NYC Open Data.</p>
+  </footer>
+</section>

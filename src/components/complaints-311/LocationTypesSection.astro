@@ -1,0 +1,55 @@
+---
+/*
+ * "Where complaints happen": share of requests by type of place (location_type
+ * folded into plain groups, labels.js), here vs. the borough vs. the city, for
+ * the top TOP_LOCATION_TYPES groups. Uses the same comparison area as the
+ * section above (AreaToggle).
+ */
+import AreaToggle from './AreaToggle.astro';
+import { TOP_LOCATION_TYPES } from '../../lib/complaints311/config.js';
+---
+
+<section class="dash-section c311-locations" id="places" aria-labelledby="places-title" data-places hidden>
+  <header class="section-head">
+    <h2 id="places-title">Where complaints happen</h2>
+    <p class="section-intro">The kind of place each request is about, as a share of all requests. Top {TOP_LOCATION_TYPES - 1} types of place, plus everything else.</p>
+  </header>
+  <div class="c311-controls"><AreaToggle id="loc" /></div>
+  <div class="c311-places-body" data-places-body aria-live="polite" aria-busy="false"></div>
+</section>
+
+<script>
+  import { subscribe } from '../../lib/complaints311/store.js';
+  import { comparisonView } from '../../lib/complaints311/view.js';
+  import { locationComparison, locationSentence } from '../../lib/complaints311/stats.js';
+  import { locationChartHtml, skeletonHtml, errorHtml, escape, LOADING_TEXT } from '../../lib/complaints311/render.js';
+
+  const section = document.querySelector<HTMLElement>('[data-places]')!;
+  const body = section.querySelector<HTMLElement>('[data-places-body]')!;
+
+  let drawn: unknown[] = [];
+  subscribe((s) => {
+    section.hidden = !s.location;
+    if (!s.location) return;
+    const v: any = comparisonView(s);
+    body.setAttribute('aria-busy', String(v.status === 'loading'));
+    const drawnNow = v.status === 'ready' ? [v.local, v.city] : [v.status, v.waitingOnBaseline ?? v.error];
+    if (drawnNow.every((x, i) => x === drawn[i])) return;
+    drawn = drawnNow;
+
+    if (v.status === 'error') { body.innerHTML = errorHtml(v.error); return; }
+    if (v.status !== 'ready') {
+      body.innerHTML = skeletonHtml(2, { blocks: 2, text: v.waitingOnBaseline ? LOADING_TEXT.baselineSlow : LOADING_TEXT.area });
+      return;
+    }
+
+    const borough = v.mode === 'radius' ? v.boroughBaseline : null;
+    const rows = locationComparison(v.local.locations, borough?.locations ?? null, v.city.locations);
+    const sentence = v.local.total
+      ? locationSentence(rows, { where: v.mode === 'borough' ? `in ${v.boroughName}` : 'near you' })
+      : '';
+    body.innerHTML =
+      (sentence ? `<p class="c311-sentence c311-places-sentence">${escape(sentence)}</p>` : '') +
+      locationChartHtml(rows, { here: v.names.here, borough: borough ? v.names.borough : null, city: v.names.city }, { id: 'places-table' });
+  });
+</script>

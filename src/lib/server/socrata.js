@@ -16,12 +16,12 @@ export class SocrataError extends Error {
   }
 }
 
-async function get(url) {
+async function get(url, timeoutMs = TIMEOUT_MS) {
   const headers = { Accept: "application/json" };
   if (env.SOCRATA_APP_TOKEN) headers["X-App-Token"] = env.SOCRATA_APP_TOKEN;
   let res;
   try {
-    res = await fetch(url, { headers, signal: AbortSignal.timeout(TIMEOUT_MS) });
+    res = await fetch(url, { headers, signal: AbortSignal.timeout(timeoutMs) });
   } catch (err) {
     throw new SocrataError(`NYC Open Data request failed: ${err.message}`, 0);
   }
@@ -33,10 +33,11 @@ async function get(url) {
 }
 
 // Runs a SoQL query: params are the $-parameters ($select, $where, ...).
-export function soql(datasetId, params) {
+// timeoutMs: for the daily aggregates that take Socrata a minute or more.
+export function soql(datasetId, params, { timeoutMs } = {}) {
   const url = new URL(`/resource/${datasetId}.json`, DOMAIN);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-  return get(url);
+  return get(url, timeoutMs);
 }
 
 // Name, source page and when the rows were last updated.

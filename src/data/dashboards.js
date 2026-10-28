@@ -31,8 +31,7 @@ export const dashboards = [
     title: "311 Complaints in My Neighborhood",
     description: "See what your neighbors are reporting: noise, sanitation, housing, and more.",
     category: "City Government",
-    // Placeholder link: replace "#" with the real dashboard URL later.
-    url: "#"
+    url: "/311-complaints/"
   },
   {
     id: "city-payroll",

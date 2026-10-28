@@ -1,0 +1,102 @@
+---
+/*
+ * "What people are reporting": two cards side by side (stacked on phones).
+ *   A spot or ZIP: immediate area (¼ mile) and neighborhood (1 mile).
+ *   A borough:     the borough and the whole city.
+ * Each card loads on its own, so the quick ¼ mile card doesn't wait for the 1 mile.
+ */
+---
+
+<section class="dash-section c311-overview" id="overview" aria-labelledby="overview-title" data-overview hidden>
+  <header class="section-head">
+    <h2 id="overview-title">What people nearby are reporting</h2>
+    <p class="section-intro" data-overview-intro>Every 311 request with a location, counted by distance from your spot.</p>
+  </header>
+  <p class="c311-zip-count" data-zip-count hidden></p>
+  <div class="c311-cards">
+    <div class="c311-card-slot" data-slot="a" aria-live="polite" aria-busy="false"></div>
+    <div class="c311-card-slot" data-slot="b" aria-live="polite" aria-busy="false"></div>
+  </div>
+</section>
+
+<script>
+  import { subscribe } from '../../lib/complaints311/store.js';
+  import { overviewCardHtml, skeletonHtml, errorHtml, LOADING_TEXT } from '../../lib/complaints311/render.js';
+  import { overviewSentence, areaWhere } from '../../lib/complaints311/stats.js';
+  import { AREAS, WINDOWS, MIN_IMMEDIATE_REQUESTS, boroughLabel } from '../../lib/complaints311/config.js';
+  import { count } from '../../lib/format.js';
+
+  const section = document.querySelector<HTMLElement>('[data-overview]')!;
+  const intro = section.querySelector<HTMLElement>('[data-overview-intro]')!;
+  const zipCount = section.querySelector<HTMLElement>('[data-zip-count]')!;
+  const slots = { a: section.querySelector<HTMLElement>('[data-slot="a"]')!, b: section.querySelector<HTMLElement>('[data-slot="b"]')! };
+
+  const LOW_DATA_NOTE = 'Not many requests here, so we compare using your wider neighborhood.';
+
+  // Redraw a slot only when what it shows changed (each store update redraws every subscriber).
+  const drawn = new WeakMap<HTMLElement, unknown>();
+  function fill(slot: HTMLElement, key: unknown, html: () => string, busy = false) {
+    slot.setAttribute('aria-busy', String(busy));
+    if (drawn.get(slot) === key) return;
+    drawn.set(slot, key);
+    slot.innerHTML = html();
+  }
+
+  function card(slot: HTMLElement, piece: any, opts: any) {
+    if (piece.status === 'error') return fill(slot, piece, () => errorHtml(piece.error));
+    if (piece.status !== 'ready') {
+      return fill(slot, 'loading', () => `<div class="c311-card is-skeleton"><h3 class="c311-card-title">${opts.title}</h3>${skeletonHtml(3, { text: opts.loadingText ?? LOADING_TEXT.area })}</div>`, true);
+    }
+    fill(slot, piece.data ?? piece, () => overviewCardHtml(opts.summary(piece), opts));
+  }
+
+  subscribe((s) => {
+    const loc = s.location;
+    section.hidden = !loc;
+    if (!loc) return;
+    const w = WINDOWS[s.window];
+
+    if (loc.kind === 'borough') {
+      const name = boroughLabel(loc.borough);
+      intro.textContent = `All 311 requests in ${name}, next to the whole city for comparison.`;
+      zipCount.hidden = true;
+      const base = s.baseline;
+      const loadingText = LOADING_TEXT.baselineSlow;
+      card(slots.a, base, {
+        title: name, sub: 'The whole borough', id: 'ov-borough', phrase: w.phrase, loadingText,
+        summary: (p: any) => p.data.borough,
+        sentence: base.data ? overviewSentence(base.data.borough, { where: `in ${name}`, phrase: w.phrase }) : ''
+      });
+      card(slots.b, base, {
+        title: 'All of NYC', sub: 'Every borough together', id: 'ov-city', phrase: w.phrase, loadingText,
+        summary: (p: any) => p.data.city,
+        sentence: base.data ? overviewSentence(base.data.city, { where: 'across the city', phrase: w.phrase }) : ''
+      });
+      return;
+    }
+
+    intro.textContent = 'Every 311 request with a location, counted by distance from your spot.';
+    if (loc.kind === 'zip' && s.zip.status === 'ready') {
+      zipCount.hidden = false;
+      zipCount.innerHTML = `<strong>${count(s.zip.data.total)}</strong> requests list ZIP code ${loc.zip} as their address ${w.phrase}. ` +
+        `The cards below count by distance from the middle of the ZIP instead, so they include nearby blocks in other ZIPs.`;
+    } else zipCount.hidden = true;
+    if (loc.kind === 'zip' && s.zip.status === 'error') {
+      fill(slots.a, s.zip, () => errorHtml(s.zip.error?.status === 404 ? { shown: `No 311 requests mention ZIP code ${loc.zip} ${w.phrase}.` } : s.zip.error));
+      fill(slots.b, 'empty', () => '');
+      return;
+    }
+
+    for (const [slot, key] of [[slots.a, 'immediate'], [slots.b, 'neighborhood']] as const) {
+      const piece = (s as any)[key];
+      const area = AREAS[key];
+      const low = key === 'immediate' && piece.status === 'ready' && piece.data.total < MIN_IMMEDIATE_REQUESTS;
+      card(slot, piece, {
+        title: area.title, sub: `About ${area.walk.replace(/^about /, '')}`, id: `ov-${key}`, phrase: w.phrase,
+        note: low ? LOW_DATA_NOTE : '',
+        summary: (p: any) => p.data,
+        sentence: piece.status === 'ready' ? overviewSentence(piece.data, { where: areaWhere(key), phrase: w.phrase }) : ''
+      });
+    }
+  });
+</script>

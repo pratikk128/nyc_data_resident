@@ -7,8 +7,9 @@
  */
 import { refreshDaily } from "./cache.js";
 import { restaurantDailyJobs } from "./restaurants.js";
+import { complaints311DailyJobs } from "./complaints311.js";
 
-export const DAILY_JOBS = [...restaurantDailyJobs];
+export const DAILY_JOBS = [...restaurantDailyJobs, ...complaints311DailyJobs];
 
 export async function runDailyJobs() {
   const results = await Promise.allSettled(DAILY_JOBS.map(async (job) => {

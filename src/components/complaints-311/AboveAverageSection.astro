@@ -1,0 +1,89 @@
+---
+/*
+ * "What's more common here": complaint types whose share of requests here is
+ * at least ABOVE_RATIO × their share in the borough (or city), with at least
+ * MIN_LOCAL_COUNT requests here. Notably less common types sit in a collapsed list.
+ * Toggles: compare the ¼ mile or the 1 mile (AreaToggle), against the borough
+ * or the city. Both are kept in the URL.
+ */
+import AreaToggle from './AreaToggle.astro';
+import { HOW_WE_CALCULATE } from '../../lib/complaints311/render.js';
+---
+
+<section class="dash-section c311-compare" id="more-common" aria-labelledby="more-common-title" data-compare hidden>
+  <header class="section-head">
+    <h2 id="more-common-title">What's more common here</h2>
+    <p class="section-intro" data-compare-intro>Complaint types that make up a bigger share of requests near you than they do elsewhere.</p>
+  </header>
+
+  <div class="c311-controls">
+    <AreaToggle id="cmp" />
+    <div class="c311-control" data-vs-control>
+      <span class="filter-label" id="cmp-vs-label">Against</span>
+      <div class="toggle" role="group" aria-labelledby="cmp-vs-label">
+        <button type="button" class="toggle-btn" data-vs="borough" aria-pressed="true">Borough average</button>
+        <button type="button" class="toggle-btn" data-vs="city" aria-pressed="false">NYC average</button>
+      </div>
+    </div>
+    <span class="c311-tip">
+      <button type="button" class="c311-tip-btn" aria-describedby="how-calc">How we calculate this</button>
+      <span class="c311-tip-text" role="tooltip" id="how-calc">{HOW_WE_CALCULATE}</span>
+    </span>
+  </div>
+
+  <div class="c311-compare-body" data-compare-body aria-live="polite" aria-busy="false"></div>
+</section>
+
+<script>
+  import { subscribe, setView } from '../../lib/complaints311/store.js';
+  import { comparisonView } from '../../lib/complaints311/view.js';
+  import { compareShares } from '../../lib/complaints311/stats.js';
+  import { compareListHtml, skeletonHtml, errorHtml, LOADING_TEXT } from '../../lib/complaints311/render.js';
+  import { WINDOWS } from '../../lib/complaints311/config.js';
+
+  const section = document.querySelector<HTMLElement>('[data-compare]')!;
+  const body = section.querySelector<HTMLElement>('[data-compare-body]')!;
+  const intro = section.querySelector<HTMLElement>('[data-compare-intro]')!;
+  const vsControl = section.querySelector<HTMLElement>('[data-vs-control]')!;
+  const vsBtns = Array.from(section.querySelectorAll<HTMLButtonElement>('[data-vs]'));
+  const boroughBtn = vsBtns.find((b) => b.dataset.vs === 'borough')!;
+
+  vsBtns.forEach((b) => b.addEventListener('click', () => {
+    if (b.getAttribute('aria-disabled') !== 'true') setView({ vs: b.dataset.vs });
+  }));
+
+  let drawn: unknown[] = [];
+  subscribe((s) => {
+    section.hidden = !s.location;
+    if (!s.location) return;
+    const v: any = comparisonView(s);
+    body.setAttribute('aria-busy', String(v.status === 'loading'));
+
+    vsControl.hidden = v.mode === 'borough';
+    if (v.status === 'ready' && v.mode === 'radius') {
+      boroughBtn.textContent = v.boroughName ? `${v.boroughName} average` : 'Borough average';
+      boroughBtn.setAttribute('aria-disabled', String(!v.hasBorough));
+      vsBtns.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.vs === v.vs)));
+    }
+    intro.textContent = v.mode === 'borough'
+      ? 'Complaint types that make up a bigger share of requests in this borough than across the whole city.'
+      : 'Complaint types that make up a bigger share of requests near you than they do elsewhere.';
+
+    // Every store update calls this; redraw only when what's shown changed.
+    const drawnNow = v.status === 'ready' ? [v.local, v.baseline] : [v.status, v.waitingOnBaseline ?? v.error];
+    if (drawnNow.every((x, i) => x === drawn[i])) return;
+    drawn = drawnNow;
+
+    if (v.status === 'error') { body.innerHTML = errorHtml(v.error); return; }
+    if (v.status !== 'ready') {
+      body.innerHTML = skeletonHtml(4, { blocks: 0, text: v.waitingOnBaseline ? LOADING_TEXT.baselineSlow : LOADING_TEXT.area });
+      return;
+    }
+
+    const result = compareShares(v.local.types, v.baseline.types);
+    const scope = v.mode === 'borough' ? '' :
+      `<p class="c311-scope">Comparing ${v.area === 'immediate' ? 'your immediate area (¼ mile)' : 'your neighborhood (1 mile)'} ` +
+      `with ${v.baselineName}, ${WINDOWS[s.window].phrase}.</p>`;
+    body.innerHTML = scope + compareListHtml(result, { baselineName: v.baselineName, localName: v.localName });
+  });
+</script>
