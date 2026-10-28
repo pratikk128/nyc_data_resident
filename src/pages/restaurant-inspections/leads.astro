@@ -1,0 +1,30 @@
+---
+/*
+ * NYC Restaurant Inspections: "Leads by service type". Rendered on demand
+ * (not prerendered) so the "Data updated" date comes from the dataset's live
+ * metadata; the leads themselves load in the browser from /api/restaurants/leads.
+ */
+import InspectionsPage from '../../components/restaurant-inspections/InspectionsPage.astro';
+import LeadsSection from '../../components/restaurant-inspections/LeadsSection.astro';
+import { getMetadata } from '../../lib/server/restaurants.js';
+
+export const prerender = false;
+
+let meta = null;
+try {
+  meta = await getMetadata();
+} catch (err) {
+  console.error(err); // the page still works; it just can't show the date
+}
+Astro.response.headers.set('Cache-Control', 'public, max-age=300');
+---
+
+<InspectionsPage
+  section="leads"
+  title="Leads by service type | NYC Restaurant Inspections"
+  description="NYC restaurants with recent critical health violations, grouped by the service that can fix them: pest control, refrigeration, plumbing and more."
+  path="/restaurant-inspections/leads/"
+  meta={meta}
+>
+  <LeadsSection meta={meta} />
+</InspectionsPage>

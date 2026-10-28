@@ -159,3 +159,49 @@ export function familyCountParams(since, { bySimilar = false } = {}) {
 export function similarKey(cuisine, boro) {
   return `${cuisine ?? ""}|${boro ?? ""}`;
 }
+
+// ---------- Leads by service type (run once a day) ----------
+
+// The latest inspection date in the data: the leads windows count back from it.
+// Dates after `today` (typos) are left out so one can't empty the windows.
+export function latestInspectionParams(today) {
+  return {
+    $select: "max(inspection_date) AS latest",
+    $where: `inspection_date <= '${today}T23:59:59'`
+  };
+}
+
+const leadWindow = (since, through) =>
+  `inspection_date between '${since}T00:00:00' and '${through}T23:59:59' ` +
+  `AND inspection_date > '${NOT_INSPECTED_DATE}T00:00:00'`;
+
+const codeList = (codes) => codes.map(soqlString).join(", ");
+
+// Critical violations with a mapped code in the window, plus any codes in
+// includeNonCriticalCodes whatever their flag.
+export function leadViolationParams(since, through, codes, nonCriticalCodes = []) {
+  const critical = nonCriticalCodes.length
+    ? `(critical_flag = 'Critical' OR violation_code in (${codeList(nonCriticalCodes)}))`
+    : "critical_flag = 'Critical'";
+  return {
+    $select: "camis, dba, boro, building, street, zipcode, phone, cuisine_description, latitude, longitude, " +
+      "inspection_date, violation_code, violation_description, critical_flag",
+    $where: `${leadWindow(since, through)} AND violation_code IS NOT NULL AND ${critical} ` +
+      `AND violation_code in (${codeList(codes)})`,
+    $order: "camis, inspection_date DESC, violation_code",
+    $limit: "50000"
+  };
+}
+
+// Every inspection in the window, violations or not, for each restaurant's
+// latest score and action. Grouped, so each inspection comes back once per
+// type/action rather than once per violation.
+export function leadInspectionParams(since, through) {
+  return {
+    $select: "camis, inspection_date, inspection_type, action, score, grade",
+    $where: leadWindow(since, through),
+    $group: "camis, inspection_date, inspection_type, action, score, grade",
+    $order: "camis, inspection_date DESC",
+    $limit: "50000"
+  };
+}

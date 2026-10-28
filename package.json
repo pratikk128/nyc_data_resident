@@ -11,6 +11,7 @@
     "preview": "astro preview",
     "astro": "astro",
     "data:payroll": "node scripts/refresh-payroll-data.mjs",
+    "audit:violations": "node scripts/audit-violation-mapping.mjs",
     "deploy": "astro build && wrangler deploy",
     "test": "node --test \"tests/**/*.test.js\""
   },

@@ -1,0 +1,353 @@
+---
+/*
+ * "Leads by service type": restaurants with recent critical violations that a
+ * kind of service business (pest control, plumbers, ...) can help fix, ranked
+ * by how many they had. The mapping is src/lib/restaurants/business-groups.js.
+ *
+ * The data is one daily snapshot from /api/restaurants/leads (the last 30
+ * days of the data); the group, window, borough, search and "urgent only"
+ * filters run in the browser and live in the URL (?group=&days=&boro=&q=&urgent=1).
+ */
+import StatCard from '../StatCard.astro';
+import { BUSINESS_GROUPS, LEADS_CONFIG } from '../../lib/restaurants/business-groups.js';
+import { BOROUGHS } from '../../lib/restaurants/inspections.js';
+import { date } from '../../lib/format.js';
+
+interface Props {
+  meta: { id: string; name: string; url: string; rowsUpdatedAt: string | null } | null;
+}
+
+const { meta } = Astro.props;
+const datasetUrl = meta?.url ?? 'https://data.cityofnewyork.us/d/43nn-pn8j';
+const datasetName = meta?.name ?? 'DOHMH New York City Restaurant Inspection Results';
+const first = BUSINESS_GROUPS[0];
+const { windows, defaultWindow, reinspectionScore, includeNonCriticalCodes } = LEADS_CONFIG;
+---
+
+<section class="dash-section leads" id="leads" aria-labelledby="leads-title" data-leads>
+  <header class="section-head">
+    <h2 id="leads-title">Leads by service type</h2>
+    <p class="section-intro">
+      Restaurants the Health Department recently cited for critical violations, grouped by the kind of business that
+      can help fix them: exterminators, refrigeration techs, plumbers and more. Restaurants with the most violations in
+      a group come first.
+    </p>
+  </header>
+
+  <div class="leads-groups" role="group" aria-label="Service type">
+    {BUSINESS_GROUPS.map((g) => (
+      <button type="button" class="leads-group" data-tone={g.tone} data-group={g.id} aria-pressed={String(g.id === first.id)}>
+        <svg class="leads-group-icon" aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" set:html={g.icon} />
+        <span class="leads-group-label">{g.label}</span>
+        <span class="leads-group-count" data-count>–</span>
+      </button>
+    ))}
+  </div>
+  <p class="leads-group-blurb" data-group-blurb>{first.description}</p>
+
+  <div class="leads-controls">
+    <div class="leads-control">
+      <span class="filter-label" id="leads-days-label">Inspected in the</span>
+      <div class="toggle" role="group" aria-labelledby="leads-days-label">
+        {windows.map((d) => (
+          <button type="button" class="toggle-btn" data-days={d} aria-pressed={String(d === defaultWindow)}>Last {d} days</button>
+        ))}
+      </div>
+    </div>
+    <div class="leads-control">
+      <label class="filter-label" for="leads-boro">Borough</label>
+      <select class="filter-select" id="leads-boro">
+        <option value="">All boroughs</option>
+        {BOROUGHS.map((b) => <option value={b}>{b}</option>)}
+      </select>
+    </div>
+    <div class="leads-control leads-search">
+      <label class="filter-label" for="leads-q">Name, street or ZIP</label>
+      <input class="search-input" id="leads-q" type="search" maxlength="80" autocomplete="off" spellcheck="false"
+        placeholder="Try “11211” or “Pizza”" aria-controls="leads-list" />
+    </div>
+    <div class="leads-control leads-urgent">
+      <button type="button" class="job-chip" aria-pressed="false" data-urgent aria-describedby="leads-urgent-hint">Urgent only</button>
+      <span class="sr-only" id="leads-urgent-hint">Only restaurants closed by the Health Department or likely to be re-inspected</span>
+    </div>
+  </div>
+
+  <p class="leads-through" data-through>Loading the latest inspections…</p>
+
+  <div class="stat-grid leads-stats">
+    <StatCard name="restaurants" label="Restaurants affected" value="–" />
+    <StatCard name="violations" label="Critical violations" value="–"
+      context={includeNonCriticalCodes.length ? undefined : 'Cited in this group'} />
+    <StatCard name="closed" label="Closed by DOHMH" value="–" context="Their latest inspection closed them" />
+    <StatCard name="reinspection" label="Re-inspection likely" value="–" context={`Latest score ${reinspectionScore} points or more`} />
+  </div>
+
+  <div class="leads-list-head">
+    <p class="rest-status" role="status" aria-live="polite" data-status></p>
+    <a class="download-link" href="#" download="restaurant-leads.csv" data-csv hidden>Download CSV</a>
+  </div>
+  <ul class="leads-list" id="leads-list" aria-label="Restaurants, most violations first" data-list></ul>
+  <div class="pager leads-more" data-more-wrap hidden>
+    <button type="button" class="pager-btn" data-more>Show more</button>
+  </div>
+</section>
+
+<section class="dash-section rest-about" aria-labelledby="leads-about-title">
+  <h2 class="chart-title" id="leads-about-title">How to read this data</h2>
+  <details class="about-data">
+    <summary>About these leads</summary>
+    <div class="about-body">
+      <p>
+        <strong>Which violations count.</strong> Each service type covers a set of DOHMH violation codes, such as
+        04K (rats), 04L (mice) and 04M (roaches) for pest control. We count critical violations{includeNonCriticalCodes.length > 0
+          ? `, plus ${includeNonCriticalCodes.join(', ')}, which the Health Department doesn't rate critical but which matters for the service`
+          : ' only'}. A code can belong to more than one service type: toxic chemicals stored near food (04E) count for
+        both pest control and equipment repair. Open a card to see each violation's code and full description.
+      </p>
+      <p>
+        <strong>Time window.</strong> “Last 7 days” and “Last 30 days” count back from the most recent inspection date in the
+        data, not from today, because inspections take a few days to appear on NYC Open Data. The most recent day can be
+        incomplete.
+      </p>
+      <p>
+        <strong>Urgency.</strong> “Closed by DOHMH” means the restaurant's latest inspection closed it (or closed it again).
+        “Re-inspection likely” means its latest score was {reinspectionScore} points or more, the range where the Health
+        Department comes back for a second look. A restaurant that has since been reopened isn't marked closed.
+      </p>
+      <p>
+        <strong>Ranking.</strong> Most violations in the service type first, then closed restaurants, then likely
+        re-inspections, then the highest latest score, then the most recent inspection.
+      </p>
+      <p>
+        <strong>Counting.</strong> The source has one row per violation. A code cited twice at the same restaurant on the same day
+        counts once. Scores repeat on every row, so we take one score per inspection (restaurant and date). Restaurants are
+        matched by their permit ID (CAMIS), not by name. The list is rebuilt once a day.
+      </p>
+    </div>
+  </details>
+
+  <footer class="section-sources">
+    <h3 class="sources-title">Where this comes from</h3>
+    <p>
+      <a href={datasetUrl}>{datasetName}</a> on NYC Open Data (dataset 43nn-pn8j), from the NYC Department of Health
+      and Mental Hygiene.
+      {meta?.rowsUpdatedAt && <> Last updated {date(meta.rowsUpdatedAt)}.</>}
+    </p>
+    <ul class="caveats">
+      <li>Violations reflect conditions on the day of the inspection. Many restaurants fix them on the spot or soon after.</li>
+      <li>A listing here isn't a safety rating, and it doesn't mean a restaurant has asked for help.</li>
+      <li>Phone numbers and addresses are as the restaurant registered them with the city and may be out of date.</li>
+    </ul>
+    <p><a href="https://data.cityofnewyork.us/d/43nn-pn8j">Report a data problem</a> to NYC Open Data.</p>
+  </footer>
+</section>
+
+<script>
+  import { BUSINESS_GROUPS, LEADS_CONFIG, businessGroup } from '../../lib/restaurants/business-groups.js';
+  import { BOROUGHS } from '../../lib/restaurants/inspections.js';
+  import { windowRange, rankLeads, summarizeLeads, leadsCsv } from '../../lib/restaurants/leads.js';
+  import { leadCardHtml, skeletonCardsHtml, emptyStateText } from '../../lib/restaurants/leads-render.js';
+  import { date, count } from '../../lib/format.js';
+
+  const MSG = {
+    loading: 'Checking the kitchens…',
+    error: 'Couldn’t reach NYC Open Data. Their servers might be stuck behind a double-parked truck. Try again in a minute.'
+  };
+  const PAGE = LEADS_CONFIG.pageSize;
+  const SEARCH_DEBOUNCE_MS = 200;
+
+  const root = document.querySelector<HTMLElement>('[data-leads]')!;
+  const groupBtns = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-group]'));
+  const dayBtns = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-days]'));
+  const boroSelect = root.querySelector<HTMLSelectElement>('#leads-boro')!;
+  const searchInput = root.querySelector<HTMLInputElement>('#leads-q')!;
+  const urgentBtn = root.querySelector<HTMLButtonElement>('[data-urgent]')!;
+  const blurb = root.querySelector<HTMLElement>('[data-group-blurb]')!;
+  const through = root.querySelector<HTMLElement>('[data-through]')!;
+  const status = root.querySelector<HTMLElement>('[data-status]')!;
+  const csvLink = root.querySelector<HTMLAnchorElement>('[data-csv]')!;
+  const list = root.querySelector<HTMLUListElement>('[data-list]')!;
+  const moreWrap = root.querySelector<HTMLElement>('[data-more-wrap]')!;
+  const moreBtn = root.querySelector<HTMLButtonElement>('[data-more]')!;
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+
+  type State = { group: string; days: number; boro: string; q: string; urgent: boolean };
+  let data: any = null;
+  let leads: any[] = [];
+  let shown = 0;
+  let searchTimer = 0;
+
+  // ---------- URL state ----------
+  function readUrl(): State {
+    const p = new URL(location.href).searchParams;
+    const days = Number(p.get('days'));
+    return {
+      group: businessGroup(p.get('group')) ? p.get('group')! : BUSINESS_GROUPS[0].id,
+      days: LEADS_CONFIG.windows.includes(days) ? days : LEADS_CONFIG.defaultWindow,
+      boro: BOROUGHS.includes(p.get('boro') ?? '') ? p.get('boro')! : '',
+      q: (p.get('q') ?? '').slice(0, 80),
+      urgent: p.get('urgent') === '1'
+    };
+  }
+  let state = readUrl();
+
+  function writeUrl() {
+    const url = new URL(location.href);
+    const set = (k: string, v: string | null) => (v ? url.searchParams.set(k, v) : url.searchParams.delete(k));
+    set('group', state.group === BUSINESS_GROUPS[0].id ? null : state.group);
+    set('days', state.days === LEADS_CONFIG.defaultWindow ? null : String(state.days));
+    set('boro', state.boro || null);
+    set('q', state.q.trim() || null);
+    set('urgent', state.urgent ? '1' : null);
+    if (url.href !== location.href) history.replaceState(history.state, '', url);
+  }
+
+  function syncControls() {
+    groupBtns.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.group === state.group)));
+    dayBtns.forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.days) === state.days)));
+    boroSelect.value = state.boro;
+    if (searchInput.value !== state.q) searchInput.value = state.q;
+    urgentBtn.setAttribute('aria-pressed', String(state.urgent));
+    blurb.textContent = businessGroup(state.group)!.description;
+  }
+
+  // ---------- Render ----------
+  const filters = () => ({
+    since: windowRange(data.referenceDate, state.days).since,
+    boro: state.boro, search: state.q, urgentOnly: state.urgent
+  });
+
+  function setStat(name: string, value: string, context?: string) {
+    const card = root.querySelector(`[data-stat="${name}"]`)!;
+    card.querySelector('.stat-value')!.textContent = value;
+    if (context !== undefined) {
+      let ctx = card.querySelector('.stat-context');
+      if (!ctx) { ctx = document.createElement('p'); ctx.className = 'stat-context'; card.append(ctx); }
+      ctx.textContent = context;
+    }
+  }
+
+  function appendCards(from: number, to: number) {
+    const group = businessGroup(state.group)!;
+    list.insertAdjacentHTML('beforeend', leads.slice(from, to).map((l) => leadCardHtml(l, group, data.descriptions)).join(''));
+    shown = Math.min(to, leads.length);
+    moreWrap.hidden = shown >= leads.length;
+    moreBtn.textContent = `Show ${Math.min(PAGE, leads.length - shown)} more`;
+    if (leads.length) status.textContent = `Showing ${count(shown)} of ${count(leads.length)} restaurants.`;
+  }
+
+  function render() {
+    if (!data) return;
+    const group = businessGroup(state.group)!;
+    const f = filters();
+    const range = windowRange(data.referenceDate, state.days);
+    through.innerHTML = `Data through <strong><time datetime="${data.referenceDate}">${date(data.referenceDate)}</time></strong>` +
+      ` · showing inspections from ${date(range.since)} to ${date(range.through)}`;
+
+    for (const b of groupBtns) b.querySelector('[data-count]')!.textContent = count(rankLeads(data.restaurants, b.dataset.group!, f).length);
+
+    leads = rankLeads(data.restaurants, group.id, f);
+    const s = summarizeLeads(leads);
+    const nonCritical = group.codes.filter((c: string) => LEADS_CONFIG.includeNonCriticalCodes.includes(c));
+    setStat('restaurants', count(s.restaurants));
+    setStat('violations', count(s.violations), nonCritical.length ? `Includes ${nonCritical.join(', ')} (not critical)` : 'Cited in this group');
+    setStat('closed', count(s.closed));
+    setStat('reinspection', count(s.reinspection));
+
+    const csv = leadsCsv(leads);
+    csvLink.href = `data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`;
+    csvLink.download = ['restaurant-leads', group.id, `${state.days}-days`, state.boro.toLowerCase().replace(/\s+/g, '-'), data.referenceDate]
+      .filter(Boolean).join('-') + '.csv';
+    csvLink.hidden = !leads.length;
+
+    list.replaceChildren();
+    if (!leads.length) {
+      const filtered = Boolean(state.boro || state.q.trim() || state.urgent);
+      status.textContent = '';
+      list.innerHTML = `<li class="leads-empty"></li>`;
+      list.firstElementChild!.textContent = emptyStateText(group, state.days, { filtered });
+      moreWrap.hidden = true;
+      return;
+    }
+    appendCards(0, PAGE);
+  }
+
+  function update(changes: Partial<State>) {
+    state = { ...state, ...changes };
+    syncControls();
+    writeUrl();
+    render();
+  }
+
+  // ---------- Controls ----------
+  groupBtns.forEach((b) => b.addEventListener('click', () => update({ group: b.dataset.group! })));
+  dayBtns.forEach((b) => b.addEventListener('click', () => update({ days: Number(b.dataset.days) })));
+  boroSelect.addEventListener('change', () => update({ boro: boroSelect.value }));
+  urgentBtn.addEventListener('click', () => update({ urgent: !state.urgent }));
+  searchInput.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = window.setTimeout(() => update({ q: searchInput.value }), SEARCH_DEBOUNCE_MS);
+  });
+
+  moreBtn.addEventListener('click', () => {
+    const from = shown;
+    appendCards(from, from + PAGE);
+    // Keyboard users land on the first new card instead of the end of the page.
+    list.children[from]?.querySelector<HTMLElement>('[data-flip]')?.focus();
+  });
+
+  // ---------- Flip cards ----------
+  // With reduced motion the back opens below the front instead of turning
+  // over, so the front stays usable.
+  function flip(card: HTMLElement, on: boolean, { focus = true } = {}) {
+    const front = card.querySelector<HTMLButtonElement>('[data-flip]')!;
+    const back = card.querySelector<HTMLElement>('.lead-back')!;
+    card.classList.toggle('is-flipped', on);
+    front.setAttribute('aria-expanded', String(on));
+    back.inert = !on;
+    front.inert = on && !reducedMotion.matches;
+    if (!focus) return;
+    if (on) back.querySelector<HTMLElement>('[data-unflip]')!.focus({ preventScroll: true });
+    else front.focus({ preventScroll: true });
+  }
+
+  list.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    const card = target.closest<HTMLElement>('.lead-card');
+    if (!card || card.classList.contains('is-skeleton')) return;
+    if (target.closest('[data-flip]')) flip(card, !card.classList.contains('is-flipped'));
+    else if (target.closest('[data-unflip]')) flip(card, false);
+  });
+  list.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    const card = (e.target as HTMLElement).closest<HTMLElement>('.lead-card.is-flipped');
+    if (card) flip(card, false);
+  });
+  reducedMotion.addEventListener('change', () => {
+    list.querySelectorAll<HTMLElement>('.lead-card.is-flipped').forEach((c) => flip(c, true, { focus: false }));
+  });
+
+  // ---------- Start ----------
+  async function load() {
+    status.textContent = MSG.loading;
+    list.setAttribute('aria-busy', 'true');
+    list.innerHTML = skeletonCardsHtml();
+    try {
+      const res = await fetch('/api/restaurants/leads');
+      const body = await res.json().catch(() => null);
+      if (!res.ok || !Array.isArray(body?.restaurants)) throw new Error('upstream');
+      data = body;
+      render();
+    } catch {
+      list.replaceChildren();
+      through.textContent = '';
+      status.textContent = MSG.error;
+    } finally {
+      list.removeAttribute('aria-busy');
+    }
+  }
+
+  syncControls();
+  load();
+</script>

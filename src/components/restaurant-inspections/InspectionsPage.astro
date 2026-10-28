@@ -1,0 +1,58 @@
+---
+/*
+ * Shell shared by the NYC Restaurant Inspections views: page heading plus the
+ * section cards and pager. Each section is its own page
+ * (src/pages/restaurant-inspections/) so it has its own URL; the section
+ * itself goes in the default slot.
+ */
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+import SectionNav from '../SectionNav.astro';
+import SectionPager from '../SectionPager.astro';
+import { date } from '../../lib/format.js';
+
+// Add a section here and a page in src/pages/restaurant-inspections/ to add a view.
+const SECTIONS = [
+  {
+    id: 'lookup',
+    href: '/restaurant-inspections/',
+    label: 'Look up a restaurant',
+    blurb: 'Any restaurant’s grade, latest violations and how it compares.'
+  },
+  {
+    id: 'leads',
+    href: '/restaurant-inspections/leads/',
+    label: 'Leads by service type',
+    blurb: 'Restaurants with recent critical violations, by the kind of fix they need.'
+  }
+];
+
+interface Props {
+  section: 'lookup' | 'leads';
+  title: string;        // <title>, without the site name
+  description: string;
+  path: string;
+  meta: { rowsUpdatedAt: string | null } | null;
+}
+
+const { section, title, description, path, meta } = Astro.props;
+---
+
+<DashboardLayout
+  title={title}
+  description={description}
+  path={path}
+  category="Health"
+  lastRefreshed={meta?.rowsUpdatedAt ? date(meta.rowsUpdatedAt) : undefined}
+  dataUpdated={meta?.rowsUpdatedAt ?? undefined}
+>
+  <header class="page-head">
+    <h1>NYC Restaurant Inspections</h1>
+    <p>Every restaurant in the city gets surprise visits from Health Department inspectors. Here's what they found, in plain language.</p>
+  </header>
+
+  <SectionNav sections={SECTIONS} current={section} label="NYC Restaurant Inspections sections" />
+
+  <slot />
+
+  <SectionPager sections={SECTIONS} current={section} />
+</DashboardLayout>
