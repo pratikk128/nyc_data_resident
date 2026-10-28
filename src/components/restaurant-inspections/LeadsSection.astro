@@ -5,8 +5,9 @@
  * by how many they had. The mapping is src/lib/restaurants/business-groups.js.
  *
  * The data is one daily snapshot from /api/restaurants/leads (the last 30
- * days of the data); the group, window, borough, search and "urgent only"
- * filters run in the browser and live in the URL (?group=&days=&boro=&q=&urgent=1).
+ * days of the data); the group, window, borough, search, "urgent only" and
+ * "hide low scores" filters run in the browser and live in the URL
+ * (?group=&days=&boro=&q=&urgent=1&low=1; low=1 shows low scores, which are hidden by default).
  */
 import StatCard from '../StatCard.astro';
 import { BUSINESS_GROUPS, LEADS_CONFIG } from '../../lib/restaurants/business-groups.js';
@@ -21,7 +22,7 @@ const { meta } = Astro.props;
 const datasetUrl = meta?.url ?? 'https://data.cityofnewyork.us/d/43nn-pn8j';
 const datasetName = meta?.name ?? 'DOHMH New York City Restaurant Inspection Results';
 const first = BUSINESS_GROUPS[0];
-const { windows, defaultWindow, reinspectionScore, includeNonCriticalCodes } = LEADS_CONFIG;
+const { windows, defaultWindow, reinspectionScore, lowScoreMax, includeNonCriticalCodes } = LEADS_CONFIG;
 ---
 
 <section class="dash-section leads" id="leads" aria-labelledby="leads-title" data-leads>
@@ -70,6 +71,8 @@ const { windows, defaultWindow, reinspectionScore, includeNonCriticalCodes } = L
     <div class="leads-control leads-urgent">
       <button type="button" class="job-chip" aria-pressed="false" data-urgent aria-describedby="leads-urgent-hint">Urgent only</button>
       <span class="sr-only" id="leads-urgent-hint">Only restaurants closed by the Health Department or likely to be re-inspected</span>
+      <button type="button" class="job-chip" aria-pressed="true" data-hide-low aria-describedby="leads-low-hint">Hide low scores</button>
+      <span class="sr-only" id="leads-low-hint">Hide restaurants whose latest score is {lowScoreMax} points or less</span>
     </div>
   </div>
 
@@ -114,6 +117,8 @@ const { windows, defaultWindow, reinspectionScore, includeNonCriticalCodes } = L
         <strong>Urgency.</strong> “Closed by DOHMH” means the restaurant's latest inspection closed it (or closed it again).
         “Re-inspection likely” means its latest score was {reinspectionScore} points or more, the range where the Health
         Department comes back for a second look. A restaurant that has since been reopened isn't marked closed.
+        “Hide low scores” (on by default) leaves out restaurants whose latest score was {lowScoreMax} points or less;
+        restaurants without a score yet stay in.
       </p>
       <p>
         <strong>Ranking.</strong> Most violations in the service type first, then closed restaurants, then likely
@@ -163,6 +168,7 @@ const { windows, defaultWindow, reinspectionScore, includeNonCriticalCodes } = L
   const boroSelect = root.querySelector<HTMLSelectElement>('#leads-boro')!;
   const searchInput = root.querySelector<HTMLInputElement>('#leads-q')!;
   const urgentBtn = root.querySelector<HTMLButtonElement>('[data-urgent]')!;
+  const hideLowBtn = root.querySelector<HTMLButtonElement>('[data-hide-low]')!;
   const blurb = root.querySelector<HTMLElement>('[data-group-blurb]')!;
   const through = root.querySelector<HTMLElement>('[data-through]')!;
   const status = root.querySelector<HTMLElement>('[data-status]')!;
@@ -172,7 +178,7 @@ const { windows, defaultWindow, reinspectionScore, includeNonCriticalCodes } = L
   const moreBtn = root.querySelector<HTMLButtonElement>('[data-more]')!;
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 
-  type State = { group: string; days: number; boro: string; q: string; urgent: boolean };
+  type State = { group: string; days: number; boro: string; q: string; urgent: boolean; hideLow: boolean };
   let data: any = null;
   let leads: any[] = [];
   let shown = 0;
@@ -187,7 +193,8 @@ const { windows, defaultWindow, reinspectionScore, includeNonCriticalCodes } = L
       days: LEADS_CONFIG.windows.includes(days) ? days : LEADS_CONFIG.defaultWindow,
       boro: BOROUGHS.includes(p.get('boro') ?? '') ? p.get('boro')! : '',
       q: (p.get('q') ?? '').slice(0, 80),
-      urgent: p.get('urgent') === '1'
+      urgent: p.get('urgent') === '1',
+      hideLow: p.get('low') !== '1'
     };
   }
   let state = readUrl();
@@ -200,6 +207,7 @@ const { windows, defaultWindow, reinspectionScore, includeNonCriticalCodes } = L
     set('boro', state.boro || null);
     set('q', state.q.trim() || null);
     set('urgent', state.urgent ? '1' : null);
+    set('low', state.hideLow ? null : '1');
     if (url.href !== location.href) history.replaceState(history.state, '', url);
   }
 
@@ -209,13 +217,14 @@ const { windows, defaultWindow, reinspectionScore, includeNonCriticalCodes } = L
     boroSelect.value = state.boro;
     if (searchInput.value !== state.q) searchInput.value = state.q;
     urgentBtn.setAttribute('aria-pressed', String(state.urgent));
+    hideLowBtn.setAttribute('aria-pressed', String(state.hideLow));
     blurb.textContent = businessGroup(state.group)!.description;
   }
 
   // ---------- Render ----------
   const filters = () => ({
     since: windowRange(data.referenceDate, state.days).since,
-    boro: state.boro, search: state.q, urgentOnly: state.urgent
+    boro: state.boro, search: state.q, urgentOnly: state.urgent, hideLowScores: state.hideLow
   });
 
   function setStat(name: string, value: string, context?: string) {
@@ -263,7 +272,7 @@ const { windows, defaultWindow, reinspectionScore, includeNonCriticalCodes } = L
 
     list.replaceChildren();
     if (!leads.length) {
-      const filtered = Boolean(state.boro || state.q.trim() || state.urgent);
+      const filtered = Boolean(state.boro || state.q.trim() || state.urgent || state.hideLow);
       status.textContent = '';
       list.innerHTML = `<li class="leads-empty"></li>`;
       list.firstElementChild!.textContent = emptyStateText(group, state.days, { filtered });
@@ -285,6 +294,7 @@ const { windows, defaultWindow, reinspectionScore, includeNonCriticalCodes } = L
   dayBtns.forEach((b) => b.addEventListener('click', () => update({ days: Number(b.dataset.days) })));
   boroSelect.addEventListener('change', () => update({ boro: boroSelect.value }));
   urgentBtn.addEventListener('click', () => update({ urgent: !state.urgent }));
+  hideLowBtn.addEventListener('click', () => update({ hideLow: !state.hideLow }));
   searchInput.addEventListener('input', () => {
     clearTimeout(searchTimer);
     searchTimer = window.setTimeout(() => update({ q: searchInput.value }), SEARCH_DEBOUNCE_MS);

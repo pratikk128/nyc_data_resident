@@ -169,13 +169,20 @@ export function matchesSearch(restaurant, text) {
   return [restaurant.name, restaurant.address, restaurant.zipcode].some((f) => normalizeText(f).toUpperCase().includes(q));
 }
 
-// filters: { since, boro, search, urgentOnly }. Restaurants with at least one
-// violation in the group, ranked, each with its group stats and rank.
-export function rankLeads(restaurants, groupId, { since, boro = "", search = "", urgentOnly = false } = {}) {
+// Latest score at or under lowScoreMax. A restaurant with no score yet isn't low.
+export function isLowScore(restaurant, { lowScoreMax = LEADS_CONFIG.lowScoreMax } = {}) {
+  const score = restaurant.latest?.score;
+  return score != null && score <= lowScoreMax;
+}
+
+// filters: { since, boro, search, urgentOnly, hideLowScores }. Restaurants with
+// at least one violation in the group, ranked, each with its group stats and rank.
+export function rankLeads(restaurants, groupId, { since, boro = "", search = "", urgentOnly = false, hideLowScores = false } = {}) {
   const leads = [];
   for (const r of restaurants) {
     if (boro && r.boro !== boro) continue;
     if (urgentOnly && r.tier === "standard") continue;
+    if (hideLowScores && isLowScore(r)) continue;
     if (!matchesSearch(r, search)) continue;
     const stats = groupStats(r, groupId, since);
     if (stats.groupViolationCount) leads.push({ ...r, ...stats });

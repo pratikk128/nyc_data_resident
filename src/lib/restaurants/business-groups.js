@@ -16,6 +16,8 @@ export const LEADS_CONFIG = {
   defaultWindow: 7,
   // NYC re-inspects a restaurant whose initial inspection scores 14 or more (B/C range).
   reinspectionScore: 14,
+  // "Hide low scores" (on by default) drops restaurants whose latest score is this or lower.
+  lowScoreMax: 3,
   pageSize: 24,
   // Non-critical codes to treat as leads too (e.g. "10B" back-flow for plumbers).
   // A code listed here also has to be in a group's codes[] to show up.
@@ -23,8 +25,12 @@ export const LEADS_CONFIG = {
 };
 
 // Critical codes deliberately left out of every group, with the reason.
+const SOURCING = "Food bought from the wrong source or in bad condition; fixed by changing suppliers, not by a service.";
+const HANDLING = "Everyday food handling lapse the kitchen corrects on the spot; doesn't point to any one service.";
 export const IGNORED_CODES = {
-  "07A": "Obstructing an inspector; no service fixes that."
+  "07A": "Obstructing an inspector; no service fixes that.",
+  "03A": SOURCING, "03B": SOURCING, "03C": SOURCING, "03D": SOURCING, "03F": SOURCING, "04P": SOURCING,
+  "09A": HANDLING, "04H": HANDLING, "06C": HANDLING, "06E": HANDLING, "06F": HANDLING
 };
 
 // icon: inner SVG of a 24×24 stroke icon. tone: a [data-tone] color in landing.css
@@ -43,10 +49,12 @@ export const BUSINESS_GROUPS = [
     id: "refrigeration",
     label: "Refrigeration & Temperature Equipment",
     short: "refrigeration",
-    description: "Cold food above 41 °F, hot food below 140 °F, food not cooled fast enough, or not enough hot or cold holding equipment.",
+    description: "Cold food above 41 °F, or not enough hot or cold holding equipment.",
     tone: "blue",
     icon: '<rect x="6" y="2.5" width="12" height="19" rx="2"/><path d="M6 9.5h12M9 5.5v2M9 12.5v3"/>',
-    codes: ["02B", "02G", "02H", "02I", "05F"]
+    // Hot food below 140 °F (02B) and cooling methods (02H, 02I) are staff practice, so they're in
+    // training; a shortage of hot holding equipment is still caught by 05F.
+    codes: ["02G", "05F"]
   },
   {
     id: "plumbing",
@@ -70,23 +78,22 @@ export const BUSINESS_GROUPS = [
     id: "cleaning",
     label: "Commercial Cleaning & Sanitation",
     short: "sanitation",
-    description: "Food contact surfaces not washed and sanitized, food or equipment exposed to contamination, dirty wiping cloths.",
+    description: "Food contact surfaces not washed, rinsed and sanitized, or food and work areas contaminated by sewage or liquid waste.",
     tone: "green",
     icon: '<path d="M14 3l-4 9M7 12h8l1.5 9h-11L7 12zM9.5 16.5v2M13 16.5v2"/>',
-    codes: ["06C", "06D", "06E", "06F", "04H", "04F"]
+    codes: ["06D", "04F"]
   },
   {
     id: "training",
     label: "Food Safety Training & Compliance Consulting",
     short: "food safety",
-    description: "No certified food protection supervisor, worker hygiene, cooking and reheating temperatures, food sources and required plans.",
+    description: "No certified food protection supervisor, worker hygiene, cooking, hot holding and cooling temperatures, and required HACCP plans and procedures.",
     tone: "pink",
     icon: '<path d="M2 9l10-5 10 5-10 5L2 9z"/><path d="M6 11v5c0 1.5 2.7 3 6 3s6-1.5 6-3v-5"/>',
     codes: [
       "04A", "04B", "04C", "04D", "06A", "06B",       // certificate holder and worker hygiene
-      "02A", "02C", "02D", "02F", "02H", "02I",       // cooking, reheating, cooling methods
-      "03A", "03B", "03C", "03D", "03F", "03G", "03I", // food sources and labels
-      "04I", "04P", "05H", "06G", "06H", "09A"        // procedures, HACCP and SOPs
+      "02A", "02B", "02C", "02D", "02F", "02H", "02I", // cooking, reheating, hot holding, cooling
+      "03G", "03I", "04I", "05H", "06G", "06H"         // procedures, labels, HACCP and SOPs
     ]
   },
   {
