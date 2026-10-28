@@ -148,7 +148,9 @@ export function mountHeatmap(root) {
       if (!next) { controller?.abort(); return; }
       const selected = new Set(next.selectedTypes ?? []);
       filter.hidden = !next.complaintTypes.length;
-      options.innerHTML = next.complaintTypes.map((key, i) => (
+      // Alphabetical by label, so a type is easy to find.
+      const sorted = [...next.complaintTypes].sort((a, b) => typeLabel(a).localeCompare(typeLabel(b)));
+      options.innerHTML = sorted.map((key, i) => (
         `<label class="pay-chip c311-chip"><input type="checkbox" name="heatmap-type" value="${escape(key)}"` +
         `${selected.has(key) ? " checked" : ""} id="hm-type-${i}"/>${escape(typeLabel(key))}</label>`
       )).join("");
