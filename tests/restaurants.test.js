@@ -8,11 +8,12 @@ import assert from "node:assert/strict";
 
 import {
   latestGrade, groupInspections, isInspected, countByCategory, totalsFromFamilies,
-  perInspection, compareToMeans, cutoffDate, gradeInfo, scoreBand, titleCase, boroLabel
+  perInspection, compareToMeans, cutoffDate, gradeInfo, scoreBand, titleCase, boroLabel,
+  latestScored, closesRestaurant
 } from "../src/lib/restaurants/inspections.js";
 import { categoryFor, violationFamily, CATEGORIES, OTHER } from "../src/lib/restaurants/violation-categories.js";
 import { parseLocation, searchWhere, normalizeSearch, soqlString, MAX_NAME_LENGTH, MAX_PLACE_LENGTH } from "../src/lib/restaurants/soql.js";
-import { categoryListHtml } from "../src/lib/restaurants/render.js";
+import { categoryListHtml, detailHtml } from "../src/lib/restaurants/render.js";
 
 const row = (o) => ({ camis: "1", ...o });
 
@@ -81,6 +82,55 @@ test("inspections are deduped by camis + date, placeholder dropped", () => {
   assert.equal(insp[0].score, 19);
   // Critical first, then not critical
   assert.deepEqual(insp[0].violations.map((v) => v.code), ["02G", "04L", "10F"]);
+});
+
+const CLOSED = "Establishment Closed by DOHMH. Violations were cited in the following area(s) and those requiring immediate action were addressed.";
+
+test("the latest inspection is the newest scored one, not a newer administrative visit", () => {
+  const insp = groupInspections([
+    row({ inspection_date: "2026-10-20T00:00:00.000", inspection_type: "Administrative Miscellaneous / Initial Inspection", violation_code: "28-06", critical_flag: "Not Critical" }),
+    row({ inspection_date: "2026-10-01T00:00:00.000", inspection_type: "Cycle Inspection / Initial Inspection", violation_code: "04L", critical_flag: "Critical", score: "24" })
+  ]);
+  assert.equal(latestScored(insp).date, "2026-10-01");
+  // Nothing scored: the newest visit.
+  const unscored = groupInspections([row({ inspection_date: "2026-10-20T00:00:00.000", inspection_type: "Trans Fat / Initial Inspection" })]);
+  assert.equal(latestScored(unscored).date, "2026-10-20");
+  assert.equal(latestScored([]), null);
+});
+
+test("a closure counts unless the same visit reopened the restaurant", () => {
+  assert.equal(closesRestaurant([CLOSED]), true);
+  assert.equal(closesRestaurant(["Establishment re-closed by DOHMH."]), true);
+  assert.equal(closesRestaurant([CLOSED, "Establishment re-opened by DOHMH."]), false);
+  assert.equal(closesRestaurant(["Violations were cited in the following area(s)."]), false);
+  assert.equal(closesRestaurant(), false);
+});
+
+const detail = (o) => ({
+  camis: "1", name: "Joe's Pizza", address: "10 Main Street", boro: "Brooklyn", zipcode: "11211", cuisine: "Pizza",
+  notYetInspected: false, latestGrade: { grade: "A", date: "2025-06-10" },
+  latest: { date: "2026-10-01", types: ["Cycle Inspection / Initial Inspection"], actions: [], score: 24, violations: [] },
+  newerUnscored: null, closedOn: null,
+  categories: {
+    since: "2023-10-28", years: 3, inspections: 0,
+    citywide: { restaurants: 100, rows: [] },
+    similar: { restaurants: 3, cuisine: "Pizza", boro: "Brooklyn", rows: null, minRestaurants: 20 }
+  },
+  ...o
+});
+
+test("the detail warns about a closure above the grade", () => {
+  const html = detailHtml(detail({ closedOn: "2026-10-01" }));
+  assert.match(html, /Closed by the Health Department/);
+  assert.ok(html.indexOf("callout-closed") < html.indexOf("Latest grade"));
+  assert.doesNotMatch(detailHtml(detail()), /callout-closed/);
+});
+
+test("the detail says when a newer visit wasn't scored", () => {
+  const html = detailHtml(detail({ newerUnscored: { date: "2026-10-20", types: ["Administrative Miscellaneous / Initial Inspection"] } }));
+  assert.match(html, /A newer Administrative Miscellaneous · Initial Inspection visit/);
+  assert.match(html, /isn't scored/);
+  assert.doesNotMatch(detailHtml(detail()), /A newer/);
 });
 
 // ---------- Category mapping ----------

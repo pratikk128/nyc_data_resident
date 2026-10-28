@@ -7,13 +7,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  addDays, windowRange, isClosedAction, urgencyTier, buildLeads, groupStats, rankLeads,
+  addDays, windowRange, urgencyTier, buildLeads, groupStats, rankLeads,
   summarizeLeads, leadsCsv, formatPhone, mapUrl, CSV_COLUMNS
 } from "../src/lib/restaurants/leads.js";
 import {
   BUSINESS_GROUPS, IGNORED_CODES, LEADS_CONFIG, MAPPED_CODES, groupsFor
 } from "../src/lib/restaurants/business-groups.js";
 import { leadViolationParams, leadInspectionParams } from "../src/lib/restaurants/soql.js";
+import { isClosedAction } from "../src/lib/restaurants/inspections.js";
 
 const CLOSED = "Establishment Closed by DOHMH. Violations were cited in the following area(s) and those requiring immediate action were addressed.";
 const CITED = "Violations were cited in the following area(s).";
@@ -85,13 +86,15 @@ test("closed and re-closed actions are closures; re-opened is not", () => {
   assert.equal(isClosedAction(undefined), false);
 });
 
+const INITIAL = ["Cycle Inspection / Initial Inspection"];
+
 test("tiers: closed beats score; 14+ is re-inspection likely; threshold is configurable", () => {
-  assert.equal(urgencyTier({ actions: [CLOSED], score: 5 }), "closed");
-  assert.equal(urgencyTier({ actions: [CITED], score: 14 }), "reinspection");
-  assert.equal(urgencyTier({ actions: [CITED], score: 13 }), "standard");
-  assert.equal(urgencyTier({ actions: [CITED], score: null }), "standard");
-  assert.equal(urgencyTier({ actions: [CITED], score: 14 }, { reinspectionScore: 20 }), "standard");
-  assert.equal(urgencyTier({ actions: [CLOSED, "Establishment re-opened by DOHMH."], score: 30 }), "reinspection");
+  assert.equal(urgencyTier({ actions: [CLOSED], types: INITIAL, score: 5 }), "closed");
+  assert.equal(urgencyTier({ actions: [CITED], types: INITIAL, score: 14 }), "reinspection");
+  assert.equal(urgencyTier({ actions: [CITED], types: INITIAL, score: 13 }), "standard");
+  assert.equal(urgencyTier({ actions: [CITED], types: INITIAL, score: null }), "standard");
+  assert.equal(urgencyTier({ actions: [CITED], types: INITIAL, score: 14 }, { reinspectionScore: 20 }), "standard");
+  assert.equal(urgencyTier({ actions: [CLOSED, "Establishment re-opened by DOHMH."], types: INITIAL, score: 30 }), "reinspection");
   assert.equal(urgencyTier(null), "standard");
 });
 
@@ -140,6 +143,34 @@ test("an unscored latest inspection keeps its date but shows the last score", ()
   assert.equal(r.latest.score, 22);
   assert.equal(r.latest.scoreDate, "2026-10-01");
   assert.equal(r.tier, "reinspection");
+});
+
+test("only an initial inspection makes a re-inspection likely; a high re-inspection score gets a grade instead", () => {
+  assert.equal(urgencyTier({ actions: [CITED], types: ["Cycle Inspection / Re-inspection"], score: 30 }), "standard");
+  assert.equal(urgencyTier({ actions: [CITED], types: ["Cycle Inspection / Reopening Inspection"], score: 20 }), "standard");
+  assert.equal(urgencyTier({ actions: [CITED], types: ["Pre-permit (Operational) / Initial Inspection"], score: 20 }), "reinspection");
+  assert.equal(urgencyTier({ actions: [CITED], score: 30 }), "standard");
+  assert.equal(urgencyTier({ actions: [CLOSED], types: ["Cycle Inspection / Re-inspection"], score: 30 }), "closed");
+
+  const { restaurants } = buildLeads(
+    [violation({ inspection_date: t("2026-10-01"), violation_code: "04M" })],
+    [
+      inspection({ inspection_date: t("2026-09-20"), score: "30" }),
+      inspection({ inspection_date: t("2026-10-01"), inspection_type: "Cycle Inspection / Re-inspection", score: "25", grade: "B" })
+    ]
+  );
+  assert.equal(restaurants[0].tier, "standard");
+});
+
+test("an unscored visit that closes a restaurant marks it closed", () => {
+  const { restaurants } = buildLeads(
+    [violation({ inspection_date: t("2026-10-01"), violation_code: "04M" })],
+    [
+      inspection({ inspection_date: t("2026-10-01"), score: "9" }),
+      inspection({ inspection_date: t("2026-10-10"), inspection_type: "Administrative Miscellaneous / Initial Inspection", action: CLOSED })
+    ]
+  );
+  assert.equal(restaurants[0].tier, "closed");
 });
 
 test("a code cited twice on one day counts once; descriptions keep the usual spelling", () => {

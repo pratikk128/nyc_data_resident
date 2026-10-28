@@ -113,6 +113,26 @@ export function groupInspections(rows) {
     .sort((a, b) => b.date.localeCompare(a.date));
 }
 
+// The newest scored inspection, from groupInspections() output (newest first).
+// Administrative, calorie posting, smoke-free and similar visits aren't scored
+// and never cite critical violations, so they'd hide the last real inspection.
+// Falls back to the newest one when none is scored.
+export function latestScored(inspections) {
+  return inspections.find((insp) => insp.score != null) ?? inspections[0] ?? null;
+}
+
+// "Establishment Closed by DOHMH. ..." and "Establishment re-closed by DOHMH."
+export function isClosedAction(action) {
+  return /\b(re-)?closed by DOHMH/i.test(String(action ?? ""));
+}
+
+// An inspection's actions closed (or re-closed) the restaurant and didn't also
+// reopen it. Any visit type can close or reopen, administrative ones included,
+// so callers pass the newest inspection, scored or not.
+export function closesRestaurant(actions = []) {
+  return actions.some(isClosedAction) && !actions.some((a) => /re-opened/i.test(a));
+}
+
 // ---------- Categories vs the mean ----------
 
 // "YYYY-MM-DD" exactly `years` before `today` (a Date or ISO string).

@@ -10,7 +10,7 @@
  */
 import { LEADS_CONFIG, groupsFor } from "./business-groups.js";
 import {
-  day, isInspected, groupInspections, titleCase, addressLine, boroLabel
+  day, isInspected, groupInspections, closesRestaurant, titleCase, addressLine, boroLabel
 } from "./inspections.js";
 
 // ---------- Window ----------
@@ -37,19 +37,17 @@ export const TIER_LABELS = {
   standard: "Standard"
 };
 
-// "Establishment Closed by DOHMH. ..." and "Establishment re-closed by DOHMH."
-export function isClosedAction(action) {
-  return /\b(re-)?closed by DOHMH/i.test(String(action ?? ""));
-}
-
-// latest: { actions, score }. Closed when the latest inspection closed (or
-// re-closed) the restaurant and didn't also reopen it; otherwise re-inspection
-// likely when the latest score is at or over the threshold.
+// latest: { actions, types, score }, with actions from the newest inspection and
+// types and score from the newest scored one. Closed when the newest inspection
+// closed (or re-closed) the restaurant and didn't also reopen it. Otherwise
+// re-inspection likely when an initial inspection scored at or over the
+// threshold: DOHMH comes back after those, but a re-inspection that scores 14+
+// gets a B or C grade instead of another visit.
 export function urgencyTier(latest, { reinspectionScore = LEADS_CONFIG.reinspectionScore } = {}) {
   if (!latest) return "standard";
-  const actions = latest.actions ?? [];
-  if (actions.some(isClosedAction) && !actions.some((a) => /re-opened/i.test(a))) return "closed";
-  if (latest.score != null && latest.score >= reinspectionScore) return "reinspection";
+  if (closesRestaurant(latest.actions)) return "closed";
+  const initial = (latest.types ?? []).some((t) => /initial inspection/i.test(t));
+  if (initial && latest.score != null && latest.score >= reinspectionScore) return "reinspection";
   return "standard";
 }
 
@@ -122,7 +120,7 @@ export function buildLeads(violationRows, inspectionRows, config = LEADS_CONFIG)
       lat: coord(info.latitude),
       lng: coord(info.longitude),
       latest,
-      tier: urgencyTier(newest && { actions: newest.actions, score: scored?.score ?? null }, config),
+      tier: urgencyTier(newest && { actions: newest.actions, types: scored?.types ?? [], score: scored?.score ?? null }, config),
       violations: [...violations.values()].sort((a, b) => b.date.localeCompare(a.date) || a.code.localeCompare(b.code))
     });
   }

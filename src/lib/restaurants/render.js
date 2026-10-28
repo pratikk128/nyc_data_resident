@@ -108,6 +108,15 @@ function latestScoreContext(latest) {
   return `In the ${band.grade} range. ${SCORE_HINT}`;
 }
 
+// d.latest is the newest scored inspection; say so when there's a newer visit that isn't.
+function newerUnscoredNote(d) {
+  const v = d.newerUnscored;
+  if (!v) return "";
+  const what = v.types.length ? `${v.types.map(typeLabel).join(", ")} visit` : "visit";
+  return `<p class="chart-hint">From the ${date(d.latest.date)} inspection. A newer ${what} on ${date(v.date)} ` +
+    `wasn't a full inspection: it isn't scored and doesn't cite critical violations.</p>`;
+}
+
 // The "similar restaurants" comparison needs an inspection and enough similar restaurants.
 export const similarAvailable = (d) => Boolean(d.latest && d.categories.similar.rows);
 
@@ -151,8 +160,16 @@ export function detailHtml(d, { benchmark = "citywide" } = {}) {
       `</div>` +
     `</div>`;
 
+  // Above the grade, which can be from before the closure.
+  const closed = d.closedOn
+    ? `<aside class="callout callout-closed" role="note"><strong>Closed by the Health Department.</strong> ` +
+      `Its inspection on ${date(d.closedOn)} closed it. The Health Department closes a restaurant when it finds a ` +
+      `public health hazard that can't be fixed right away, and it stays closed until it passes a reopening inspection. ` +
+      `A reopening can take a few days to show up here.</aside>`
+    : "";
+
   if (!latest) {
-    return head + stats +
+    return head + closed + stats +
       `<aside class="callout callout-good" role="note"><strong>Not yet inspected.</strong> This is a new establishment. ` +
       `Its first inspection, score and grade will show up here once the Health Department visits.</aside>`;
   }
@@ -164,6 +181,7 @@ export function detailHtml(d, { benchmark = "citywide" } = {}) {
   const latestBlock =
     `<section class="rest-block" aria-labelledby="latest-title">` +
       `<h3 class="chart-title" id="latest-title">Critical violations at the latest inspection</h3>` +
+      newerUnscoredNote(d) +
       criticalViolationsHtml(latest) +
     `</section>`;
 
@@ -198,5 +216,5 @@ export function detailHtml(d, { benchmark = "citywide" } = {}) {
       `</details>` +
     `</section>`;
 
-  return head + stats + caveat + latestBlock + categories;
+  return head + closed + stats + caveat + latestBlock + categories;
 }

@@ -836,6 +836,12 @@ th[aria-sort="none"] .sort-btn:hover .sort-icon::after { content: "↕"; color: 
   background: var(--blue-tint);
   border-left: 4px solid var(--blue-deep);
 }
+.callout-closed {
+  background: var(--critical-tint);
+  color: var(--ink);
+  border-left: 4px solid var(--critical);
+}
+.callout-closed strong { color: var(--critical); }
 
 /* ---------- Search ---------- */
 .rest-search {

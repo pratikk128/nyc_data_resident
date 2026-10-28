@@ -70,7 +70,7 @@ const { windows, defaultWindow, reinspectionScore, lowScoreMax, includeNonCritic
     </div>
     <div class="leads-control leads-urgent">
       <button type="button" class="job-chip" aria-pressed="false" data-urgent aria-describedby="leads-urgent-hint">Urgent only</button>
-      <span class="sr-only" id="leads-urgent-hint">Only restaurants closed by the Health Department or likely to be re-inspected</span>
+      <span class="sr-only" id="leads-urgent-hint">Only restaurants closed by the Health Department or likely to be re-inspected after an initial inspection</span>
       <button type="button" class="job-chip" aria-pressed="true" data-hide-low aria-describedby="leads-low-hint">Hide low scores</button>
       <span class="sr-only" id="leads-low-hint">Hide restaurants whose latest score is {lowScoreMax} points or less</span>
     </div>
@@ -83,7 +83,7 @@ const { windows, defaultWindow, reinspectionScore, lowScoreMax, includeNonCritic
     <StatCard name="violations" label="Critical violations" value="–"
       context={includeNonCriticalCodes.length ? undefined : 'Cited in this group'} />
     <StatCard name="closed" label="Closed by DOHMH" value="–" context="Their latest inspection closed them" />
-    <StatCard name="reinspection" label="Re-inspection likely" value="–" context={`Latest score ${reinspectionScore} points or more`} />
+    <StatCard name="reinspection" label="Re-inspection likely" value="–" context={`Scored ${reinspectionScore}+ on an initial inspection`} />
   </div>
 
   <div class="leads-list-head">
@@ -115,8 +115,10 @@ const { windows, defaultWindow, reinspectionScore, lowScoreMax, includeNonCritic
       </p>
       <p>
         <strong>Urgency.</strong> “Closed by DOHMH” means the restaurant's latest inspection closed it (or closed it again).
-        “Re-inspection likely” means its latest score was {reinspectionScore} points or more, the range where the Health
-        Department comes back for a second look. A restaurant that has since been reopened isn't marked closed.
+        “Re-inspection likely” means its latest scored inspection was an initial inspection that scored
+        {reinspectionScore} points or more, the range where the Health Department comes back for a second look. A
+        re-inspection that scores that high gets a B or C grade instead, so it isn't marked. A restaurant that has since
+        been reopened isn't marked closed.
         “Hide low scores” (on by default) leaves out restaurants whose latest score was {lowScoreMax} points or less;
         restaurants without a score yet stay in.
       </p>

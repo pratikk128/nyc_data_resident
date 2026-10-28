@@ -11,7 +11,7 @@ import {
   latestInspectionParams, leadViolationParams, leadInspectionParams
 } from "../restaurants/soql.js";
 import {
-  day, isInspected, latestGrade, groupInspections, cutoffDate, countByCategory,
+  day, isInspected, latestGrade, groupInspections, latestScored, closesRestaurant, cutoffDate, countByCategory,
   totalsFromFamilies, perInspection, compareToMeans, titleCase, addressLine, boroLabel,
   NOT_INSPECTED_DATE
 } from "../restaurants/inspections.js";
@@ -88,7 +88,7 @@ const LEADS_DAYS = Math.max(...LEADS_CONFIG.windows);
 // Restaurants with lead violations in the longest window, through the latest
 // inspection date in the data. The page narrows that to a group and window.
 export const leadsJob = {
-  key: `restaurants:leads:v1:${LEADS_DAYS}d:${mappingTag()}`,
+  key: `restaurants:leads:v2:${LEADS_DAYS}d:${mappingTag()}`, // v2: re-inspection likely needs an initial inspection
   maxAgeHours: 26,
   async run() {
     const today = new Date().toISOString().slice(0, 10);
@@ -198,7 +198,8 @@ export async function restaurantDetail(camis) {
   // Rows are newest first, so rows[0] has the current name and address.
   const info = rows[0];
   const inspections = groupInspections(rows);
-  const latest = inspections[0] ?? null;
+  const newest = inspections[0] ?? null;
+  const latest = latestScored(inspections);
 
   return {
     camis,
@@ -210,6 +211,10 @@ export async function restaurantDetail(camis) {
     notYetInspected: !rows.some(isInspected),
     latestGrade: latestGrade(rows),
     latest,
+    // A newer visit that isn't scored, noted under the latest inspection.
+    newerUnscored: newest && newest !== latest ? { date: newest.date, types: newest.types } : null,
+    // Any visit type can close a restaurant, so this goes by the newest one.
+    closedOn: newest && closesRestaurant(newest.actions) ? newest.date : null,
     inspectionCount: inspections.length,
     categories: categoryComparison(inspections, benchmarks, info.cuisine_description, info.boro)
   };
