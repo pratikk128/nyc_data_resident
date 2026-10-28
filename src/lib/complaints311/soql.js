@@ -72,16 +72,6 @@ export function statusCountParams(since, where) {
   };
 }
 
-export function monthlyParams(since, where) {
-  return {
-    $select: `date_trunc_ym(${F.created}) AS month, count(*) AS n`,
-    $where: area(since, where),
-    $group: "month",
-    $order: "month",
-    $limit: "500"
-  };
-}
-
 // Which borough most nearby requests name, when the geocoder didn't say.
 export function boroughCountParams(since, where) {
   return {
@@ -112,16 +102,6 @@ export function baselineParams(since, column) {
     $select: `${F.borough}, ${column}, count(*) AS n`,
     $where: createdSince(since),
     $group: `${F.borough}, ${column}`,
-    $limit: BIG_LIMIT
-  };
-}
-
-export function baselineMonthlyParams(since) {
-  return {
-    $select: `${F.borough}, date_trunc_ym(${F.created}) AS month, count(*) AS n`,
-    $where: createdSince(since),
-    $group: `${F.borough}, month`,
-    $order: "month",
     $limit: BIG_LIMIT
   };
 }

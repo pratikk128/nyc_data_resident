@@ -3,7 +3,7 @@
  * query text comes from src/lib/complaints311/soql.js and the math from stats.js.
  *
  * Borough and city baselines (share of requests by complaint type, by location
- * type, open vs closed and by month, for each time window) take Socrata about
+ * type and open vs closed, for each time window) take Socrata about
  * a minute per query, so they're daily jobs kept in KV. Areas around a point,
  * and ZIPs, take a few seconds and are cached at the edge for AREA_TTL.
  */
@@ -14,9 +14,9 @@ import {
 } from "../complaints311/config.js";
 import {
   windowStart, circle, typeCountParams, locationTypeCountParams, statusCountParams,
-  monthlyParams, boroughCountParams, zipSummaryParams, baselineParams, baselineMonthlyParams
+  boroughCountParams, zipSummaryParams, baselineParams
 } from "../complaints311/soql.js";
-import { typeCounts, locationCounts, statusCounts, monthlySeries, sum, monthKey } from "../complaints311/stats.js";
+import { typeCounts, locationCounts, statusCounts, sum } from "../complaints311/stats.js";
 import { typeKey, locationGroup } from "../complaints311/labels.js";
 
 export const AREA_TTL = 6 * 3600;      // areas and ZIPs: the data updates once a day
@@ -37,7 +37,7 @@ export const metadataJob = {
 };
 
 function emptyArea() {
-  return { total: 0, types: {}, locations: {}, status: { open: 0, closed: 0 }, monthly: {} };
+  return { total: 0, types: {}, locations: {}, status: { open: 0, closed: 0 } };
 }
 
 // One job per window: every borough's counts, and the city's (Unspecified included).
@@ -50,11 +50,10 @@ function baselineJob(windowKey) {
       const through = today();
       const started = Date.now();
       const opts = { timeoutMs: BASELINE_TIMEOUT_MS };
-      const [types, locations, statuses, months] = await Promise.all([
+      const [types, locations, statuses] = await Promise.all([
         soql(DATASET_ID, baselineParams(since, F.type), opts),
         soql(DATASET_ID, baselineParams(since, F.locationType), opts),
-        soql(DATASET_ID, baselineParams(since, F.status), opts),
-        soql(DATASET_ID, baselineMonthlyParams(since), opts)
+        soql(DATASET_ID, baselineParams(since, F.status), opts)
       ]);
       console.log(`311 baseline ${windowKey}: ${Date.now() - started} ms`);
 
@@ -72,20 +71,13 @@ function baselineJob(windowKey) {
       for (const row of statuses) {
         for (const t of targets(row)) add(t.status, row[F.status] === STATUS_CLOSED ? "closed" : "open", Number(row.n));
       }
-      for (const row of months) {
-        for (const t of targets(row)) add(t.monthly, monthKey(row.month), Number(row.n));
-      }
-      const finish = (a) => ({
-        ...a,
-        monthly: monthlySeries(Object.entries(a.monthly).map(([month, n]) => ({ month, n })), since, through)
-      });
       return {
         window: windowKey,
         since,
         through,
         computedAt: new Date().toISOString(),
-        city: finish(city),
-        boroughs: Object.fromEntries(Object.entries(boroughs).map(([k, v]) => [k, finish(v)]))
+        city,
+        boroughs
       };
     }
   };
@@ -116,7 +108,7 @@ export async function baseline(windowKey, borough) {
 
 // ---------- Areas ----------
 
-// Counts for one area (`where` is a SoQL test) over a window, four queries at once.
+// Counts for one area (`where` is a SoQL test) over a window, three queries at once (four with the borough).
 async function areaSummary(where, windowKey, { withBorough = false } = {}) {
   const since = windowStart(windowKey);
   const through = today();
@@ -124,10 +116,9 @@ async function areaSummary(where, windowKey, { withBorough = false } = {}) {
     soql(DATASET_ID, typeCountParams(since, where)),
     soql(DATASET_ID, locationTypeCountParams(since, where)),
     soql(DATASET_ID, statusCountParams(since, where)),
-    soql(DATASET_ID, monthlyParams(since, where)),
     withBorough ? soql(DATASET_ID, boroughCountParams(since, where)) : Promise.resolve([])
   ];
-  const [types, locations, statuses, months, boroughRows] = await Promise.all(queries);
+  const [types, locations, statuses, boroughRows] = await Promise.all(queries);
   const typeMap = typeCounts(types);
   return {
     window: windowKey,
@@ -137,7 +128,6 @@ async function areaSummary(where, windowKey, { withBorough = false } = {}) {
     types: typeMap,
     locations: locationCounts(locations),
     status: statusCounts(statuses),
-    monthly: monthlySeries(months, since, through),
     // Most common borough among these requests (Unspecified left out); for when the geocoder didn't say.
     topBorough: boroughRows[0]?.[F.borough] ?? null
   };

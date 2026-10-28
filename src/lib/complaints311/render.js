@@ -1,7 +1,7 @@
 /*
- * HTML for the 311 dashboard's sections: overview cards, the monthly mini
- * chart, the above/below-average list and the location-type bars. Plain
- * strings (no framework), drawn by the section scripts from store.js state.
+ * HTML for the 311 dashboard's sections: overview cards, the above/below-average
+ * list and the location-type bars. Plain strings (no framework), drawn by the
+ * section scripts from store.js state.
  * Every chart has a text version: an aria-label summary and a table.
  * Series colors live in dashboard.css (.c311-s-here / -borough / -city).
  */
@@ -10,10 +10,6 @@ import { ratioSentence, topTypes, openShare } from "./stats.js";
 import { MIN_LOCAL_COUNT, ABOVE_RATIO, BELOW_RATIO, MAX_ABOVE_SHOWN } from "./config.js";
 
 export const escape = (str) => String(str ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
-
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-// "2026-05" → "May 2026"
-export const monthLabel = (key) => `${MONTHS[Number(key.slice(5, 7)) - 1]} ${key.slice(0, 4)}`;
 
 const pct = (share) => (share > 0 && share < 0.001 ? "<0.1%" : percent(share, share >= 0.1 ? 0 : 1));
 
@@ -41,48 +37,6 @@ export const ERROR_TEXT = "Couldn’t reach NYC Open Data. Their servers might b
 
 export function errorHtml(err) {
   return `<p class="c311-error" role="alert">${escape(err?.shown ?? ERROR_TEXT)}</p>`;
-}
-
-// ---------- Monthly mini chart ----------
-
-/*
- * Small bar chart of requests per month. The first month is partial when the
- * window starts mid-month, and the current month always is; both are drawn
- * lighter and say so in their tooltip and in the table.
- */
-export function monthlyChartHtml(monthly, { since, through, id }) {
-  if (!monthly.length) return "";
-  const W = 300, H = 64, gap = monthly.length > 40 ? 0.5 : 2;
-  const max = Math.max(1, ...monthly.map((m) => m.n));
-  const bw = (W - gap * (monthly.length - 1)) / monthly.length;
-  const partial = (m, i) => (i === 0 && !since.endsWith("-01")) || (i === monthly.length - 1 && through.startsWith(m.month));
-  const busiest = monthly.reduce((a, b) => (b.n > a.n ? b : a));
-  const first = monthLabel(monthly[0].month), last = monthLabel(monthly.at(-1).month);
-
-  const bars = monthly.map((m, i) => {
-    const h = m.n ? Math.max(1.5, (m.n / max) * H) : 0;
-    const note = partial(m, i) ? " (part of the month)" : "";
-    return `<rect class="c311-bar${partial(m, i) ? " is-partial" : ""}" x="${(i * (bw + gap)).toFixed(2)}" y="${(H - h).toFixed(2)}" ` +
-      `width="${bw.toFixed(2)}" height="${h.toFixed(2)}" rx="${Math.min(1.5, bw / 3).toFixed(2)}">` +
-      `<title>${monthLabel(m.month)}: ${count(m.n)} requests${note}</title></rect>`;
-  }).join("");
-
-  const summary = `Requests by month, ${first} to ${last}. Busiest month: ${monthLabel(busiest.month)}, with ${count(busiest.n)}.`;
-  const rows = monthly.map((m, i) =>
-    `<tr><th scope="row">${monthLabel(m.month)}${partial(m, i) ? " (partial)" : ""}</th><td>${count(m.n)}</td></tr>`).join("");
-
-  return (
-    `<figure class="c311-spark">` +
-      `<svg class="c311-spark-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${escape(summary)}">` +
-        `<line class="chart-baseline" x1="0" x2="${W}" y1="${H}" y2="${H}" vector-effect="non-scaling-stroke"/>${bars}` +
-      `</svg>` +
-      `<figcaption class="c311-spark-axis"><span>${first}</span><span>${last}</span></figcaption>` +
-    `</figure>` +
-    `<details class="c311-table-toggle"><summary>View as table</summary>` +
-      `<div class="table-scroll"><table id="${escape(id)}"><caption class="sr-only">${escape(summary)}</caption>` +
-      `<thead><tr><th scope="col">Month</th><th scope="col">Requests</th></tr></thead><tbody>${rows}</tbody></table></div>` +
-    `</details>`
-  );
 }
 
 // ---------- Overview card ----------
@@ -126,8 +80,6 @@ export function overviewCardHtml(summary, { title, sub, sentence, phrase, note =
       `<p class="c311-sentence">${escape(sentence)}</p>` +
       `<h4 class="c311-h4">Most common requests</h4>${topList}` +
       (status ? `<h4 class="c311-h4">Still open vs. closed</h4>${status}` : "") +
-      `<h4 class="c311-h4">By month</h4>` +
-      monthlyChartHtml(summary.monthly, { since: summary.since, through: summary.through, id: `${id}-months` }) +
     `</article>`
   );
 }

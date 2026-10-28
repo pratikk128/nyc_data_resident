@@ -1142,12 +1142,6 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
 .c311-status-bar { height: 10px; border-radius: 5px; background: var(--line-strong); overflow: hidden; margin-bottom: var(--space-2); }
 .c311-status-bar .is-open { display: block; height: 100%; background: var(--c311-open); }
 
-.c311-spark { margin: var(--space-2) 0 0; }
-.c311-spark-svg { display: block; width: 100%; height: 64px; }
-.c311-bar { fill: var(--c311-here); }
-.c311-bar.is-partial { fill: var(--blue); }
-.c311-bar:hover { fill: var(--ink); }
-.c311-spark-axis { display: flex; justify-content: space-between; margin-top: var(--space-1); font-size: .75rem; color: var(--ink-soft); }
 .c311-table-toggle { margin-top: var(--space-1); font-size: .9375rem; }
 .c311-table-toggle .table-scroll { max-height: 18rem; overflow-y: auto; }
 

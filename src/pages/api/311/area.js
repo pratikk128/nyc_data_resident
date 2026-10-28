@@ -1,7 +1,7 @@
 /*
  * GET /api/311/area?lat=40.748&lon=-73.986&area=immediate|neighborhood&window=3m|12m|all
  * 311 requests within a radius: total, by complaint type, by location type,
- * open vs closed and by month. → { total, types, locations, status, monthly, ... } or { error }
+ * open vs closed. → { total, types, locations, status, ... } or { error }
  *
  * Cached at the edge by rounded lat/lon (3 decimals) + radius + window. Lookups
  * that miss the cache go to Socrata on our app token, so they're rate limited

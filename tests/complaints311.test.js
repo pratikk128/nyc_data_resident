@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 
 import {
   shares, ratio, compareShares, comparisonArea, typeCounts, locationCounts, statusCounts,
-  monthlySeries, topTypes, openShare, overviewSentence, locationComparison, locationSentence, ratioText, ratioSentence
+  topTypes, openShare, overviewSentence, locationComparison, locationSentence, ratioText, ratioSentence
 } from "../src/lib/complaints311/stats.js";
 import { typeKey, typeLabel, locationGroup, OTHER_LOCATION } from "../src/lib/complaints311/labels.js";
 import {
@@ -144,13 +144,6 @@ test("only Closed counts as closed", () => {
   assert.deepEqual(s, { closed: 90, open: 10 });
   close(openShare(s), 0.1);
   assert.equal(openShare({ open: 0, closed: 0 }), 0);
-});
-
-test("monthly series fills empty months with zero", () => {
-  const series = monthlySeries([{ month: "2025-11-01T00:00:00.000", n: "4" }, { month: "2026-01-01T00:00:00.000", n: "6" }], "2025-10-28", "2026-01-15");
-  assert.deepEqual(series, [
-    { month: "2025-10", n: 0 }, { month: "2025-11", n: 4 }, { month: "2025-12", n: 0 }, { month: "2026-01", n: 6 }
-  ]);
 });
 
 test("overview sentence comes from the numbers", () => {

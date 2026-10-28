@@ -5,8 +5,7 @@
  * tests/complaints311.test.js.
  *
  * An area summary is
- *   { total, types: { KEY: n }, locations: { group: n }, status: { open, closed },
- *     monthly: [{ month: "2026-01", n }] }
+ *   { total, types: { KEY: n }, locations: { group: n }, status: { open, closed } }
  * with complaint types keyed by typeKey() and location types by locationGroup().
  */
 import { typeKey, typeLabel, locationGroup, OTHER_LOCATION, LOCATION_NOUNS } from "./labels.js";
@@ -40,24 +39,6 @@ export function statusCounts(rows, column = "status") {
     else open += Number(row.n || 0);
   }
   return { closed, open };
-}
-
-// "2026-03-01T00:00:00.000" → "2026-03"
-export const monthKey = (iso) => String(iso).slice(0, 7);
-
-// Monthly rows → one entry per month from `since` to `through` (YYYY-MM-DD), zeros filled in.
-export function monthlySeries(rows, since, through) {
-  const byMonth = new Map(rows.map((r) => [monthKey(r.month), Number(r.n || 0)]));
-  const out = [];
-  let [y, m] = since.split("-").map(Number);
-  const [ey, em] = through.split("-").map(Number);
-  while (y < ey || (y === ey && m <= em)) {
-    const key = `${y}-${String(m).padStart(2, "0")}`;
-    out.push({ month: key, n: byMonth.get(key) ?? 0 });
-    m += 1;
-    if (m > 12) { m = 1; y += 1; }
-  }
-  return out;
 }
 
 export const sum = (counts) => Object.values(counts).reduce((a, b) => a + b, 0);
