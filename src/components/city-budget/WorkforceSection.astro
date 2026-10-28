@@ -1,0 +1,168 @@
+---
+/*
+ * "How much does NYC spend on its workforce?"
+ * Headline numbers, table and notes are rendered at build time from
+ * the payroll snapshot; the stacked bar chart is drawn in the browser by the
+ * script at the bottom (same data, no API calls from the page).
+ */
+import StatCard from '../StatCard.astro';
+import snapshot from '../../data/payroll-by-year.json';
+import { money, count, date } from '../../lib/format.js';
+
+const { years, dataset, checks } = snapshot;
+const latest = years[years.length - 1];
+const first = years[0];
+const range = `FY${first.fiscalYear}–FY${latest.fiscalYear}`;
+
+const csv = [
+  'fiscal_year,regular_pay,overtime_pay,other_pay,total_pay,people_paid',
+  ...years.map((y) => [y.fiscalYear, y.regular, y.overtime, y.other, y.total, y.peoplePaid].join(','))
+].join('\n');
+const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csv + '\n')}`;
+---
+
+<section class="dash-section" id="workforce" aria-labelledby="workforce-title">
+  <header class="section-head">
+    <h2 id="workforce-title">How much does NYC spend on its workforce?</h2>
+    <p class="section-intro">
+      Teachers, firefighters, sanitation crews, nurses, clerks and lifeguards all get a city paycheck.
+      Here's what the city paid its people each year, and what that pay was made of.
+    </p>
+  </header>
+
+  {!checks.latestYearLooksComplete && (
+    <aside class="callout callout-heads-up" role="note">
+      <strong>Heads up:</strong> FY{latest.fiscalYear} may not be fully loaded yet. Its numbers look low
+      compared with recent years, so treat them as preliminary.
+    </aside>
+  )}
+
+  <div class="stat-grid">
+    <StatCard
+      label={`Total payroll, FY${latest.fiscalYear}`}
+      value={money(latest.total)}
+      context="Regular pay + overtime + other pay"
+    />
+    <StatCard
+      label={`People paid, FY${latest.fiscalYear}`}
+      value={count(latest.peoplePaid)}
+      context="Anyone paid during the year, incl. part-time and seasonal"
+    />
+  </div>
+
+  <figure class="chart-frame" aria-labelledby="workforce-chart-title">
+    <div class="chart-head">
+      <div>
+        <h3 class="chart-title" id="workforce-chart-title">City payroll by fiscal year</h3>
+        <p class="chart-subtitle">
+          All city employees in the payroll data, {range}. Dollars not adjusted for inflation.
+        </p>
+      </div>
+      <div class="toggle" role="group" aria-label="Chart units">
+        <button type="button" class="toggle-btn" data-mode="dollars" aria-pressed="true">Show as $</button>
+        <button type="button" class="toggle-btn" data-mode="share" aria-pressed="false">Show as % of total</button>
+      </div>
+    </div>
+
+    <ul class="legend" aria-label="Legend">
+      <li><span class="swatch swatch-regular" aria-hidden="true"></span>Regular pay</li>
+      <li><span class="swatch swatch-overtime" aria-hidden="true"></span>Overtime</li>
+      <li><span class="swatch swatch-other" aria-hidden="true"></span>Other pay <span class="legend-note">(lump sums, differentials, retro pay)</span></li>
+    </ul>
+
+    <div class="chart" id="workforce-chart" data-chart="workforce">
+      <noscript><p class="chart-fallback">Turn on JavaScript to see the chart, or open the table below.</p></noscript>
+      <div class="chart-tooltip" role="status" aria-live="polite" hidden></div>
+    </div>
+    <p class="chart-hint">Hover or tap a bar for details. Using a keyboard? Tab to the chart, then use the arrow keys.</p>
+
+    <div class="chart-actions">
+      <details class="data-table">
+        <summary>See the numbers as a table</summary>
+        <div class="table-scroll" tabindex="0" role="region" aria-label="Payroll by fiscal year, table">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Fiscal year</th>
+                <th scope="col">Regular pay</th>
+                <th scope="col">Overtime</th>
+                <th scope="col">Other pay</th>
+                <th scope="col">Total</th>
+                <th scope="col">People paid</th>
+              </tr>
+            </thead>
+            <tbody>
+              {years.slice().reverse().map((y) => (
+                <tr>
+                  <th scope="row">FY{y.fiscalYear}</th>
+                  <td>{money(y.regular, 2)}</td>
+                  <td>{money(y.overtime, 2)}</td>
+                  <td>{money(y.other, 2)}</td>
+                  <td>{money(y.total, 2)}</td>
+                  <td>{count(y.peoplePaid)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
+      <a class="download-link" href={csvHref} download="nyc-payroll-by-fiscal-year.csv">Download CSV</a>
+    </div>
+  </figure>
+
+  <details class="about-data">
+    <summary>About this data</summary>
+    <div class="about-body">
+      <p>
+        <strong>Fiscal years.</strong> NYC's fiscal year runs July 1 to June 30.
+        FY{latest.fiscalYear} covers July 1, {latest.fiscalYear - 1} to June 30, {latest.fiscalYear}.
+      </p>
+      <p>
+        <strong>What's in each bar.</strong> <em>Regular pay</em> is base pay for regular hours.
+        <em>Overtime</em> is pay for extra hours. <em>Other pay</em> is everything else: lump sums,
+        shift and other differentials, and retroactive (back) pay. Other pay can jump in years when
+        back pay from new labor contracts is paid out.
+      </p>
+      <p>
+        <strong>People paid isn't headcount.</strong> We count every pay record in the year: full-time
+        and part-time staff, seasonal and per-diem workers, and people who left or retired partway
+        through. Someone paid by two agencies may appear twice. On any given day, the city employs fewer
+        people than this number.
+      </p>
+      <p>
+        <strong>Pay, not the full cost of a worker.</strong> These totals are gross pay. They don't include
+        pensions, health insurance or other benefits, which the city pays for separately.
+      </p>
+      <p>
+        <strong>How we calculated it.</strong> We add up regular pay, overtime and other pay for every record
+        in each fiscal year using the NYC Open Data API, then save the yearly totals. Negative amounts
+        (refunds and corrections) are included as reported.
+      </p>
+    </div>
+  </details>
+
+  <footer class="section-sources">
+    <h3 class="sources-title">Where this comes from</h3>
+    <p>
+      <a href={dataset.url}>{dataset.name}</a> on NYC Open Data (dataset {dataset.id}).
+      Source updated {date(dataset.sourceUpdatedAt)} · Last refreshed here {date(snapshot.refreshedAt)}.
+    </p>
+    <p>
+      Looking for all city spending, not just payroll? <a href="https://www.checkbooknyc.com/">Checkbook NYC</a> covers contracts, vendors and every other kind of city spending. This page focuses on payroll.
+    </p>
+    <ul class="caveats">
+      <li>Dollars are nominal: not adjusted for inflation.</li>
+      <li>Base salary in the source data is a snapshot as of the end of each fiscal year (June 30). This page uses pay actually received during the year instead.</li>
+      <li>Negative pay adjustments, such as refunds and corrections, are included in the totals.</li>
+      <li>Names of NYPD and District Attorney employees are redacted in the source data, but their pay is included in these totals.</li>
+    </ul>
+  </footer>
+</section>
+
+<script>
+  import snapshot from '../../data/payroll-by-year.json';
+  import { mountWorkforceChart } from '../../lib/workforce-chart.js';
+
+  const frame = document.querySelector<HTMLElement>('#workforce .chart-frame');
+  if (frame) mountWorkforceChart(frame, snapshot.years);
+</script>

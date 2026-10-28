@@ -39,7 +39,6 @@ const dashboards = [
     title: "City Budget Spending",
     description: "Follow how NYC allocates and spends public money across agencies and programs.",
     category: "City Government",
-    // Placeholder link: replace "#" with the real dashboard URL later.
-    url: "#"
+    url: "/city-budget/"
   }
 ];

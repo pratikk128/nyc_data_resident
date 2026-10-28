@@ -1,0 +1,15 @@
+---
+/* "Big number" card: label → number → context line. */
+interface Props {
+  label: string;
+  value: string;
+  context?: string;
+}
+const { label, value, context } = Astro.props;
+---
+
+<div class="stat-card">
+  <p class="stat-label">{label}</p>
+  <p class="stat-value">{value}</p>
+  {context && <p class="stat-context">{context}</p>}
+</div>

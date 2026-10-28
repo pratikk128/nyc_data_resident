@@ -1,0 +1,73 @@
+---
+/*
+ * Shell for a single dashboard page: same header, palette and footer as the
+ * landing page, with a breadcrumb back to the dashboard list. Page content
+ * (one or more <section>s) goes in the default slot.
+ */
+import '../styles/landing.css';
+import '../styles/dashboard.css';
+
+interface Props {
+  title: string;        // Dashboard name, e.g. "City Budget Spending"
+  description: string;  // Meta description
+  path: string;         // e.g. "/city-budget/"
+  category: string;     // Sidebar category on the landing page
+  tone?: string;        // Category tone (see TONES in public/js/app.js)
+  lastRefreshed?: string;
+}
+
+const { title, description, path, category, tone = 'blue', lastRefreshed } = Astro.props;
+const fullTitle = `${title} | Ask NYC Data`;
+const canonical = new URL(path, 'https://asknycdata.com').href;
+---
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{fullTitle}</title>
+  <meta name="description" content={description}>
+  <meta name="application-name" content="Ask NYC Data">
+  <meta name="theme-color" content="#D6E6FF">
+  <link rel="canonical" href={canonical}>
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Ask NYC Data">
+  <meta property="og:title" content={fullTitle}>
+  <meta property="og:description" content={description}>
+  <meta property="og:url" content={canonical}>
+  <meta name="twitter:card" content="summary">
+
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="Ask NYC Data, home">
+      <span class="wordmark">Ask <span class="wordmark-accent">NYC</span> Data</span>
+    </a>
+    <p class="tagline">NYC's public data, made easy to understand.</p>
+  </header>
+
+  <main class="main dash-main" id="main" tabindex="-1">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <ol>
+        <li><a href="/">All dashboards</a></li>
+        <li><span class="tag" data-tone={tone}>{category}</span></li>
+      </ol>
+    </nav>
+
+    <slot />
+  </main>
+
+  <footer class="site-footer">
+    <p class="footer-brand">Ask NYC Data · <a href="https://asknycdata.com">asknycdata.com</a></p>
+    <p class="footer-note">
+      Built with public data from NYC Open Data. Not affiliated with or endorsed by the City of New York.
+      {lastRefreshed && <> Data last refreshed {lastRefreshed}.</>}
+    </p>
+  </footer>
+</body>
+</html>
