@@ -58,19 +58,22 @@ export function inNyc(lat, lng) {
 }
 
 // Validates and normalizes raw search input. Returns { error } or { query }.
+// The name can be left out with "near me", to see everything close by.
 export function normalizeSearch({ name, boro, where, lat, lng } = {}) {
   const cleanName = likeTerm(name);
-  if (cleanName.length < 2) return { error: "Type at least 2 letters of the restaurant name." };
+  const hasNear = lat != null && lng != null && lat !== "" && lng !== "";
+  if (cleanName.length < 2 && !(hasNear && !cleanName)) return { error: "Type at least 2 letters of the restaurant name." };
   if (cleanName.length > MAX_NAME_LENGTH) return { error: `Keep the restaurant name under ${MAX_NAME_LENGTH} characters.` };
   if (likeTerm(where).length > MAX_PLACE_LENGTH) return { error: `Keep the street or ZIP under ${MAX_PLACE_LENGTH} characters.` };
-  const query = { name: cleanName };
+  const query = {};
+  if (cleanName) query.name = cleanName;
   if (boro && boro !== "All") {
     if (!BOROUGHS.includes(boro)) return { error: "Pick a borough from the list." };
     query.boro = boro;
   }
   const location = parseLocation(where);
   if (location) query.location = location;
-  if (lat != null && lng != null && lat !== "" && lng !== "") {
+  if (hasNear) {
     const la = Number(lat), lo = Number(lng);
     if (!inNyc(la, lo)) return { error: "“Near me” only works inside New York City." };
     query.near = { lat: Math.round(la * 1e4) / 1e4, lng: Math.round(lo * 1e4) / 1e4 };
@@ -79,7 +82,7 @@ export function normalizeSearch({ name, boro, where, lat, lng } = {}) {
 }
 
 export function searchWhere(query) {
-  const parts = [contains("dba", query.name)];
+  const parts = query.name ? [contains("dba", query.name)] : [];
   if (query.boro) parts.push(`boro = ${soqlString(query.boro)}`);
   const loc = query.location;
   if (loc?.zipcode) parts.push(`zipcode = ${soqlString(loc.zipcode)}`);

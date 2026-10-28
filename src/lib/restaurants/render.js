@@ -1,6 +1,6 @@
 /*
  * HTML for the restaurant lookup: result cards, the detail view and the
- * violation-category bars. Shared by the page script (search results and
+ * violation-category list. Shared by the page script (search results and
  * restaurants picked from them) and the server (a ?camis= deep link renders
  * the detail on the server). Data shapes come from src/lib/server/restaurants.js.
  */
@@ -58,9 +58,9 @@ function criticalViolationsHtml(latest) {
   );
 }
 
-// ---------- Category bars ----------
+// ---------- Category list ----------
 
-export function categoryBarsHtml(cmp, benchmark) {
+export function categoryListHtml(cmp, benchmark) {
   // With nothing to divide by, every rate is 0, which would read as an all-clear.
   if (!cmp.inspections) {
     return `<p class="insp-summary">This restaurant has no inspections in this window (since ${date(cmp.since)}), so there's nothing to compare.</p>`;
@@ -71,7 +71,7 @@ export function categoryBarsHtml(cmp, benchmark) {
     return `<p class="insp-summary">This restaurant's critical violations per inspection aren't above ${who} in any category.</p>`;
   }
 
-  return `<ol class="cat-bars">` + rows.map((r) => (
+  return `<ol class="cat-list">` + rows.map((r) => (
     `<li class="cat-row is-above">` +
       `<div class="cat-head">` +
         `<span class="cat-name">${escape(r.label)}</span>` +
@@ -127,6 +127,10 @@ export function detailHtml(d, { benchmark = "citywide" } = {}) {
       `<div class="rest-head-side">` +
         `<p class="rest-inspected">${latest ? `Inspected <strong>${date(latest.date)}</strong>` : "Not yet inspected"}</p>` +
         `<button type="button" class="copy-link" data-copy-link>Copy link to this restaurant</button>` +
+        `<p class="sr-only" role="status" data-copy-status></p>` +
+        // Clipboard blocked: the link goes here so it can be selected and copied by hand.
+        `<label class="copy-fallback" data-copy-fallback hidden><span>Copy this link:</span>` +
+          `<input class="search-input" type="text" readonly data-copy-input /></label>` +
       `</div>` +
     `</header>`;
 
@@ -186,7 +190,7 @@ export function detailHtml(d, { benchmark = "citywide" } = {}) {
       `<p class="cat-note"><strong>Good to know:</strong> These are critical violations inspectors cited, not a safety rating. ` +
       `Dividing by the number of inspections keeps restaurants that are inspected more often from looking worse just for that.</p>` +
       `<p class="cat-scope" data-cat-note aria-live="polite">${benchmarkNote(cmp, shown)}</p>` +
-      `<div data-cat-bars>${categoryBarsHtml(cmp, shown)}</div>` +
+      `<div data-cat-list>${categoryListHtml(cmp, shown)}</div>` +
     `</section>`;
 
   return head + stats + caveat + latestBlock + categories;

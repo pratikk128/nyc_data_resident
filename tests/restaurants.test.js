@@ -12,7 +12,7 @@ import {
 } from "../src/lib/restaurants/inspections.js";
 import { categoryFor, violationFamily, CATEGORIES, OTHER } from "../src/lib/restaurants/violation-categories.js";
 import { parseLocation, searchWhere, normalizeSearch, soqlString, MAX_NAME_LENGTH, MAX_PLACE_LENGTH } from "../src/lib/restaurants/soql.js";
-import { categoryBarsHtml } from "../src/lib/restaurants/render.js";
+import { categoryListHtml } from "../src/lib/restaurants/render.js";
 
 const row = (o) => ({ camis: "1", ...o });
 
@@ -209,6 +209,14 @@ test("near me only works inside NYC", () => {
   assert.ok(normalizeSearch({ name: "joe", lat: "34.05", lng: "-118.24" }).error);
 });
 
+test("near me works without a name, but not with a 1-letter one", () => {
+  const { query } = normalizeSearch({ lat: "40.73", lng: "-73.99" });
+  assert.equal(query.name, undefined);
+  assert.match(searchWhere(query), /^latitude between .* AND longitude between /);
+  assert.ok(normalizeSearch({ name: "j", lat: "40.73", lng: "-73.99" }).error);
+  assert.ok(normalizeSearch({}).error);
+});
+
 test("names are title-cased for display", () => {
   assert.equal(titleCase("JOE'S PIZZA"), "Joe's Pizza");
   assert.equal(titleCase("O'BRIEN'S PUB"), "O'Brien's Pub");
@@ -218,7 +226,7 @@ test("names are title-cased for display", () => {
 test("no inspections in the window isn't shown as an all-clear", () => {
   const rows = compareToMeans(perInspection({}, 0), {});
   const cmp = { since: "2023-10-28", inspections: 0, citywide: { rows } };
-  const html = categoryBarsHtml(cmp, "citywide");
+  const html = categoryListHtml(cmp, "citywide");
   assert.match(html, /no inspections in this window/);
   assert.doesNotMatch(html, /aren't above/);
 });

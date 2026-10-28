@@ -1,7 +1,7 @@
 ---
 /*
  * "Look up a restaurant": search by name (plus borough, street or ZIP, or
- * near me), pick a result, see its latest grade and inspection and the
+ * near me) or browse near me, pick a result, see its latest grade and inspection and the
  * categories where its critical violations per inspection are above the average.
  *
  * Search and detail data come from /api/restaurants/* (server-side, cached).
@@ -51,10 +51,10 @@ const deepLink = Boolean(initial || initialError);
   <form class="rest-search" role="search" action="/restaurant-inspections/" method="get" novalidate data-search-form>
     <div class="field field-name">
       <label class="filter-label" for="rest-name">Restaurant name</label>
-      <input class="search-input" id="rest-name" name="name" type="search" required minlength="2" maxlength={MAX_NAME_LENGTH}
+      <input class="search-input" id="rest-name" name="name" type="search" minlength="2" maxlength={MAX_NAME_LENGTH}
         autocomplete="off" spellcheck="false" placeholder="Try “Joe’s Pizza”"
         aria-describedby="rest-name-hint" aria-controls="rest-results" />
-      <p class="field-hint" id="rest-name-hint">At least 2 letters. Results update as you type.</p>
+      <p class="field-hint" id="rest-name-hint">At least 2 letters, or leave it blank and use “Near me”. Results update as you type.</p>
     </div>
     <div class="field">
       <label class="filter-label" for="rest-boro">Borough</label>
@@ -94,7 +94,7 @@ const deepLink = Boolean(initial || initialError);
         points, B is 14–27 and C is 28 or more. Only some inspections come with a grade. A restaurant that scores B or
         C on its first visit gets a second chance a few weeks later, and can post “Grade pending” until any hearing is
         over. “Latest grade” is the most recent grade on record, which may come from an earlier visit than the latest
-        inspection; we show both dates.
+        inspection; when it does, we say when that grade was given.
       </p>
       <p>
         <strong>Not yet graded and grade pending.</strong> “Not yet graded” (N) usually means the inspection doesn't
@@ -104,7 +104,7 @@ const deepLink = Boolean(initial || initialError);
       </p>
       <p>
         <strong>Critical violations</strong> are the ones most likely to make someone sick, like food held at the wrong
-        temperature or signs of mice. They're listed first.
+        temperature or signs of mice. We list only the critical violations from the latest inspection.
       </p>
       <p>
         <strong>Violation categories</strong> group violation codes by their first two digits (for example, every code
@@ -142,7 +142,7 @@ const deepLink = Boolean(initial || initialError);
 <script type="application/json" id="rest-initial" set:html={initialJson}></script>
 
 <script>
-  import { detailHtml, resultCardsHtml, categoryBarsHtml, benchmarkNote, detailHref, similarAvailable } from '../../lib/restaurants/render.js';
+  import { detailHtml, resultCardsHtml, categoryListHtml, benchmarkNote, detailHref, similarAvailable } from '../../lib/restaurants/render.js';
   import { inNyc } from '../../lib/restaurants/soql.js';
 
   const MSG = {
@@ -152,6 +152,7 @@ const deepLink = Boolean(initial || initialError);
     error: 'Couldn’t reach NYC Open Data. Their servers might be stuck behind a double-parked truck. Try again in a minute.',
     notFound: 'We couldn’t find that restaurant. The link may be mistyped, or the restaurant may have closed and dropped out of the data.',
     more: (n: number) => `More restaurants match than we can show, so here are the first ${n}. Add a borough or ZIP code to narrow it down.`,
+    moreNear: (n: number) => `More restaurants are nearby than we can show, so here are the first ${n}. Type a name to narrow it down.`,
     nearOutside: '“Near me” only works inside New York City. Try a street or ZIP code instead.'
   };
 
@@ -215,7 +216,8 @@ const deepLink = Boolean(initial || initialError);
   }
 
   function searchUrl() {
-    const p = new URLSearchParams({ name: nameInput.value.trim() });
+    const p = new URLSearchParams();
+    if (nameInput.value.trim()) p.set('name', nameInput.value.trim());
     if (boroSelect.value !== 'All') p.set('boro', boroSelect.value);
     if (placeInput.value.trim()) p.set('place', placeInput.value.trim());
     if (near) { p.set('lat', String(near.lat)); p.set('lng', String(near.lng)); }
@@ -228,10 +230,11 @@ const deepLink = Boolean(initial || initialError);
     const name = nameInput.value.trim();
     setUrl({ name: name || null, boro: boroSelect.value === 'All' ? null : boroSelect.value, place: placeInput.value.trim() || null });
 
-    if (name.length < 2) {
+    // With "near me" on, an empty name lists everything nearby.
+    if (name.length < 2 && !(near && !name)) {
       list.replaceChildren();
       keysHint.hidden = true;
-      status.textContent = name || placeInput.value.trim() || near ? MSG.tooShort : '';
+      status.textContent = name || placeInput.value.trim() ? MSG.tooShort : '';
       nameInput.setAttribute('aria-invalid', String(name.length === 1));
       return;
     }
@@ -250,7 +253,7 @@ const deepLink = Boolean(initial || initialError);
       keysHint.hidden = data.results.length < 2;
       const n = data.results.length;
       status.textContent = n === 0 ? MSG.empty
-        : data.more ? MSG.more(n)
+        : data.more ? (near && !name ? MSG.moreNear(n) : MSG.more(n))
         : `${n} ${n === 1 ? 'restaurant matches' : 'restaurants match'}${near ? ' within about half a mile' : ''}.`;
     } catch (err: any) {
       if (err.name === 'AbortError') return;
@@ -272,7 +275,8 @@ const deepLink = Boolean(initial || initialError);
   placeInput.addEventListener('input', scheduleSearch);
   boroSelect.addEventListener('change', runSearch);
 
-  // "Near me": a ~0.5 mile box around the browser's location. Press again to turn off.
+  // "Near me": a ~0.5 mile box around the browser's location, with or without
+  // a name. Press again to turn off.
   nearBtn.addEventListener('click', () => {
     if (near) {
       near = null;
@@ -294,8 +298,7 @@ const deepLink = Boolean(initial || initialError);
         near = { lat, lng };
         nearBtn.setAttribute('aria-pressed', 'true');
         nearLabel.textContent = 'Near me (½ mile)';
-        if (nameInput.value.trim().length < 2) { status.textContent = 'Got your location. Now type a restaurant name.'; nameInput.focus(); }
-        else runSearch();
+        runSearch();
       },
       () => {
         nearLabel.textContent = 'Near me';
@@ -333,13 +336,13 @@ const deepLink = Boolean(initial || initialError);
   const syncCompareUrl = () => setUrl({ compare: shownBenchmark() === 'similar' ? 'similar' : null });
 
   function renderBenchmark() {
-    const bars = detailBody.querySelector('[data-cat-bars]');
+    const cats = detailBody.querySelector('[data-cat-list]');
     const note = detailBody.querySelector('[data-cat-note]');
-    if (!current || !bars || !note) return;
+    if (!current || !cats || !note) return;
     const shown = shownBenchmark();
     detailBody.querySelectorAll('[data-benchmark]').forEach((b) =>
       b.setAttribute('aria-pressed', String((b as HTMLElement).dataset.benchmark === shown)));
-    bars.innerHTML = categoryBarsHtml(current.categories, shown);
+    cats.innerHTML = categoryListHtml(current.categories, shown);
     note.innerHTML = benchmarkNote(current.categories, shown);
   }
 
@@ -425,13 +428,20 @@ const deepLink = Boolean(initial || initialError);
     const copy = target.closest<HTMLButtonElement>('[data-copy-link]');
     if (copy && current) {
       const link = new URL(detailHref(current.camis), location.origin).href;
+      const copyStatus = detailBody.querySelector<HTMLElement>('[data-copy-status]')!;
       try {
         await navigator.clipboard.writeText(link);
-        copy.textContent = 'Link copied';
+        copy.textContent = copyStatus.textContent = 'Link copied';
+        setTimeout(() => { copy.textContent = 'Copy link to this restaurant'; copyStatus.textContent = ''; }, 2500);
       } catch {
-        copy.textContent = link; // clipboard blocked: show the link so it can be copied by hand
+        // Clipboard blocked: show the link in a box that stays until the restaurant changes.
+        const fallback = detailBody.querySelector<HTMLElement>('[data-copy-fallback]')!;
+        const input = fallback.querySelector<HTMLInputElement>('[data-copy-input]')!;
+        input.value = link;
+        fallback.hidden = false;
+        input.focus();
+        input.select();
       }
-      setTimeout(() => { copy.textContent = 'Copy link to this restaurant'; }, 2500);
     }
   });
 

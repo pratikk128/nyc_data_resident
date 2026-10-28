@@ -791,9 +791,8 @@ th[aria-sort="none"] .sort-btn:hover .sort-icon::after { content: "↕"; color: 
   --critical: #B3261E;     /* on --critical-tint 5.6:1 */
   --critical-tint: #FFE8E6;
 
-  /* Category bars: restaurant (blue-deep), mean (neutral), above the mean (orange) */
-  --bar-above: var(--callout-heads-up-deep);
-  --bar-above-tint: var(--callout-heads-up);
+  /* Violation categories above the average (orange) */
+  --cat-above: var(--callout-heads-up-deep);
 }
 
 .callout-good {
@@ -934,6 +933,9 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
   overflow-wrap: anywhere;
 }
 .copy-link:hover { background: var(--link-tint); }
+.copy-fallback { display: grid; gap: var(--space-1); width: min(100%, 22rem); font-size: .875rem; font-weight: 700; }
+.copy-fallback[hidden] { display: none; }
+.copy-fallback .search-input { font-weight: 400; }
 
 .rest-stats { align-items: stretch; }
 .grade-card-row { display: flex; align-items: center; gap: var(--space-4); margin-top: var(--space-2); }
@@ -960,7 +962,7 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
 /* Score chart (reuses .line-svg / .salary-line / .salary-dot) */
 .table-scroll .cell-text { text-align: left; white-space: normal; }
 
-/* Category bars */
+/* Violation categories */
 .cat-note {
   margin-top: var(--space-4);
   padding: var(--space-3) var(--space-4);
@@ -969,13 +971,13 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
   max-width: 75ch;
 }
 .cat-scope { margin-top: var(--space-3); font-size: .9375rem; color: var(--ink-soft); }
-.cat-bars { display: grid; gap: var(--space-3); margin-top: var(--space-3); padding: 0; list-style: none; }
+.cat-list { display: grid; gap: var(--space-3); margin-top: var(--space-3); padding: 0; list-style: none; }
 .cat-row {
   padding: var(--space-3) var(--space-4);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
 }
-.cat-row.is-above { border-color: var(--bar-above); box-shadow: inset 4px 0 0 var(--bar-above); }
+.cat-row.is-above { border-color: var(--cat-above); box-shadow: inset 4px 0 0 var(--cat-above); }
 .cat-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
 .cat-name { font-weight: 800; }
 .cat-blurb { margin-top: 2px; font-size: .875rem; color: var(--ink-soft); max-width: 75ch; }
@@ -995,7 +997,7 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
   .grade-lg { width: 72px; height: 72px; }
   .grade-lg .grade-letter { font-size: 2.5rem; }
   .rest-head-side { width: 100%; align-items: stretch; }
-  .copy-link { width: 100%; }
+  .copy-link, .copy-fallback { width: 100%; }
   .rest-detail .toggle { width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) {

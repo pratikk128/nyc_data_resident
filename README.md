@@ -109,7 +109,7 @@ Data rules (all in `src/lib/restaurants/inspections.js`, covered by tests):
 
 - One row per violation. An inspection is `camis` + `inspection_date`; restaurants are keyed by `camis`, never by name.
 - `inspection_date` 1900-01-01 means not yet inspected: excluded from every count, shown as "Not yet inspected".
-- Latest grade = newest row with a grade, by `grade_date`. Grade `N` almost never has a `grade_date`; where one exists it always equals `inspection_date`, so the inspection date stands in. It can come from an earlier visit than the latest inspection; the page shows both dates.
+- Latest grade = newest row with a grade, by `grade_date`. Grade `N` almost never has a `grade_date`; where one exists it always equals `inspection_date`, so the inspection date stands in. It can come from an earlier visit than the latest inspection; the page then gives the grade's date as well.
 - N / Z / P are shown as "Not yet graded" / "Grade pending" / "Grade pending (reopened)".
 - `boro = '0'` (about 300 rows) shows as "Borough unknown".
 
