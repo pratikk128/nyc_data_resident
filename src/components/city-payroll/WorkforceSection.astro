@@ -6,7 +6,7 @@
  * the browser by the script at the bottom (same data, no API calls from the
  * page). Picking an agency swaps in that agency's rows and redraws the stats,
  * chart, table and CSV link in place. The pay type checkboxes narrow the
- * total card, chart and table to regular pay, overtime and/or other pay.
+ * total card, chart, table and CSV to regular pay, overtime and/or other pay.
  */
 import StatCard from '../StatCard.astro';
 import snapshot from '../../data/payroll-by-year.json';
@@ -114,7 +114,7 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
                 <th scope="col" data-pay="regular">Regular pay</th>
                 <th scope="col" data-pay="overtime">Overtime</th>
                 <th scope="col" data-pay="other">Other pay</th>
-                <th scope="col">Total</th>
+                <th scope="col" data-total-head>Total</th>
                 <th scope="col">People paid</th>
               </tr>
             </thead>
@@ -222,6 +222,7 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
     const subject = section.querySelector<HTMLElement>('[data-subject]')!;
     const tbody = section.querySelector<HTMLElement>('[data-table-body]')!;
     const tableRegion = section.querySelector<HTMLElement>('.table-scroll')!;
+    const totalHead = section.querySelector<HTMLElement>('[data-total-head]')!;
     const csvLink = section.querySelector<HTMLAnchorElement>('.download-link')!;
     const loadError = section.querySelector<HTMLElement>('[data-agency-error]')!;
     const cards = {
@@ -233,7 +234,6 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
     // Keep the server-rendered citywide text so "All agencies" restores it exactly.
     const initial = {
       subject: subject.textContent,
-      table: tbody.innerHTML,
       tableLabel: tableRegion.getAttribute('aria-label'),
       cards: Object.fromEntries(Object.entries(cards).map(([k, card]) => [k, cardText(card)]))
     };
@@ -246,14 +246,6 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
       ['.stat-label', '.stat-value', '.stat-context'].forEach((sel, i) => {
         card.querySelector(sel)!.textContent = text[i];
       });
-    }
-
-    function tableRows(years: Year[]) {
-      return years.slice().reverse().map((y) =>
-        `<tr><th scope="row">FY${y.fiscalYear}</th><td data-pay="regular">${money(y.regular, 2)}</td>` +
-        `<td data-pay="overtime">${money(y.overtime, 2)}</td><td data-pay="other">${money(y.other, 2)}</td>` +
-        `<td>${money(y.total, 2)}</td><td>${count(y.peoplePaid)}</td></tr>`
-      ).join('');
     }
 
     // ---------- Pay types ----------
@@ -288,6 +280,26 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
 
     // ---------- Agency + pay types → stats, chart, table, CSV ----------
     let current: { years: Year[]; agency?: Agency } = { years: snapshot.years };
+
+    // With pay types filtered, Total sums only the selected ones, matching the total card.
+    function tableRows(years: Year[], keys: PayKey[]) {
+      const total = (y: Year) => (allPay() ? y.total : keys.reduce((acc, k) => acc + y[k], 0));
+      return years.slice().reverse().map((y) =>
+        `<tr><th scope="row">FY${y.fiscalYear}</th><td data-pay="regular">${money(y.regular, 2)}</td>` +
+        `<td data-pay="overtime">${money(y.overtime, 2)}</td><td data-pay="other">${money(y.other, 2)}</td>` +
+        `<td>${money(total(y), 2)}</td><td>${count(y.peoplePaid)}</td></tr>`
+      ).join('');
+    }
+
+    function updateTableAndCsv() {
+      const { years, agency } = current;
+      const keys = selectedPay();
+      tbody.innerHTML = tableRows(years, keys);
+      totalHead.textContent = allPay() ? 'Total' : 'Total, selected pay';
+      csvLink.href = payrollCsvHref(years, keys);
+      const parts = ['nyc-payroll', agency?.id, allPay() ? undefined : keys.join('-'), 'by-fiscal-year'];
+      csvLink.download = `${parts.filter(Boolean).join('-')}.csv`;
+    }
 
     function updateTotalCard() {
       const { years, agency } = current;
@@ -336,11 +348,9 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
       if (!agency) {
         chart.update(snapshot.years, 'NYC payroll');
         subject.textContent = initial.subject;
-        tbody.innerHTML = initial.table;
         tableRegion.setAttribute('aria-label', initial.tableLabel ?? '');
         setCard(cards.people, initial.cards.people);
-        csvLink.href = payrollCsvHref(snapshot.years);
-        csvLink.download = 'nyc-payroll-by-fiscal-year.csv';
+        updateTableAndCsv();
         updateTotalCard();
         return;
       }
@@ -351,15 +361,13 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
 
       chart.update(years, `${label} payroll`);
       subject.textContent = `${label}, ${range}.`;
-      tbody.innerHTML = tableRows(years);
       tableRegion.setAttribute('aria-label', `${label} payroll by fiscal year, table`);
       setCard(cards.people, [
         `People paid, FY${last.fiscalYear}`,
         count(last.peoplePaid),
         initial.cards.people[2]
       ]);
-      csvLink.href = payrollCsvHref(years);
-      csvLink.download = `nyc-payroll-${agency.id}-by-fiscal-year.csv`;
+      updateTableAndCsv();
       updateTotalCard();
     }
 
@@ -379,6 +387,7 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
 
     payBoxes.forEach((box) => box.addEventListener('change', () => {
       applyPayTypes();
+      updateTableAndCsv();
       updateTotalCard();
       syncUrl();
     }));
@@ -392,6 +401,7 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
     payBoxes.forEach((b) => (b.checked = !fromUrlPay.length || fromUrlPay.includes(b.value)));
     if (!allPay()) {
       applyPayTypes();
+      updateTableAndCsv();
       updateTotalCard();
     }
     if (select.value) apply(select.value);
