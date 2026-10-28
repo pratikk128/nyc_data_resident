@@ -1,0 +1,55 @@
+---
+import '../styles/landing.css';
+---
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Page not found | Ask NYC Data</title>
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#D6E6FF">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="Ask NYC Data, home">
+      <span class="wordmark">Ask <span class="wordmark-accent">NYC</span> Data</span>
+    </a>
+    <p class="tagline">NYC's public data, made easy to understand.</p>
+  </header>
+
+  <main class="main not-found" id="main">
+    <section class="hero" aria-labelledby="not-found-title">
+      <h1 id="not-found-title">We couldn't find that page.</h1>
+      <p>The link may be out of date, or the address may have a typo.</p>
+    </section>
+    <a class="not-found-link" href="/">Browse all dashboards <span aria-hidden="true">→</span></a>
+  </main>
+
+  <footer class="site-footer">
+    <p class="footer-brand">Ask NYC Data · <a href="https://asknycdata.com">asknycdata.com</a></p>
+    <p class="footer-note">Data sourced from NYC Open Data. Not affiliated with the City of New York.</p>
+  </footer>
+</body>
+</html>
+
+<style>
+  .not-found {
+    flex: 1;
+    margin: 0 auto;
+    padding-top: var(--space-7);
+  }
+  .not-found-link {
+    display: inline-block;
+    margin-top: var(--space-5);
+    padding: var(--space-3) var(--space-5);
+    border-radius: var(--radius-pill);
+    background: var(--accent);
+    color: var(--ink);
+    font-weight: 700;
+    text-decoration: none;
+  }
+  .not-found-link:hover { background: var(--accent-deep); }
+</style>
