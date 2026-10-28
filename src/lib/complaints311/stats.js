@@ -8,7 +8,7 @@
  *   { total, types: { KEY: n }, locations: { group: n }, status: { open, closed } }
  * with complaint types keyed by typeKey() and location types by locationGroup().
  */
-import { typeKey, typeLabel, locationGroup, OTHER_LOCATION, LOCATION_NOUNS } from "./labels.js";
+import { typeKey, typeLabel, locationGroup, OTHER_LOCATION } from "./labels.js";
 import {
   STATUS_CLOSED, MIN_IMMEDIATE_REQUESTS, MIN_LOCAL_COUNT, ABOVE_RATIO, BELOW_RATIO,
   TOP_LOCATION_TYPES, TOP_COMPLAINT_TYPES, AREAS
@@ -132,7 +132,7 @@ export const areaWhere = (areaKey) => `within ${AREAS[areaKey].walk}`;
 // ---------- Location types ----------
 
 /*
- * Rows for the grouped bar chart: the top `n` location groups by share here,
+ * Rows for the share bars: the top `n` location groups by share here,
  * with "Other / Not specified" always last and holding everything else.
  */
 export function locationComparison(local, borough, city, n = TOP_LOCATION_TYPES) {
@@ -153,19 +153,6 @@ export function locationComparison(local, borough, city, n = TOP_LOCATION_TYPES)
     city: Math.max(0, rest("city"))
   });
   return rows;
-}
-
-// The location group whose share here differs most from the city's (in percentage
-// points, so a tiny group with a big ratio doesn't win), as a sentence.
-export function locationSentence(rows, { where = "near you", baselineName = "the city average" } = {}) {
-  const candidates = rows.filter((r) => r.key !== OTHER_LOCATION && r.city > 0);
-  if (!candidates.length) return "";
-  const best = candidates.reduce((a, b) => (Math.abs(b.here - b.city) > Math.abs(a.here - a.city) ? b : a));
-  const r = best.here / best.city;
-  const noun = LOCATION_NOUNS[best.key] ?? best.key.toLowerCase();
-  if (r >= 1.1) return `Complaints ${where} are more likely to be about ${noun} than ${baselineName}.`;
-  if (r <= 0.9) return `Complaints ${where} are less likely to be about ${noun} than ${baselineName}.`;
-  return `Where complaints happen ${where} looks a lot like ${baselineName}.`;
 }
 
 // "2.3×" — one decimal under 10, whole numbers above, "<0.1×" for next to none.

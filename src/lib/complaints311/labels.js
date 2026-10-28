@@ -130,7 +130,6 @@ export const LOCATION_GROUPS = [
   { key: "Restaurant, bar or food vendor", test: /restaurant|bar|club|deli|bakery|food|vendor|cafe|café/i },
   { key: "Park or playground", test: /park|playground|beach|garden/i },
   { key: "Subway, bus, taxi or ferry", test: /subway|bus|taxi|ferry|train|station|airport|terminal/i },
-  { key: "Construction site", test: /construction/i },
   { key: "Sewer or catch basin", test: /sewer|catch basin/i },
   { key: "School", test: /school|college|universit/i }
 ];
@@ -149,17 +148,3 @@ export function locationGroup(raw) {
   const match = OVERRIDES.find((g) => g.test.test(value)) ?? LOCATION_GROUPS.find((g) => g.test.test(value));
   return match?.key ?? OTHER_LOCATION;
 }
-
-// Plain-language noun for summary sentences ("residential buildings").
-export const LOCATION_NOUNS = {
-  "Residential building": "residential buildings",
-  "Street or sidewalk": "streets and sidewalks",
-  "Store or business": "stores and businesses",
-  "Restaurant, bar or food vendor": "restaurants, bars and food vendors",
-  "Park or playground": "parks and playgrounds",
-  "Subway, bus, taxi or ferry": "transit",
-  "Construction site": "construction sites",
-  "Sewer or catch basin": "sewers",
-  "School": "schools",
-  [OTHER_LOCATION]: "other or unlisted places"
-};

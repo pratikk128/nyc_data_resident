@@ -1011,8 +1011,18 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
   /* Comparison series, checked with the dataviz palette validator (CVD-safe, ≥ 3:1 on white).
      Bars are always labeled with the series name and value, so color is never the only cue. */
   --c311-here: var(--blue-deep);
-  --c311-borough: #B07D00;
-  --c311-city: #00A08A;
+  /* Types of place, in LOCATION_GROUPS order: the dataviz reference categorical palette
+     (validated in this order), "Other" in neutral gray. The key lists every share,
+     so color is never the only cue. */
+  --c311-place-1: #2a78d6;
+  --c311-place-2: #eb6834;
+  --c311-place-3: #1baf7a;
+  --c311-place-4: #eda100;
+  --c311-place-5: #e87ba4;
+  --c311-place-6: #008300;
+  --c311-place-7: #6250d6;
+  --c311-place-8: #e34948;
+  --c311-place-other: #a3a7ae;
   --c311-open: var(--callout-heads-up-deep);
   /* More / less common: the red and green category tones. Each column is titled, so color is never the only cue. */
   --c311-more: #FFB3AE;
@@ -1240,25 +1250,44 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
 .c311-cmp-col .c311-empty { font-size: .9375rem; }
 
 /* ---------- Where complaints happen ---------- */
-.c311-places-sentence { margin-top: var(--space-4); }
-.c311-legend { margin-top: var(--space-4); }
-.swatch.c311-s-here, .c311-loc-fill.c311-s-here { background: var(--c311-here); }
-.swatch.c311-s-borough, .c311-loc-fill.c311-s-borough { background: var(--c311-borough); }
-.swatch.c311-s-city, .c311-loc-fill.c311-s-city { background: var(--c311-city); }
-.c311-loc-list { display: grid; gap: var(--space-4); margin-top: var(--space-4); padding: 0; list-style: none; }
-.c311-loc-name { font-weight: 700; }
-.c311-loc-bar {
-  display: grid;
-  grid-template-columns: 7.5rem minmax(0, 1fr) 3.5rem;
-  align-items: center;
-  gap: var(--space-3);
-  margin-top: 2px;
-  font-size: .875rem;
+.c311-place-1 { background: var(--c311-place-1); }
+.c311-place-2 { background: var(--c311-place-2); }
+.c311-place-3 { background: var(--c311-place-3); }
+.c311-place-4 { background: var(--c311-place-4); }
+.c311-place-5 { background: var(--c311-place-5); }
+.c311-place-6 { background: var(--c311-place-6); }
+.c311-place-7 { background: var(--c311-place-7); }
+.c311-place-8 { background: var(--c311-place-8); }
+.c311-place-other { background: var(--c311-place-other); }
+.c311-share-compare {
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--link);
+  font-weight: 700;
+  cursor: pointer;
 }
-.c311-loc-series { color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.c311-loc-track { height: 12px; }
-.c311-loc-fill { display: block; height: 100%; min-width: 2px; border-radius: 0 4px 4px 0; }
-.c311-loc-val { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+.c311-share-rows { margin-top: var(--space-5); }
+/* 2px surface gaps between slices; rounded only at the two ends. */
+.c311-share-bar { display: flex; gap: 2px; height: 28px; border-radius: 4px; overflow: hidden; }
+.c311-share-seg { flex: 0 1 0; min-width: 2px; }
+.c311-share-key {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: var(--space-2) var(--space-5);
+  margin-top: var(--space-4);
+  padding: 0;
+  list-style: none;
+}
+.c311-share-key li {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--space-2);
+}
+.c311-share-key-val { font-weight: 700; font-variant-numeric: tabular-nums; }
+.c311-share-key-cmp { grid-column: 2 / -1; font-size: .8125rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 .c311-places-body .c311-table-toggle { margin-top: var(--space-4); }
 
 /* ---------- Map placeholder ---------- */
@@ -1309,7 +1338,6 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
   .c311-current { padding: var(--space-3) var(--space-4); }
   .c311-current .copy-link { width: 100%; }
   .c311-control, .c311-control .toggle { width: 100%; }
-  .c311-loc-bar { grid-template-columns: 5.5rem minmax(0, 1fr) 3rem; gap: var(--space-2); }
   .c311-map-frame { height: 320px; }
 }
 @media (prefers-reduced-motion: reduce) {

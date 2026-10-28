@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 
 import {
   shares, ratio, compareShares, comparisonArea, typeCounts, locationCounts, statusCounts,
-  topTypes, openShare, overviewSentence, locationComparison, locationSentence, ratioText
+  topTypes, openShare, overviewSentence, locationComparison, ratioText
 } from "../src/lib/complaints311/stats.js";
 import { typeKey, typeLabel, locationGroup, OTHER_LOCATION } from "../src/lib/complaints311/labels.js";
 import {
@@ -127,6 +127,7 @@ test("location types fold into plain groups, blanks into Other / Not specified",
   assert.equal(locationGroup("Club/Bar/Restaurant"), "Restaurant, bar or food vendor");
   assert.equal(locationGroup("Park/Playground"), "Park or playground");
   assert.equal(locationGroup("House of Worship"), OTHER_LOCATION);
+  assert.equal(locationGroup("Construction Site"), OTHER_LOCATION);
   assert.equal(locationGroup(null), OTHER_LOCATION);
   assert.equal(locationGroup("N/A"), OTHER_LOCATION);
   const counts = locationCounts([
@@ -164,7 +165,6 @@ test("location comparison keeps the top groups and folds the rest into Other", (
   close(rows[2].here, 0.1);
   close(rows[2].city, 0.25);
   assert.equal(rows[0].borough, null);
-  assert.equal(locationSentence(rows), "Complaints near you are more likely to be about residential buildings than the city average.");
 });
 
 // ---------- Queries ----------

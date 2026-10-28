@@ -1,13 +1,12 @@
 /*
  * HTML for the 311 dashboard's sections: overview cards, the above/below-average
- * list and the location-type bars. Plain strings (no framework), drawn by the
+ * list and the location-type share bar. Plain strings (no framework), drawn by the
  * section scripts from store.js state.
  * Every chart has a text version: an aria-label summary and a table.
- * Series colors live in dashboard.css (.c311-s-here / -borough / -city).
  */
 import { count, percent } from "../format.js";
 import { ratioText, topTypes, openShare } from "./stats.js";
-import { typeLabel } from "./labels.js";
+import { typeLabel, LOCATION_GROUPS } from "./labels.js";
 import { MIN_LOCAL_COUNT, ABOVE_RATIO, BELOW_RATIO, MAX_COMPARE_SHOWN } from "./config.js";
 
 export const escape = (str) => String(str ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -137,28 +136,43 @@ export function compareListHtml(result, { baselineName, localName = "here" }) {
 
 // ---------- Location types ----------
 
+// Each place keeps its color whatever its rank (slot = its LOCATION_GROUPS order);
+// "Other / Not specified" is gray. Colors live in dashboard.css (.c311-place-N).
+const placeClass = (key) => {
+  const i = LOCATION_GROUPS.findIndex((g) => g.key === key);
+  return i < 0 ? "c311-place-other" : `c311-place-${i + 1}`;
+};
+
+// One 100% bar: a slice per place, sized by its share.
+function shareBarHtml(rows) {
+  return `<span class="c311-share-bar">` + rows.filter((r) => r.here > 0).map((r) => (
+    `<span class="c311-share-seg ${placeClass(r.key)}" style="flex-grow:${r.here.toFixed(4)}" ` +
+      `title="${escape(`${r.key}: ${pct(r.here)}`)}"></span>`
+  )).join("") + `</span>`;
+}
+
 /*
- * rows: locationComparison() output. names: { here, borough, city } series names
- * (borough null to leave that series out).
+ * rows: locationComparison() output. names: { here, borough } series names
+ * (borough null when there's no borough to compare with). compare: also list the
+ * borough's shares in the key and table.
  */
-export function locationChartHtml(rows, names, { id }) {
+export function locationShareHtml(rows, names, { id, compare = false }) {
   const series = [
     { key: "here", name: names.here },
-    names.borough && { key: "borough", name: names.borough },
-    { key: "city", name: names.city }
+    compare && names.borough && { key: "borough", name: names.borough }
   ].filter(Boolean);
-  const max = Math.max(0.01, ...rows.flatMap((r) => series.map((s) => r[s.key] ?? 0)));
 
-  const legend = `<ul class="legend c311-legend" aria-hidden="true">` +
-    series.map((s) => `<li><span class="swatch c311-s-${s.key}"></span>${escape(s.name)}</li>`).join("") + `</ul>`;
+  // Only the local area gets a bar; the averages are listed in the key.
+  const bar = `<div class="c311-share-rows" aria-hidden="true">${shareBarHtml(rows)}</div>`;
 
-  const chart = `<ol class="c311-loc-list" aria-hidden="true">` + rows.map((r) => (
-    `<li class="c311-loc-row"><p class="c311-loc-name">${escape(r.key)}</p>` +
-      series.map((s) => (
-        `<div class="c311-loc-bar"><span class="c311-loc-series">${escape(s.name)}</span>` +
-        `<span class="c311-loc-track"><span class="c311-loc-fill c311-s-${s.key}" style="width:${(((r[s.key] ?? 0) / max) * 100).toFixed(1)}%"></span></span>` +
-        `<span class="c311-loc-val">${pct(r[s.key] ?? 0)}</span></div>`
-      )).join("") +
+  const others = series.slice(1);
+  const key = `<ol class="c311-share-key" aria-hidden="true">` + rows.map((r) => (
+    `<li><span class="swatch ${placeClass(r.key)}"></span>` +
+      `<span class="c311-share-key-name">${escape(r.key)}</span>` +
+      `<span class="c311-share-key-val">${pct(r.here)}</span>` +
+      (others.length
+        ? `<span class="c311-share-key-cmp">${others.map((s) => `${escape(s.name)} average ${pct(r[s.key] ?? 0)}`).join(" · ")}</span>`
+        : "") +
     `</li>`
   )).join("") + `</ol>`;
 
@@ -173,5 +187,5 @@ export function locationChartHtml(rows, names, { id }) {
   const srList = `<ul class="sr-only">` + rows.map((r) =>
     `<li>${escape(r.key)}: ${series.map((s) => `${escape(s.name)} ${pct(r[s.key] ?? 0)}`).join(", ")}</li>`).join("") + `</ul>`;
 
-  return legend + chart + srList + table;
+  return bar + key + srList + table;
 }

@@ -63,7 +63,8 @@ export const BELOW_RATIO = 0.75;
 // More / less common: the strongest types shown in each column; the rest sit behind "Show N more".
 export const MAX_COMPARE_SHOWN = 5;
 // Location types: the top N groups by local share are drawn; the rest fold into "Other / Not specified".
-export const TOP_LOCATION_TYPES = 8;
+// Kept small so each slice of the share bar stays wide enough to see.
+export const TOP_LOCATION_TYPES = 6;
 export const TOP_COMPLAINT_TYPES = 5;
 
 export const STATUS_CLOSED = "Closed";
