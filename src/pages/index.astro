@@ -1,5 +1,11 @@
 ---
 import '../styles/landing.css';
+import { dashboards, ALL, CATEGORIES, categorySlug, categoryHref, categoryTone, categoryIcon } from '../data/dashboards.js';
+
+// Cards and the sidebar are rendered here; public/js/app.js only filters them.
+const countFor = (name: string) =>
+  name === ALL ? dashboards.length : dashboards.filter((d) => d.category === name).length;
+const plural = (n: number) => `${n} ${n === 1 ? 'dashboard' : 'dashboards'}`;
 ---
 
 <!doctype html>
@@ -54,7 +60,20 @@ import '../styles/landing.css';
       <nav class="sidebar-nav" aria-labelledby="sidebar-title">
         <h2 class="sidebar-title" id="sidebar-title">Categories</h2>
         <ul class="category-list" id="category-list">
-          <!-- Rendered by js/app.js -->
+          {CATEGORIES.map(({ name, tone, icon }) => {
+            const n = countFor(name);
+            return (
+              <li>
+                <a class="category-btn" href={categoryHref(name)} data-category={name === ALL ? '' : categorySlug(name)}
+                   data-tone={tone} title={name} aria-label={`${name}, ${plural(n)}`}
+                   aria-current={name === ALL ? 'page' : undefined}>
+                  <svg class="category-icon" viewBox="0 0 24 24" aria-hidden="true" set:html={icon} />
+                  <span class="category-label">{name}</span>
+                  <span class="category-count" aria-hidden="true">{n}</span>
+                </a>
+              </li>
+            );
+          })}
         </ul>
       </nav>
     </aside>
@@ -68,13 +87,25 @@ import '../styles/landing.css';
 
       <section class="results" aria-labelledby="results-title">
         <div class="results-head">
-          <h2 id="results-title">All Categories</h2>
-          <p class="results-count" id="results-count" aria-live="polite"></p>
+          <h2 id="results-title">{ALL}</h2>
+          <p class="results-count" id="results-count" aria-live="polite">{plural(dashboards.length)}</p>
         </div>
-        <ul class="card-grid" id="card-grid">
-          <!-- Rendered by js/app.js from js/dashboards.js -->
+        <ul class="card-grid" id="card-grid" hidden={dashboards.length === 0}>
+          {dashboards.map((d) => (
+            <li data-category={categorySlug(d.category)}>
+              <a class="card" data-tone={categoryTone(d.category)} href={d.url || '#'}>
+                <span class="card-icon"><svg viewBox="0 0 24 24" aria-hidden="true" set:html={categoryIcon(d.category)} /></span>
+                <h3 class="card-title">{d.title}</h3>
+                <p class="card-desc">{d.description}</p>
+                <span class="card-footer">
+                  <span class="tag">{d.category}</span>
+                  <span class="card-link">Open dashboard <span aria-hidden="true">→</span></span>
+                </span>
+              </a>
+            </li>
+          ))}
         </ul>
-        <div class="empty-state" id="empty-state" hidden>
+        <div class="empty-state" id="empty-state" hidden={dashboards.length !== 0}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/></svg>
           <p>No dashboards in this category yet. Coming soon.</p>
         </div>
@@ -87,8 +118,7 @@ import '../styles/landing.css';
     <p class="footer-note">Data sourced from NYC Open Data. Not affiliated with the City of New York.</p>
   </footer>
 
-  <!-- Plain scripts served from public/js; edit public/js/dashboards.js to add dashboards -->
-  <script is:inline src="/js/dashboards.js"></script>
+  <!-- Plain script served from public/js; edit src/data/dashboards.js to add dashboards -->
   <script is:inline src="/js/app.js"></script>
 </body>
 </html>

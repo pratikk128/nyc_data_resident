@@ -37,6 +37,8 @@
   color: var(--ink-soft);
 }
 .breadcrumb a { font-weight: 600; }
+.breadcrumb a.tag { text-decoration: none; }
+.breadcrumb a.tag:hover { text-decoration: underline; }
 
 /* Breadcrumb on the left, "Data updated as of" on the right; stacks on narrow screens */
 .dash-topbar {

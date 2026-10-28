@@ -7,18 +7,18 @@
 import '../styles/landing.css';
 import '../styles/dashboard.css';
 import { date } from '../lib/format.js';
+import { categoryHref, categoryTone } from '../data/dashboards.js';
 
 interface Props {
   title: string;        // Dashboard name, e.g. "City Payroll Spending"
   description: string;  // Meta description
   path: string;         // e.g. "/city-payroll/"
-  category: string;     // Sidebar category on the landing page
-  tone?: string;        // Category tone (see TONES in public/js/app.js)
+  category: string;     // Sidebar category on the landing page (CATEGORIES in src/data/dashboards.js)
   lastRefreshed?: string;
   dataUpdated?: string; // ISO date the source dataset was last updated; shown top right
 }
 
-const { title, description, path, category, tone = 'blue', lastRefreshed, dataUpdated } = Astro.props;
+const { title, description, path, category, lastRefreshed, dataUpdated } = Astro.props;
 const fullTitle = `${title} | Ask NYC Data`;
 const canonical = new URL(path, 'https://asknycdata.com').href;
 ---
@@ -58,7 +58,7 @@ const canonical = new URL(path, 'https://asknycdata.com').href;
       <nav class="breadcrumb" aria-label="Breadcrumb">
         <ol>
           <li><a href="/">All dashboards</a></li>
-          <li><span class="tag" data-tone={tone}>{category}</span></li>
+          <li><a class="tag" data-tone={categoryTone(category)} href={categoryHref(category)}>{category}</a></li>
         </ol>
       </nav>
       {dataUpdated && (

@@ -120,7 +120,7 @@ Soft pastel blue and pastel yellow on a warm cream page: bright, calm, and frien
 | Recreation | lime | `#D4EE9A` | `#F3FADF` | `#4D6B0A` |
 | Social Services | pink | `#FFBADB` | `#FFEAF4` | `#B0306E` |
 
-The mapping lives in `TONES` in `public/js/app.js`; a new category needs a tone there (default: blue).
+The mapping lives in `CATEGORIES` in `src/data/dashboards.js`; a new category needs a tone there (default: blue).
 
 **Usage rules**
 - Page background is `--paper`, not pure white. Cards are `--card`.

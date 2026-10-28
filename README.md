@@ -22,8 +22,8 @@ wrangler.jsonc            Worker config: KV namespace, cron trigger
 tests/                    `npm test` (node:test, no extra dependencies)
 src/data/                 Precomputed data snapshots (generated, committed)
 scripts/                  Data refresh scripts
-public/js/dashboards.js   Dashboard registry: the list of cards
-public/js/app.js          Renders the sidebar and cards, filtering, sidebar collapse
+src/data/dashboards.js    Dashboard registry: the cards, plus sidebar categories (icons, tones)
+public/js/app.js          Landing page: category filter (?category=<slug>), sidebar collapse
 public/favicon.svg        Favicon
 ```
 
@@ -70,7 +70,7 @@ All Socrata calls go through `src/lib/server/socrata.js`, which adds the `X-App-
 
 ## Add a new dashboard
 
-Open `public/js/dashboards.js` and append one object to the `dashboards` array:
+Open `src/data/dashboards.js` and append one object to the `dashboards` array:
 
 ```js
 {
@@ -83,9 +83,10 @@ Open `public/js/dashboards.js` and append one object to the `dashboards` array:
 ```
 
 - `category` must exactly match a sidebar category name: Business, City Government, Education, Environment, Health, Housing & Development, Public Safety, Recreation, Social Services, Transportation.
-- The card, sidebar counts, and filter update automatically.
+- The card, sidebar counts, and filter update automatically. Cards are rendered at build time, so they show without JavaScript; `public/js/app.js` only filters them.
+- Each category has a shareable URL, `/?category=<slug>` (e.g. `/?category=city-government`); the dashboard breadcrumb links there.
 
-To add a new category, add an entry (name → SVG icon paths) to `ICONS` in `public/js/app.js`; sidebar order follows that object's order.
+To add a new category, add an entry (name, tone, SVG icon paths) to `CATEGORIES` in `src/data/dashboards.js`; sidebar order follows that array's order.
 
 ## City Payroll Spending sections
 

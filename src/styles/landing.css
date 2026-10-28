@@ -213,17 +213,18 @@ svg { flex-shrink: 0; }
   background: transparent;
   color: var(--ink-soft);
   text-align: left;
+  text-decoration: none;
   cursor: pointer;
   transition: background-color 150ms ease, color 150ms ease;
 }
 .category-btn:hover { background: var(--yellow-tint); color: var(--ink); }
 
-.category-btn[aria-current="true"] {
+.category-btn[aria-current="page"] {
   background: var(--link-tint);
   color: var(--link);
   font-weight: 600;
 }
-.category-btn[aria-current="true"]::before {
+.category-btn[aria-current="page"]::before {
   content: "";
   position: absolute;
   left: 0;
@@ -265,7 +266,7 @@ svg { flex-shrink: 0; }
   font-variant-numeric: tabular-nums;
   color: var(--ink-soft);
 }
-.category-btn[aria-current="true"] .category-count {
+.category-btn[aria-current="page"] .category-count {
   background: var(--card);
   border-color: transparent;
   color: var(--link);
