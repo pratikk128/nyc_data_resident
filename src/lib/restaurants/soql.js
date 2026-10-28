@@ -113,10 +113,12 @@ export function detailParams(camis) {
 
 const inWindow = (since) => `inspection_date >= '${since}T00:00:00' AND inspection_date > '${NOT_INSPECTED_DATE}T00:00:00'`;
 
-// Denominator: every restaurant inspected in the window, violations or not.
+// Denominator: every inspection (camis + date) in the window, violations or
+// not, plus the number of restaurants behind them.
 export function restaurantCountParams(since, { bySimilar = false } = {}) {
   return {
-    $select: `${bySimilar ? "cuisine_description, boro, " : ""}count(distinct camis) AS restaurants`,
+    $select: `${bySimilar ? "cuisine_description, boro, " : ""}count(distinct camis) AS restaurants, ` +
+      "count(distinct camis || inspection_date::text) AS inspections",
     $where: inWindow(since),
     ...(bySimilar && { $group: "cuisine_description, boro" }),
     $limit: "50000"

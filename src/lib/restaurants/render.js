@@ -64,7 +64,7 @@ export function categoryBarsHtml(cmp, benchmark) {
   const rows = cmp[benchmark].rows.filter((r) => r.above);
   if (!rows.length) {
     const who = benchmark === "citywide" ? "the city average" : "the average for similar restaurants";
-    return `<p class="insp-summary">This restaurant's critical violations aren't above ${who} in any category.</p>`;
+    return `<p class="insp-summary">This restaurant's critical violations per inspection aren't above ${who} in any category.</p>`;
   }
 
   return `<ol class="cat-bars">` + rows.map((r) => {
@@ -84,9 +84,9 @@ export function categoryBarsHtml(cmp, benchmark) {
 export function benchmarkNote(cmp, benchmark) {
   const g = cmp[benchmark];
   if (benchmark === "citywide") {
-    return `Compared with the average across all ${count(g.restaurants)} restaurants inspected citywide since ${date(cmp.since)}.`;
+    return `Compared with the average inspection across all ${count(g.restaurants)} restaurants inspected citywide since ${date(cmp.since)}.`;
   }
-  return `Compared with the average across ${count(g.restaurants)} ${escape(g.cuisine)} restaurants in ${escape(g.boro)} inspected since ${date(cmp.since)}.`;
+  return `Compared with the average inspection across ${count(g.restaurants)} ${escape(g.cuisine)} restaurants in ${escape(g.boro)} inspected since ${date(cmp.since)}.`;
 }
 
 // ---------- Detail view ----------
@@ -174,14 +174,14 @@ export function detailHtml(d, { benchmark = "citywide" } = {}) {
   const categories =
     `<section class="rest-block chart-frame" aria-labelledby="cats-title" data-categories>` +
       `<div class="chart-head">` +
-        `<div><h3 class="chart-title" id="cats-title">Critical violations above the average, by category</h3>` +
-        `<p class="chart-subtitle">Critical violations cited since ${date(cmp.since)} (last ${cmp.years} years), per restaurant. ` +
-        `Only categories where this restaurant has more critical violations than the average are shown.</p></div>` +
+        `<div><h3 class="chart-title" id="cats-title">Violation categories worse than the rest</h3>` +
+        `<p class="chart-subtitle">Critical violations cited per inspection since ${date(cmp.since)} (last ${cmp.years} years). ` +
+        `Only categories where this restaurant averages more critical violations per inspection than the rest are shown.</p></div>` +
         toggle +
       `</div>` +
       similarNote +
-      `<p class="cat-note"><strong>Good to know:</strong> These are counts of critical violations inspectors cited, not a safety rating. ` +
-      `Restaurants that are inspected more often have more chances to be cited.</p>` +
+      `<p class="cat-note"><strong>Good to know:</strong> These are critical violations inspectors cited, not a safety rating. ` +
+      `Dividing by the number of inspections keeps restaurants that are inspected more often from looking worse just for that.</p>` +
       `<p class="cat-scope" data-cat-note aria-live="polite">${benchmarkNote(cmp, shown)}</p>` +
       `<div data-cat-bars>${categoryBarsHtml(cmp, shown)}</div>` +
     `</section>`;

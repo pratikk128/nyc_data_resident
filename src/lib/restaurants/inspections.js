@@ -148,17 +148,17 @@ export function totalsFromFamilies(rows) {
   return totals;
 }
 
-// Mean cited violations per restaurant. The denominator is every restaurant
-// inspected in the window, including the ones with zero violations in a
-// category, so it comes from a separate count(distinct camis), not from the
-// violation rows.
-export function meanPerRestaurant(totals, restaurants) {
+// Cited violations per inspection. For the benchmarks the denominator is every
+// inspection in the window, including the ones with zero violations in a
+// category, so it comes from a separate count of distinct camis + date, not
+// from the violation rows.
+export function perInspection(totals, inspections) {
   return Object.fromEntries(
-    Object.entries(totals).map(([cat, n]) => [cat, restaurants > 0 ? n / restaurants : 0])
+    Object.entries(totals).map(([cat, n]) => [cat, inspections > 0 ? n / inspections : 0])
   );
 }
 
-// One entry per category: the restaurant's count, the mean, and whether it's
+// One entry per category: the restaurant's rate, the mean, and whether it's
 // above. Above-mean categories come first (biggest ratio first), then the
 // rest in config order.
 export function compareToMeans(counts, means) {

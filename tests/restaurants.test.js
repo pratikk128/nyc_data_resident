@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 
 import {
   latestGrade, groupInspections, isInspected, countByCategory, totalsFromFamilies,
-  meanPerRestaurant, compareToMeans, ratioLabel, cutoffDate, gradeInfo, scoreBand, titleCase
+  perInspection, compareToMeans, ratioLabel, cutoffDate, gradeInfo, scoreBand, titleCase
 } from "../src/lib/restaurants/inspections.js";
 import { categoryFor, violationFamily, CATEGORIES, OTHER } from "../src/lib/restaurants/violation-categories.js";
 import { parseLocation, searchWhere, normalizeSearch, soqlString } from "../src/lib/restaurants/soql.js";
@@ -121,15 +121,15 @@ test("family totals fold into categories, unknown into Other", () => {
 
 // ---------- Mean calculation ----------
 
-test("mean divides by every restaurant inspected, including ones with zero", () => {
-  // 3 restaurants cited 6 temperature violations in total; 7 more were inspected with none
-  const means = meanPerRestaurant({ temperature: 6, hygiene: 0 }, 10);
+test("mean divides by every inspection, including ones with zero", () => {
+  // 3 inspections cited 6 temperature violations in total; 7 more cited none
+  const means = perInspection({ temperature: 6, hygiene: 0 }, 10);
   assert.equal(means.temperature, 0.6);
   assert.equal(means.hygiene, 0);
 });
 
-test("mean is 0, not NaN, when no restaurants were inspected", () => {
-  assert.deepEqual(meanPerRestaurant({ temperature: 0 }, 0), { temperature: 0 });
+test("mean is 0, not NaN, when there were no inspections", () => {
+  assert.deepEqual(perInspection({ temperature: 0 }, 0), { temperature: 0 });
 });
 
 test("restaurant counts only use critical violations inside the window", () => {

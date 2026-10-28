@@ -11,7 +11,7 @@ import {
 } from "../restaurants/soql.js";
 import {
   day, isInspected, latestGrade, groupInspections, cutoffDate, countByCategory,
-  totalsFromFamilies, meanPerRestaurant, compareToMeans, titleCase, addressLine, boroLabel,
+  totalsFromFamilies, perInspection, compareToMeans, titleCase, addressLine, boroLabel,
   NOT_INSPECTED_DATE
 } from "../restaurants/inspections.js";
 import { LOOKBACK_YEARS, MIN_SIMILAR_RESTAURANTS } from "../restaurants/violation-categories.js";
@@ -29,9 +29,9 @@ export const metadataJob = {
 };
 
 // Citywide and same-cuisine-and-borough critical-violation totals per category, plus the number
-// of restaurants inspected in the window (the denominator for the mean).
+// of inspections in the window (the denominator for the mean) and of restaurants behind them.
 export const benchmarksJob = {
-  key: `restaurants:benchmarks:critical:${LOOKBACK_YEARS}y`,
+  key: `restaurants:benchmarks:critical-per-inspection:${LOOKBACK_YEARS}y`,
   maxAgeHours: 26,
   async run() {
     const since = cutoffDate(new Date(), LOOKBACK_YEARS);
@@ -44,7 +44,9 @@ export const benchmarksJob = {
 
     const similar = {};
     for (const row of similarCounts) {
-      similar[similarKey(row.cuisine_description, row.boro)] = { restaurants: Number(row.restaurants), rows: [] };
+      similar[similarKey(row.cuisine_description, row.boro)] = {
+        restaurants: Number(row.restaurants), inspections: Number(row.inspections), rows: []
+      };
     }
     for (const row of similarFamilies) {
       similar[similarKey(row.cuisine_description, row.boro)]?.rows.push(row);
@@ -58,7 +60,11 @@ export const benchmarksJob = {
       since,
       years: LOOKBACK_YEARS,
       computedAt: new Date().toISOString(),
-      citywide: { restaurants: Number(cityCount[0]?.restaurants) || 0, totals: totalsFromFamilies(cityFamilies) },
+      citywide: {
+        restaurants: Number(cityCount[0]?.restaurants) || 0,
+        inspections: Number(cityCount[0]?.inspections) || 0,
+        totals: totalsFromFamilies(cityFamilies)
+      },
       similar
     };
   }
@@ -112,6 +118,8 @@ export async function searchRestaurants(query) {
 
 function categoryComparison(inspections, benchmarks, cuisine, boro) {
   const counts = countByCategory(inspections, benchmarks.since);
+  const inWindow = inspections.filter((insp) => insp.date >= benchmarks.since).length;
+  const rates = perInspection(counts, inWindow);
   const city = benchmarks.citywide;
   const group = benchmarks.similar[similarKey(cuisine, boro)];
   const similarOk = group && group.restaurants >= MIN_SIMILAR_RESTAURANTS;
@@ -120,9 +128,10 @@ function categoryComparison(inspections, benchmarks, cuisine, boro) {
     years: benchmarks.years,
     computedAt: benchmarks.computedAt,
     total: Object.values(counts).reduce((a, b) => a + b, 0),
-    citywide: { restaurants: city.restaurants, rows: compareToMeans(counts, meanPerRestaurant(city.totals, city.restaurants)) },
+    inspections: inWindow,
+    citywide: { restaurants: city.restaurants, rows: compareToMeans(rates, perInspection(city.totals, city.inspections)) },
     similar: similarOk
-      ? { restaurants: group.restaurants, cuisine, boro, rows: compareToMeans(counts, meanPerRestaurant(group.totals, group.restaurants)) }
+      ? { restaurants: group.restaurants, cuisine, boro, rows: compareToMeans(rates, perInspection(group.totals, group.inspections)) }
       : { restaurants: group?.restaurants ?? 0, cuisine, boro, rows: null, minRestaurants: MIN_SIMILAR_RESTAURANTS }
   };
 }
