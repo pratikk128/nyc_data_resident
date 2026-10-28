@@ -195,7 +195,7 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
 
 <script>
   import snapshot from '../../data/payroll-by-year.json';
-  import { mountWorkforceChart } from '../../lib/workforce-chart.js';
+  import { mountWorkforceChart, missingYearsSentence } from '../../lib/workforce-chart.js';
   import { money, count, percent } from '../../lib/format.js';
   import { payrollCsvHref } from '../../lib/payroll-csv.js';
 
@@ -360,7 +360,7 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
       const range = years.length > 1 ? `FY${years[0].fiscalYear}–FY${last.fiscalYear}` : `FY${last.fiscalYear}`;
 
       chart.update(years, `${label} payroll`);
-      subject.textContent = `${label}, ${range}.`;
+      subject.textContent = [`${label}, ${range}.`, missingYearsSentence(years)].filter(Boolean).join(' ');
       tableRegion.setAttribute('aria-label', `${label} payroll by fiscal year, table`);
       setCard(cards.people, [
         `People paid, FY${last.fiscalYear}`,

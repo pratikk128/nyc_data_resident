@@ -87,7 +87,7 @@ const SORT_OPTIONS = [
           ))}
         </tr>
       </thead>
-      <tbody data-rows set:html={jobRowsHtml(firstPage, { maxExtra, compareYear: compareFiscalYear })} />
+      <tbody data-rows set:html={jobRowsHtml(firstPage, { maxExtra, compareYear: compareFiscalYear, minEmployees })} />
     </table>
     <p class="jobs-empty" data-empty hidden>
       No job titles match. Try fewer letters or a broader word, like “engineer.”
@@ -155,7 +155,7 @@ const SORT_OPTIONS = [
       <li>Full-time, annual-salary, active employees only; hourly and per-diem workers are excluded.</li>
       <li>Pay figures count only people employed for the whole fiscal year.</li>
       <li>Base salary is the end-of-fiscal-year rate; mid-year raises are not shown separately.</li>
-      <li>Total pay includes overtime and lump sums/retro pay, which vary year to year.</li>
+      <li>Overtime and other pay (lump sums, retro pay) vary a lot from year to year.</li>
       <li>Dollars are nominal: not adjusted for inflation.</li>
       <li>Aggregates only: no individual employee names or lookups.</li>
     </ul>
@@ -209,7 +209,7 @@ const SORT_OPTIONS = [
       page = Math.min(page, pages - 1);
       const shown = list.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
-      tbody.innerHTML = jobRowsHtml(shown, { maxExtra, compareYear, expanded });
+      tbody.innerHTML = jobRowsHtml(shown, { maxExtra, compareYear, minEmployees, expanded });
       tbody.querySelectorAll<HTMLElement>('.job-row.is-open').forEach(drawDetail);
 
       empty.hidden = list.length > 0;

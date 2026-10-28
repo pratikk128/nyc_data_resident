@@ -12,6 +12,10 @@
  *
  * Keyboard: the chart is one tab stop; Left/Right/Home/End move between
  * years and show that year's details. Escape hides them.
+ *
+ * Every fiscal year from the first to the last gets a slot, so a year with no
+ * rows (an agency that paused, then came back) shows as an empty slot rather
+ * than its neighbors closing up.
  */
 import { money, count, percent } from "./format.js";
 
@@ -25,6 +29,23 @@ const SEGMENTS = [
 ];
 
 let instance = 0;
+
+// Runs of fiscal years missing between the first and last row: ["FY2017–FY2019"].
+export function missingYears(years) {
+  const gaps = [];
+  for (let i = 1; i < years.length; i++) {
+    const from = years[i - 1].fiscalYear + 1;
+    const to = years[i].fiscalYear - 1;
+    if (from <= to) gaps.push(from === to ? `FY${from}` : `FY${from}–FY${to}`);
+  }
+  return gaps;
+}
+
+// "No payroll records for FY2017–FY2019 and FY2022." or "" without gaps
+export function missingYearsSentence(years) {
+  const gaps = missingYears(years);
+  return gaps.length ? `No payroll records for ${new Intl.ListFormat("en", { type: "conjunction" }).format(gaps)}.` : "";
+}
 
 export function mountWorkforceChart(frame, initialYears, initialSubject = "NYC payroll") {
   const chart = frame.querySelector(".chart");
@@ -72,9 +93,16 @@ export function mountWorkforceChart(frame, initialYears, initialSubject = "NYC p
     return v === 0 ? "$0" : money(v, 2).replace(/(\.\d)0(?=[BM]$)/, "$1");
   }
 
+  // A pay type that nets negative for the year (refunds and corrections, e.g.
+  // a small agency's other pay) is drawn as $0. Shares use the same drawn
+  // amounts, so a stack is exactly 100% and the tooltip matches the bar.
   function value(year, key) {
-    const v = Math.max(0, year[key]); // yearly sums are positive; guard the stack anyway
-    return mode === "share" ? share(v, year.total) : v;
+    const v = Math.max(0, year[key]);
+    return mode === "share" ? share(v, drawnTotal(year)) : v;
+  }
+
+  function drawnTotal(year) {
+    return SEGMENTS.reduce((sum, seg) => sum + Math.max(0, year[seg.key]), 0);
   }
 
   function shownTotal(year) {
@@ -100,7 +128,9 @@ export function mountWorkforceChart(frame, initialYears, initialSubject = "NYC p
     const m = { top: 12, right: 4, bottom: 30, left: mode === "share" ? 44 : 52 };
     const plotW = width - m.left - m.right;
     const plotH = height - m.top - m.bottom;
-    const band = plotW / years.length;
+    const fy0 = years[0].fiscalYear;
+    const slots = years[years.length - 1].fiscalYear - fy0 + 1;
+    const band = plotW / slots;
     const barW = Math.min(56, band * 0.7);
     const y = (v) => m.top + plotH - (v / scale.max) * plotH;
 
@@ -133,13 +163,27 @@ export function mountWorkforceChart(frame, initialYears, initialSubject = "NYC p
     const labelEvery = band < 26 ? 2 : 1;
     const shortLabels = band < 48;
     const bars = el("g", { class: "chart-bars" }, svg);
+    const slotX = (fy) => m.left + band * (fy - fy0);
+    const labeled = (fy) => (fy0 + slots - 1 - fy) % labelEvery === 0;
+    const xLabel = (fy, parent) => {
+      const label = el("text", { x: slotX(fy) + band / 2, y: height - 8, "text-anchor": "middle", class: "x-label" }, parent);
+      label.textContent = shortLabels ? `’${String(fy).slice(-2)}` : `FY${fy}`;
+      return label;
+    };
+
+    // Missing years still get an axis label so the gap reads as empty years
+    const present = new Set(years.map((yr) => yr.fiscalYear));
+    const gapLabels = el("g", { "aria-hidden": "true" }, svg);
+    for (let fy = fy0; fy < fy0 + slots; fy++) {
+      if (!present.has(fy) && labeled(fy)) xLabel(fy, gapLabels).classList.add("is-missing");
+    }
 
     years.forEach((year, i) => {
-      const cx = m.left + band * i + band / 2;
+      const cx = slotX(year.fiscalYear) + band / 2;
       const g = el("g", { class: "bar", "data-index": i, "aria-hidden": "true" }, bars);
 
       // Full-height hit area so thin bars are easy to hover and tap
-      el("rect", { x: m.left + band * i, y: m.top, width: band, height: plotH, class: "bar-hit" }, g);
+      el("rect", { x: slotX(year.fiscalYear), y: m.top, width: band, height: plotH, class: "bar-hit" }, g);
 
       let base = 0;
       shown.forEach((seg) => {
@@ -154,10 +198,7 @@ export function mountWorkforceChart(frame, initialYears, initialSubject = "NYC p
         base += v;
       });
 
-      if ((years.length - 1 - i) % labelEvery === 0) {
-        const label = el("text", { x: cx, y: height - 8, "text-anchor": "middle", class: "x-label" }, g);
-        label.textContent = shortLabels ? `’${String(year.fiscalYear).slice(-2)}` : `FY${year.fiscalYear}`;
-      }
+      if (labeled(year.fiscalYear)) xLabel(year.fiscalYear, g);
 
       g.addEventListener("pointerenter", () => show(i));
       g.addEventListener("pointerdown", () => show(i));
@@ -186,6 +227,7 @@ export function mountWorkforceChart(frame, initialYears, initialSubject = "NYC p
     const what = mode === "share" ? `${all ? "pay by type" : types} as a share of total pay` : `${types} in dollars`;
     return `Stacked bar chart of ${subject}, ${what}, FY${first.fiscalYear} to FY${last.fiscalYear}. ` +
       `${capitalize(types)} went from ${money(shownTotal(first))} to ${money(shownTotal(last))}. ` +
+      (missingYearsSentence(years) && `${missingYearsSentence(years)} `) +
       "Use the left and right arrow keys to hear each year.";
   }
 
@@ -200,16 +242,24 @@ export function mountWorkforceChart(frame, initialYears, initialSubject = "NYC p
     const g = svg.querySelector(`.bar[data-index="${i}"]`);
     svg.querySelectorAll(".bar").forEach((b) => b.classList.toggle("is-dim", b !== g));
 
+    // Amounts are as reported; shares are of the drawn amounts (see value()),
+    // so a negative pay type gets no share and a note instead.
+    const negative = SEGMENTS.filter((seg) => year[seg.key] < 0);
+    const shareCell = (v) => (v < 0 ? '<span aria-hidden="true">—</span>' : percent(share(v, drawnTotal(year))));
     tooltip.innerHTML =
       `<p class="tt-title">FY${year.fiscalYear}</p>` +
       '<table class="tt-table"><tbody>' +
       shown.slice().reverse().map((seg) =>
         `<tr><th scope="row"><span class="swatch swatch-${seg.key}" aria-hidden="true"></span>${seg.label}</th>` +
-        `<td>${money(year[seg.key])}</td><td class="tt-share">${percent(share(year[seg.key], year.total))}</td></tr>`
+        `<td>${money(year[seg.key])}</td><td class="tt-share">${shareCell(year[seg.key])}</td></tr>`
       ).join("") +
       // With some pay types hidden, the total row still covers all pay so shares add up to it
-      `<tr class="tt-total"><th scope="row">${shown.length === SEGMENTS.length ? "Total" : "Total, all pay"}</th><td>${money(year.total)}</td><td class="tt-share">100%</td></tr>` +
+      `<tr class="tt-total"><th scope="row">${shown.length === SEGMENTS.length ? "Total" : "Total, all pay"}</th><td>${money(year.total)}</td><td class="tt-share">${negative.length ? "" : "100%"}</td></tr>` +
       "</tbody></table>" +
+      (negative.length
+        ? `<p class="tt-note">${capitalize(negative.map((seg) => seg.label.toLowerCase()).join(" and "))} netted below $0 ` +
+          "(refunds and corrections), so it isn't drawn and shares leave it out.</p>"
+        : "") +
       `<p class="tt-people">${count(year.peoplePaid)} people paid</p>`;
     tooltip.hidden = false;
 

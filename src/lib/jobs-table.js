@@ -40,9 +40,9 @@ const dollars = (v) => `$${Math.round(v).toLocaleString("en-US")}`;
 
 const escape = (str) => str.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
-function changeCell(change, compareYear) {
+function changeCell(change, compareYear, minEmployees) {
   if (change == null) {
-    return `<span aria-hidden="true">—</span><span class="sr-only">Not available: fewer than 25 employees in FY${compareYear}</span>`;
+    return `<span aria-hidden="true">—</span><span class="sr-only">Not available: fewer than ${minEmployees} full-year employees in FY${compareYear}</span>`;
   }
   const arrow = change > 0 ? "▲" : change < 0 ? "▼" : "";
   const sign = change > 0 ? "+" : change < 0 ? "−" : "";
@@ -50,7 +50,7 @@ function changeCell(change, compareYear) {
 }
 
 // maxExtra scales the inline bar so the largest extra in the list fills the cell.
-export function jobRowsHtml(jobs, { maxExtra, compareYear, expanded = new Set() }) {
+export function jobRowsHtml(jobs, { maxExtra, compareYear, minEmployees, expanded = new Set() }) {
   return jobs.map((job) => {
     const id = `job-${slug(job.title)}`;
     const open = expanded.has(job.title);
@@ -63,7 +63,7 @@ export function jobRowsHtml(jobs, { maxExtra, compareYear, expanded = new Set() 
         `<td data-col="base" data-label="Median base" title="${dollars(job.base)}">${money(job.base)}</td>` +
         `<td data-col="extra" data-label="Median OT & other" title="${dollars(job.extra)}">` +
           `<span class="extra-cell"><span class="extra-bar" aria-hidden="true"><span style="width:${bar.toFixed(1)}%"></span></span>${money(job.extra)}</span></td>` +
-        `<td data-col="change" data-label="5-yr change">${changeCell(job.change, compareYear)}</td>` +
+        `<td data-col="change" data-label="5-yr change">${changeCell(job.change, compareYear, minEmployees)}</td>` +
       "</tr>" +
       `<tr class="job-detail" id="${id}"${open ? "" : " hidden"}><td colspan="${COLUMNS.length}">` +
         `<div class="job-detail-body"><div class="job-chart" data-title="${escape(job.title)}"></div><p class="job-sentence"></p></div>` +

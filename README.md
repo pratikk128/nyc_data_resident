@@ -103,7 +103,7 @@ Each section of the dashboard is its own page with its own URL. The section nav 
 
 To add a section, add an entry to `SECTIONS` in `PayrollPage.astro` and a page in `src/pages/city-payroll/`.
 
-The jobs section keeps its state in the URL so views can be shared: `?chip=firefighter`, `?q=nurse`, `?sort=base-desc` (sort keys: `label`, `employees`, `base`, `total`, `extra`, `change`; direction `asc` or `desc`).
+The jobs section keeps its state in the URL so views can be shared: `?chip=firefighter`, `?q=nurse`, `?sort=base-desc` (sort keys: `label`, `employees`, `base`, `extra`, `change`; direction `asc` or `desc`).
 
 ## NYC Restaurant Inspections
 
@@ -223,7 +223,7 @@ Filters:
 
 Before querying, the script checks that `per Annum` and `ACTIVE` still exist as values and stops if they don't.
 
-For each title, the snapshot stores the latest year's employee count, median base salary, median total pay, extra (median total − median base, which can be negative), the 5-year change in median base salary (`null` if the title had fewer than 25 employees five years earlier), and `series`: `[fiscal year, median base, employees]` for every year the title appears. The script warns if a chip matches no titles or if Teacher, Firefighter or Police Officer medians fall outside $50K–$200K.
+For each title, the snapshot stores the latest year's employee count (everyone active in the title) and full-year employee count, median base salary, extra (the median of each person's own overtime plus other pay), the 5-year change in median base salary (`null` if the title had fewer than 25 full-year employees five years earlier), and `series`: `[fiscal year, median base, full-year employees]` for every year the title appears. The script warns if a chip matches no titles or if Teacher, Firefighter or Police Officer medians fall outside $50K–$200K.
 
 Quick-filter chips (`JOB_CHIPS` in the script). A chip with no matching title in the latest year is left out of the snapshot and isn't shown.
 
