@@ -16,7 +16,7 @@ import {
   parseLocationInput, isNycZip, prettyStreet, placeLabel, locationFromParams, locationToParams
 } from "../src/lib/complaints311/location-input.js";
 import { chooseMatch, resolveLocation, streetMatches } from "../src/lib/complaints311/geocode.js";
-import { windowStart, windowChunks, circle, heatmapParams, baselineParams } from "../src/lib/complaints311/soql.js";
+import { windowStart, windowChunks, nycToday, circle, heatmapParams, baselineParams } from "../src/lib/complaints311/soql.js";
 import { MIN_IMMEDIATE_REQUESTS, RADII } from "../src/lib/complaints311/config.js";
 import { comparisonView } from "../src/lib/complaints311/view.js";
 
@@ -176,6 +176,9 @@ test("window cutoffs are calendar days, clamped to the month's end", () => {
   assert.equal(windowStart("12m", new Date("2026-10-28T15:00:00Z")), "2025-10-28");
   assert.equal(windowStart("3m", new Date("2026-05-31T00:00:00Z")), "2026-02-28");
   assert.throws(() => windowStart("all"));
+  // 9 pm in New York is already the next day in UTC; the cutoff follows New York.
+  assert.equal(nycToday(new Date("2026-10-29T01:00:00Z")), "2026-10-28");
+  assert.equal(windowStart("12m", new Date("2026-10-29T01:00:00Z")), "2025-10-28");
 });
 
 test("radius queries use within_circle on the location point", () => {

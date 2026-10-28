@@ -15,7 +15,7 @@ import {
   HEATMAP_CELLS_PER_DEGREE
 } from "../complaints311/config.js";
 import {
-  windowStart, windowChunks, circle, typeCountParams, locationTypeCountParams, statusCountParams,
+  windowStart, windowChunks, nycToday, circle, typeCountParams, locationTypeCountParams, statusCountParams,
   boroughCountParams, zipSummaryParams, baselineParams, gridCountParams, heatmapParams
 } from "../complaints311/soql.js";
 import { typeCounts, locationCounts, statusCounts, sum, circleDistributions } from "../complaints311/stats.js";
@@ -26,7 +26,7 @@ export const BASELINE_TTL = 3600;      // the baseline API response (the value i
 const BASELINE_TIMEOUT_MS = 240000;    // ~1 minute each on a good day
 const HEATMAP_TIMEOUT_MS = 45000;      // a few seconds warm, but a cold 1 mile query can pass the default 20
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => nycToday();
 
 // Rounded to ~100 m so nearby lookups share a cache entry (and the same query).
 export const roundCoord = (v) => Math.round(Number(v) * 1000) / 1000;

@@ -28,6 +28,9 @@ const GRADIENT = { 0.2: "#A9CBFF", 0.45: "#1F4FB8", 0.7: "#FFE27A", 1: "#F28C38"
 const HEAT_RADIUS = 14, HEAT_BLUR = 15;
 const INK = "#1C2A44";
 const BLUE_DEEP = "#1F4FB8";
+// Ticking several types in a row sends one heatmap query, not one per tick: each costs a slow
+// NYC Open Data query (aborting in the browser doesn't stop the Worker's) and a rate limit hit.
+const FILTER_DEBOUNCE_MS = 600;
 
 let leaflet = null;
 // Leaflet.heat is a plain script that extends the global L.
@@ -64,6 +67,7 @@ export function mountHeatmap(root) {
   let map = null, heat = null, rings = null;
   let request = 0;
   let controller = null;
+  let filterTimer = 0;
 
   async function draw() {
     const p = props;
@@ -137,13 +141,15 @@ export function mountHeatmap(root) {
     const selected = Array.from(options.querySelectorAll("input:checked")).map((i) => i.value);
     props = { ...props, selectedTypes: selected };
     props.onComplaintTypeChange?.(selected);
-    draw();
+    window.clearTimeout(filterTimer);
+    filterTimer = window.setTimeout(draw, FILTER_DEBOUNCE_MS);
   });
 
   return {
     /** @param {HeatmapProps | null} next  null hides the section (no point to center on) */
     update(next) {
       props = next;
+      window.clearTimeout(filterTimer);
       root.hidden = !next;
       if (!next) { controller?.abort(); return; }
       const selected = new Set(next.selectedTypes ?? []);

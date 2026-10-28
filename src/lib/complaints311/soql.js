@@ -17,9 +17,16 @@ export function soqlString(value) {
   return `'${String(value).replace(/'/g, "''")}'`;
 }
 
-// `months` before `today`, as YYYY-MM-DD. Clamped: Mar 31 minus 1 month is Feb 28/29, not Mar 3.
+const NYC_DATE = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" });
+
+// The calendar date in New York, as YYYY-MM-DD. created_date is NY local time, so cutoffs follow NY's day, not UTC's.
+export function nycToday(now = new Date()) {
+  return NYC_DATE.format(now);
+}
+
+// `months` before the YYYY-MM-DD `today`, as YYYY-MM-DD. Clamped: Mar 31 minus 1 month is Feb 28/29, not Mar 3.
 function monthsBefore(today, months) {
-  const d = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+  const d = new Date(`${today}T00:00:00Z`);
   const day = d.getUTCDate();
   d.setUTCDate(1);
   d.setUTCMonth(d.getUTCMonth() - months);
@@ -28,19 +35,20 @@ function monthsBefore(today, months) {
   return d.toISOString().slice(0, 10);
 }
 
-// Calendar-day cutoff for a window, as YYYY-MM-DD. "12m" on 2026-10-28 → 2025-10-28.
-export function windowStart(windowKey, today = new Date()) {
+// Calendar-day cutoff for a window, as YYYY-MM-DD, by New York's date. "12m" on 2026-10-28 → 2025-10-28.
+export function windowStart(windowKey, now = new Date()) {
   const w = WINDOWS[windowKey];
   if (!w) throw new Error(`Unknown window ${windowKey}`);
-  return monthsBefore(today, w.months);
+  return monthsBefore(nycToday(now), w.months);
 }
 
 /*
  * A window cut into pieces of `months`, oldest first: [{ since, until }], with
  * `until` null on the newest. "12m" in 3 month pieces → 4 pieces.
  */
-export function windowChunks(windowKey, months, today = new Date()) {
+export function windowChunks(windowKey, months, now = new Date()) {
   const total = WINDOWS[windowKey].months;
+  const today = nycToday(now);
   const out = [];
   for (let m = total; m > 0; m -= months) {
     out.push({ since: monthsBefore(today, m), until: m - months > 0 ? monthsBefore(today, m - months) : null });
