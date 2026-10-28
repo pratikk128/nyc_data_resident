@@ -391,6 +391,8 @@ test("problem areas show the restaurant's rate, the benchmark and how many inspe
   const html = categoryListHtml({ since: "2023-10-28", inspections: 6, citywide: { rows } }, "citywide");
   assert.match(html, /1\.5 per inspection here vs 0\.2 at the average NYC restaurant \(8 times as often\)/);
   assert.match(html, /Cited at 4 of 6 inspections/);
+  assert.match(html, /class="cat-times"[^>]*>8×</);
+  assert.match(html, /class="cat-bar is-here" style="width:100\.0%"/);
   assert.equal(rateText(0.04), "0.04");
   assert.equal(rateText(0.004), "under 0.01");
 });

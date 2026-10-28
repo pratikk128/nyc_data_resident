@@ -1029,8 +1029,32 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
 .cat-row.is-above { border-color: var(--cat-above); box-shadow: inset 4px 0 0 var(--cat-above); }
 .cat-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
 .cat-name { font-weight: 800; }
-.cat-numbers { margin-top: 2px; font-weight: 600; font-variant-numeric: tabular-nums; max-width: 75ch; }
-.cat-blurb { margin-top: 2px; font-size: .875rem; color: var(--ink-soft); max-width: 75ch; }
+.cat-head { justify-content: space-between; }
+.cat-times {
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--cat-above);
+  color: #fff;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.cat-bars {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) 3.5em;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  margin-top: var(--space-2);
+  max-width: 48rem;
+  font-size: .875rem;
+}
+.cat-bar-label { color: var(--ink-soft); }
+.cat-bar-track { height: 10px; border-radius: 5px; background: var(--line); overflow: hidden; }
+.cat-bar { display: block; height: 100%; border-radius: 5px; background: var(--line-strong); }
+.cat-bar.is-here { background: var(--cat-above); }
+.cat-bar-value { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+.cat-meta { margin-top: var(--space-1); font-size: .8125rem; color: var(--ink-soft); }
+.cat-meta strong { color: var(--ink); font-variant-numeric: tabular-nums; }
+.cat-blurb { margin-top: var(--space-2); font-size: .875rem; color: var(--ink-soft); max-width: 75ch; }
 
 .rest-about .about-data { margin-top: var(--space-3); }
 

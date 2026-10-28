@@ -112,17 +112,39 @@ export function categoryListHtml(cmp, benchmark) {
   }
 
   const where = benchmark === "citywide" ? "the average NYC restaurant" : "similar restaurants";
-  return `<ol class="cat-list">` + rows.map((r) => (
-    `<li class="cat-row is-above">` +
+  const whereShort = benchmark === "citywide" ? "NYC average" : "Similar places";
+  // Bars and chips carry the numbers at a glance; the full sentence is for screen readers.
+  return `<ol class="cat-list">` + rows.map((r) => {
+    const top = Math.max(r.value, r.mean);
+    return `<li class="cat-row is-above">` +
       `<div class="cat-head">` +
         `<span class="cat-name">${escape(r.label)}</span>` +
+        (r.mean > 0 ? `<span class="cat-times" aria-hidden="true">${timesShort(r.value / r.mean)}</span>` : "") +
       `</div>` +
-      `<p class="cat-numbers">${rateText(r.value)} per inspection here vs ${rateText(r.mean)} at ${where}` +
+      `<p class="sr-only">${rateText(r.value)} per inspection here vs ${rateText(r.mean)} at ${where}` +
         `${r.mean > 0 ? ` (${timesText(r.value / r.mean)})` : ""}. ` +
         `Cited at ${count(r.inspections)} of ${count(cmp.inspections)} inspections.</p>` +
+      `<div class="cat-bars" aria-hidden="true">` +
+        catBarHtml("Here", r.value, top, "is-here") +
+        catBarHtml(whereShort, r.mean, top, "") +
+      `</div>` +
+      `<p class="cat-meta" aria-hidden="true">Per inspection · cited at <strong>${count(r.inspections)} of ${count(cmp.inspections)}</strong> inspections</p>` +
       `<p class="cat-blurb">${escape(r.blurb)}</p>` +
-    `</li>`
-  )).join("") + `</ol>`;
+    `</li>`;
+  }).join("") + `</ol>`;
+}
+
+function catBarHtml(label, value, top, cls) {
+  // A sliver even at zero, so an empty bar still reads as a bar.
+  const pct = top > 0 ? Math.max(2, (value / top) * 100) : 2;
+  return `<span class="cat-bar-label">${label}</span>` +
+    `<span class="cat-bar-track"><span class="cat-bar${cls ? ` ${cls}` : ""}" style="width:${pct.toFixed(1)}%"></span></span>` +
+    `<span class="cat-bar-value">${rateText(value)}</span>`;
+}
+
+// "8×", "2.4×": the chip version of timesText.
+function timesShort(ratio) {
+  return `${ratio < 3 ? Math.round(ratio * 10) / 10 : Math.round(ratio)}×`;
 }
 
 // Violations per inspection: "1.5", "0.4", "0.03". Small means need the extra digit.
@@ -304,8 +326,7 @@ export function detailHtml(d, { benchmark = "citywide" } = {}) {
     `<section class="rest-block chart-frame" aria-labelledby="cats-title" data-categories>` +
       `<div class="chart-head">` +
         `<div><h3 class="chart-title" id="cats-title">Problem areas</h3>` +
-        `<p class="chart-subtitle">Kinds of violations inspectors keep finding here: cited at ${MIN_REPEAT_INSPECTIONS} or more ` +
-        `inspections, and at least twice as often as at other restaurants.</p></div>` +
+        `<p class="chart-subtitle">Violations found here at ${MIN_REPEAT_INSPECTIONS}+ inspections, at least 2× as often as elsewhere.</p></div>` +
         toggle +
       `</div>` +
       `<div data-cat-list>${categoryListHtml(cmp, shown)}</div>` +
