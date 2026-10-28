@@ -14,6 +14,7 @@ import byAgency from '../../data/payroll-by-agency.json';
 import { money, count, date } from '../../lib/format.js';
 import { payrollCsvHref } from '../../lib/payroll-csv.js';
 import { payrollRowsHtml } from '../../lib/payroll-table.js';
+import { yearChange } from '../../lib/year-change.js';
 
 const { years, dataset, checks } = snapshot;
 const latest = years[years.length - 1];
@@ -68,12 +69,14 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
       name="total"
       label={`Total payroll, FY${latest.fiscalYear}`}
       value={money(latest.total)}
+      change={yearChange(years, (y) => y.total, money)}
       context="Regular pay + overtime + other pay"
     />
     <StatCard
       name="people"
       label={`People paid, FY${latest.fiscalYear}`}
       value={count(latest.peoplePaid)}
+      change={yearChange(years, (y) => y.peoplePaid, count)}
       context="Anyone paid during the year, incl. part-time and seasonal"
     />
   </div>
@@ -189,6 +192,7 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
   import { money, count, percent } from '../../lib/format.js';
   import { payrollCsvHref } from '../../lib/payroll-csv.js';
   import { payrollRowsHtml } from '../../lib/payroll-table.js';
+  import { yearChange } from '../../lib/year-change.js';
 
   type Year = (typeof snapshot.years)[number];
   type Agency = { id: string; label: string; years: Year[] };
@@ -239,6 +243,16 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
       });
     }
 
+    const CHANGE_ICON = { up: '▲', down: '▼', flat: '–' };
+
+    function setChange(card: HTMLElement, change: ReturnType<typeof yearChange>) {
+      const line = card.querySelector<HTMLElement>('.stat-change')!;
+      line.hidden = !change;
+      line.dataset.dir = change?.dir ?? '';
+      line.querySelector('.stat-change-icon')!.textContent = change ? CHANGE_ICON[change.dir as keyof typeof CHANGE_ICON] : '';
+      line.querySelector('.stat-change-text')!.textContent = change?.text ?? '';
+    }
+
     // ---------- Pay types ----------
     const PAY_TYPES = [
       { key: 'regular', label: 'Regular pay' },
@@ -286,6 +300,7 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
       const { years, agency } = current;
       const last = years[years.length - 1];
       const keys = selectedPay();
+      setChange(cards.total, yearChange(years, (y) => keys.reduce((acc, k) => acc + y[k], 0), money));
 
       if (allPay()) {
         if (!agency) return setCard(cards.total, initial.cards.total);
@@ -331,6 +346,7 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
         subject.textContent = initial.subject;
         tableRegion.setAttribute('aria-label', initial.tableLabel ?? '');
         setCard(cards.people, initial.cards.people);
+        setChange(cards.people, yearChange(snapshot.years, (y) => y.peoplePaid, count));
         updateTableAndCsv();
         updateTotalCard();
         return;
@@ -348,6 +364,7 @@ const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latest
         count(last.peoplePaid),
         initial.cards.people[2]
       ]);
+      setChange(cards.people, yearChange(years, (y) => y.peoplePaid, count));
       updateTableAndCsv();
       updateTotalCard();
     }

@@ -197,6 +197,22 @@
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
+/* Year-over-year change. Neutral blue either way: more payroll isn't good or bad. */
+.stat-change {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--blue-tint);
+  color: var(--blue-deep);
+  font-size: .875rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.stat-change[hidden] { display: none; }
+.stat-change-icon { font-size: .75em; }
 .stat-context {
   margin-top: var(--space-2);
   font-size: .875rem;

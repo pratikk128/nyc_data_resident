@@ -1,17 +1,27 @@
 ---
-/* "Big number" card: label → number → context line.
-   `name` sets data-stat so client scripts can update the card in place. */
+/* "Big number" card: label → number → change from last year → context line.
+   `name` sets data-stat so client scripts can update the card in place.
+   Pass `change` (from yearChange) to show the change line; null renders it
+   hidden so a script can fill it in later. */
 interface Props {
   name?: string;
   label: string;
   value: string;
+  change?: { dir: 'up' | 'down' | 'flat'; text: string } | null;
   context?: string;
 }
-const { name, label, value, context } = Astro.props;
+const { name, label, value, change, context } = Astro.props;
+const icon = { up: '▲', down: '▼', flat: '–' };
 ---
 
 <div class="stat-card" data-stat={name}>
   <p class="stat-label">{label}</p>
   <p class="stat-value">{value}</p>
+  {change !== undefined && (
+    <p class="stat-change" data-dir={change?.dir} hidden={!change}>
+      <span class="stat-change-icon" aria-hidden="true">{change ? icon[change.dir] : ''}</span>
+      <span class="stat-change-text">{change?.text}</span>
+    </p>
+  )}
   {context && <p class="stat-context">{context}</p>}
 </div>
