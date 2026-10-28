@@ -138,7 +138,7 @@ const deepLink = Boolean(initial || initialError);
 <script type="application/json" id="rest-initial" set:html={initialJson}></script>
 
 <script>
-  import { detailHtml, resultCardsHtml, categoryBarsHtml, benchmarkNote, detailHref } from '../../lib/restaurants/render.js';
+  import { detailHtml, resultCardsHtml, categoryBarsHtml, benchmarkNote, detailHref, similarAvailable } from '../../lib/restaurants/render.js';
   import { inNyc } from '../../lib/restaurants/soql.js';
 
   const MSG = {
@@ -170,7 +170,11 @@ const deepLink = Boolean(initial || initialError);
   const backLink = detail.querySelector<HTMLAnchorElement>('[data-back]')!;
 
   let current: any = JSON.parse(document.getElementById('rest-initial')!.textContent || 'null');
-  let benchmark: 'citywide' | 'similar' = new URL(location.href).searchParams.get('compare') === 'similar' ? 'similar' : 'citywide';
+  type Benchmark = 'citywide' | 'similar';
+  const compareParam = (params: URLSearchParams): Benchmark => params.get('compare') === 'similar' ? 'similar' : 'citywide';
+  // The comparison the reader picked. A restaurant that can't use "similar"
+  // shows citywide without forgetting the choice for the next one.
+  let benchmark = compareParam(new URL(location.href).searchParams);
   let near: { lat: number; lng: number } | null = null;
   let searchTimer = 0;
   let searchAbort: AbortController | null = null;
@@ -186,6 +190,17 @@ const deepLink = Boolean(initial || initialError);
     if (url.href === location.href) return;
     if (push) history.pushState(state, '', url);
     else history.replaceState(history.state, '', url);
+  }
+
+  // Fill the search fields from the URL. True when anything changed.
+  function fillSearch(params: URLSearchParams) {
+    const fields = () => [nameInput.value.trim(), boroSelect.value, placeInput.value.trim()].join('\n');
+    const before = fields();
+    nameInput.value = params.get('name') ?? '';
+    const boro = params.get('boro');
+    boroSelect.value = boro && Array.from(boroSelect.options).some((o) => o.value === boro) ? boro : 'All';
+    placeInput.value = params.get('place') ?? '';
+    return fields() !== before;
   }
 
   // ---------- Search ----------
@@ -309,14 +324,31 @@ const deepLink = Boolean(initial || initialError);
   });
 
   // ---------- Detail ----------
+  // What the open restaurant actually shows; ?compare=similar only when it's that.
+  const shownBenchmark = (): Benchmark => (current && similarAvailable(current) ? benchmark : 'citywide');
+  const syncCompareUrl = () => setUrl({ compare: shownBenchmark() === 'similar' ? 'similar' : null });
+
+  function renderBenchmark() {
+    const bars = detailBody.querySelector('[data-cat-bars]');
+    const note = detailBody.querySelector('[data-cat-note]');
+    if (!current || !bars || !note) return;
+    const shown = shownBenchmark();
+    detailBody.querySelectorAll('[data-benchmark]').forEach((b) =>
+      b.setAttribute('aria-pressed', String((b as HTMLElement).dataset.benchmark === shown)));
+    bars.innerHTML = categoryBarsHtml(current.categories, shown);
+    note.innerHTML = benchmarkNote(current.categories, shown);
+  }
+
   function showDetail(data: any) {
     current = data;
     detailBody.innerHTML = detailHtml(data, { benchmark });
     document.title = `${data.name} inspections | NYC Restaurant Inspections | Ask NYC Data`;
+    syncCompareUrl();
   }
 
   function showDetailError(message: string) {
     current = null;
+    setUrl({ compare: null });
     detailBody.innerHTML = `<p class="rest-error" role="alert"></p>`;
     detailBody.querySelector('p')!.textContent = message;
   }
@@ -325,7 +357,7 @@ const deepLink = Boolean(initial || initialError);
     detailAbort?.abort();
     detailAbort = new AbortController();
     detail.hidden = false;
-    setUrl({ camis }, push, { fromSearch: true });
+    setUrl({ camis, compare: benchmark === 'similar' ? 'similar' : null }, push, { fromSearch: true });
     detailBody.setAttribute('aria-busy', 'true');
     detailBody.innerHTML = '<p class="rest-loading">Pulling the inspection records…</p><div class="sk-block"></div><div class="sk-block"></div>';
     detail.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
@@ -357,9 +389,15 @@ const deepLink = Boolean(initial || initialError);
     nameInput.focus();
   });
 
+  // Back/forward: put the search fields and the comparison back the way the URL has them.
   window.addEventListener('popstate', () => {
-    const camis = new URL(location.href).searchParams.get('camis');
-    if (camis) { if (camis !== current?.camis) openRestaurant(camis); }
+    const params = new URL(location.href).searchParams;
+    if (fillSearch(params)) runSearch();
+    const camis = params.get('camis');
+    if (camis) {
+      benchmark = compareParam(params); // a search entry has no ?compare=, so it keeps the choice
+      if (camis !== current?.camis) openRestaurant(camis); else renderBenchmark();
+    }
     else {
       closeDetail();
       const first = cards()[0];
@@ -371,12 +409,9 @@ const deepLink = Boolean(initial || initialError);
     const target = e.target as HTMLElement;
     const toggle = target.closest<HTMLButtonElement>('[data-benchmark]');
     if (toggle && current) {
-      benchmark = toggle.dataset.benchmark as typeof benchmark;
-      detailBody.querySelectorAll('[data-benchmark]').forEach((b) =>
-        b.setAttribute('aria-pressed', String((b as HTMLElement).dataset.benchmark === benchmark)));
-      detailBody.querySelector('[data-cat-bars]')!.innerHTML = categoryBarsHtml(current.categories, benchmark);
-      detailBody.querySelector('[data-cat-note]')!.innerHTML = benchmarkNote(current.categories, benchmark);
-      setUrl({ compare: benchmark === 'similar' ? 'similar' : null });
+      benchmark = toggle.dataset.benchmark as Benchmark;
+      renderBenchmark();
+      syncCompareUrl();
       return;
     }
     const copy = target.closest<HTMLButtonElement>('[data-copy-link]');
@@ -394,10 +429,8 @@ const deepLink = Boolean(initial || initialError);
 
   // ---------- Start ----------
   const params = new URL(location.href).searchParams;
-  nameInput.value = params.get('name') ?? '';
-  const boro = params.get('boro');
-  boroSelect.value = boro && Array.from(boroSelect.options).some((o) => o.value === boro) ? boro : 'All';
-  placeInput.value = params.get('place') ?? '';
+  fillSearch(params);
+  if (current) syncCompareUrl(); // a shared ?compare=similar for a restaurant that can't use it
   if (nameInput.value.trim().length >= 2) runSearch();
   if (!current && params.get('camis') && detail.hidden) openRestaurant(params.get('camis')!);
 </script>

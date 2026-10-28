@@ -108,10 +108,13 @@ function latestScoreContext(latest) {
   return `In the ${band.grade} range. ${SCORE_HINT}`;
 }
 
+// The "similar restaurants" comparison needs an inspection and enough similar restaurants.
+export const similarAvailable = (d) => Boolean(d.latest && d.categories.similar.rows);
+
 export function detailHtml(d, { benchmark = "citywide" } = {}) {
   const latest = d.latest;
   const cmp = d.categories;
-  const similarOk = Boolean(cmp.similar.rows);
+  const similarOk = similarAvailable(d);
   const shown = similarOk ? benchmark : "citywide";
 
   const head =
