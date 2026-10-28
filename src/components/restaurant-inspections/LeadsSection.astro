@@ -8,6 +8,8 @@
  * days of the data); the group, window, borough, search, "urgent only" and
  * "hide low scores" filters run in the browser and live in the URL
  * (?group=&days=&boro=&q=&urgent=1&low=1; low=1 shows low scores, which are hidden by default).
+ * Each filter change is a history entry, so Back undoes it; typing in the
+ * search box replaces the current entry instead of adding one per keystroke.
  */
 import StatCard from '../StatCard.astro';
 import { BUSINESS_GROUPS, LEADS_CONFIG } from '../../lib/restaurants/business-groups.js';
@@ -106,7 +108,8 @@ const { windows, defaultWindow, reinspectionScore, lowScoreMax, includeNonCritic
         04K (rats), 04L (mice) and 04M (roaches) for pest control. We count critical violations{includeNonCriticalCodes.length > 0
           ? `, plus ${includeNonCriticalCodes.join(', ')}, which the Health Department doesn't rate critical but which matters for the service`
           : ' only'}. A code can belong to more than one service type: toxic chemicals stored near food (04E) count for
-        both pest control and equipment repair. Open a card to see each violation's code and full description.
+        both pest control and equipment repair. Open a card to see each violation's code and full description; its
+        violations for other service types are listed below them, and can include codes that aren't critical.
       </p>
       <p>
         <strong>Time window.</strong> “Last 7 days” and “Last 30 days” count back from the most recent inspection date in the
@@ -114,13 +117,18 @@ const { windows, defaultWindow, reinspectionScore, lowScoreMax, includeNonCritic
         incomplete.
       </p>
       <p>
-        <strong>Urgency.</strong> “Closed by DOHMH” means the restaurant's latest inspection closed it (or closed it again).
+        <strong>Urgency.</strong> “Closed by DOHMH” means the restaurant's most recent visit closed it (or closed it again).
+        Any kind of visit counts, administrative ones included, since those can close and reopen a restaurant too. A
+        restaurant that has since been reopened isn't marked closed.
         “Re-inspection likely” means its latest scored inspection was an initial inspection that scored
         {reinspectionScore} points or more, the range where the Health Department comes back for a second look. A
-        re-inspection that scores that high gets a B or C grade instead, so it isn't marked. A restaurant that has since
-        been reopened isn't marked closed.
-        “Hide low scores” (on by default) leaves out restaurants whose latest score was {lowScoreMax} points or less;
-        restaurants without a score yet stay in.
+        re-inspection that scores that high gets a B or C grade instead, so it isn't marked.
+      </p>
+      <p>
+        <strong>Scores.</strong> Visits that aren't full inspections, such as administrative, calorie posting or smoke-free
+        checks, aren't scored, so the score and grade on a card come from the latest scored inspection, which can be older
+        than the latest visit shown on the back. “Hide low scores” (on by default) leaves out restaurants whose latest
+        score was {lowScoreMax} points or less; restaurants without a score yet stay in.
       </p>
       <p>
         <strong>Ranking.</strong> Most violations in the service type first, then closed restaurants, then likely
@@ -129,7 +137,8 @@ const { windows, defaultWindow, reinspectionScore, lowScoreMax, includeNonCritic
       <p>
         <strong>Counting.</strong> The source has one row per violation. A code cited twice at the same restaurant on the same day
         counts once. Scores repeat on every row, so we take one score per inspection (restaurant and date). Restaurants are
-        matched by their permit ID (CAMIS), not by name. The list is rebuilt once a day.
+        matched by their permit ID (CAMIS), not by name. The list is rebuilt once a day. The CSV download has the
+        restaurants in the current list, in order, with their cuisine and each violation code's description.
       </p>
     </div>
   </details>
@@ -201,7 +210,7 @@ const { windows, defaultWindow, reinspectionScore, lowScoreMax, includeNonCritic
   }
   let state = readUrl();
 
-  function writeUrl() {
+  function writeUrl(push: boolean) {
     const url = new URL(location.href);
     const set = (k: string, v: string | null) => (v ? url.searchParams.set(k, v) : url.searchParams.delete(k));
     set('group', state.group === BUSINESS_GROUPS[0].id ? null : state.group);
@@ -210,7 +219,9 @@ const { windows, defaultWindow, reinspectionScore, lowScoreMax, includeNonCritic
     set('q', state.q.trim() || null);
     set('urgent', state.urgent ? '1' : null);
     set('low', state.hideLow ? null : '1');
-    if (url.href !== location.href) history.replaceState(history.state, '', url);
+    if (url.href === location.href) return;
+    if (push) history.pushState(null, '', url);
+    else history.replaceState(history.state, '', url);
   }
 
   function syncControls() {
@@ -266,10 +277,6 @@ const { windows, defaultWindow, reinspectionScore, lowScoreMax, includeNonCritic
     setStat('closed', count(s.closed));
     setStat('reinspection', count(s.reinspection));
 
-    const csv = leadsCsv(leads);
-    csvLink.href = `data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`;
-    csvLink.download = ['restaurant-leads', group.id, `${state.days}-days`, state.boro.toLowerCase().replace(/\s+/g, '-'), data.referenceDate]
-      .filter(Boolean).join('-') + '.csv';
     csvLink.hidden = !leads.length;
 
     list.replaceChildren();
@@ -284,12 +291,33 @@ const { windows, defaultWindow, reinspectionScore, lowScoreMax, includeNonCritic
     appendCards(0, PAGE);
   }
 
-  function update(changes: Partial<State>) {
+  function update(changes: Partial<State>, { push = true } = {}) {
     state = { ...state, ...changes };
     syncControls();
-    writeUrl();
+    writeUrl(push);
     render();
   }
+
+  // Back/forward: the filters go back to what the URL says.
+  window.addEventListener('popstate', () => {
+    clearTimeout(searchTimer);
+    state = readUrl();
+    syncControls();
+    render();
+  });
+
+  // ---------- CSV ----------
+  // Built only when clicked, not on every filter change. The click sets the
+  // link to a fresh Blob URL before the browser follows it.
+  let csvUrl = '';
+  csvLink.addEventListener('click', () => {
+    if (!data || !leads.length) return;
+    if (csvUrl) URL.revokeObjectURL(csvUrl);
+    csvUrl = URL.createObjectURL(new Blob([leadsCsv(leads, data.descriptions)], { type: 'text/csv;charset=utf-8' }));
+    csvLink.href = csvUrl;
+    csvLink.download = ['restaurant-leads', state.group, `${state.days}-days`, state.boro.toLowerCase().replace(/\s+/g, '-'), data.referenceDate]
+      .filter(Boolean).join('-') + '.csv';
+  });
 
   // ---------- Controls ----------
   groupBtns.forEach((b) => b.addEventListener('click', () => update({ group: b.dataset.group! })));
@@ -299,7 +327,7 @@ const { windows, defaultWindow, reinspectionScore, lowScoreMax, includeNonCritic
   hideLowBtn.addEventListener('click', () => update({ hideLow: !state.hideLow }));
   searchInput.addEventListener('input', () => {
     clearTimeout(searchTimer);
-    searchTimer = window.setTimeout(() => update({ q: searchInput.value }), SEARCH_DEBOUNCE_MS);
+    searchTimer = window.setTimeout(() => update({ q: searchInput.value }, { push: false }), SEARCH_DEBOUNCE_MS);
   });
 
   moreBtn.addEventListener('click', () => {

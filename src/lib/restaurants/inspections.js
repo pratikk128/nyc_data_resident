@@ -135,7 +135,8 @@ export function closesRestaurant(actions = []) {
 
 // ---------- Categories vs the mean ----------
 
-// "YYYY-MM-DD" exactly `years` before `today` (a Date or ISO string).
+// "YYYY-MM-DD" exactly `years` before `today` (an ISO string, or a Date read
+// as UTC). Callers pass nycToday(), since inspection dates are New York days.
 export function cutoffDate(today, years) {
   const d = new Date(typeof today === "string" ? `${day(today)}T00:00:00Z` : today);
   d.setUTCFullYear(d.getUTCFullYear() - years);

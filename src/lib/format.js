@@ -33,3 +33,12 @@ export function date(iso) {
     month: "short", day: "numeric", year: "numeric", timeZone: "UTC"
   });
 }
+
+const NYC_DATE = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" });
+
+// The calendar date in New York, as YYYY-MM-DD. NYC Open Data dates are New
+// York local time, so "today" follows New York's day, not UTC's: after 8 pm
+// in New York (7 pm in winter) UTC is already on tomorrow.
+export function nycToday(now = new Date()) {
+  return NYC_DATE.format(now);
+}

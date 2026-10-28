@@ -215,22 +215,31 @@ export function mapUrl(r) {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 }
 
+// Quoted when it holds a comma, quote or line break. A text cell starting with
+// =, +, -, @, tab or CR would run as a formula in Excel or Sheets, so it gets a
+// leading apostrophe (OWASP's CSV injection advice).
 function csvCell(value) {
-  const s = String(value ?? "");
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  let s = String(value ?? "");
+  if (typeof value === "string" && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 export const CSV_COLUMNS = [
-  "rank", "name", "address", "borough", "zipcode", "phone", "group_violations",
-  "urgency", "latest_score", "latest_inspection", "violation_codes"
+  "rank", "name", "address", "borough", "zipcode", "phone", "cuisine", "group_violations",
+  "urgency", "latest_score", "latest_inspection", "violation_codes", "violation_descriptions"
 ];
 
-// A ranked list as CSV text, one row per restaurant.
-export function leadsCsv(leads) {
-  const rows = leads.map((l) => [
-    l.rank, l.name, l.address, l.boro, l.zipcode, formatPhone(l.phone), l.groupViolationCount,
-    TIER_LABELS[l.tier], l.latest?.score ?? "", l.latest?.date ?? "",
-    [...new Set(l.violations.map((v) => v.code))].join(" ")
-  ].map(csvCell).join(","));
+// A ranked list as CSV text, one row per restaurant. descriptions: { code: text }
+// from the API; each code's description goes in the same order as the codes,
+// separated by " | ".
+export function leadsCsv(leads, descriptions = {}) {
+  const rows = leads.map((l) => {
+    const codes = [...new Set(l.violations.map((v) => v.code))];
+    return [
+      l.rank, l.name, l.address, l.boro, l.zipcode, formatPhone(l.phone), l.cuisine, l.groupViolationCount,
+      TIER_LABELS[l.tier], l.latest?.score ?? "", l.latest?.date ?? "",
+      codes.join(" "), codes.map((c) => `${c}: ${descriptions[c] ?? ""}`).join(" | ")
+    ].map(csvCell).join(",");
+  });
   return [CSV_COLUMNS.join(","), ...rows].join("\n") + "\n";
 }

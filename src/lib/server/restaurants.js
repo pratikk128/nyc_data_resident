@@ -5,6 +5,7 @@
  */
 import { soql, datasetMetadata } from "./socrata.js";
 import { dailyValue } from "./cache.js";
+import { nycToday } from "../format.js";
 import {
   SEARCH_LIMIT, searchParams, gradesParams, detailParams,
   restaurantCountParams, familyCountParams, similarKey,
@@ -39,7 +40,7 @@ export const benchmarksJob = {
   key: `restaurants:benchmarks:violations-per-inspection:v3:${LOOKBACK_YEARS}y`,
   maxAgeHours: 26,
   async run() {
-    const since = cutoffDate(new Date(), LOOKBACK_YEARS);
+    const since = cutoffDate(nycToday(), LOOKBACK_YEARS);
     const [cityCount, cityFamilies, similarCounts, similarFamilies] = await Promise.all([
       soql(DATASET_ID, restaurantCountParams(since)),
       soql(DATASET_ID, familyCountParams(since)),
@@ -91,8 +92,7 @@ export const leadsJob = {
   key: `restaurants:leads:v2:${LEADS_DAYS}d:${mappingTag()}`, // v2: re-inspection likely needs an initial inspection
   maxAgeHours: 26,
   async run() {
-    const today = new Date().toISOString().slice(0, 10);
-    const [{ latest } = {}] = await soql(DATASET_ID, latestInspectionParams(today));
+    const [{ latest } = {}] = await soql(DATASET_ID, latestInspectionParams(nycToday()));
     const referenceDate = day(latest);
     if (!referenceDate) throw new Error("No latest inspection date in the restaurant data");
     const { since, through } = windowRange(referenceDate, LEADS_DAYS);

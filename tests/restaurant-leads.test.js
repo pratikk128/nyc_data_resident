@@ -271,13 +271,27 @@ test("summary counts restaurants, violations, closures and likely re-inspections
 
 // ---------- Display and export ----------
 
-test("CSV has a header, escapes commas and quotes, and lists unique codes", () => {
+test("CSV has a header, escapes commas and quotes, and lists unique codes with descriptions", () => {
   const ranked = rankLeads([
-    lead("a", { name: 'Joe\'s "Famous", Pizza', phone: "7185551234", tier: "closed", violations: pests(5) })
+    lead("a", { name: 'Joe\'s "Famous", Pizza', phone: "7185551234", cuisine: "Pizza", tier: "closed", violations: pests(5) })
   ], "pest-control", { since: "2026-09-25" });
-  const [header, row] = leadsCsv(ranked).trim().split("\n");
+  const [header, row] = leadsCsv(ranked, { "04K": "Rats.", "04L": "Mice, live." }).trim().split("\n");
   assert.equal(header, CSV_COLUMNS.join(","));
-  assert.equal(row, '1,"Joe\'s ""Famous"", Pizza",1 Main Street,Brooklyn,11211,(718) 555-1234,5,Closed by DOHMH,10,2026-10-10,04K 04L 04M 04N');
+  assert.equal(row, '1,"Joe\'s ""Famous"", Pizza",1 Main Street,Brooklyn,11211,(718) 555-1234,Pizza,5,Closed by DOHMH,10,2026-10-10,' +
+    '04K 04L 04M 04N,"04K: Rats. | 04L: Mice, live. | 04M:  | 04N: "');
+});
+
+test("CSV defuses formulas and quotes carriage returns", () => {
+  const ranked = rankLeads([
+    lead("a", { name: "=HYPERLINK(\"http://x\")", address: "@SUM(A1)", cuisine: "-1+1", violations: pests(1) }),
+    lead("b", { name: "Line\rbreak", address: "+1 Main", violations: pests(1) })
+  ], "pest-control", { since: "2026-09-25" });
+  const [, a, b] = leadsCsv(ranked).trim().split("\n");
+  assert.ok(a.startsWith('1,"\'=HYPERLINK(""http://x"")",\'@SUM(A1),'), a);
+  assert.match(a, /,'-1\+1,/);
+  assert.ok(b.startsWith('2,"Line\rbreak",\'+1 Main,'), b);
+  // Numbers are left alone.
+  assert.match(a, /,1,Standard,10,/);
 });
 
 test("phone numbers and map links", () => {

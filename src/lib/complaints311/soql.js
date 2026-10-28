@@ -10,6 +10,7 @@
  */
 import { FIELDS as F, WINDOWS, UNSPECIFIED_BOROUGH, GRID_CELLS_PER_DEGREE, HEATMAP_CELLS_PER_DEGREE } from "./config.js";
 import { typeKey } from "./labels.js";
+import { nycToday } from "../format.js";
 
 const BIG_LIMIT = "50000";
 
@@ -17,12 +18,8 @@ export function soqlString(value) {
   return `'${String(value).replace(/'/g, "''")}'`;
 }
 
-const NYC_DATE = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" });
-
-// The calendar date in New York, as YYYY-MM-DD. created_date is NY local time, so cutoffs follow NY's day, not UTC's.
-export function nycToday(now = new Date()) {
-  return NYC_DATE.format(now);
-}
+// created_date is NY local time, so cutoffs follow NY's day, not UTC's.
+export { nycToday };
 
 // `months` before the YYYY-MM-DD `today`, as YYYY-MM-DD. Clamped: Mar 31 minus 1 month is Feb 28/29, not Mar 3.
 function monthsBefore(today, months) {
