@@ -5,10 +5,12 @@
  * searched spot is a small ink dot. The station dropdown is the non-map
  * alternative (DESIGN.md "Maps").
  *
- * mountStationMap(canvas, { onPick(site) }) → { update({ stations, selected, point }) }
+ * mountStationMap(canvas, { onPick(site) }) → { update({ stations, selected, point, refit }) }
  *   stations  [{ site, place, lat, lon }] to show
  *   selected  site codes, in order
  *   point     { lat, lon, label } or null
+ *   refit     true to zoom to the search or stations again; otherwise the
+ *             reader's view stays (the first draw always fits)
  */
 const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas";
 const BASE_TILES = `${ESRI}/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}`;
@@ -30,9 +32,11 @@ const escape = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCode
 export function mountStationMap(canvas, { onPick }) {
   let map = null, layer = null, L = null;
   let request = 0;
+  let needsFit = true; // survives a draw that's superseded before Leaflet loads
 
-  async function draw({ stations, selected, point }) {
+  async function draw({ stations, selected, point, refit = false }) {
     const id = ++request;
+    if (refit) needsFit = true;
     try {
       L = await loadLeaflet();
     } catch {
@@ -75,13 +79,20 @@ export function mountStationMap(canvas, { onPick }) {
     }
 
     map.invalidateSize();
-    // Zoom to the search and its stations, else to the borough's stations, else the city.
-    const focus = point
-      ? [[point.lat, point.lon], ...selected.map((s) => stations.find((x) => x.site === s)).filter(Boolean).map((s) => [s.lat, s.lon])]
-      : bounds;
-    if (focus.length > 1) map.fitBounds(focus, { padding: [28, 28], maxZoom: 15 });
-    else if (focus.length === 1) map.setView(focus[0], 14);
-    else map.fitBounds(NYC_BOUNDS);
+    const pickedPoints = selected.map((s) => stations.find((x) => x.site === s)).filter(Boolean).map((s) => [s.lat, s.lon]);
+    if (needsFit) {
+      // Zoom to the search and its stations, else to the borough's stations, else the city.
+      needsFit = false;
+      const focus = point ? [[point.lat, point.lon], ...pickedPoints] : bounds;
+      if (focus.length > 1) map.fitBounds(focus, { padding: [28, 28], maxZoom: 15 });
+      else if (focus.length === 1) map.setView(focus[0], 14);
+      else map.fitBounds(NYC_BOUNDS);
+      return;
+    }
+    // Otherwise keep the reader's view, widening it only for a picked station that's out of sight.
+    const view = map.getBounds();
+    const outside = pickedPoints.filter((p) => !view.contains(p));
+    if (outside.length) map.fitBounds(view.extend(L.latLngBounds(outside)), { padding: [28, 28], maxZoom: 15 });
   }
 
   return { update: draw };

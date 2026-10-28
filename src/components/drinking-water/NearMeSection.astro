@@ -145,19 +145,24 @@ const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(
           `${escape(s.place)} (${escape(s.site)})${borough ? '' : ` · ${escape(boroughLabel(s.borough))}`}</option>`).join('');
     }
 
+    // The map zooms only when the search or borough changes, not on every pick.
+    let fitKey: string | null = null;
     function drawMap() {
       const shown = stations.filter((s) => !borough || s.borough === borough || selected.includes(s.site));
-      map.update({ stations: shown, selected, point });
+      const key = point ? `${point.lat},${point.lon}` : borough;
+      map.update({ stations: shown, selected, point, refit: key !== fitKey });
+      fitKey = key;
     }
 
     function withDistance(s: Station): Station {
       return point ? { ...s, miles: nearestSites([s], point, 1)[0]?.miles } : s;
     }
 
-    async function drawCards() {
+    // message: shown in the status line instead of the usual "Showing N stations."
+    async function drawCards(message = '') {
       const id = ++request;
       empty.hidden = selected.length > 0;
-      if (!selected.length) { cards.innerHTML = ''; return; }
+      if (!selected.length) { cards.innerHTML = ''; status.textContent = message; return; }
       const missing = selected.filter((s) => !cache.has(s));
       if (missing.length) {
         cards.setAttribute('aria-busy', 'true');
@@ -181,9 +186,9 @@ const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(
         if (id !== request) return;
       }
       cards.setAttribute('aria-busy', 'false');
-      status.textContent = point
+      status.textContent = message || (point
         ? `The ${selected.length} ${selected.length === 1 ? 'station' : 'stations'} nearest ${point.label}.`
-        : `Showing ${selected.length} ${selected.length === 1 ? 'station' : 'stations'}.`;
+        : `Showing ${selected.length} ${selected.length === 1 ? 'station' : 'stations'}.`);
       cards.innerHTML = selected.map((site, index) =>
         stationCardHtml(withDistance(bySite.get(site)!), cache.get(site), { ...context, index })).join('');
       cards.querySelectorAll<HTMLElement>('.water-card').forEach((card, i) => {
@@ -205,18 +210,24 @@ const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(
       });
     }
 
-    function render() {
+    function render(message = '') {
       boroSelect.value = borough;
       fillStationSelect();
       drawMap();
-      drawCards();
+      drawCards(message);
       writeUrl();
     }
 
     // ---------- Actions ----------
     function add(site: string) {
       if (!bySite.has(site) || selected.includes(site)) return;
-      selected = [...selected, site].slice(-MAX_SELECTED);
+      if (selected.length >= MAX_SELECTED) {
+        // Never drop a picked station silently; ask for a removal instead.
+        stationSelect.value = '';
+        status.textContent = `You can compare up to ${MAX_SELECTED} stations. Remove one to add station ${site}.`;
+        return;
+      }
+      selected = [...selected, site];
       render();
     }
 
@@ -227,8 +238,7 @@ const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(
       if (parsed.kind === 'error') { status.textContent = parsed.message; return; }
       if (parsed.kind === 'borough') {
         borough = parsed.borough; point = null;
-        status.textContent = `Showing stations in ${boroughLabel(borough)}. Pick one from the list or the map.`;
-        render();
+        render(`Showing stations in ${boroughLabel(borough)}. Pick one from the list or the map.`);
         return;
       }
       if (parsed.kind === 'zip') {
