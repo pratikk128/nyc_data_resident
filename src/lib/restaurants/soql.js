@@ -16,9 +16,11 @@ export function soqlString(value) {
 }
 
 // Upper-cased, trimmed, whitespace collapsed, with the like wildcard removed
-// so user input only ever matches literally.
+// so user input only ever matches literally. Apostrophes (straight or the
+// curly ones phones type) become a word break, so "Joe’s" finds "JOE'S" and
+// "JOES" alike.
 function likeTerm(value) {
-  return String(value ?? "").toUpperCase().replace(/%/g, "").replace(/\s+/g, " ").trim();
+  return String(value ?? "").toUpperCase().replace(/%/g, "").replace(/['‘’ʼ`]/g, " ").replace(/\s+/g, " ").trim();
 }
 
 // Each word in order, anything between: "joe pizza" finds "JOE'S PIZZA" and
@@ -46,6 +48,12 @@ export function boundingBox(lat, lng, miles = NEAR_ME_MILES) {
   return { south: lat - dLat, north: lat + dLat, west: lng - dLng, east: lng + dLng };
 }
 
+// Roughly the five boroughs. "Near me" is only allowed inside, so the box
+// can't be used to scan elsewhere; the page checks it too before searching.
+export function inNyc(lat, lng) {
+  return lat > 40.4 && lat < 41 && lng > -74.3 && lng < -73.6;
+}
+
 // Validates and normalizes raw search input. Returns { error } or { query }.
 export function normalizeSearch({ name, boro, where, lat, lng } = {}) {
   const cleanName = likeTerm(name);
@@ -59,8 +67,7 @@ export function normalizeSearch({ name, boro, where, lat, lng } = {}) {
   if (location) query.location = location;
   if (lat != null && lng != null && lat !== "" && lng !== "") {
     const la = Number(lat), lo = Number(lng);
-    // Roughly the five boroughs, so the box can't be used to scan elsewhere
-    if (!(la > 40.4 && la < 41 && lo > -74.3 && lo < -73.6)) return { error: "“Near me” only works inside New York City." };
+    if (!inNyc(la, lo)) return { error: "“Near me” only works inside New York City." };
     query.near = { lat: Math.round(la * 1e4) / 1e4, lng: Math.round(lo * 1e4) / 1e4 };
   }
   return { query };

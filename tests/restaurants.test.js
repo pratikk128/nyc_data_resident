@@ -167,8 +167,9 @@ test("lookback cutoff is N years before today", () => {
 
 test("single quotes are escaped in SoQL", () => {
   assert.equal(soqlString("JOE'S"), "'JOE''S'");
+  // Apostrophes in search input become word breaks before they reach SoQL
   const { query } = normalizeSearch({ name: "joe's" });
-  assert.equal(searchWhere(query), "upper(dba) like '%JOE''S%'");
+  assert.equal(searchWhere(query), "upper(dba) like '%JOE%S%'");
 });
 
 test("multi-word input matches each word in order", () => {
@@ -189,6 +190,18 @@ test("search needs 2+ letters and a real borough; % is matched literally", () =>
   assert.ok(normalizeSearch({ name: "joe", boro: "Narnia" }).error);
   assert.equal(normalizeSearch({ name: "joe", boro: "All" }).query.boro, undefined);
   assert.equal(normalizeSearch({ name: "50%" }).query.name, "50");
+});
+
+test("curly and straight apostrophes search the same way", () => {
+  const curly = normalizeSearch({ name: "Joe’s Pizza" }).query;
+  assert.deepEqual(curly, normalizeSearch({ name: "joe's pizza" }).query);
+  assert.equal(curly.name, "JOE S PIZZA");
+  assert.match(searchWhere(curly), /like '%JOE%S%PIZZA%'/);
+});
+
+test("near me only works inside NYC", () => {
+  assert.ok(normalizeSearch({ name: "joe", lat: "40.73", lng: "-73.99" }).query.near);
+  assert.ok(normalizeSearch({ name: "joe", lat: "34.05", lng: "-118.24" }).error);
 });
 
 test("names are title-cased for display", () => {

@@ -139,6 +139,7 @@ const deepLink = Boolean(initial || initialError);
 
 <script>
   import { detailHtml, resultCardsHtml, categoryBarsHtml, benchmarkNote, detailHref } from '../../lib/restaurants/render.js';
+  import { inNyc } from '../../lib/restaurants/soql.js';
 
   const MSG = {
     tooShort: 'Type at least 2 letters of the restaurant name.',
@@ -146,8 +147,13 @@ const deepLink = Boolean(initial || initialError);
     empty: 'No matches. Try a nearby ZIP code or fewer words.',
     error: 'Couldn’t reach NYC Open Data. Their servers might be stuck behind a double-parked truck. Try again in a minute.',
     notFound: 'We couldn’t find that restaurant. The link may be mistyped, or the restaurant may have closed and dropped out of the data.',
-    more: 'More than 25 restaurants match, so we’re showing the first 25. Add a borough or ZIP code to narrow it down.'
+    more: (n: number) => `More restaurants match than we can show, so here are the first ${n}. Add a borough or ZIP code to narrow it down.`,
+    nearOutside: '“Near me” only works inside New York City. Try a street or ZIP code instead.'
   };
+
+  // A message meant for the reader (the server's 400 text). Anything else
+  // thrown during a search is shown as MSG.error, never as the raw browser text.
+  class ShownError extends Error {}
   const DEBOUNCE_MS = 300;
 
   const form = document.querySelector<HTMLFormElement>('[data-search-form]')!;
@@ -169,14 +175,17 @@ const deepLink = Boolean(initial || initialError);
   let searchTimer = 0;
   let searchAbort: AbortController | null = null;
   let detailAbort: AbortController | null = null;
-  let openedFromSearch = false;
 
   // ---------- URL state: ?name=&boro=&place= for the search, ?camis= for a restaurant ----------
-  function setUrl(changes: Record<string, string | null>, push = false) {
+  // A restaurant opened from the results pushes { fromSearch: true }, so "Back
+  // to search" can tell whether the previous history entry is the search on
+  // this page. Replacing keeps the entry's state.
+  function setUrl(changes: Record<string, string | null>, push = false, state: object | null = null) {
     const url = new URL(location.href);
     for (const [k, v] of Object.entries(changes)) (v ? url.searchParams.set(k, v) : url.searchParams.delete(k));
     if (url.href === location.href) return;
-    history[push ? 'pushState' : 'replaceState'](null, '', url);
+    if (push) history.pushState(state, '', url);
+    else history.replaceState(history.state, '', url);
   }
 
   // ---------- Search ----------
@@ -215,19 +224,20 @@ const deepLink = Boolean(initial || initialError);
     skeleton();
     try {
       const res = await fetch(searchUrl(), { signal: searchAbort.signal });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error === 'upstream' ? MSG.error : data.error || MSG.error);
+      const data = await res.json().catch(() => null); // an HTML error page from the platform
+      if (res.status === 400 && typeof data?.error === 'string') throw new ShownError(data.error);
+      if (!res.ok || !Array.isArray(data?.results)) throw new Error('upstream');
       list.innerHTML = resultCardsHtml(data.results);
       keysHint.hidden = data.results.length < 2;
       const n = data.results.length;
       status.textContent = n === 0 ? MSG.empty
-        : data.more ? MSG.more
+        : data.more ? MSG.more(n)
         : `${n} ${n === 1 ? 'restaurant matches' : 'restaurants match'}${near ? ' within about half a mile' : ''}.`;
     } catch (err: any) {
       if (err.name === 'AbortError') return;
       list.replaceChildren();
       keysHint.hidden = true;
-      status.textContent = err.message && err.message !== 'Failed to fetch' ? err.message : MSG.error;
+      status.textContent = err instanceof ShownError ? err.message : MSG.error;
     } finally {
       list.removeAttribute('aria-busy');
     }
@@ -256,7 +266,13 @@ const deepLink = Boolean(initial || initialError);
     nearLabel.textContent = 'Finding you…';
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        near = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        const { latitude: lat, longitude: lng } = pos.coords;
+        if (!inNyc(lat, lng)) {
+          nearLabel.textContent = 'Near me';
+          status.textContent = MSG.nearOutside;
+          return;
+        }
+        near = { lat, lng };
         nearBtn.setAttribute('aria-pressed', 'true');
         nearLabel.textContent = 'Near me (½ mile)';
         if (nameInput.value.trim().length < 2) { status.textContent = 'Got your location. Now type a restaurant name.'; nameInput.focus(); }
@@ -289,7 +305,6 @@ const deepLink = Boolean(initial || initialError);
     const card = (e.target as HTMLElement).closest<HTMLAnchorElement>('a.rest-card');
     if (!card || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; // let new-tab clicks through
     e.preventDefault();
-    openedFromSearch = true;
     openRestaurant(card.dataset.camis!, { push: true });
   });
 
@@ -310,7 +325,7 @@ const deepLink = Boolean(initial || initialError);
     detailAbort?.abort();
     detailAbort = new AbortController();
     detail.hidden = false;
-    setUrl({ camis }, push);
+    setUrl({ camis }, push, { fromSearch: true });
     detailBody.setAttribute('aria-busy', 'true');
     detailBody.innerHTML = '<p class="rest-loading">Pulling the inspection records…</p><div class="sk-block"></div><div class="sk-block"></div>';
     detail.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
@@ -336,7 +351,7 @@ const deepLink = Boolean(initial || initialError);
 
   backLink.addEventListener('click', (e) => {
     e.preventDefault();
-    if (openedFromSearch) { history.back(); return; } // popstate closes the detail
+    if (history.state?.fromSearch) { history.back(); return; } // popstate closes the detail
     closeDetail();
     setUrl({ camis: null, compare: null }, true);
     nameInput.focus();
