@@ -43,9 +43,9 @@ export function errorHtml(err) {
 // ---------- Overview card ----------
 
 /*
- * "More requests than 72% of NYC locations", with a bar from fewest to most and a
- * marker where this spot falls. quantiles: the window's distribution for this
- * radius (circleDistributions()); "loading" draws a placeholder line, null nothing.
+ * "More requests than 72% of NYC locations". quantiles: the window's distribution
+ * for this radius (circleDistributions()); "loading" draws a placeholder line,
+ * null nothing.
  */
 export function cityRankHtml(quantiles, total, { radiusName }) {
   if (quantiles === "loading") return `<p class="c311-rank c311-loading">${escape(LOADING_TEXT.rank)}</p>`;
@@ -56,10 +56,6 @@ export function cityRankHtml(quantiles, total, { radiusName }) {
     `<div class="c311-rank">` +
       `<p>${more ? "More" : "Fewer"} requests than <strong>${p}%</strong> of NYC locations` +
         `<span class="c311-rank-how">, counting ${escape(radiusName)} around each</span></p>` +
-      `<div class="c311-rank-bar" aria-hidden="true">` +
-        `<span class="c311-rank-marker" style="left:${(rank.position * 100).toFixed(1)}%"></span>` +
-      `</div>` +
-      `<p class="c311-rank-ends" aria-hidden="true"><span>Fewest requests</span><span>Most</span></p>` +
     `</div>`
   );
 }
@@ -67,13 +63,12 @@ export function cityRankHtml(quantiles, total, { radiusName }) {
 /*
  * summary: an area summary (stats.js). opts:
  *   title, sub    card heading and the line under it
- *   sentence      the generated summary sentence
  *   phrase        "in the last 12 months"
  *   note          optional gentle note (low data)
  *   rank          optional cityRankHtml() under the total
  *   id            unique prefix for ids
  */
-export function overviewCardHtml(summary, { title, sub, sentence, phrase, note = "", rank = "", id }) {
+export function overviewCardHtml(summary, { title, sub, phrase, note = "", rank = "", id }) {
   const top = topTypes(summary.types);
   const topMax = top[0]?.count || 1;
   const open = openShare(summary.status);
@@ -102,7 +97,6 @@ export function overviewCardHtml(summary, { title, sub, sentence, phrase, note =
       `<p class="stat-value">${count(summary.total)}</p>` +
       `<p class="stat-label">311 requests ${escape(phrase)}</p>` +
       rank +
-      `<p class="c311-sentence">${escape(sentence)}</p>` +
       `<h4 class="c311-h4">Most common requests</h4>${topList}` +
       (status ? `<h4 class="c311-h4">Still open vs. closed</h4>${status}` : "") +
     `</article>`

@@ -1,6 +1,6 @@
 /*
  * The math behind the 311 dashboard: shares, ratios, the low-data fallback and
- * the summary sentences. Pure functions on the shapes the server returns, used
+ * the city ranking. Pure functions on the shapes the server returns, used
  * by the server (to build summaries) and the page (to compare), and covered by
  * tests/complaints311.test.js.
  *
@@ -11,10 +11,9 @@
 import { typeKey, typeLabel, locationGroup, OTHER_LOCATION } from "./labels.js";
 import {
   STATUS_CLOSED, MIN_IMMEDIATE_REQUESTS, MIN_LOCAL_COUNT, ABOVE_RATIO, BELOW_RATIO,
-  TOP_LOCATION_TYPES, TOP_COMPLAINT_TYPES, AREAS, GRID_CELLS_PER_DEGREE, DISTRIBUTION_QUANTILES
+  TOP_LOCATION_TYPES, TOP_COMPLAINT_TYPES, GRID_CELLS_PER_DEGREE, DISTRIBUTION_QUANTILES
 } from "./config.js";
 import { inNyc } from "./location-input.js";
-import { count } from "../format.js";
 
 // ---------- Folding Socrata rows ----------
 
@@ -119,17 +118,6 @@ export function openShare(status) {
   return total ? status.open / total : 0;
 }
 
-// "Within about a 5-minute walk, residents filed 820 requests in the last 12 months. Noise from homes came up most often."
-export function overviewSentence(summary, { where, phrase }) {
-  if (!summary.total) return `${where[0].toUpperCase()}${where.slice(1)}, nobody filed a 311 request ${phrase}.`;
-  const top = topTypes(summary.types, 1)[0];
-  const n = summary.total;
-  return `${where[0].toUpperCase()}${where.slice(1)}, residents filed ${count(n)} ${n === 1 ? "request" : "requests"} ${phrase}. ` +
-    `${top.label} came up most often.`;
-}
-
-export const areaWhere = (areaKey) => `within ${AREAS[areaKey].walk}`;
-
 // ---------- Location types ----------
 
 /*
@@ -218,8 +206,7 @@ export function circleDistributions(cells, radii, {
 
 /*
  * Where `n` falls in a distribution from circleDistributions(): the share of
- * locations with fewer requests, the share with more, and a 0–1 position for
- * a marker (the middle of any tie).
+ * locations with fewer requests and the share with more.
  */
 export function cityRank(quantiles, n) {
   if (!quantiles?.length) return null;
@@ -230,7 +217,7 @@ export function cityRank(quantiles, n) {
   }
   below /= quantiles.length;
   above /= quantiles.length;
-  return { below, above, position: (below + 1 - above) / 2 };
+  return { below, above };
 }
 
 // "More requests than 72%" / "Fewer requests than 40%", never 100% (the sample is a sample).

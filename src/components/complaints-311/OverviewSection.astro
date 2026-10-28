@@ -22,7 +22,6 @@
 <script>
   import { subscribe } from '../../lib/complaints311/store.js';
   import { overviewCardHtml, cityRankHtml, skeletonHtml, errorHtml, LOADING_TEXT } from '../../lib/complaints311/render.js';
-  import { overviewSentence, areaWhere } from '../../lib/complaints311/stats.js';
   import { AREAS, WINDOWS, MIN_IMMEDIATE_REQUESTS, boroughLabel } from '../../lib/complaints311/config.js';
   import { count } from '../../lib/format.js';
 
@@ -68,13 +67,11 @@
       const loadingText = LOADING_TEXT.baselineSlow;
       card(slots.a, base, {
         title: name, sub: 'The whole borough', id: 'ov-borough', phrase: w.phrase, loadingText,
-        summary: (p: any) => p.data.borough,
-        sentence: base.data ? overviewSentence(base.data.borough, { where: `in ${name}`, phrase: w.phrase }) : ''
+        summary: (p: any) => p.data.borough
       });
       card(slots.b, base, {
         title: 'All of NYC', sub: 'Every borough together', id: 'ov-city', phrase: w.phrase, loadingText,
-        summary: (p: any) => p.data.city,
-        sentence: base.data ? overviewSentence(base.data.city, { where: 'across the city', phrase: w.phrase }) : ''
+        summary: (p: any) => p.data.city
       });
       return;
     }
@@ -103,8 +100,7 @@
         note: low ? LOW_DATA_NOTE : '',
         rankKey: dist.status,
         rank: piece.status === 'ready' ? cityRankHtml(quantiles, piece.data.total, { radiusName: RADIUS_NAMES[key] }) : '',
-        summary: (p: any) => p.data,
-        sentence: piece.status === 'ready' ? overviewSentence(piece.data, { where: areaWhere(key), phrase: w.phrase }) : ''
+        summary: (p: any) => p.data
       });
     }
   });

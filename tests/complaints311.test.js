@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 
 import {
   shares, ratio, compareShares, comparisonArea, typeCounts, locationCounts, statusCounts,
-  topTypes, openShare, overviewSentence, locationComparison, ratioText,
+  topTypes, openShare, locationComparison, ratioText,
   circleDistributions, cityRank, cityRankText
 } from "../src/lib/complaints311/stats.js";
 import { typeKey, typeLabel, locationGroup, OTHER_LOCATION } from "../src/lib/complaints311/labels.js";
@@ -146,13 +146,7 @@ test("only Closed counts as closed", () => {
   assert.equal(openShare({ open: 0, closed: 0 }), 0);
 });
 
-test("overview sentence comes from the numbers", () => {
-  const summary = { total: 820, types: { "NOISE - RESIDENTIAL": 300, RODENT: 20 } };
-  assert.equal(
-    overviewSentence(summary, { where: "within about a 5-minute walk", phrase: "in the last 12 months" }),
-    "Within about a 5-minute walk, residents filed 820 requests in the last 12 months. Noise from homes came up most often."
-  );
-  assert.match(overviewSentence({ total: 0, types: {} }, { where: "within about a 5-minute walk", phrase: "in the last 3 months" }), /nobody filed/);
+test("topTypes sorts by count, then name", () => {
   assert.deepEqual(topTypes({ B: 2, A: 2, C: 5 }, 2).map((t) => t.key), ["C", "A"]);
 });
 
@@ -362,7 +356,5 @@ test("cityRank and cityRankText place a count among the quantiles", () => {
   assert.deepEqual(cityRankText(cityRank(q, 95)), { more: false, pct: 90 });
   // Never "100%".
   assert.deepEqual(cityRankText(cityRank(q, 5000)), { more: true, pct: 99 });
-  // Ties put the marker in the middle of the tie.
-  close(cityRank([5, 5, 5, 5], 5).position, 0.5);
   assert.equal(cityRank([], 5), null);
 });
