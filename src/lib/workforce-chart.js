@@ -1,10 +1,13 @@
 /*
  * Stacked bar chart of city payroll by fiscal year (plain SVG, no library).
  *
- * mountWorkforceChart(frame, years)
- *   frame  The chart's <figure>. Must contain .chart (drawing area),
- *          .chart-tooltip and the .toggle-btn[data-mode] buttons.
- *   years  Rows from src/data/payroll-by-year.json.
+ * mountWorkforceChart(frame, years, subject)
+ *   frame    The chart's <figure>. Must contain .chart (drawing area),
+ *            .chart-tooltip and the .toggle-btn[data-mode] buttons.
+ *   years    Rows from src/data/payroll-by-year.json (or one agency's rows
+ *            from payroll-by-agency.json, same shape).
+ *   subject  Whose payroll this is, for the screen reader summary.
+ * Returns { update(years, subject) } to redraw with different data.
  *
  * Keyboard: the chart is one tab stop; Left/Right/Home/End move between
  * years and show that year's details. Escape hides them.
@@ -22,12 +25,14 @@ const SEGMENTS = [
 
 let instance = 0;
 
-export function mountWorkforceChart(frame, years) {
+export function mountWorkforceChart(frame, initialYears, initialSubject = "NYC payroll") {
   const chart = frame.querySelector(".chart");
   const tooltip = frame.querySelector(".chart-tooltip");
   const buttons = Array.from(frame.querySelectorAll(".toggle-btn[data-mode]"));
   const hatchId = `pay-other-hatch-${++instance}`;
 
+  let years = initialYears;
+  let subject = initialSubject;
   let mode = "dollars";
   let active = years.length - 1; // keyboard focus starts on the latest year
   let svg = null;
@@ -51,17 +56,27 @@ export function mountWorkforceChart(frame, years) {
 
   function scaleFor(height) {
     if (mode === "share") return { max: 1, ticks: [0, 0.25, 0.5, 0.75, 1], fmt: (v) => percent(v, 0) };
-    const peak = Math.max(...years.map((y) => y.total));
+    const peak = Math.max(1, ...years.map((y) => y.total)); // tiny agencies can net to $0 or less
     const step = niceStep(peak, height < 320 ? 4 : 5);
     const max = Math.ceil(peak / step) * step;
     const ticks = [];
     for (let v = 0; v <= max + step / 2; v += step) ticks.push(v);
-    return { max, ticks, fmt: (v) => (v === 0 ? "$0" : `$${+(v / 1e9).toFixed(1)}B`) };
+    return { max, ticks, fmt: tickMoney };
+  }
+
+  // $B citywide, $M/$K for small agencies. Two decimals so a $1.25M tick
+  // isn't shown as $1.3M, minus a trailing zero ($2.50B → $2.5B).
+  function tickMoney(v) {
+    return v === 0 ? "$0" : money(v, 2).replace(/(\.\d)0(?=[BM]$)/, "$1");
   }
 
   function value(year, key) {
     const v = Math.max(0, year[key]); // yearly sums are positive; guard the stack anyway
-    return mode === "share" ? v / year.total : v;
+    return mode === "share" ? share(v, year.total) : v;
+  }
+
+  function share(part, total) {
+    return total > 0 ? part / total : 0;
   }
 
   // ---------- Drawing ----------
@@ -157,7 +172,7 @@ export function mountWorkforceChart(frame, years) {
     const first = years[0];
     const last = years[years.length - 1];
     const what = mode === "share" ? "share of total pay by type" : "total pay in dollars";
-    return `Stacked bar chart of NYC payroll, ${what}, FY${first.fiscalYear} to FY${last.fiscalYear}. ` +
+    return `Stacked bar chart of ${subject}, ${what}, FY${first.fiscalYear} to FY${last.fiscalYear}. ` +
       `Total pay went from ${money(first.total)} to ${money(last.total)}. ` +
       "Use the left and right arrow keys to hear each year.";
   }
@@ -174,7 +189,7 @@ export function mountWorkforceChart(frame, years) {
       '<table class="tt-table"><tbody>' +
       SEGMENTS.slice().reverse().map((seg) =>
         `<tr><th scope="row"><span class="swatch swatch-${seg.key}" aria-hidden="true"></span>${seg.label}</th>` +
-        `<td>${money(year[seg.key])}</td><td class="tt-share">${percent(year[seg.key] / year.total)}</td></tr>`
+        `<td>${money(year[seg.key])}</td><td class="tt-share">${percent(share(year[seg.key], year.total))}</td></tr>`
       ).join("") +
       `<tr class="tt-total"><th scope="row">Total</th><td>${money(year.total)}</td><td class="tt-share">100%</td></tr>` +
       "</tbody></table>" +
@@ -217,4 +232,14 @@ export function mountWorkforceChart(frame, years) {
       render();
     }
   }).observe(chart);
+
+  return {
+    update(nextYears, nextSubject) {
+      years = nextYears;
+      subject = nextSubject;
+      active = years.length - 1;
+      hideTooltip();
+      render();
+    }
+  };
 }

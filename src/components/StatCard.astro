@@ -1,14 +1,16 @@
 ---
-/* "Big number" card: label → number → context line. */
+/* "Big number" card: label → number → context line.
+   `name` sets data-stat so client scripts can update the card in place. */
 interface Props {
+  name?: string;
   label: string;
   value: string;
   context?: string;
 }
-const { label, value, context } = Astro.props;
+const { name, label, value, context } = Astro.props;
 ---
 
-<div class="stat-card">
+<div class="stat-card" data-stat={name}>
   <p class="stat-label">{label}</p>
   <p class="stat-value">{value}</p>
   {context && <p class="stat-context">{context}</p>}

@@ -2,23 +2,24 @@
 /*
  * "How much does NYC spend on its workforce?"
  * Headline numbers, table and notes are rendered at build time from
- * the payroll snapshot; the stacked bar chart is drawn in the browser by the
- * script at the bottom (same data, no API calls from the page).
+ * the payroll snapshot for all agencies; the stacked bar chart is drawn in
+ * the browser by the script at the bottom (same data, no API calls from the
+ * page). Picking an agency swaps in that agency's rows and redraws the stats,
+ * chart, table and CSV link in place.
  */
 import StatCard from '../StatCard.astro';
 import snapshot from '../../data/payroll-by-year.json';
+import byAgency from '../../data/payroll-by-agency.json';
 import { money, count, date } from '../../lib/format.js';
+import { payrollCsvHref } from '../../lib/payroll-csv.js';
 
 const { years, dataset, checks } = snapshot;
 const latest = years[years.length - 1];
 const first = years[0];
 const range = `FY${first.fiscalYear}–FY${latest.fiscalYear}`;
 
-const csv = [
-  'fiscal_year,regular_pay,overtime_pay,other_pay,total_pay,people_paid',
-  ...years.map((y) => [y.fiscalYear, y.regular, y.overtime, y.other, y.total, y.peoplePaid].join(','))
-].join('\n');
-const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csv + '\n')}`;
+const latestTotal = (agency) => agency.years.find((y) => y.fiscalYear === latest.fiscalYear)?.total ?? 0;
+const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latestTotal(a)).slice(0, 10);
 ---
 
 <section class="dash-section" id="workforce" aria-labelledby="workforce-title">
@@ -37,13 +38,28 @@ const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csv + '\n')}`;
     </aside>
   )}
 
-  <div class="stat-grid">
+  <div class="filter-bar">
+    <label class="filter-label" for="workforce-agency">Show payroll for</label>
+    <select class="filter-select" id="workforce-agency" name="agency">
+      <option value="">All agencies (citywide)</option>
+      <optgroup label={`Largest payrolls, FY${latest.fiscalYear}`}>
+        {largest.map((a) => <option value={a.id}>{a.label}</option>)}
+      </optgroup>
+      <optgroup label="All agencies, A–Z">
+        {byAgency.agencies.map((a) => <option value={a.id}>{a.label}</option>)}
+      </optgroup>
+    </select>
+  </div>
+
+  <div class="stat-grid" aria-live="polite">
     <StatCard
+      name="total"
       label={`Total payroll, FY${latest.fiscalYear}`}
       value={money(latest.total)}
       context="Regular pay + overtime + other pay"
     />
     <StatCard
+      name="people"
       label={`People paid, FY${latest.fiscalYear}`}
       value={count(latest.peoplePaid)}
       context="Anyone paid during the year, incl. part-time and seasonal"
@@ -53,9 +69,9 @@ const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csv + '\n')}`;
   <figure class="chart-frame" aria-labelledby="workforce-chart-title">
     <div class="chart-head">
       <div>
-        <h3 class="chart-title" id="workforce-chart-title">City payroll by fiscal year</h3>
+        <h3 class="chart-title" id="workforce-chart-title">Payroll by fiscal year</h3>
         <p class="chart-subtitle">
-          All city employees in the payroll data, {range}. Dollars not adjusted for inflation.
+          <span data-subject>All city employees in the payroll data, {range}.</span> Dollars not adjusted for inflation.
         </p>
       </div>
       <div class="toggle" role="group" aria-label="Chart units">
@@ -91,7 +107,7 @@ const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csv + '\n')}`;
                 <th scope="col">People paid</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody data-table-body>
               {years.slice().reverse().map((y) => (
                 <tr>
                   <th scope="row">FY{y.fiscalYear}</th>
@@ -106,7 +122,7 @@ const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csv + '\n')}`;
           </table>
         </div>
       </details>
-      <a class="download-link" href={csvHref} download="nyc-payroll-by-fiscal-year.csv">Download CSV</a>
+      <a class="download-link" href={payrollCsvHref(years)} download="nyc-payroll-by-fiscal-year.csv">Download CSV</a>
     </div>
   </figure>
 
@@ -128,6 +144,13 @@ const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csv + '\n')}`;
         and part-time staff, seasonal and per-diem workers, and people who left or retired partway
         through. Someone paid by two agencies may appear twice. On any given day, the city employs fewer
         people than this number.
+      </p>
+      <p>
+        <strong>Agencies.</strong> Agency names come from the payroll data. The Department of Education is
+        split into several payrolls (teachers, paraprofessionals, per session, and so on), and each borough's
+        District Attorney is listed separately. When an agency was renamed or reorganized (for example,
+        Consumer Affairs became Consumer and Worker Protection), the old and new names appear as separate
+        choices.
       </p>
       <p>
         <strong>Pay, not the full cost of a worker.</strong> These totals are gross pay. They don't include
@@ -162,7 +185,111 @@ const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(csv + '\n')}`;
 <script>
   import snapshot from '../../data/payroll-by-year.json';
   import { mountWorkforceChart } from '../../lib/workforce-chart.js';
+  import { money, count, percent } from '../../lib/format.js';
+  import { payrollCsvHref } from '../../lib/payroll-csv.js';
 
-  const frame = document.querySelector<HTMLElement>('#workforce .chart-frame');
-  if (frame) mountWorkforceChart(frame, snapshot.years);
+  type Year = (typeof snapshot.years)[number];
+  type Agency = { id: string; label: string; years: Year[] };
+
+  // The per-agency file is ~200 KB, so it loads only once someone picks an agency.
+  let agencies: Promise<Agency[]> | null = null;
+  const loadAgencies = () =>
+    (agencies ??= import('../../data/payroll-by-agency.json').then((m) => m.default.agencies));
+
+  const section = document.querySelector<HTMLElement>('#workforce');
+  const frame = section?.querySelector<HTMLElement>('.chart-frame');
+
+  if (section && frame) {
+    const chart = mountWorkforceChart(frame, snapshot.years);
+    const select = section.querySelector<HTMLSelectElement>('#workforce-agency')!;
+    const subject = section.querySelector<HTMLElement>('[data-subject]')!;
+    const tbody = section.querySelector<HTMLElement>('[data-table-body]')!;
+    const tableRegion = section.querySelector<HTMLElement>('.table-scroll')!;
+    const csvLink = section.querySelector<HTMLAnchorElement>('.download-link')!;
+    const cards = {
+      total: section.querySelector<HTMLElement>('[data-stat="total"]')!,
+      people: section.querySelector<HTMLElement>('[data-stat="people"]')!
+    };
+    const cityLatest = snapshot.years[snapshot.years.length - 1];
+
+    // Keep the server-rendered citywide text so "All agencies" restores it exactly.
+    const initial = {
+      subject: subject.textContent,
+      table: tbody.innerHTML,
+      tableLabel: tableRegion.getAttribute('aria-label'),
+      cards: Object.fromEntries(Object.entries(cards).map(([k, card]) => [k, cardText(card)]))
+    };
+
+    function cardText(card: HTMLElement) {
+      return ['.stat-label', '.stat-value', '.stat-context'].map((sel) => card.querySelector(sel)!.textContent);
+    }
+
+    function setCard(card: HTMLElement, text: (string | null)[]) {
+      ['.stat-label', '.stat-value', '.stat-context'].forEach((sel, i) => {
+        card.querySelector(sel)!.textContent = text[i];
+      });
+    }
+
+    function tableRows(years: Year[]) {
+      return years.slice().reverse().map((y) =>
+        `<tr><th scope="row">FY${y.fiscalYear}</th><td>${money(y.regular, 2)}</td><td>${money(y.overtime, 2)}</td>` +
+        `<td>${money(y.other, 2)}</td><td>${money(y.total, 2)}</td><td>${count(y.peoplePaid)}</td></tr>`
+      ).join('');
+    }
+
+    async function apply(id: string) {
+      const agency = id ? (await loadAgencies()).find((a) => a.id === id) : undefined;
+      if (select.value !== id) return; // a newer choice was made while loading
+
+      if (!agency) {
+        chart.update(snapshot.years, 'NYC payroll');
+        subject.textContent = initial.subject;
+        tbody.innerHTML = initial.table;
+        tableRegion.setAttribute('aria-label', initial.tableLabel ?? '');
+        setCard(cards.total, initial.cards.total);
+        setCard(cards.people, initial.cards.people);
+        csvLink.href = payrollCsvHref(snapshot.years);
+        csvLink.download = 'nyc-payroll-by-fiscal-year.csv';
+        return;
+      }
+
+      const { years, label } = agency;
+      const last = years[years.length - 1];
+      const range = years.length > 1 ? `FY${years[0].fiscalYear}–FY${last.fiscalYear}` : `FY${last.fiscalYear}`;
+      const ended = last.fiscalYear < cityLatest.fiscalYear;
+      const shareOfCity = last.total / cityLatest.total;
+
+      chart.update(years, `${label} payroll`);
+      subject.textContent = `${label}, ${range}.`;
+      tbody.innerHTML = tableRows(years);
+      tableRegion.setAttribute('aria-label', `${label} payroll by fiscal year, table`);
+      setCard(cards.total, [
+        `Total payroll, FY${last.fiscalYear}`,
+        money(last.total),
+        ended
+          ? `No payroll records after FY${last.fiscalYear}`
+          : `${shareOfCity < 0.001 ? 'Less than 0.1%' : percent(shareOfCity)} of all city payroll`
+      ]);
+      setCard(cards.people, [
+        `People paid, FY${last.fiscalYear}`,
+        count(last.peoplePaid),
+        initial.cards.people[2]
+      ]);
+      csvLink.href = payrollCsvHref(years);
+      csvLink.download = `nyc-payroll-${agency.id}-by-fiscal-year.csv`;
+    }
+
+    select.addEventListener('change', () => {
+      apply(select.value);
+      const url = new URL(location.href);
+      if (select.value) url.searchParams.set('agency', select.value);
+      else url.searchParams.delete('agency');
+      history.replaceState(null, '', url);
+    });
+
+    // Shared links: ?agency=fire-department. Unknown ids fall back to citywide.
+    const fromUrl = new URL(location.href).searchParams.get('agency') ?? '';
+    select.value = fromUrl; // also resets a choice the browser restored on back/forward
+    if (select.value) apply(select.value);
+  }
 </script>
