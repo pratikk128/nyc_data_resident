@@ -71,12 +71,13 @@ function jobsQuery(fiscalYears) {
 
 // "# employees": everyone active in the title in the latest year, full year or
 // not, split by agency so the page can say which agencies a title spans.
+// Grouped by payroll_number too, for years published without agency names.
 function headcountQuery(fiscalYear) {
   return {
-    $select: "upper(trim(title_description)) AS title, agency_name, count(*) AS employees",
+    $select: "upper(trim(title_description)) AS title, agency_name, payroll_number, count(*) AS employees",
     $where: `${ACTIVE_SALARIED} AND fiscal_year = ${fiscalYear}`,
-    $group: "title, agency_name",
-    $order: "title, agency_name",
+    $group: "title, agency_name, payroll_number",
+    $order: "title, agency_name, payroll_number",
     $limit: "100000"
   };
 }
@@ -264,15 +265,20 @@ function toYear(r) {
   };
 }
 
-// Groups agency rows by (aliased) agency and merges any years that now collide.
 // FY2026 was first published with agency_name blank on every row. Such rows
 // take the name their payroll_number had in the latest year that has names;
-// each code has had exactly one name per year so far.
-function buildAgencies(rows, warnings) {
+// each code has had exactly one name per year so far. rows are AGENCY_QUERY rows.
+function agencyNamesByCode(rows) {
   const nameOfCode = new Map();
   for (const r of [...rows].sort((a, b) => a.fiscal_year - b.fiscal_year)) {
     if (r.agency_name && r.payroll_number != null) nameOfCode.set(r.payroll_number, r.agency_name);
   }
+  return nameOfCode;
+}
+
+// Groups agency rows by (aliased) agency and merges any years that now collide.
+// Rows without a name are named from their payroll_number (agencyNamesByCode()).
+function buildAgencies(rows, nameOfCode, warnings) {
   const filled = new Map();   // fiscal year -> rows given a name from their code
   const unnamed = new Map();  // fiscal year -> people left out (no name, unknown code)
 
@@ -327,17 +333,21 @@ async function checkFilterValues(query) {
 // year: latest-year medians, the change since CHANGE_YEARS earlier, and every
 // year's median base. rows come from jobsQuery(), headcountRows from
 // headcountQuery() for the latest year. Medians pool every agency that uses
-// the title; agencyCount and topAgencies say which ones.
-function buildJobs(rows, headcountRows) {
+// the title; agencyCount and topAgencies say which ones. Rows without an
+// agency name are named from their payroll_number, like buildAgencies().
+function buildJobs(rows, headcountRows, nameOfCode) {
   const headcount = new Map();
   const agenciesByTitle = new Map();
+  let unnamed = 0;  // people with no agency name and an unknown payroll_number
   for (const r of headcountRows) {
     if (!r.title) continue;
     const n = Number(r.employees);
     headcount.set(r.title, (headcount.get(r.title) ?? 0) + n);
     if (!agenciesByTitle.has(r.title)) agenciesByTitle.set(r.title, new Map());
     const byAgency = agenciesByTitle.get(r.title);
-    const label = r.agency_name ? agencyLabel(AGENCY_ALIASES[r.agency_name] ?? r.agency_name) : "Unknown agency";
+    const sourceName = r.agency_name || nameOfCode.get(r.payroll_number);
+    if (!sourceName) unnamed += n;
+    const label = sourceName ? agencyLabel(AGENCY_ALIASES[sourceName] ?? sourceName) : "Unknown agency";
     byAgency.set(label, (byAgency.get(label) ?? 0) + n);
   }
   const byTitle = new Map();
@@ -384,6 +394,7 @@ function buildJobs(rows, headcountRows) {
     .filter((c) => c.titles.length);
 
   const warnings = [];
+  if (unnamed) warnings.push(`FY${latestFY}: ${unnamed} people in job titles have no agency name and an unknown payroll_number.`);
   for (const c of JOB_CHIPS) {
     const missing = c.titles.filter((t) => !titles.has(t));
     if (missing.length === c.titles.length) warnings.push(`Chip "${c.label}" matched no titles; it is hidden.`);
@@ -432,10 +443,11 @@ export async function buildPayroll(query, source, refreshedAt) {
 
   const checks = checkYears(years);
 
-  const agencies = buildAgencies(agencyRows, checks.warnings);
+  const nameOfCode = agencyNamesByCode(agencyRows);
+  const agencies = buildAgencies(agencyRows, nameOfCode, checks.warnings);
   if (agencies.length === 0) throw new Error("Payroll agency query returned no rows.");
 
-  const jobs = buildJobs(jobRows, headcountRows);
+  const jobs = buildJobs(jobRows, headcountRows, nameOfCode);
   if (jobs.jobs.length === 0) throw new Error("Payroll job title query returned no titles.");
   checks.warnings.push(...jobs.warnings);
   if (jobs.latestFY !== years[years.length - 1].fiscalYear) {
