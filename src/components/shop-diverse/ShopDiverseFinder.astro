@@ -210,13 +210,15 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
 <script>
   import { normalizeQuery, queryToParams } from '../../lib/shop-diverse/filter.js';
   import {
+    pageUrl, formQuery, startQuery, popstateAction, closeAction, activeFilterCount, plainClick
+  } from '../../lib/shop-diverse/page-state.js';
+  import {
     kpisHtml, cardsHtml, skeletonCards, pagerHtml, statusText, categoryOptionsHtml,
     boroughOptionsHtml, ethnicityChipsHtml, detailHtml, contactText, zipHint, showResultsLabel, UPSTREAM_TEXT, LOADING_TEXT,
     NOT_FOUND_TEXT, DETAIL_LABEL
   } from '../../lib/shop-diverse/render.js';
   import { count } from '../../lib/format.js';
 
-  const BASE = '/shop-diverse/';
   const DEBOUNCE_MS = 350;
   // Only a slow search says "Loading" in the status line, so screen readers
   // hear the result count, not a loading message for every pause in typing.
@@ -261,24 +263,11 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 
   // ---------- URL ----------
-  const pageUrl = (q: any, extra: Record<string, string> = {}) => {
-    const p = queryToParams(q);
-    for (const [k, v] of Object.entries(extra)) p.set(k, v);
-    const s = p.toString();
-    return s ? `${BASE}?${s}` : BASE;
-  };
+  // The decisions about URLs, the form and history are in page-state.js, with tests.
   const bizParam = () => new URL(location.href).searchParams.get('biz');
 
   // ---------- Form ↔ query ----------
-  function readForm() {
-    const p = new URLSearchParams();
-    const data = new FormData(form);
-    for (const [k, v] of data) if (typeof v === 'string' && v) p.append(k, v);
-    p.set('sort', sortSelect.value);
-    // A half-typed ZIP doesn't filter yet
-    if (!/^\d{5}$/.test(zipInput.value.trim())) p.delete('zip');
-    return normalizeQuery(p);
-  }
+  const readForm = () => formQuery(new FormData(form), sortSelect.value);
 
   function fillForm(q: any) {
     form.querySelectorAll<HTMLInputElement>('input[name="who"]').forEach((b) => { b.checked = q.who.includes(b.value.toUpperCase()); });
@@ -304,10 +293,6 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
   function showZipError(show: boolean) {
     zipError.hidden = !show;
     if (show) zipInput.setAttribute('aria-invalid', 'true'); else zipInput.removeAttribute('aria-invalid');
-  }
-
-  function activeFilterCount(q: any) {
-    return q.who.length + q.eth.length + [q.cat, q.sub, q.q, q.boro, q.zip, q.lapsed].filter(Boolean).length;
   }
 
   // ---------- Render ----------
@@ -440,7 +425,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
 
   pager.addEventListener('click', (e) => {
     const link = (e.target as HTMLElement).closest<HTMLAnchorElement>('a[data-page]');
-    if (!link || e.metaKey || e.ctrlKey || e.shiftKey) return;
+    if (!link || !plainClick(e)) return;
     e.preventDefault();
     query = { ...query, page: Number(link.dataset.page) };
     search({ push: true, scroll: true });
@@ -512,14 +497,14 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
 
   // Closing goes back if the card pushed the entry, so Back doesn't reopen it.
   function closeBusiness() {
-    if (!bizParam()) return;
-    if (history.state?.fromList) history.back();
-    else history.replaceState(null, '', pageUrl(query));
+    const action = closeAction(location.search, history.state);
+    if (action === 'back') history.back();
+    else if (action === 'replace') history.replaceState(null, '', pageUrl(query));
   }
 
   list.addEventListener('click', (e) => {
     const card = (e.target as HTMLElement).closest<HTMLAnchorElement>('a.sd-card');
-    if (!card || e.metaKey || e.ctrlKey || e.shiftKey || (e as MouseEvent).button !== 0) return;
+    if (!card || !plainClick(e)) return;
     e.preventDefault();
     openBusiness(card.dataset.id!, { push: true });
   });
@@ -553,16 +538,14 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
 
   // ---------- Back / forward ----------
   window.addEventListener('popstate', () => {
-    const params = new URL(location.href).searchParams;
-    const next = normalizeQuery(params).query ?? normalizeQuery(new URLSearchParams()).query;
-    if (pageUrl(next) !== pageUrl(query)) {
-      query = next;
+    const action = popstateAction(location.search, { query, currentId: current?.id ?? null, dialogOpen: dialog.open });
+    if (action.query) {
+      query = action.query;
       fillForm(query);
       search();
     }
-    const biz = params.get('biz');
-    if (biz && biz !== current?.id) openBusiness(biz);
-    else if (!biz && dialog.open) { current = null; dialog.close(); }
+    if (action.open) openBusiness(action.open);
+    else if (action.close) { current = null; dialog.close(); }
   });
 
   // ---------- Start ----------
@@ -572,9 +555,9 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
   const n = activeFilterCount(query);
   filterCount.textContent = n ? `(${n})` : '';
   // The browser may have kept edited fields (back/forward cache, autofill).
-  const fromForm = readForm().query;
-  if (!initial.loaded || (fromForm && pageUrl({ ...fromForm, page: query.page }) !== pageUrl(query))) {
-    if (fromForm) query = { ...fromForm, page: query.page };
+  const startWith = startQuery(initial, readForm().query ?? null);
+  if (startWith) {
+    query = startWith;
     search();
   }
   const startBiz = bizParam();

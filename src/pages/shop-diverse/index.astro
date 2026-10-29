@@ -12,7 +12,7 @@ import ShopDiverseFinder from '../../components/shop-diverse/ShopDiverseFinder.a
 import AboutSection from '../../components/shop-diverse/AboutSection.astro';
 import { getMetadata, getVendors, loadSearch, loadBusiness, isAccount } from '../../lib/server/shop-diverse.js';
 import { RateLimited } from '../../lib/server/rate-limit.js';
-import { normalizeQuery, outsideShare } from '../../lib/shop-diverse/filter.js';
+import { normalizeQuery } from '../../lib/shop-diverse/filter.js';
 import { businessMeta } from '../../lib/shop-diverse/render.js';
 import { date } from '../../lib/format.js';
 
@@ -31,8 +31,8 @@ const [meta, initial, shared] = await Promise.allSettled([
 ]);
 if (meta.status === 'rejected') console.error(meta.reason);
 for (const r of [initial, shared]) if (r.status === 'rejected' && !(r.reason instanceof RateLimited)) console.error(r.reason);
-// The whole list is in memory once loadSearch has run, so this costs one pass.
-const share = await getVendors().then(({ vendors }) => outsideShare(vendors), () => null);
+// Computed by the daily job; the list is in memory once loadSearch has run.
+const share = await getVendors().then((v) => v.outsideShare ?? null, () => null);
 const metaValue = meta.status === 'fulfilled' ? meta.value : null;
 // A business detail, { missing: true }, or null (no ?biz=, or it couldn't load: the script retries)
 const business = shared.status === 'fulfilled' ? shared.value : null;

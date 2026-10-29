@@ -1,0 +1,77 @@
+/*
+ * The finder script's decisions (ShopDiverseFinder.astro): the URL for a
+ * view, what the form asks for, whether the browser kept edited fields,
+ * what Back/Forward does to the list and the detail panel, and how closing
+ * the panel leaves history. Pure functions, so the tests cover them without
+ * a browser; the script does the DOM work.
+ */
+import { normalizeQuery, queryToParams } from "./filter.js";
+
+export const BASE = "/shop-diverse/";
+
+const DEFAULT_QUERY = () => normalizeQuery(new URLSearchParams()).query;
+
+// The page's path and query for a view; extra adds parameters such as biz.
+export function pageUrl(query, extra = {}) {
+  const p = queryToParams(query);
+  for (const [k, v] of Object.entries(extra)) p.set(k, v);
+  const s = p.toString();
+  return s ? `${BASE}?${s}` : BASE;
+}
+
+// The form's fields (FormData entries) and the sort menu, which sits outside
+// the form → normalizeQuery()'s { query } or { error }. A half-typed ZIP
+// doesn't filter yet, and normalizeQuery() drops any ZIP outside Recommended.
+export function formQuery(entries, sort) {
+  const p = new URLSearchParams();
+  for (const [k, v] of entries) if (typeof v === "string" && v) p.append(k, v);
+  p.set("sort", sort);
+  if (!/^\d{5}$/.test((p.get("zip") ?? "").trim())) p.delete("zip");
+  return normalizeQuery(p);
+}
+
+// On load: the query to search for, or null when the server's view stands.
+// initial is the server's { query, loaded }; fromForm is formQuery()'s query
+// (null on an error). The browser may have kept edited fields (back/forward
+// cache, autofill), and those win, on the server's page.
+export function startQuery(initial, fromForm) {
+  const page = initial.query.page;
+  if (fromForm && pageUrl({ ...fromForm, page }) !== pageUrl(initial.query)) return { ...fromForm, page };
+  return initial.loaded ? null : initial.query;
+}
+
+/*
+ * Back/Forward landed on `search` (location.search). state: { query, currentId
+ * (the business shown in the panel, or null), dialogOpen }. →
+ *   query: the list's new query, or null if the list stays
+ *   open:  a business id to load into the panel, or null
+ *   close: true to close the panel
+ */
+export function popstateAction(search, { query, currentId, dialogOpen }) {
+  const params = new URLSearchParams(search);
+  const next = normalizeQuery(params).query ?? DEFAULT_QUERY();
+  const biz = params.get("biz");
+  return {
+    query: pageUrl(next) !== pageUrl(query) ? next : null,
+    open: biz && biz !== currentId ? biz : null,
+    close: !biz && dialogOpen
+  };
+}
+
+// Closing the panel: "back" when a card pushed its history entry, so Back
+// doesn't reopen it; "replace" (drop ?biz= in place) for a panel the page
+// arrived with; null when the URL has no ?biz= (Back already removed it).
+export function closeAction(search, historyState) {
+  if (!new URLSearchParams(search).get("biz")) return null;
+  return historyState?.fromList ? "back" : "replace";
+}
+
+// The number on the phones' Filters button.
+export function activeFilterCount(query) {
+  return query.who.length + query.eth.length +
+    [query.cat, query.sub, query.q, query.boro, query.zip, query.lapsed].filter(Boolean).length;
+}
+
+// A click the script handles; one with a modifier key or another button
+// opens the link the browser's way (new tab, window).
+export const plainClick = (e) => !(e.metaKey || e.ctrlKey || e.shiftKey) && (e.button ?? 0) === 0;

@@ -9,13 +9,16 @@ import assert from "node:assert/strict";
 
 import {
   titleCase, businessName, phone, website, zip, boroughFromZip, certifications, renewalDates, pastDate, ethnicity,
-  cleanVendor, indexRecord, keywordWords, extraWords, excerpt
+  cleanVendor, indexRecord, keywordWords, extraWords, excerpt, packIndex, unpackIndex
 } from "../src/lib/shop-diverse/clean.js";
 import {
   POINTS, certStatus, yearsInBusiness, haystack, keywordMatch, scoreBusiness, tieBreak, rankBusinesses
 } from "../src/lib/shop-diverse/ranking.js";
 import { normalizeQuery, queryToParams, searchBusinesses, outsideShare } from "../src/lib/shop-diverse/filter.js";
 import { contactText, mapsUrl, detailHtml, kpisHtml } from "../src/lib/shop-diverse/render.js";
+import {
+  pageUrl, formQuery, startQuery, popstateAction, closeAction, activeFilterCount, plainClick
+} from "../src/lib/shop-diverse/page-state.js";
 
 const TODAY = "2026-10-28";
 const q = (s = "") => normalizeQuery(new URLSearchParams(s)).query;
@@ -132,8 +135,8 @@ test("a long description is searchable past its excerpt, each extra word kept on
   const description = `${"Tile setting and repair. ".repeat(8)}We also do grout work, grout sealing and stone floors.`;
   const idx = indexRecord(cleanVendor({ ...ROW, business_description: description }, TODAY));
   assert.ok(idx.excerpt.length <= 161);
-  assert.equal(idx.keywords, "WE ALSO DO GROUT WORK SEALING STONE FLOORS");
-  assert.equal(extraWords("Tile, tile and more TILE.", "Tile"), "AND MORE");
+  assert.equal(idx.keywords, "DO GROUT WORK SEALING STONE FLOORS", "filler words (we, also) left out");
+  assert.equal(extraWords("Tile, tile and more TILE.", "Tile"), "MORE");
   assert.equal(keywordMatch(keywordWords("stone floor"), haystack(idx)), "description");
   assert.equal(keywordMatch(keywordWords("tile repair"), haystack(idx)), "description");
 });
@@ -357,6 +360,103 @@ test("excerpt cuts at a word", () => {
   assert.ok(e.length <= 161);
   assert.ok(e.endsWith("word…"));
   assert.equal(excerpt("Short."), "Short.");
+});
+
+test("search words: a word that starts a longer one is left out, but not one of two letters", () => {
+  assert.equal(extraWords("Project projects, service and services", ""), "PROJECTS SERVICES");
+  assert.equal(extraWords("Plumbing and plumb lines", "Plumbers"), "PLUMBING LINES");
+  assert.equal(extraWords("IT and ITEMS", ""), "IT ITEMS");
+  assert.equal(extraWords("Roofing and siding", "Roofing Contractors"), "SIDING");
+});
+
+test("search words: what the name and industry hold isn't repeated, and still matches", () => {
+  const description = `${"We build. ".repeat(20)}Licensed electrical contractors for kitchens.`;
+  const idx = indexRecord(cleanVendor({ ...ROW, vendor_formal_name: "Bright Electric Co", business_description: description }, TODAY));
+  assert.equal(idx.keywords, "LICENSED ELECTRICAL CONTRACTORS KITCHENS");
+  const services = indexRecord(cleanVendor({ ...ROW, business_description: `${"We build. ".repeat(20)}Architectural services.` }, TODAY));
+  assert.equal(services.keywords, undefined, "both words are in the industry");
+  assert.equal(keywordMatch(keywordWords("architectural services"), haystack(services)), "industry");
+});
+
+test("keywords: filler words are ignored, unless that's all there is", () => {
+  assert.deepEqual(keywordWords("food and beverage"), ["FOOD", "BEVERAGE"]);
+  assert.deepEqual(keywordWords("the"), ["THE"]);
+  assert.deepEqual(keywordWords("it for us"), ["IT", "US"], "IT and US are search terms here");
+  // "and" was dropped from this firm's search words, and it still matches
+  const hay = haystack(biz({ title: "", subsector: "", sector: "", excerpt: "Catering", keywords: "FOOD BEVERAGE" }));
+  assert.equal(keywordMatch(keywordWords("food and beverage"), hay), "description");
+});
+
+test("packIndex keeps each industry once; unpackIndex puts the fields back", () => {
+  const records = [
+    biz({ id: "1" }), biz({ id: "2" }), biz({ id: "3", sector: "Retail Trade", subsector: undefined, title: undefined })
+  ];
+  const packed = packIndex(records);
+  assert.equal(packed.industries.length, 2);
+  assert.deepEqual(packed.vendors.map((v) => v.ind), [0, 0, 1]);
+  assert.equal(packed.vendors[0].sector, undefined);
+  const back = unpackIndex(JSON.parse(JSON.stringify(packed)));
+  assert.deepEqual(back, JSON.parse(JSON.stringify(records)));
+  assert.equal("subsector" in back[2], false, "a blank field stays left out");
+});
+
+// ---------- Page script (ShopDiverseFinder.astro) ----------
+
+test("page URL: the view's parameters, plus the business for the panel", () => {
+  assert.equal(pageUrl(q("")), "/shop-diverse/");
+  assert.equal(pageUrl(q("who=wbe&page=2"), { biz: "357418" }), "/shop-diverse/?who=wbe&page=2&biz=357418");
+});
+
+test("form: a half-typed ZIP is left out, and a ZIP only counts with Recommended", () => {
+  const entries = (zip) => [["who", "wbe"], ["q", ""], ["zip", zip]];
+  assert.equal(formQuery(entries("112"), "recommended").query.zip, "");
+  assert.equal(formQuery(entries("11216"), "recommended").query.zip, "11216");
+  assert.equal(formQuery(entries("11216"), "az").query.zip, "", "other sorts ignore the ZIP");
+  assert.equal(formQuery(entries("11216"), "az").query.sort, "az", "the sort menu sits outside the form");
+  assert.deepEqual(formQuery([["who", "wbe"], ["who", "mbe"]], "recommended").query.who, ["WBE", "MBE"]);
+  assert.ok(formQuery([["q", "a".repeat(200)]], "recommended").error);
+});
+
+test("start: fields the browser kept win over the server's view, on the same page", () => {
+  const initial = { query: q("who=wbe&page=3"), loaded: true };
+  assert.equal(startQuery(initial, q("who=wbe")), null, "the form matches: no search");
+  assert.deepEqual(startQuery(initial, q("who=mbe")), { ...q("who=mbe"), page: 3 });
+  assert.equal(startQuery(initial, null), null, "a form error leaves the server's view");
+  assert.deepEqual(startQuery({ ...initial, loaded: false }, q("who=wbe")), initial.query, "results that didn't load are fetched");
+  assert.deepEqual(startQuery({ ...initial, loaded: false }, null), initial.query);
+});
+
+test("Back/Forward: the list changes only with its query; the panel opens and closes with ?biz=", () => {
+  const query = q("who=wbe");
+  const at = (search, state = {}) => popstateAction(search, { query, currentId: null, dialogOpen: false, ...state });
+  assert.deepEqual(at("?who=wbe"), { query: null, open: null, close: false });
+  assert.deepEqual(at("?who=mbe").query, q("who=mbe"));
+  assert.deepEqual(at("").query, q(""), "Back to the bare page clears the filters");
+  assert.deepEqual(at(`?q=${"a".repeat(200)}`).query, q(""), "a bad URL falls back to the defaults");
+  assert.equal(at("?who=wbe&biz=12").open, "12", "Forward to a business opens it");
+  assert.equal(at("?who=wbe&biz=12", { currentId: "12", dialogOpen: true }).open, null, "already shown");
+  assert.equal(at("?who=wbe&biz=13", { currentId: "12", dialogOpen: true }).open, "13");
+  assert.equal(at("?who=wbe", { currentId: "12", dialogOpen: true }).close, true, "Back from a business closes it");
+  assert.equal(at("?who=wbe&biz=12", { dialogOpen: true }).close, false);
+});
+
+test("closing the panel: Back when a card opened it, replace for a shared link, nothing once Back did it", () => {
+  assert.equal(closeAction("?who=wbe&biz=12", { fromList: true }), "back");
+  assert.equal(closeAction("?biz=12", null), "replace");
+  assert.equal(closeAction("?who=wbe", { fromList: true }), null);
+});
+
+test("phone drawer button: counts each active filter", () => {
+  assert.equal(activeFilterCount(q("")), 0);
+  assert.equal(activeFilterCount(q("who=wbe,mbe&eth=black&cat=Construction&q=tile&zip=11216&lapsed=1")), 7);
+  assert.equal(activeFilterCount(q("zip=11216&sort=az")), 0, "an ignored ZIP isn't counted");
+});
+
+test("cards and pager: only a plain left click is handled; modifier clicks open a tab", () => {
+  assert.equal(plainClick({ button: 0 }), true);
+  for (const e of [{ button: 0, metaKey: true }, { button: 0, ctrlKey: true }, { button: 0, shiftKey: true }, { button: 1 }]) {
+    assert.equal(plainClick(e), false);
+  }
 });
 
 // ---------- Detail ----------

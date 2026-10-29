@@ -4,7 +4,7 @@
  * capacity and past jobs). → the vendor, 404 { error } or 429 { error }
  *
  * Read live from Socrata by account number; misses on the edge cache are rate
- * limited per client (DETAIL_RATE_LIMITER in wrangler.jsonc).
+ * limited per client (SHOP_DETAIL_RATE_LIMITER in wrangler.jsonc).
  */
 import { isAccount, loadBusiness, DETAIL_TTL } from "../../../../lib/server/shop-diverse.js";
 import { json, upstreamError } from "../../../../lib/server/json.js";

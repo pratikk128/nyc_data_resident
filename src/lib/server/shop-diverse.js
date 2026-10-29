@@ -6,18 +6,20 @@
  * The list is ~12,000 vendors (one row each) and SBS updates it about every
  * two weeks, so a daily job keeps a slim copy in KV (the fields the search,
  * ranking and cards use, with each description cut to an excerpt and its
- * search words). Searches filter and rank that copy in the
+ * search words, and the industry names kept once in a table: packIndex()).
+ * Searches filter and rank that copy in the
  * Worker, because the "Recommended" order has to rank every match before a
  * page is cut, which SoQL can't do (the renewal dates are text, and ties are
  * broken by a seeded hash). The detail view reads one vendor live by id.
  */
+import { env } from "cloudflare:workers";
 import { soql, datasetMetadata } from "./socrata.js";
 import { dailyValue, edgeCached } from "./cache.js";
 import { checkRateLimit } from "./rate-limit.js";
 import { nycToday } from "../format.js";
 import { DATASET_ID } from "../shop-diverse/config.js";
-import { cleanVendor, indexRecord } from "../shop-diverse/clean.js";
-import { searchBusinesses, queryToParams } from "../shop-diverse/filter.js";
+import { cleanVendor, indexRecord, packIndex, unpackIndex } from "../shop-diverse/clean.js";
+import { searchBusinesses, queryToParams, outsideShare } from "../shop-diverse/filter.js";
 import { certStatus, yearsInBusiness } from "../shop-diverse/ranking.js";
 
 export const SEARCH_TTL = 3600;
@@ -41,7 +43,9 @@ export const metadataJob = {
 };
 
 export const vendorsJob = {
-  key: "shop-diverse:vendors:v2", // v2: excerpt and search words in place of the description
+  // v2: excerpt and search words in place of the description; v3: industry
+  // table, fewer search words, outsideShare
+  key: "shop-diverse:vendors:v3",
   maxAgeHours: MAX_AGE_HOURS,
   async run() {
     const today = nycToday();
@@ -66,25 +70,43 @@ export const vendorsJob = {
       vendors.push(indexRecord(v));
     }
     if (!vendors.length) throw new Error("SBS Certified Business List returned no vendors");
-    return { computedAt: new Date().toISOString(), vendors };
+    return { computedAt: new Date().toISOString(), outsideShare: outsideShare(vendors), ...packIndex(vendors) };
   }
 };
 
 export const shopDiverseDailyJobs = [metadataJob, vendorsJob];
 
 export const getMetadata = () => dailyValue(metadataJob);
-export const getVendors = () => dailyValue(vendorsJob);
+
+// → { computedAt, outsideShare, vendors }, the vendors unpacked once per
+// stored value (per isolate), so filter.js's haystacks are built once too.
+const unpacked = new WeakMap();
+export async function getVendors() {
+  const stored = await dailyValue(vendorsJob);
+  let value = unpacked.get(stored);
+  if (!value) {
+    value = { computedAt: stored.computedAt, outsideShare: stored.outsideShare, vendors: unpackIndex(stored) };
+    unpacked.set(stored, value);
+  }
+  return value;
+}
+
+// Part of every edge cache key, so a deploy that changes the ranking or the
+// cleaning shows at once rather than when the old entries expire. The
+// Worker's version id (wrangler.jsonc → version_metadata) changes with every
+// deploy; local setups without the binding fall back to "dev".
+const codeVersion = () => env.CF_VERSION_METADATA?.id ?? "dev";
 
 // One view of the page for a normalized query (filter.js). Cached at the edge
-// per query, day (the order and lapsed status change with the date) and
-// data version. It reads only KV, but a miss filters and ranks the whole
+// per query, day (the order and lapsed status change with the date), data
+// version and code version. It reads only KV, but a miss filters and ranks the whole
 // list, so misses are rate limited per client. Throws RateLimited.
 export async function loadSearch(query, requestUrl, ctx, clientAddress) {
   const { computedAt, vendors } = await getVendors();
   const today = nycToday();
-  const key = `shop-diverse/search/${computedAt}/${today}/${queryToParams(query)}`;
+  const key = `shop-diverse/search/${codeVersion()}/${computedAt}/${today}/${queryToParams(query)}`;
   return edgeCached(requestUrl, key, SEARCH_TTL, async () => {
-    await checkRateLimit("SEARCH_RATE_LIMITER", clientAddress);
+    await checkRateLimit("SHOP_SEARCH_RATE_LIMITER", clientAddress);
     return searchBusinesses(vendors, query, { today });
   }, ctx);
 }
@@ -104,10 +126,10 @@ export async function businessDetail(id) {
   };
 }
 
-// Cached; misses are rate limited per client. Throws RateLimited.
+// Cached per id and code version; misses are rate limited per client. Throws RateLimited.
 export async function loadBusiness(id, requestUrl, ctx, clientAddress) {
-  const data = await edgeCached(requestUrl, `shop-diverse/business/${id}`, DETAIL_TTL, async () => {
-    await checkRateLimit("DETAIL_RATE_LIMITER", clientAddress);
+  const data = await edgeCached(requestUrl, `shop-diverse/business/${codeVersion()}/${id}`, DETAIL_TTL, async () => {
+    await checkRateLimit("SHOP_DETAIL_RATE_LIMITER", clientAddress);
     return (await businessDetail(id)) ?? { missing: true };
   }, ctx);
   return data.missing ? null : data;

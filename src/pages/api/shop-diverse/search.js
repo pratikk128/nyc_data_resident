@@ -6,7 +6,7 @@
  * → { total, page, pages, pageSize, results, facets, kpis } or { error }
  *
  * Reads the daily vendor list in KV, so requests don't reach Socrata. Misses
- * on the edge cache are rate limited per client (SEARCH_RATE_LIMITER).
+ * on the edge cache are rate limited per client (SHOP_SEARCH_RATE_LIMITER).
  */
 import { normalizeQuery } from "../../../lib/shop-diverse/filter.js";
 import { loadSearch, SEARCH_TTL } from "../../../lib/server/shop-diverse.js";

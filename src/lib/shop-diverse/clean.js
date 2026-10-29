@@ -258,8 +258,39 @@ export function indexRecord(vendor) {
   for (const k of INDEX_FIELDS) if (vendor[k] !== undefined) out[k] = vendor[k];
   if (out.phone) out.phone = { tel: out.phone.tel ?? null };
   out.excerpt = excerpt(vendor.description);
-  out.keywords = extraWords(vendor.description, out.excerpt);
+  // Words the name and industry hold don't need repeating: keyword search
+  // scores a match spread across them like one in the description (ranking.js).
+  out.keywords = extraWords(vendor.description,
+    [out.excerpt, out.name, out.dba, out.sector, out.subsector, out.title].filter(Boolean).join(" "));
   return compact(out);
+}
+
+// The ~600 industries (sector, subsector, title) repeat across ~12,000
+// vendors, so KV keeps each once and vendors point to it by index ("ind"),
+// which saves about a fifth of the copy. unpackIndex() puts the fields back,
+// sharing one string per industry.
+const INDUSTRY_FIELDS = ["sector", "subsector", "title"];
+export function packIndex(records) {
+  const ids = new Map();
+  const industries = [];
+  const vendors = records.map(({ sector, subsector, title, ...rest }) => {
+    const row = [sector ?? "", subsector ?? "", title ?? ""];
+    const key = row.join("\t");
+    if (!ids.has(key)) {
+      ids.set(key, industries.length);
+      industries.push(row);
+    }
+    return { ...rest, ind: ids.get(key) };
+  });
+  return { industries, vendors };
+}
+
+export function unpackIndex({ industries, vendors }) {
+  return vendors.map(({ ind, ...rest }) => {
+    const out = { ...rest };
+    INDUSTRY_FIELDS.forEach((k, i) => { if (industries[ind]?.[i]) out[k] = industries[ind][i]; });
+    return out;
+  });
 }
 
 // Upper-cased words for keyword matching: punctuation and apostrophes become
@@ -270,11 +301,29 @@ export function searchText(value) {
 
 const words = (value) => searchText(value).trim().split(" ").filter(Boolean);
 
-// The description's words that its excerpt doesn't already hold, each once
-// ("TILE FLOORS"). Keywords match the start of any word, so repeats add nothing.
-export function extraWords(description, shown) {
-  const skip = new Set(words(shown));
-  return [...new Set(words(description))].filter((w) => !skip.has(w)).join(" ");
+// Filler words, left out of the description's extra words and of keywords (keywordWords), so "food and beverage"
+// still finds a firm whose "and" was dropped. Not "IT" or "US": those are
+// search terms here.
+export const STOP_WORDS = new Set([
+  "A", "AN", "THE", "AND", "OR", "OF", "TO", "IN", "ON", "AT", "BY", "FOR", "WITH", "FROM", "INTO", "AS",
+  "IS", "ARE", "WAS", "WERE", "BE", "BEEN", "HAS", "HAVE", "HAD", "THAT", "THIS", "THESE", "THOSE", "WHICH",
+  "WHO", "WE", "OUR", "THEY", "THEIR", "THEM", "ITS", "YOU", "YOUR", "ALSO", "THAN", "WHILE"
+]);
+
+// The description's words that `searchable` (its excerpt, and the other text
+// keyword search looks in) doesn't already hold, each once, with filler words
+// left out ("TILE FLOORS"). Keywords match the start of any word, so repeats
+// add nothing, and neither does a word that starts a longer one ("PROJECT"
+// beside "PROJECTS"), except one of one or two letters, which has to match a
+// whole word.
+export function extraWords(description, searchable) {
+  const known = words(searchable);
+  const skip = new Set(known);
+  const extra = [...new Set(words(description))].filter((w) => !skip.has(w) && !STOP_WORDS.has(w));
+  // Sorted, any longer words a word starts come right after it.
+  const sorted = [...new Set([...extra, ...known])].sort();
+  const covered = new Set(sorted.filter((w, i) => w.length > 2 && sorted[i + 1]?.startsWith(w)));
+  return extra.filter((w) => !covered.has(w)).join(" ");
 }
 
 // The description as keyword search sees it: the excerpt's words plus the rest.
@@ -305,6 +354,9 @@ export function stem(word) {
   return word;
 }
 
+// A keyword's words, stemmed, without filler words (unless that's all it has).
 export function keywordWords(value) {
-  return searchText(value).trim().split(" ").filter(Boolean).map(stem);
+  const all = words(value);
+  const kept = all.filter((w) => !STOP_WORDS.has(w));
+  return (kept.length ? kept : all).map(stem);
 }

@@ -10,7 +10,7 @@ export class RateLimited extends Error {}
 
 export const RATE_LIMITED_TEXT = "That’s a lot of lookups in a row. Wait a minute and try again.";
 
-// binding: "SEARCH_RATE_LIMITER", "DETAIL_RATE_LIMITER" or "AREA_RATE_LIMITER". Throws RateLimited.
+// binding: a limiter's name in wrangler.jsonc ("SEARCH_RATE_LIMITER", …). Throws RateLimited.
 export async function checkRateLimit(binding, clientAddress) {
   const limiter = env[binding];
   if (!limiter) return; // no binding (some local setups): don't limit
