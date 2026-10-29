@@ -30,7 +30,8 @@ export function titleCase(text) {
     const upper = word.toUpperCase();
     if (KEEP_UPPER.has(upper)) return upper;
     if (offset > 0 && KEEP_LOWER.has(word)) return word;
-    if (/^\d/.test(word)) return word; // "41st"
+    // "41st" stays lowercase; a unit or model ("5g", "3d") is upper-cased
+    if (/^\d/.test(word)) return /^\d+(st|nd|rd|th)$/.test(word) ? word : upper;
     // "o'brien" → "O'Brien", but "joe's" → "Joe's"
     const cap = word[0].toUpperCase() + word.slice(1);
     return cap.replace(/^(.['’])([a-z])/, (m, head, c) => head + c.toUpperCase());
@@ -78,15 +79,19 @@ export function phone(value) {
   };
 }
 
-// A usable https:// URL, or null. The host has to look like a domain: no
-// spaces, at least one dot, and letters after the last one.
+// A usable URL, or null. The host has to look like a domain: no spaces, at
+// least one dot, and letters after the last one. The scheme is kept as
+// written, since a site that only serves http:// breaks behind https:// (and
+// browsers upgrade an http:// link where https works); a bare address gets
+// https://.
 export function website(value) {
   const s = text(value);
   if (!s) return null;
+  const scheme = /^http:/i.test(s) ? "http" : "https";
   const rest = s.replace(/^https?:\/*/i, "").replace(/^\/+/, "");
   const m = rest.match(/^([a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,})(:\d+)?([/?#]\S*)?$/i);
   if (!m) return null;
-  return `https://${m[1].toLowerCase()}${m[2] ?? ""}${m[3] && m[3] !== "/" ? m[3] : ""}`;
+  return `${scheme}://${m[1].toLowerCase()}${m[2] ?? ""}${m[3] && m[3] !== "/" ? m[3] : ""}`;
 }
 
 // Five digits; 3- and 4-digit values get their leading zeros back, ZIP+4 is cut.

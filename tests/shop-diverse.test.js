@@ -33,6 +33,8 @@ test("names: junk prefixes go, shouting is title-cased, mixed case is left alone
   assert.equal(businessName("\"Bright Star\" Cleaning"), "Bright Star Cleaning");
   assert.equal(businessName("“Unclosed Inc"), "Unclosed Inc");
   assert.equal(titleCase("THE BEST OF THE BRONX"), "The Best of the Bronx");
+  assert.equal(titleCase("720 ST. MARKS AVENUE, 5G"), "720 St. Marks Avenue, 5G", "apartment numbers keep their letter upper-case");
+  assert.equal(titleCase("1ST CLASS 3D PRINTING ON 41ST"), "1st Class 3D Printing on 41st");
 });
 
 test("phones: ten digits are formatted with a tel: link; anything else is shown as written", () => {
@@ -43,9 +45,9 @@ test("phones: ten digits are formatted with a tel: link; anything else is shown 
   assert.equal(phone(""), null);
 });
 
-test("websites: https:// added, placeholders and company names dropped", () => {
+test("websites: the scheme is kept, https:// added to bare ones, placeholders and company names dropped", () => {
   assert.equal(website("www.example.com"), "https://www.example.com");
-  assert.equal(website("http://www.IAMEHS.com"), "https://www.iamehs.com");
+  assert.equal(website("http://www.IAMEHS.com"), "http://www.iamehs.com", "an http-only site would break behind https");
   assert.equal(website("HTTPS://DJPINDUTRIAL.COM/"), "https://djpindutrial.com");
   assert.equal(website("https://example.org/about-us"), "https://example.org/about-us");
   assert.equal(website("N/A"), null);
@@ -344,6 +346,8 @@ test("URL round-trip: equal queries make equal URLs, defaults are left out", () 
   assert.equal(queryToParams(q("")).toString(), "");
   assert.equal(queryToParams(q("who=wbe&eth=black&match=all")).toString(), "who=wbe", "ethnicity needs MBE; match needs both");
   assert.equal(q("sub=Food").sub, "", "a subcategory needs a category");
+  assert.equal(queryToParams(q("zip=11216&sort=az")).toString(), "sort=az", "a ZIP only applies to Recommended");
+  assert.equal(q("zip=11216").zip, "11216");
   assert.ok(normalizeQuery(new URLSearchParams(`q=${"a".repeat(200)}`)).error);
 });
 

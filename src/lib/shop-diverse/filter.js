@@ -11,6 +11,7 @@
  *   q             keyword (name, DBA, description, industry)
  *   boro          a slug from BOROUGHS ("outside" = outside the five boroughs)
  *   zip           a 5-digit ZIP: that ZIP, then its borough, rank first
+ *                 (Recommended only, so other sorts drop it)
  *   sort          recommended | az | newest | oldest
  *   lapsed=1      include certifications whose renewal dates have passed
  *   page          1-based
@@ -54,6 +55,7 @@ export function normalizeQuery(params) {
   if (!query.cat) query.sub = "";
   if (!query.who.includes("MBE")) query.eth = [];
   if (query.who.length < 2) query.match = "any";
+  if (query.sort !== "recommended") query.zip = "";
   return { query };
 }
 

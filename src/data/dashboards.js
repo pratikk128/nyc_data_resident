@@ -49,7 +49,7 @@ export const dashboards = [
   },
   {
     id: "shop-diverse",
-    title: "Women and Minority Owned Businesses",
+    title: "Women- and Minority-Owned Businesses",
     description: "Find and support women- and minority-owned businesses certified by the city, by what you need and where.",
     category: "Business",
     url: "/shop-diverse/"

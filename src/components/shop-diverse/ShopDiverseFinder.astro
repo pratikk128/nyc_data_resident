@@ -43,9 +43,10 @@ const pageHref = (page: number) => {
 const facets = initial?.facets;
 const who = (c: string) => query.who.includes(c);
 const status = inputError ?? (initial ? statusText(initial) : UPSTREAM_TEXT);
-// normalizeQuery() drops a malformed ZIP; keep what was typed and say so.
+// normalizeQuery() drops a malformed ZIP (and any ZIP outside the
+// Recommended order); keep what was typed, and say so if it's malformed.
 const rawZip = Astro.url.searchParams.get('zip')?.trim() ?? '';
-const zipInvalid = Boolean(rawZip) && !query.zip;
+const zipInvalid = Boolean(rawZip) && !/^\d{5}$/.test(rawZip);
 const listHref = pageHref(query.page);
 const showResultsText = initial ? showResultsLabel(initial.total) : 'Show results';
 const detail = business && !business.missing ? business : null;

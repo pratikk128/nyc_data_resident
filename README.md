@@ -17,14 +17,14 @@ src/pages/restaurant-inspections/   NYC Restaurant Inspections (rendered on dema
 src/pages/311-complaints/  311 Complaints in My Neighborhood (rendered on demand)
 src/pages/drinking-water/  NYC Drinking Water Quality, one page per section (rendered on demand)
 src/components/drinking-water/  WaterPage.astro (heading, section nav, context box, method notes) and the sections
-src/pages/shop-diverse/    Shop Diverse NYC (rendered on demand)
+src/pages/shop-diverse/    Women- and Minority-Owned Businesses (rendered on demand)
 src/pages/school-quality/  NYC School Quality Explorer: browse page and /school-quality/<DBN>/ (rendered on demand)
 src/components/school-quality/  Finder, the school page's "now" and "over time" sections, method notes
 src/components/shop-diverse/  The finder (filters, results, detail panel) and method notes
 src/pages/api/            API routes (Worker): /api/restaurants/search, /api/restaurants/:camis, /api/311/*, /api/water/stations, /api/shop-diverse/*, /api/schools/search
 src/lib/restaurants/      Restaurant logic: SoQL builders, inspection rules, violation categories, rendering
 src/lib/complaints311/    311 logic: config, SoQL, share math, labels, input parsing, geocoding, rendering
-src/lib/shop-diverse/     Shop Diverse NYC logic: cleaning, ranking, filters, rendering
+src/lib/shop-diverse/     Women- and minority-owned businesses logic: cleaning, ranking, filters, rendering
 src/lib/schools/          School Quality Explorer logic: curated metrics (metrics.js), values, search, charts, maps
 src/lib/water/            Drinking water logic: reference values (config.js), lab value parser, SoQL, stats, charts, map
 src/lib/server/           Server-only: Socrata client (holds the token), caches, daily jobs
@@ -52,7 +52,7 @@ Production build: `npm run build` (output in `dist/`), preview with `npm run pre
 Live data needs no setup locally (Socrata allows anonymous requests at low volume). To use a token, copy `.dev.vars.example` to `.dev.vars` and fill in `SOCRATA_APP_TOKEN`.
 
 ```sh
-npm test             # restaurant, 311, drinking water, Shop Diverse NYC and school quality logic tests
+npm test             # restaurant, 311, drinking water, women- and minority-owned businesses and school quality logic tests
 ```
 
 ## Deploy (Cloudflare Workers)
@@ -268,7 +268,7 @@ The old `/drinking-water/history/` URL redirects to `/drinking-water/#history` (
 
 **Station locations** come from DEP's 2021 sampling site spreadsheet, converted to `src/data/water-sites.json` (State Plane EPSG:2263 → lat/lon, borough by point-in-polygon), with ZIP points in `src/data/zip-centroids.json`. Rebuild both with `npm run data:water-sites`; it also lists dataset site codes missing from the spreadsheet.
 
-## Shop Diverse NYC
+## Women- and Minority-Owned Businesses
 
 `/shop-diverse/` helps residents find and support Women-owned (WBE) and Minority-owned (MBE) businesses from NYC Small Business Services' [SBS Certified Business List](https://data.cityofnewyork.us/d/ci93-uc8s) (`ci93-uc8s`, ~11,850 rows, updated about every two weeks).
 

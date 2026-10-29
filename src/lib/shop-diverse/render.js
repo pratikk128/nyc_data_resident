@@ -235,7 +235,7 @@ export function detailHtml(v) {
   const contact = dl([
     row("Contact", escape(v.contact ?? "")),
     row("Phone", v.phone ? (v.phone.tel ? `<a href="tel:${escape(v.phone.tel)}">${escape(v.phone.display)}</a>` : escape(v.phone.display)) : ""),
-    row("Website", v.website ? `<a href="${escape(v.website)}" target="_blank" rel="noopener noreferrer">${escape(v.website.replace(/^https:\/\//, ""))}</a>` : ""),
+    row("Website", v.website ? `<a href="${escape(v.website)}" target="_blank" rel="noopener noreferrer">${escape(v.website.replace(/^https?:\/\//, ""))}</a>` : ""),
     row("Address", lines.length ? `${lines.map(escape).join("<br>")}${maps ? `<br><a href="${escape(maps)}" target="_blank" rel="noopener noreferrer">Open in Google Maps</a>` : ""}` : "")
   ]);
   const est = v.established

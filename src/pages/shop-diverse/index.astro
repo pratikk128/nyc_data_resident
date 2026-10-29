@@ -37,7 +37,7 @@ const metaValue = meta.status === 'fulfilled' ? meta.value : null;
 // A business detail, { missing: true }, or null (no ?biz=, or it couldn't load: the script retries)
 const business = shared.status === 'fulfilled' ? shared.value : null;
 const bizMeta = business && !business.missing ? businessMeta(business) : null;
-const pageTitle = 'Women and Minority Owned Businesses';
+const pageTitle = 'Women- and Minority-Owned Businesses';
 // Production only: in dev a cached page hides edits for an hour. A page whose
 // results or shared business failed to load isn't cached, so a visitor
 // without script isn't stuck on the error.
