@@ -77,7 +77,8 @@ const refs = [
       <p>
         <strong>Colors.</strong> A tile is green when at least {pct(TILE_THRESHOLDS.green)} of samples are within the
         reference value, amber from {pct(TILE_THRESHOLDS.amber)}, and red below that. E. coli is green with no
-        detections and amber with any. These cutoffs are ours, not a regulator's.
+        detections, amber with any, and red when a later sample at the same station within 14 days had it too
+        (on the report card and the station cards). These cutoffs are ours, not a regulator's.
       </p>
       <p>
         <strong>Latest full month.</strong> The newest month the data runs to the end of, with a typical number of

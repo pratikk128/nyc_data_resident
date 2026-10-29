@@ -12,7 +12,7 @@ import { meaningText, stationVerdict } from "../src/lib/water/near-me.js";
 import {
   normalizeMonth, latestCompleteMonth, missingMonths, reportCard, verdict, historyTakeaway, summerShare, sharePct, tileStatus,
   nearestSites, addMonths, monthLabel, monthsBetween, isStale, normalizeDetection, hasEcoli, plainDescription, completeMonths,
-  laterSamples, followUpText
+  laterSamples, followUpText, ecoliAgain
 } from "../src/lib/water/stats.js";
 import { historySeries, historyCsvHref } from "../src/lib/water/history.js";
 import { bacteriaHtml, compareText } from "../src/lib/water/near-me.js";
@@ -205,6 +205,19 @@ test("report card: a resample with E. coli turns the tile amber even with no rou
   assert.equal(verdict(reportCard(row("2026-09", 1124), { resampleEcoli: 1 })).title, "Mostly clear");
 });
 
+test("report card: E. coli in a later sample at the same station turns the tile red", () => {
+  const d = { followUps: [{ sampleClass: "Resample_Compliance", ecoli: { status: "measured", value: 1 } }] };
+  assert.equal(ecoliAgain(d), true);
+  assert.equal(ecoliAgain({ followUps: [{ sampleClass: "Compliance", ecoli: { status: "not-detected", value: 0 } }] }), false);
+  assert.equal(ecoliAgain({}), false);
+  const tile = reportCard(row("2026-08", 1100, { ecoli_pos: "1" }), { resampleEcoli: 1, ecoliAgain: true })[0];
+  assert.equal(tile.status, "red");
+  assert.equal(tile.sentence, "A sign of sewage. Found in 1 of 1,100 routine samples and in 1 resample. A later sample at the same station had it too; details below.");
+  const v = verdict(reportCard(row("2026-08", 1100, { ecoli_pos: "1" }), { resampleEcoli: 1, ecoliAgain: true }));
+  assert.equal(v.status, "red");
+  assert.equal(v.title, "Some results need a look");
+});
+
 test("report card leaves fluoride out when no samples were tested for it", () => {
   const tiles = reportCard(row("2026-09", 1000, { fl_n: "0", fl_ok: "0", fl_med: null }));
   assert.equal(tiles.length, 4);
@@ -235,6 +248,9 @@ test("near me: each card gets a one-line verdict", () => {
   assert.equal(ecoli.text, "Worth a look. E. coli in 1 sample, details below; chlorine and cloudiness normal.");
   const resample = { sampleClass: "Resample_Compliance", ecoli: { status: "measured", value: 1 } };
   assert.match(stationVerdict({ totals, detections: [resample] }).text, /E\. coli in 1 sample/);
+  const again = stationVerdict({ totals: { ...totals, coliPos: 1, ecoliPos: 1 }, detections: [{ sampleClass: "Compliance", ecoli: { status: "measured", value: 2 }, followUps: [resample] }, resample] });
+  assert.equal(again.status, "red");
+  assert.equal(again.text, "Outside the usual range. E. coli in 2 samples, and again in a later sample, details below; chlorine and cloudiness normal.");
   const lowChlorine = stationVerdict({ totals: { ...totals, clOk: 50 }, detections: [] });
   assert.equal(lowChlorine.status, "red");
   assert.equal(lowChlorine.text, "Outside the usual range. No bacteria found; chlorine out of range in more than 5% of samples.");

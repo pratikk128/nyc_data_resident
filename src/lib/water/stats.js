@@ -141,25 +141,28 @@ const resamples = (k) => `${count(k)} ${k === 1 ? "resample" : "resamples"}`;
 /*
  * The four or five report card tiles for one month (normalized).
  * resampleEcoli: E. coli detections in that month's resamples, which the
- * month's routine counts leave out. Each: { key, label, status, value, valueLabel, sentence }
+ * month's routine counts leave out. ecoliAgain: a later sample at the station
+ * of one of the month's detections also had E. coli (ecoliAgain()), which
+ * turns the tile red. Each: { key, label, status, value, valueLabel, sentence }
  */
-export function reportCard(m, { resampleEcoli = 0 } = {}) {
+export function reportCard(m, { resampleEcoli = 0, ecoliAgain = false } = {}) {
   const tiles = [];
 
   const ecoliClean = m.ecoli.n - m.ecoli.pos;
   // With resample detections too, say which samples each count is out of.
   const tested = resampleEcoli ? `${count(m.ecoli.n)} routine ${m.ecoli.n === 1 ? "sample" : "samples"}` : samples(m.ecoli.n);
   const inResamples = resampleEcoli ? `${m.ecoli.pos ? " and" : ", but"} in ${resamples(resampleEcoli)}` : "";
+  const again = ecoliAgain ? ". A later sample at the same station had it too" : "";
   tiles.push({
     key: "ecoli",
     label: "E. coli",
-    status: m.ecoli.pos || resampleEcoli ? "amber" : m.ecoli.n ? "green" : "none",
+    status: ecoliAgain ? "red" : m.ecoli.pos || resampleEcoli ? "amber" : m.ecoli.n ? "green" : "none",
     value: sharePct(ecoliClean, m.ecoli.n),
     valueLabel: resampleEcoli ? "of routine samples clear" : "of samples clear",
     sentence: !m.ecoli.n
-      ? `No routine E. coli results this month${resampleEcoli ? `, but it was found in ${resamples(resampleEcoli)}; details below` : ""}.`
+      ? `No routine E. coli results this month${resampleEcoli ? `, but it was found in ${resamples(resampleEcoli)}${again}; details below` : ""}.`
       : `A sign of sewage. ${m.ecoli.pos || resampleEcoli
-        ? `Found in ${m.ecoli.pos ? count(m.ecoli.pos) : "none"} of ${tested}${inResamples}; details below.`
+        ? `Found in ${m.ecoli.pos ? count(m.ecoli.pos) : "none"} of ${tested}${inResamples}${again}; details below.`
         : `Found in none of ${tested}.`}`
   });
 
@@ -292,6 +295,10 @@ export const isResample = (sampleClass) => /resample/i.test(sampleClass ?? "");
 
 // E. coli detections in resamples: listed with the rest, but not in the routine counts.
 export const resampleEcoli = (detections) => detections.filter((d) => hasEcoli(d) && isResample(d.sampleClass));
+
+// E. coli again in a later sample at the station (d.followUps, from
+// laterSamples()): the serious case, red on the report card and station cards.
+export const ecoliAgain = (d) => (d.followUps ?? []).some((x) => isDetected(x.ecoli));
 
 // ---------- Places ----------
 

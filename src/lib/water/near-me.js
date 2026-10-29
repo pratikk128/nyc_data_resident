@@ -6,7 +6,7 @@
  * turned up, so the Bacteria section only adds what it doesn't. Sparklines are drawn into the
  * [data-spark] slots after the HTML is inserted (charts.js).
  */
-import { monthLabel, isResample, sharePct, tileStatus, STATUS_TEXT, STATUS_ICON } from "./stats.js";
+import { monthLabel, isResample, ecoliAgain, sharePct, tileStatus, STATUS_TEXT, STATUS_ICON } from "./stats.js";
 import { measurementText, isDetected } from "./parse.js";
 import { boroughLabel, REFERENCES as R, TILE_THRESHOLDS } from "./config.js";
 import { count, date } from "../format.js";
@@ -45,15 +45,17 @@ const samplesText = (k) => `${count(k)} ${k === 1 ? "sample" : "samples"}`;
 /*
  * The card's one-line answer, like the report card's verdict, from the
  * station's totals and detections: { status, text }, or null with no samples.
- * E. coli makes it amber at least; the rest use the report card's thresholds.
+ * E. coli makes it amber at least, and red when a later sample at the station
+ * had it too; the rest use the report card's thresholds.
  */
 export function stationVerdict(details) {
   const t = details?.totals;
   if (!t?.n) return null;
   const ecoli = (t.ecoliPos ?? 0) + details.detections.filter((d) => isResample(d.sampleClass) && isDetected(d.ecoli)).length;
+  const again = details.detections.some(ecoliAgain);
   const share = (ok, n) => (n ? ok / n : null);
   const checks = {
-    ecoli: ecoli ? "amber" : t.coliN ? "green" : "none",
+    ecoli: again ? "red" : ecoli ? "amber" : t.coliN ? "green" : "none",
     coliform: tileStatus(share(t.coliN - t.coliPos, t.coliN)),
     chlorine: tileStatus(share(t.clOk, t.clN)),
     cloudiness: tileStatus(share(t.turbOk, t.turbN))
@@ -61,7 +63,7 @@ export function stationVerdict(details) {
   const status = Object.values(checks).reduce((a, s) => (RANK[s] > RANK[a] ? s : a), "none");
 
   const bacteria = !t.coliN ? "No bacteria results"
-    : ecoli ? `E. coli in ${samplesText(ecoli)}, details below`
+    : ecoli ? `E. coli in ${samplesText(ecoli)}${again ? ", and again in a later sample" : ""}, details below`
     : t.coliPos ? `No E. coli; coliform in ${count(t.coliPos)} of ${samplesText(t.coliN)}`
     : "No bacteria found";
   const off = ["chlorine", "cloudiness"].filter((k) => checks[k] === "amber" || checks[k] === "red");

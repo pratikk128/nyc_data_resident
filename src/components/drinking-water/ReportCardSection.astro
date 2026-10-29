@@ -5,7 +5,7 @@
  * from the daily monthly and detections jobs (src/lib/server/water.js).
  */
 import HistorySection from './HistorySection.astro';
-import { reportCard, verdict, monthLabel, hasEcoli, isResample, resampleEcoli, followUpText, isStale, STATUS_TEXT, STATUS_ICON as ICON } from '../../lib/water/stats.js';
+import { reportCard, verdict, monthLabel, hasEcoli, isResample, resampleEcoli, ecoliAgain, followUpText, isStale, STATUS_TEXT, STATUS_ICON as ICON } from '../../lib/water/stats.js';
 import { boroughLabel, ERROR_TEXT, RESAMPLE_NOTE } from '../../lib/water/config.js';
 import { SITES, siteDescription } from '../../lib/water/sites.js';
 import { measurementText } from '../../lib/water/parse.js';
@@ -26,7 +26,8 @@ const month = monthly?.completeMonth ? monthly.months.find((m: any) => m.month =
 const ecoliAll = (detections?.detections ?? []).filter(hasEcoli);
 const ecoliThisMonth = month ? ecoliAll.filter((d: any) => d.date.startsWith(month.month)) : [];
 // The tiles count routine samples; resample positives are listed below, so the E. coli tile counts them too.
-const tiles = month ? reportCard(month, { resampleEcoli: resampleEcoli(ecoliThisMonth).length }) : [];
+// E. coli again at the same station within 14 days turns it red.
+const tiles = month ? reportCard(month, { resampleEcoli: resampleEcoli(ecoliThisMonth).length, ecoliAgain: ecoliThisMonth.some(ecoliAgain) }) : [];
 const headline = month ? verdict(tiles) : null;
 // Newest first; months after the report card's are still loading and left out of the history it links to.
 const lastEcoli = month ? ecoliAll.find((d: any) => d.date.slice(0, 7) <= month.month) ?? null : null;
