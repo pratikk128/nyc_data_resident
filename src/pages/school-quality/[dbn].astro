@@ -110,7 +110,7 @@ const json = JSON.stringify({ name: school?.name, loc: loc?.lat != null ? { lat:
             <nav class="sq-jump" aria-label="This school's reports">
               <p>This school has {reports.length} reports:</p>
               <ul>
-                {reports.map((r: any) => <li><a href={`#now-${r.report.toLowerCase()}`}>{REPORTS[r.report].label} grades</a></li>)}
+                {reports.map((r: any) => <li><a href={`#now-${r.report.toLowerCase()}`}>{REPORTS[r.report as keyof typeof REPORTS].label} grades</a></li>)}
               </ul>
             </nav>
           )}
@@ -129,7 +129,7 @@ const json = JSON.stringify({ name: school?.name, loc: loc?.lat != null ? { lat:
 
       {reports.map((r: any) => (
         <>
-          <SchoolNow report={r} multiple={multiple} newest={latestReport} current={school.current} />
+          <SchoolNow report={r} multiple={multiple} newest={latestReport!} current={school.current} />
           <SchoolTrends report={r} multiple={multiple} />
         </>
       ))}
@@ -157,7 +157,7 @@ const json = JSON.stringify({ name: school?.name, loc: loc?.lat != null ? { lat:
       const metric = byId[entry.id];
       const frame = document.querySelector<HTMLElement>(`[data-chart="${entry.id}"][data-report="${report.report}"]`);
       if (!metric || !frame) continue;
-      const gapsByYear = new Map(entry.gaps.map((g: any) => [g.year, g.reason]));
+      const gapsByYear = new Map<number, string>(entry.gaps.map((g: any) => [g.year, g.reason]));
       const row = (label: string, v: number | null) =>
         v == null ? '' : `<tr><th>${label}</th><td>${esc(formatValue(metric, v))}</td></tr>`;
       const latest = report.years.filter((y: number) => entry.values[y] != null).pop();

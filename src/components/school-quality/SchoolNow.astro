@@ -19,8 +19,9 @@ interface Props {
   current: boolean;  // the school has a report for the newest year in the dataset
 }
 const { report, multiple, newest, current } = Astro.props;
+type ReportKey = keyof typeof REPORTS; // report is untyped, so its report code needs this to index REPORTS
 const past = report.year < newest;
-const heading = past ? `Its last ${REPORTS[report.report].noun} report`
+const heading = past ? `Its last ${REPORTS[report.report as ReportKey].noun} report`
   : current ? 'How is this school doing now?' : 'How was this school doing in its last report?';
 const byId = Object.fromEntries(METRICS.map((m) => [m.id, m]));
 const year = report.year;
@@ -52,18 +53,18 @@ const judged = groups.reduce((n, g) => n + g.tiles.length, 0);
   <div class="section-head">
     <h2 id={`${id}-title`}>
       {heading}
-      {multiple && !past && <span class="sq-head-report"> {REPORTS[report.report].label} grades</span>}
+      {multiple && !past && <span class="sq-head-report"> {REPORTS[report.report as ReportKey].label} grades</span>}
     </h2>
     <p class="section-intro">
       Each measure from the school’s {yearLabel(year)} report{past && <>, its last one of this kind</>}, next to the
-      average for NYC {REPORTS[report.report].plural}.
+      average for NYC {REPORTS[report.report as ReportKey].plural}.
     </p>
   </div>
 
   {judged > 0 && (
     <div class="sq-summary-wrap">
       <h3 class="sq-summary-title" id={`${id}-glance`}>
-      Where this school is better or worse than the average for NYC {REPORTS[report.report].plural}
+      Where this school is better or worse than the average for NYC {REPORTS[report.report as ReportKey].plural}
     </h3>
     <ul class="sq-summary" aria-labelledby={`${id}-glance`}>
       {groups.map((g) => (
@@ -107,7 +108,7 @@ const judged = groups.reduce((n, g) => n + g.tiles.length, 0);
       ))}
     </ul>
   ) : (
-    <p class="sq-none">This report has none of the measures we track for {REPORTS[report.report].plural}.</p>
+    <p class="sq-none">This report has none of the measures we track for {REPORTS[report.report as ReportKey].plural}.</p>
   )}
 
   {context.map((t: any) => (

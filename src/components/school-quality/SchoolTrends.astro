@@ -16,6 +16,7 @@ interface Props {
   multiple: boolean;
 }
 const { report, multiple } = Astro.props;
+type ReportKey = keyof typeof REPORTS; // report is untyped, so its report code needs this to index REPORTS
 const byId = Object.fromEntries(METRICS.map((m) => [m.id, m]));
 const years: number[] = report.years;
 const charts = report.metrics.map((entry: any) => {
@@ -34,7 +35,7 @@ const hasSimilar = (entry: any) => years.some((y) => entry.points[y]?.cmp != nul
 <section class="dash-section sq-trends" aria-labelledby={`${id}-title`} id={id}>
   <div class="section-head">
     <h2 id={`${id}-title`}>
-      Performance over time{multiple && <span class="sq-head-report"> {REPORTS[report.report].label} grades</span>}
+      Performance over time{multiple && <span class="sq-head-report"> {REPORTS[report.report as ReportKey].label} grades</span>}
     </h2>
     <p class="section-intro">
       For a closer look: each measure from {yearLabel(years[0])} to {yearLabel(years[years.length - 1])}. Point at a
@@ -42,7 +43,7 @@ const hasSimilar = (entry: any) => years.some((y) => entry.points[y]?.cmp != nul
     </p>
     <ul class="legend sq-legend" aria-hidden="true">
       <li><span class="swatch sq-swatch-school"></span>This school</li>
-      <li><span class="swatch sq-swatch-city"></span>NYC average for {REPORTS[report.report].plural}</li>
+      <li><span class="swatch sq-swatch-city"></span>NYC average for {REPORTS[report.report as ReportKey].plural}</li>
     </ul>
   </div>
 
