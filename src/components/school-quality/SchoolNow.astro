@@ -68,7 +68,7 @@ const judged = groups.reduce((n, g) => n + g.tiles.length, 0);
     <ul class="sq-summary" aria-labelledby={`${id}-glance`}>
       {groups.map((g) => (
         <li class="sq-summary-group" data-verdict={g.key}>
-          <p class="sq-summary-label"><span aria-hidden="true">{g.icon}</span> {g.group}</p>
+          <p class="sq-summary-label">{g.group}</p>
           <p class="sq-summary-count">
             {g.tiles.length}<span class="sq-summary-of"> of {judged} {judged === 1 ? 'measure' : 'measures'}</span>
           </p>
