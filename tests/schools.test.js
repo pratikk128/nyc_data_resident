@@ -278,7 +278,7 @@ test("cards: card metrics with the NYC average, 'Address not available', older r
   const html = cardsHtml(r.results, 2024);
   assert.match(html, /ELA proficiency/);
   assert.match(html, /89%/);
-  assert.match(html, /30 pts above NYC avg \(59%\)/);
+  assert.match(html, /data-verdict="better">30 pts above NYC avg \(59%\)<span class="sr-only"> \(better\)<\/span>/);
   assert.match(html, /Address not available/);
   assert.match(html, /Latest report: 2018–19/);
   assert.match(html, /href="\/school-quality\/15K321\/"/);

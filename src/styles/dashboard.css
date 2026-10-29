@@ -2410,6 +2410,7 @@ a.sq-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
 .sq-card-value { font-size: 1.125rem; font-weight: 800; font-variant-numeric: tabular-nums; }
 .sq-card-value.is-missing { font-size: .875rem; font-weight: 600; color: var(--ink-soft); }
 .sq-card-vs { font-size: .75rem; color: var(--ink-soft); white-space: nowrap; }
+.sq-card-vs[data-verdict] { color: var(--verdict-deep); font-weight: 700; }
 .sq-card-year { margin-top: auto; padding-top: var(--space-1); font-size: .8125rem; color: var(--ink-soft); }
 .sq-cards-note { margin-top: var(--space-4); }
 

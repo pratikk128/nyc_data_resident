@@ -6,7 +6,7 @@
  */
 import { TYPES, TYPE_BY_SLUG, BOROUGHS, schoolPath, yearLabel } from "./config.js";
 import { cardMetrics } from "./metrics.js";
-import { formatValue, targetBand, compare, TREND_TEXT, NOT_REPORTED } from "./values.js";
+import { formatValue, targetBand, compare, verdict, TREND_TEXT, NOT_REPORTED } from "./values.js";
 import { count } from "../format.js";
 
 export const escape = (str) => String(str ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -103,16 +103,24 @@ export function statusText(data, view = "list") {
   return `${plural(data.total, "school")}${pages}${order}`;
 }
 
+// The "vs NYC avg" line, tinted only when clearly better or worse ("similar" stays quiet).
+// "Below" can be good (absenteeism), so hidden text says which for screen readers.
+function cardVsHtml(vs, v) {
+  if (v !== "better" && v !== "worse") return `<span class="sq-card-vs">${escape(vs)}</span>`;
+  return `<span class="sq-card-vs" data-verdict="${v}">${escape(vs)}<span class="sr-only"> (${v})</span></span>`;
+}
+
 function cardMetricsHtml(r) {
   const metrics = cardMetrics(r.report);
   if (!metrics.length) return "";
   const items = metrics.map((m) => {
     const value = r.values?.[m.id];
     const v = value?.v ?? null;
-    const vs = v == null ? "" : vsCityText(m, v, r.city?.[m.id]);
+    const city = r.city?.[m.id];
+    const vs = v == null ? "" : vsCityText(m, v, city);
     return `<div class="sq-card-metric">
         <dt>${escape(m.label)}</dt>
-        <dd><span class="sq-card-value${v == null ? " is-missing" : ""}">${escape(formatValue(m, v))}</span>${vs ? `<span class="sq-card-vs">${escape(vs)}</span>` : ""}</dd>
+        <dd><span class="sq-card-value${v == null ? " is-missing" : ""}">${escape(formatValue(m, v))}</span>${vs ? cardVsHtml(vs, verdict(m, v, city)) : ""}</dd>
       </div>`;
   }).join("");
   return `<dl class="sq-card-metrics">${items}</dl>`;
