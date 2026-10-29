@@ -19,6 +19,8 @@ interface Props {
   detectionsError: boolean;
 }
 const { monthly, detections, error, detectionsError } = Astro.props;
+// stats.js is plain JS, so its statuses come through as strings.
+type Status = keyof typeof ICON;
 
 const month = monthly?.completeMonth ? monthly.months.find((m: any) => m.month === monthly.completeMonth) : null;
 const ecoliAll = (detections?.detections ?? []).filter(hasEcoli);
@@ -60,7 +62,7 @@ const stale = month ? isStale(month.month, nycToday()) : false;
 
       <div class="water-verdict" data-status={headline!.status}>
         <p class="water-verdict-title">
-          <span class="water-status-icon" aria-hidden="true">{ICON[headline!.status]}</span>
+          <span class="water-status-icon" aria-hidden="true">{ICON[headline!.status as Status]}</span>
           {headline!.title} in {monthLabel(month.month)}
         </p>
         <p>
@@ -73,8 +75,8 @@ const stale = month ? isStale(month.month, nycToday()) : false;
         {tiles.map((t) => (
           <li class="water-tile" data-status={t.status}>
             <p class="water-tile-status">
-              <span class="water-status-icon" aria-hidden="true">{ICON[t.status]}</span>
-              {STATUS_TEXT[t.status]}
+              <span class="water-status-icon" aria-hidden="true">{ICON[t.status as Status]}</span>
+              {STATUS_TEXT[t.status as Status]}
             </p>
             <h3 class="water-tile-label">{t.label}</h3>
             <p class="water-tile-value">{t.value} <span class="water-tile-unit">{t.valueLabel}</span></p>
@@ -130,7 +132,7 @@ const stale = month ? isStale(month.month, nycToday()) : false;
         </p>
       )}
 
-      <HistorySection monthly={monthly} detections={detections} detectionsError={detectionsError} status={headline!.status} />
+      <HistorySection monthly={monthly} detections={detections} detectionsError={detectionsError} status={headline!.status as Status} />
     </>
   )}
 </section>

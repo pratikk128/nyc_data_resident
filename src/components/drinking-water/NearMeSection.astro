@@ -122,7 +122,7 @@ const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(
 
     let borough = '';
     let selected: string[] = [];
-    let point: Point | null = null;
+    let point = null as Point | null; // set by readUrl, which TypeScript doesn't follow
     let request = 0;
     let lookup = 0; // bumped by every redraw, so a slow address lookup can't undo a later pick
     const cache = new Map<string, any>(); // site → details, plus the shared context
@@ -303,7 +303,7 @@ const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(
 
     function usePoint(p: Point) {
       point = { lat: p.lat, lon: p.lon, label: p.label, zip: p.zip };
-      const near = nearestSites(stations, point, NEAREST_COUNT);
+      const near: Station[] = nearestSites(stations, point, NEAREST_COUNT);
       selected = near.map((s) => s.site);
       borough = near[0]?.borough ?? '';
       render();
