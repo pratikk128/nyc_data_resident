@@ -5,7 +5,7 @@
  * Data shapes come from filter.js (searchSchools / resultRecord).
  */
 import { TYPES, TYPE_BY_SLUG, BOROUGHS, schoolPath, yearLabel } from "./config.js";
-import { cardMetrics } from "./metrics.js";
+import { METRICS, cardMetrics } from "./metrics.js";
 import { formatValue, targetBand, compare, verdict, TREND_TEXT, NOT_REPORTED } from "./values.js";
 import { count } from "../format.js";
 
@@ -110,13 +110,16 @@ function cardVsHtml(vs, v) {
   return `<span class="sq-card-vs" data-verdict="${v}">${escape(vs)}<span class="sr-only"> (${v})</span></span>`;
 }
 
+// The card measures, plus the one the list is sorted by when it isn't among them.
 function cardMetricsHtml(r) {
   const metrics = cardMetrics(r.report);
+  const sorted = r.sorted && METRICS.find((m) => m.id === r.sorted.id);
+  if (sorted && !metrics.includes(sorted)) metrics.push(sorted);
   if (!metrics.length) return "";
   const items = metrics.map((m) => {
     const value = r.values?.[m.id];
     const v = value?.v ?? null;
-    const city = r.city?.[m.id];
+    const city = m === sorted ? r.sorted.city : r.city?.[m.id];
     const vs = v == null ? "" : vsCityText(m, v, city);
     return `<div class="sq-card-metric">
         <dt>${escape(m.label)}</dt>

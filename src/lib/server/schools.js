@@ -174,7 +174,7 @@ export async function loadSearch(query, { view = "list" } = {}, requestUrl, ctx,
   const index = await getIndex();
   const key = `schools/${view}/${index.computedAt}/${queryToParams(view === "map" ? { ...query, page: 1, sort: "" } : query)}`;
   return edgeCached(requestUrl, key, SEARCH_TTL, async () => {
-    await checkRateLimit("SEARCH_RATE_LIMITER", clientAddress);
+    await checkRateLimit("SCHOOL_SEARCH_RATE_LIMITER", clientAddress);
     return view === "map" ? searchPoints(index, query) : searchSchools(index, query);
   }, ctx);
 }

@@ -15,7 +15,7 @@ import {
 } from "../src/lib/schools/values.js";
 import {
   words, parseDbn, dbnMatches, nameScore, addressMatches, editDistance, normalizeQuery, queryToParams,
-  searchSchools, searchPoints
+  searchSchools, searchPoints, sortValue
 } from "../src/lib/schools/filter.js";
 import { cardsHtml, statusText, addressText } from "../src/lib/schools/render.js";
 
@@ -254,6 +254,32 @@ test("search: metric sorts put schools without the measure last", () => {
   assert.deepEqual(searchSchools(INDEX, q("sort=ela")).results.map((r) => r.dbn), ["15K321", "17K382", "10X100", "02M475"]);
   assert.deepEqual(searchSchools(INDEX, q("sort=grad")).results.slice(0, 2).map((r) => r.dbn), ["02M475", "17K382"]);
   assert.equal(searchSchools(INDEX, q("sort=absent")).results[0].dbn, "15K321");
+});
+
+test("search: a metric sort uses the card report's measure, and cards show it when it isn't a card measure", () => {
+  const sixTwelve = school("13K527", "Urban Assembly School", ["high-school", "middle"], {
+    reports: [{ report: "HS", type: "high-school", year: 2024 }, { report: "EMS", type: "middle", year: 2024 }],
+    values: { chronic_absent_ems_all: { v: 0.1, s: null, y: 2024 }, chronic_absent_hs_all: { v: 0.4, s: null, y: 2024 } }
+  });
+  const index = {
+    ...INDEX,
+    cityAvg: { ...INDEX.cityAvg, HS: { chronic_absent_hs_all: { 2024: 0.35 } }, EMS: { ...INDEX.cityAvg.EMS, chronic_absent_ems_all: { 2024: 0.3 } } },
+    schools: [...INDEX.schools, sixTwelve]
+  };
+  assert.deepEqual(sortValue(sixTwelve, "absent"), { v: 0.4, higherIsBetter: false });
+  const r = searchSchools(index, q("sort=absent"));
+  assert.deepEqual(r.results.slice(0, 2).map((x) => x.dbn), ["15K321", "13K527"]);
+  const card = r.results.find((x) => x.dbn === "13K527");
+  assert.deepEqual(card.sorted, { id: "chronic_absent_hs_all", city: 0.35 });
+  assert.match(cardsHtml([card], 2024), /Chronic absenteeism[\s\S]*40%[\s\S]*5 pts above NYC avg \(35%\)/);
+  // A high school without the measure still shows it, as not reported; without a metric sort, nothing extra.
+  const stuy = r.results.find((x) => x.dbn === "02M475");
+  assert.equal(stuy.sorted.id, "chronic_absent_hs_all");
+  assert.match(cardsHtml([stuy], 2024), /Chronic absenteeism[\s\S]*Not reported/);
+  assert.equal(searchSchools(index, q()).results[0].sorted, null);
+  // Elementary cards already show absenteeism: no second row.
+  const ps321 = cardsHtml(r.results.filter((x) => x.dbn === "15K321"), 2024);
+  assert.equal(ps321.match(/Chronic absenteeism/g).length, 1);
 });
 
 test("search: pages clamp, map points skip schools without a location", () => {

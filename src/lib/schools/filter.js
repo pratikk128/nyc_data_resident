@@ -165,15 +165,28 @@ const collator = new Intl.Collator("en", { numeric: true, sensitivity: "base" })
 export const sortName = (name) => String(name ?? "").replace(/^[^A-Za-z0-9]+/, "");
 export const byName = (a, b) => collator.compare(sortName(a.name), sortName(b.name)) || a.dbn.localeCompare(b.dbn);
 
-// A school's value for a metric sort: the first of the sort's metrics it has.
-export function sortValue(school, sortKey) {
+// The sort's metrics, the one for the school's card report first (a 6–12
+// school sorts by its high school absenteeism, the report its card shows).
+function sortMetrics(school, sortKey) {
   const sort = METRIC_SORTS.find((s) => s.value === sortKey);
-  if (!sort) return null;
-  for (const m of sort.metrics) {
+  if (!sort) return [];
+  const card = school.reports?.[0]?.report;
+  return [...sort.metrics].sort((a, b) => b.reports.includes(card) - a.reports.includes(card));
+}
+
+// The metric a school is sorted by: { metric, v } for the first of the sort's metrics it has, or null.
+export function sortMetric(school, sortKey) {
+  for (const m of sortMetrics(school, sortKey)) {
     const v = school.values?.[m.id]?.v;
-    if (v != null) return { v, higherIsBetter: m.higherIsBetter };
+    if (v != null) return { metric: m, v };
   }
   return null;
+}
+
+// A school's value for a metric sort.
+export function sortValue(school, sortKey) {
+  const found = sortMetric(school, sortKey);
+  return found && { v: found.v, higherIsBetter: found.metric.higherIsBetter };
 }
 
 function sortSchools(rows, query) {
@@ -255,7 +268,7 @@ export function searchSchools(index, query, { pageSize = PAGE_SIZE } = {}) {
   const pages = Math.max(1, Math.ceil(total / pageSize));
   const page = Math.min(query.page, pages);
   const sorted = sortSchools(matched, query);
-  const results = sorted.slice((page - 1) * pageSize, page * pageSize).map((r) => resultRecord(r.school, index));
+  const results = sorted.slice((page - 1) * pageSize, page * pageSize).map((r) => resultRecord(r.school, index, query.sort));
   return { total, page, pages, pageSize, results, facets, latestYear: index.latestYear, sort: query.sort, q: query.q };
 }
 
@@ -271,9 +284,18 @@ export function searchPoints(index, query) {
   return { total: matched.length, missing, points };
 }
 
-// What a result card needs: identity, place, the card report's values and NYC averages.
-export function resultRecord(s, index) {
+/*
+ * What a result card needs: identity, place, the card report's values and NYC
+ * averages, and under a metric sort, the measure the school was sorted by
+ * (sorted: { id, city }), so the card can show it when it isn't a card measure.
+ */
+export function resultRecord(s, index, sortKey = "") {
   const report = s.reports[0];
+  const found = sortMetric(s, sortKey);
+  const sortedBy = found?.metric ?? sortMetrics(s, sortKey).find((m) => m.reports.includes(report?.report));
+  // The NYC average for the report and year the sorted value came from.
+  const sortedReport = sortedBy && s.reports.find((r) => sortedBy.reports.includes(r.report));
+  const sortedYear = s.values?.[sortedBy?.id]?.y ?? sortedReport?.year;
   return {
     dbn: s.dbn,
     name: s.name,
@@ -285,7 +307,8 @@ export function resultRecord(s, index) {
     report: report?.report ?? null,
     year: report?.year ?? null,
     values: s.values,
-    city: index.cityAvg?.[report?.report] ? cityFor(index, report.report, report.year) : {}
+    city: index.cityAvg?.[report?.report] ? cityFor(index, report.report, report.year) : {},
+    sorted: sortedBy ? { id: sortedBy.id, city: index.cityAvg?.[sortedReport?.report]?.[sortedBy.id]?.[sortedYear] ?? null } : null
   };
 }
 

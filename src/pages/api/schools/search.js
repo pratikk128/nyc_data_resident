@@ -7,7 +7,7 @@
  * view=map → { total, missing, points: [[lat, lon, dbn, name, type], ...] } for every match
  *
  * Reads the daily school index in KV, so requests don't reach Socrata. Misses
- * on the edge cache are rate limited per client (SEARCH_RATE_LIMITER).
+ * on the edge cache are rate limited per client (SCHOOL_SEARCH_RATE_LIMITER).
  */
 import { normalizeQuery } from "../../../lib/schools/filter.js";
 import { loadSearch, SEARCH_TTL } from "../../../lib/server/schools.js";

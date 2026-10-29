@@ -41,6 +41,13 @@ const tiles = report.metrics.map((entry: any) => {
     verdict: verdict(metric, v, entry.city?.[year])
   };
 });
+// "Last 3 years" only when the trend's years are the 3 up to this report;
+// otherwise their span, so an old trend (a measure not reported this year) doesn't read as current.
+function trendLabel(t: any) {
+  const ys: number[] = t?.years ?? [];
+  if (!t?.dir || (ys[ys.length - 1] === year && ys[ys.length - 1] - ys[0] === ys.length - 1)) return 'Last 3 years:';
+  return `${yearLabel(ys[0])} to ${yearLabel(ys[ys.length - 1])}:`;
+}
 const quality = tiles.filter((t: any) => !t.metric.context);
 const context = tiles.filter((t: any) => t.metric.context && t.v != null);
 const groups = (['better', 'similar', 'worse'] as const).map((key) => ({
@@ -94,7 +101,7 @@ const judged = groups.reduce((n, g) => n + g.tiles.length, 0);
           {t.vsCity && <p class="sq-tile-vs">{t.vsCity}</p>}
           {t.last && <p class="sq-tile-vs">Last reported: {t.last.text} in {yearLabel(t.last.year)}</p>}
           <p class="sq-tile-trend">
-            <span class="sq-tile-trend-label">Last 3 years:</span>
+            <span class="sq-tile-trend-label">{trendLabel(t.entry.trend)}</span>
             <Fragment set:html={trendChip(t.metric, t.entry.trend)} />
             {t.entry.trend?.dir && <span class="sr-only"> {trendSentence(t.metric, t.entry.trend)}</span>}
           </p>

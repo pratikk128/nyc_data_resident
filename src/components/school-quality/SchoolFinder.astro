@@ -98,7 +98,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), latestYear
   </div>
 
   <div data-list-wrap hidden={view === 'map'}>
-    <ul class="sq-results" aria-label="Schools" data-results
+    <ul class="sq-results" aria-label="Schools" tabindex="-1" data-results
       set:html={initial ? cardsHtml(initial.results, latestYear) : ''}></ul>
 
     <div class="sq-empty" data-empty hidden={!initial || initial.total > 0}>
@@ -210,6 +210,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), latestYear
     status.textContent = message;
   }
 
+  // scroll: bring the results into view and move focus to them (paging replaces the focused pager link).
   async function search({ push = false, scroll = false } = {}) {
     clearTimeout(typingTimer);
     abort?.abort();
@@ -247,7 +248,10 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), latestYear
       pager.innerHTML = pagerHtml(data, (page: number) => pageUrl({ ...query, page }));
       status.textContent = statusText(data, view);
       if (mapRes) await drawMap(mapRes);
-      if (scroll) $('.sq-results-head').scrollIntoView({ block: 'start', behavior: reducedMotion.matches ? 'auto' : 'smooth' });
+      if (scroll) {
+        $('.sq-results-head').scrollIntoView({ block: 'start', behavior: reducedMotion.matches ? 'auto' : 'smooth' });
+        list.focus({ preventScroll: true });
+      }
     } catch (err: any) {
       if (err.name === 'AbortError') return;
       clearTimeout(loadingTimer);
