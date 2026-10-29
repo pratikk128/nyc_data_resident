@@ -103,6 +103,13 @@ const countInto = (map, key) => map.set(key, (map.get(key) ?? 0) + 1);
 const sortedCounts = (map) => [...map].map(([label, count]) => ({ label, count }))
   .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
 
+// Share of the list (0–1) with no NYC borough, after ZIPs fill in the ones
+// the dataset left blank; null for an empty list.
+export function outsideShare(vendors) {
+  if (!vendors.length) return null;
+  return vendors.filter((v) => !v.borough).length / vendors.length;
+}
+
 // First ~160 characters of the description, cut at a word.
 export function excerpt(description) {
   const s = String(description ?? "").replace(/\s+/g, " ").trim();

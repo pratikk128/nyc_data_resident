@@ -10,8 +10,10 @@ import { date } from '../../lib/format.js';
 
 interface Props {
   meta: { rowsUpdatedAt: string | null } | null;
+  /** Share of listed businesses with no NYC borough (0–1), or null if the list didn't load. */
+  outsideShare: number | null;
 }
-const { meta } = Astro.props;
+const { meta, outsideShare } = Astro.props;
 ---
 
 <section class="dash-section sd-about" aria-labelledby="sd-about-title">
@@ -34,8 +36,9 @@ const { meta } = Astro.props;
         of businesses on this list hold those two. <a href={LINKS.sbsCertification}>Read more from SBS</a>.
       </p>
       <p>
-        Certified firms can work anywhere, so about four in ten listed here are outside the five boroughs. Pick a borough
-        under “Location” to narrow it down.
+        Certified firms can work anywhere, so
+        {outsideShare != null ? <>about {Math.round(outsideShare * 100)}% of the businesses</> : 'many businesses'} listed here are
+        outside the five boroughs. Pick a borough under “Location” to narrow it down.
       </p>
     </div>
   </details>
@@ -51,7 +54,7 @@ const { meta } = Astro.props;
       <ul class="caveats">
         <li><strong>Lapsed certification:</strong> if every renewal date on file has passed, the business is hidden unless you ask for it, and then it sorts last. A business with no renewal date isn't marked down: SBS lists none for women-owned-only firms.</li>
         <li><strong>How well it matches:</strong> your keyword in the industry name +{POINTS.keywordIndustry}, in the business name +{POINTS.keywordName}, only in the description +{POINTS.keywordDescription}. Picking a category or subcategory adds the same points to every result.</li>
-        <li><strong>Easy to reach:</strong> a working website +{POINTS.website}, a description of {POINTS.minDescriptionLength}+ characters +{POINTS.description}, a phone number +{POINTS.phone}.</li>
+        <li><strong>Easy to reach:</strong> a website +{POINTS.website}, a description of {POINTS.minDescriptionLength}+ characters +{POINTS.description}, a phone number +{POINTS.phone}.</li>
         <li><strong>Experience:</strong> +{POINTS.perYearInBusiness} per year in business, up to {POINTS.maxYearsCounted} years, so newer businesses aren't buried.</li>
         <li><strong>Near your ZIP:</strong> if you enter one, the same ZIP +{POINTS.sameZip}, otherwise the same borough +{POINTS.sameBorough}.</li>
         <li><strong>Ties</strong> are broken by a shuffle that changes once a day, so the same businesses don't always come first.</li>

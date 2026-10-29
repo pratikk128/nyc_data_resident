@@ -14,7 +14,7 @@ import {
 import {
   POINTS, certStatus, yearsInBusiness, haystack, keywordMatch, scoreBusiness, tieBreak, rankBusinesses
 } from "../src/lib/shop-diverse/ranking.js";
-import { normalizeQuery, queryToParams, searchBusinesses, excerpt } from "../src/lib/shop-diverse/filter.js";
+import { normalizeQuery, queryToParams, searchBusinesses, excerpt, outsideShare } from "../src/lib/shop-diverse/filter.js";
 import { contactText, mapsUrl, detailHtml } from "../src/lib/shop-diverse/render.js";
 
 const TODAY = "2026-10-28";
@@ -29,6 +29,9 @@ test("names: junk prefixes go, shouting is title-cased, mixed case is left alone
   assert.equal(businessName("JOE'S DELI"), "Joe's Deli");
   assert.equal(businessName("iHeart Media"), "iHeart Media");
   assert.equal(businessName("  N/A "), "");
+  assert.equal(businessName("“I AM” EHS Management LLC"), "I AM EHS Management LLC");
+  assert.equal(businessName("\"Bright Star\" Cleaning"), "Bright Star Cleaning");
+  assert.equal(businessName("“Unclosed Inc"), "Unclosed Inc");
   assert.equal(titleCase("THE BEST OF THE BRONX"), "The Best of the Bronx");
 });
 
@@ -324,4 +327,9 @@ test("detail: contact text, maps link, and no empty rows", () => {
   assert.match(html, /href="tel:\+12012561092"/);
   assert.doesNotMatch(html, /Website|Bonding|null|undefined|N\/A/);
   assert.match(html, /3 years in business/);
+});
+
+test("outsideShare counts businesses with no borough", () => {
+  assert.equal(outsideShare([{ borough: "Queens" }, {}, { borough: "Bronx" }, {}]), 0.5);
+  assert.equal(outsideShare([]), null);
 });

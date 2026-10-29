@@ -44,8 +44,12 @@ export function text(value) {
 }
 
 // Business names: leading punctuation junk stripped, shouting title-cased.
+// A leading quote goes too, with its closing quote ("“I AM” EHS" → "I AM EHS"),
+// so A–Z order starts at the first letter.
 export function businessName(value) {
-  return titleCase(text(value).replace(/^[=\-–—_*.,;:~+#]+\s*/, ""));
+  const s = text(value).replace(/^[=\-–—_*.,;:~+#]+\s*/, "");
+  const unquoted = s.replace(/^["“”'‘’]\s*([^"“”]*?)\s*["“”]\s*/, "$1 ").replace(/^["“”'‘’]+\s*/, "").trim();
+  return titleCase(unquoted);
 }
 
 // Street lines, cities and people: title-case shouting and all-lowercase text.
