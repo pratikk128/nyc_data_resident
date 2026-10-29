@@ -238,7 +238,7 @@ GET https://data.cityofnewyork.us/resource/k397-673e.json
   $order  = fiscal_year
 ```
 
-A second query groups by `agency_name, fiscal_year` for the agency picker and writes `src/data/payroll-by-agency.json` (one line per agency). The page loads that file only when someone picks an agency. A few agencies are spelled differently in FY2014 (e.g. `Police Department`, `Bronx DA`); `AGENCY_ALIASES` in the script folds them into the later name, and `AGENCY_LABELS` gives readable names for truncated ones (everything else is title-cased). The script warns if the agency totals for the latest year don't add up to the citywide total.
+A second query groups by `agency_name, payroll_number, fiscal_year` for the agency picker and writes `src/data/payroll-by-agency.json` (one line per agency). The page loads that file only when someone picks an agency. A few agencies are spelled differently in FY2014 (e.g. `Police Department`, `Bronx DA`); `AGENCY_ALIASES` in the script folds them into the later name, and `AGENCY_LABELS` gives readable names for truncated ones (everything else is title-cased). A year published without agency names (FY2026 at first) takes each `payroll_number`'s name from the latest year that has one, with a warning. The script warns if the agency totals for the latest year don't add up to the citywide total.
 
 Total pay = regular + overtime + other. Negative amounts (refunds, retro adjustments) stay in the sums. "People paid" is the row count per year, not headcount. Dollars are nominal.
 

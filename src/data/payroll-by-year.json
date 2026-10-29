@@ -3,9 +3,9 @@
     "id": "k397-673e",
     "name": "Citywide Payroll Data (Fiscal Year)",
     "url": "https://data.cityofnewyork.us/City-Government/Citywide-Payroll-Data-Fiscal-Year-/k397-673e",
-    "sourceUpdatedAt": "2026-04-16"
+    "sourceUpdatedAt": "2026-10-29"
   },
-  "refreshedAt": "2026-10-28",
+  "refreshedAt": "2026-10-29",
   "query": {
     "$select": "fiscal_year, count(*) AS employees, sum(case(leave_status_as_of_june_30 = 'ACTIVE', 1, true, 0)) AS active, sum(regular_gross_paid) AS regular, sum(total_ot_paid) AS overtime, sum(total_other_pay) AS other",
     "$group": "fiscal_year",
@@ -13,7 +13,9 @@
   },
   "checks": {
     "latestYearLooksComplete": true,
-    "warnings": []
+    "warnings": [
+      "FY2026 has no agency names; 158 agencies were named from their payroll_number."
+    ]
   },
   "years": [
     {
@@ -123,6 +125,15 @@
       "overtime": 2922389823,
       "other": 2437182945,
       "total": 34595934442
+    },
+    {
+      "fiscalYear": 2026,
+      "peoplePaid": 561580,
+      "activeJune30": 493957,
+      "regular": 30943372945,
+      "overtime": 3023144100,
+      "other": 2498011635,
+      "total": 36464528680
     }
   ]
 }

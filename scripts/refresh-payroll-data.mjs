@@ -43,11 +43,13 @@ const QUERY = {
   $limit: "1000"
 };
 
+// Grouped by payroll_number (the agency's code) too, so a year published
+// without agency names can still be split (see buildAgencies()).
 const AGENCY_QUERY = {
   ...QUERY,
-  $select: `agency_name, ${QUERY.$select}`,
-  $group: "agency_name, fiscal_year",
-  $order: "agency_name, fiscal_year",
+  $select: `agency_name, payroll_number, ${QUERY.$select}`,
+  $group: "agency_name, payroll_number, fiscal_year",
+  $order: "agency_name, payroll_number, fiscal_year",
   $limit: "50000"
 };
 
@@ -283,11 +285,28 @@ function toYear(r) {
 }
 
 // Groups agency rows by (aliased) agency and merges any years that now collide.
-function buildAgencies(rows) {
+// FY2026 was first published with agency_name blank on every row. Such rows
+// take the name their payroll_number had in the latest year that has names;
+// each code has had exactly one name per year so far.
+function buildAgencies(rows, warnings) {
+  const nameOfCode = new Map();
+  for (const r of [...rows].sort((a, b) => a.fiscal_year - b.fiscal_year)) {
+    if (r.agency_name && r.payroll_number != null) nameOfCode.set(r.payroll_number, r.agency_name);
+  }
+  const filled = new Map();   // fiscal year -> rows given a name from their code
+  const unnamed = new Map();  // fiscal year -> people left out (no name, unknown code)
+
   const byName = new Map();
   for (const r of rows) {
-    if (r.fiscal_year == null || !r.agency_name) continue;
-    const name = AGENCY_ALIASES[r.agency_name] ?? r.agency_name;
+    if (r.fiscal_year == null) continue;
+    let sourceName = r.agency_name;
+    if (!sourceName) {
+      sourceName = nameOfCode.get(r.payroll_number);
+      const tally = sourceName ? filled : unnamed;
+      tally.set(r.fiscal_year, (tally.get(r.fiscal_year) ?? 0) + (sourceName ? 1 : Number(r.employees)));
+      if (!sourceName) continue;
+    }
+    const name = AGENCY_ALIASES[sourceName] ?? sourceName;
     if (!byName.has(name)) byName.set(name, new Map());
     const years = byName.get(name);
     const y = toYear(r);
@@ -309,6 +328,8 @@ function buildAgencies(rows) {
     if (ids.has(a.id)) throw new Error(`Two agencies share the id "${a.id}"; adjust slugify().`);
     ids.add(a.id);
   }
+  for (const [fy, n] of filled) warnings.push(`FY${fy} has no agency names; ${n} agencies were named from their payroll_number.`);
+  for (const [fy, n] of unnamed) warnings.push(`FY${fy}: ${n} people have no agency name and an unknown payroll_number, so no agency.`);
   return agencies;
 }
 
@@ -432,10 +453,10 @@ async function main() {
 
   if (years.length === 0) throw new Error("Query returned no fiscal years; not overwriting the snapshot.");
 
-  const agencies = buildAgencies(agencyRows);
-  if (agencies.length === 0) throw new Error("Agency query returned no rows; not overwriting the snapshot.");
-
   const checks = checkYears(years);
+
+  const agencies = buildAgencies(agencyRows, checks.warnings);
+  if (agencies.length === 0) throw new Error("Agency query returned no rows; not overwriting the snapshot.");
 
   const jobs = buildJobs(jobRows, headcountRows);
   if (jobs.jobs.length === 0) throw new Error("Job title query returned no titles; not overwriting the snapshot.");
