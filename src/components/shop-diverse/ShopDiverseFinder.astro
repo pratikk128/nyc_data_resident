@@ -1,7 +1,7 @@
 ---
 /*
- * The Shop Diverse NYC finder: filters (who, what, where), summary chips, a
- * category chart, ranked result cards and the business detail panel.
+ * The Shop Diverse NYC finder: filters (who, what, where), summary chips,
+ * ranked result cards and the business detail panel.
  *
  * The first view is rendered here on the server from the URL's query (see
  * src/lib/shop-diverse/filter.js for the parameters), so shared links and the
@@ -14,7 +14,7 @@ import { CERTS, SORTS, MAX_KEYWORD_LENGTH } from '../../lib/shop-diverse/config.
 import { queryToParams } from '../../lib/shop-diverse/filter.js';
 import { POINTS } from '../../lib/shop-diverse/ranking.js';
 import {
-  kpisHtml, chartHtml, chartTableHtml, cardsHtml, pagerHtml, statusText, categoryOptionsHtml, boroughOptionsHtml,
+  kpisHtml, cardsHtml, pagerHtml, statusText, categoryOptionsHtml, boroughOptionsHtml,
   ethnicityChipsHtml, UPSTREAM_TEXT
 } from '../../lib/shop-diverse/render.js';
 import { count } from '../../lib/format.js';
@@ -38,10 +38,9 @@ const pageHref = (page: number) => {
 };
 const facets = initial?.facets;
 const who = (c: string) => query.who.includes(c);
-const chartTitle = (q: any) => (q.cat ? `Businesses by subcategory in ${q.cat}` : 'Businesses by category');
 const status = inputError ?? (initial ? statusText(initial) : UPSTREAM_TEXT);
 // Safe inside <script type="application/json">
-const initialJson = JSON.stringify({ query, loaded: Boolean(initial), chart: initial?.chart ?? null }).replace(/</g, '\\u003c');
+const initialJson = JSON.stringify({ query, loaded: Boolean(initial) }).replace(/</g, '\\u003c');
 ---
 
 <section class="dash-section sd-finder" aria-labelledby="sd-find-title">
@@ -133,19 +132,6 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), chart: ini
     <div class="sd-results-col">
       <ul class="sd-kpis" aria-label="Matching businesses" data-kpis set:html={initial ? kpisHtml(initial.kpis) : ''}></ul>
 
-      <figure class="sd-chart" data-chart hidden={!initial?.chart.rows.length}>
-        <figcaption>
-          <h3 class="chart-title" data-chart-title>{chartTitle(query)}</h3>
-          <p class="chart-subtitle">Certified businesses matching your filters. Pick a bar to filter by it.</p>
-        </figcaption>
-        <div data-chart-bars set:html={initial ? chartHtml(initial.chart) : ''}></div>
-        <details class="sd-chart-table">
-          <summary>View as table</summary>
-          <div class="table-scroll" data-chart-table set:html={initial ? chartTableHtml(initial.chart) : ''}></div>
-          <a class="download-link" href="#" download="shop-diverse-categories.csv" data-csv>Download CSV</a>
-        </details>
-      </figure>
-
       <div class="sd-results-head">
         <p class="sd-status" role="status" aria-live="polite" data-status>{status}</p>
         <div class="sd-sort">
@@ -199,7 +185,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), chart: ini
 <script>
   import { normalizeQuery, queryToParams } from '../../lib/shop-diverse/filter.js';
   import {
-    kpisHtml, chartHtml, chartTableHtml, chartCsv, cardsHtml, skeletonCards, pagerHtml, statusText, categoryOptionsHtml,
+    kpisHtml, cardsHtml, skeletonCards, pagerHtml, statusText, categoryOptionsHtml,
     boroughOptionsHtml, ethnicityChipsHtml, detailHtml, contactText, UPSTREAM_TEXT, LOADING_TEXT
   } from '../../lib/shop-diverse/render.js';
   import { count } from '../../lib/format.js';
@@ -227,11 +213,6 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), chart: ini
   const empty = $('[data-empty]');
   const pager = $('[data-pager]');
   const kpis = $('[data-kpis]');
-  const chart = $('[data-chart]');
-  const chartTitle = $('[data-chart-title]');
-  const chartBars = $('[data-chart-bars]');
-  const chartTable = $('[data-chart-table]');
-  const csvLink = $<HTMLAnchorElement>('[data-csv]');
   const filterToggle = $<HTMLButtonElement>('[data-filter-toggle]');
   const filterCount = $('[data-filter-count]');
   const dialog = $<HTMLDialogElement>('[data-detail]');
@@ -239,7 +220,6 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), chart: ini
 
   const initial = JSON.parse(document.getElementById('sd-initial')!.textContent || '{}');
   let query: any = initial.query;
-  let lastChart: any = initial.chart; // for the CSV download
   let searchAbort: AbortController | null = null;
   let detailAbort: AbortController | null = null;
   let current: any = null; // the business in the panel
@@ -288,7 +268,6 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), chart: ini
 
   // ---------- Render ----------
   function render(data: any) {
-    lastChart = data.chart;
     const f = data.facets;
     for (const c of ['WBE', 'MBE']) $(`[data-who-count="${c}"]`).textContent = count(f.who[c]);
     ethChips.innerHTML = ethnicityChipsHtml(f.eth, query.eth);
@@ -300,10 +279,6 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), chart: ini
     $('[data-lapsed-count]').textContent = count(f.lapsed);
 
     kpis.innerHTML = kpisHtml(data.kpis);
-    chart.hidden = !data.chart.rows.length;
-    chartTitle.textContent = query.cat ? `Businesses by subcategory in ${query.cat}` : 'Businesses by category';
-    chartBars.innerHTML = chartHtml(data.chart);
-    chartTable.innerHTML = chartTableHtml(data.chart);
 
     list.innerHTML = cardsHtml(data.results, (id: string) => pageUrl(query, { biz: id }));
     empty.hidden = data.total > 0;
@@ -388,29 +363,12 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), chart: ini
     qInput.focus();
   }));
 
-  chartBars.addEventListener('click', (e) => {
-    const bar = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-pick]');
-    if (!bar) return;
-    query = bar.dataset.level === 'subcategory'
-      ? { ...query, sub: bar.dataset.pick, page: 1 }
-      : { ...query, cat: bar.dataset.pick, sub: '', page: 1 };
-    search({ push: true });
-  });
-
   pager.addEventListener('click', (e) => {
     const link = (e.target as HTMLElement).closest<HTMLAnchorElement>('a[data-page]');
     if (!link || e.metaKey || e.ctrlKey || e.shiftKey) return;
     e.preventDefault();
     query = { ...query, page: Number(link.dataset.page) };
     search({ push: true, scroll: true });
-  });
-
-  // Built on click, so it always matches the chart on screen.
-  let csvUrl = '';
-  csvLink.addEventListener('click', () => {
-    if (csvUrl) URL.revokeObjectURL(csvUrl);
-    csvUrl = lastChart ? URL.createObjectURL(new Blob([chartCsv(lastChart)], { type: 'text/csv' })) : '#';
-    csvLink.href = csvUrl;
   });
 
   // "See the full rules" opens the method note at the bottom.

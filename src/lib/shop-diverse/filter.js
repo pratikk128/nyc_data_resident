@@ -21,7 +21,6 @@ import { haystack, keywordMatch, rankBusinesses, certStatus, displayName } from 
 
 const MAX_CATEGORY_LENGTH = 150;
 const MAX_PAGE = 1000;
-const CHART_ROWS = 8;
 const EXCERPT_LENGTH = 160;
 
 export const slug = (label) => label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -131,8 +130,7 @@ export function cardSummary(record, today) {
  * → {
  *   total, page, pages, results: [cardSummary],
  *   facets: { who: {WBE, MBE}, eth: [{label,count}], categories, subcategories, boroughs, lapsed },
- *   kpis: { total, wbe, mbe, both, boroughs, outside },
- *   chart: { level: "category" | "subcategory", rows: [{label,count}] }
+ *   kpis: { total, wbe, mbe, both, boroughs, outside }
  * }
  * Facet counts follow every other filter, so "Construction (412)" is how many
  * results picking Construction would give.
@@ -189,7 +187,6 @@ export function searchBusinesses(vendors, query, { today, seed = today, pageSize
 
   const kpis = { total: matches.length, wbe: 0, mbe: 0, both: 0, boroughs: 0, outside: 0 };
   const inBoroughs = new Set();
-  const chartCounts = new Map();
   for (const { record: r } of matches) {
     const certs = r.certs ?? [];
     const w = certs.includes("WBE"), m = certs.includes("MBE");
@@ -197,13 +194,8 @@ export function searchBusinesses(vendors, query, { today, seed = today, pageSize
     if (m) kpis.mbe++;
     if (w && m) kpis.both++;
     if (r.borough) inBoroughs.add(r.borough); else kpis.outside++;
-    const key = query.cat ? r.subsector : r.sector;
-    if (key) countInto(chartCounts, key);
   }
   kpis.boroughs = inBoroughs.size;
-
-  const chartRows = sortedCounts(chartCounts);
-  const rest = chartRows.slice(CHART_ROWS).reduce((sum, row) => sum + row.count, 0);
 
   return {
     total: matches.length,
@@ -219,10 +211,6 @@ export function searchBusinesses(vendors, query, { today, seed = today, pageSize
       boroughs: BOROUGHS.map((b) => ({ ...b, count: facets.boroughs.get(b.label) ?? 0 })),
       lapsed: facets.lapsed
     },
-    kpis,
-    chart: {
-      level: query.cat ? "subcategory" : "category",
-      rows: rest ? [...chartRows.slice(0, CHART_ROWS), { label: "Everything else", count: rest, other: true }] : chartRows
-    }
+    kpis
   };
 }

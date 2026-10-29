@@ -1,9 +1,9 @@
 /*
  * GET /api/shop-diverse/search?who=wbe,mbe&cat=Construction&q=&boro=&zip=&sort=&page=
  * One page of certified businesses, ranked, with the counts for every filter
- * option, the summary numbers and the chart rows. Parameters are described in
+ * option and the summary numbers. Parameters are described in
  * src/lib/shop-diverse/filter.js.
- * → { total, page, pages, pageSize, results, facets, kpis, chart } or { error }
+ * → { total, page, pages, pageSize, results, facets, kpis } or { error }
  *
  * Reads the daily vendor list in KV, so requests don't reach Socrata.
  */

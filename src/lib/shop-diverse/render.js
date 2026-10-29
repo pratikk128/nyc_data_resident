@@ -1,7 +1,7 @@
 /*
- * HTML for Shop Diverse NYC: filter options, summary chips, the category
- * chart, result cards and the business detail. Shared by the page (which
- * renders the first view on the server) and its script (every later view).
+ * HTML for Shop Diverse NYC: filter options, summary chips, result cards and
+ * the business detail. Shared by the page (which renders the first view on
+ * the server) and its script (every later view).
  * Data shapes come from filter.js (search) and src/lib/server/shop-diverse.js
  * (detail). Empty fields are left out, never shown as blanks.
  */
@@ -74,34 +74,6 @@ export function kpisHtml(k) {
     chip(count(k.boroughs), k.boroughs === 1 ? "borough" : "boroughs"),
     k.outside ? chip(count(k.outside), "outside NYC") : ""
   ].join("");
-}
-
-// Horizontal bars, one color. Each bar is a button that picks that category.
-export function chartHtml(chart) {
-  if (!chart.rows.length) return `<p class="sd-chart-empty">No businesses to chart.</p>`;
-  const max = Math.max(...chart.rows.map((r) => r.count));
-  return `<ol class="sd-bars">${chart.rows.map((r) => {
-    const width = Math.max(1, (r.count / max) * 100).toFixed(1);
-    const inner = `<span class="sd-bar-label">${escape(r.label)}</span>
-      <span class="sd-bar-track" aria-hidden="true"><span class="sd-bar" style="width:${width}%"></span></span>
-      <span class="sd-bar-value">${count(r.count)}</span>`;
-    return r.other
-      ? `<li class="sd-bar-row sd-bar-other">${inner}</li>`
-      : `<li><button type="button" class="sd-bar-row" data-pick="${escape(r.label)}" data-level="${chart.level}">${inner}</button></li>`;
-  }).join("")}</ol>`;
-}
-
-export function chartTableHtml(chart) {
-  const head = chart.level === "subcategory" ? "Subcategory" : "Category";
-  return `<table><thead><tr><th scope="col">${head}</th><th scope="col" class="num">Businesses</th></tr></thead><tbody>${
-    chart.rows.map((r) => `<tr><th scope="row">${escape(r.label)}</th><td class="num">${count(r.count)}</td></tr>`).join("")
-  }</tbody></table>`;
-}
-
-const csvCell = (v) => (/[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v));
-export function chartCsv(chart) {
-  const head = chart.level === "subcategory" ? "subcategory" : "category";
-  return [`${head},businesses`, ...chart.rows.map((r) => `${csvCell(r.label)},${r.count}`)].join("\n");
 }
 
 // "312 businesses · page 2 of 13"

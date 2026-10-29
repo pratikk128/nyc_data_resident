@@ -275,11 +275,9 @@ test("keyword, borough and outside NYC", () => {
   assert.equal(run("q=plumb").results[0].id !== "3", true);
 });
 
-test("summary numbers and chart rows", () => {
+test("summary numbers", () => {
   const data = searchBusinesses(VENDORS, q(""), { today: TODAY });
   assert.deepEqual(data.kpis, { total: 4, wbe: 2, mbe: 2, both: 1, boroughs: 3, outside: 1 });
-  assert.deepEqual(data.chart.rows, [{ label: "Construction", count: 3 }, { label: "Manufacturing", count: 1 }]);
-  assert.equal(searchBusinesses(VENDORS, q("cat=Construction"), { today: TODAY }).chart.level, "subcategory");
 });
 
 test("paging: pages of the given size, and a page past the end is clamped", () => {
