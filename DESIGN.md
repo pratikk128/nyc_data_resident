@@ -198,7 +198,8 @@ Build as reusable components with props, not one-off markup.
 ### Stat card ("Big number")
 - Label (small, ink-soft) → big number (display font) → context line (e.g. "vs. 2024: +4%") → source + updated date (small).
 - Optional sparkline. Optional route-bullet category tag.
-- Delta chips: ▲/▼ with text, color + icon + sign (never color alone). Don't use green=good / red=bad unless direction is unambiguous; for neutral metrics use blue/gray.
+- Delta chips: text first, color only helps (never color alone). Don't use green=good / red=bad unless direction is unambiguous; for neutral metrics use blue/gray.
+- A raw change ("+4%", "down 3 pts") can carry a ▲/▼ arrow and a sign. A judgment chip ("Improving", "Declining", "Better than NYC average") is words only: no ▲/▼, ✓, ≈ or ! icons. If falling absenteeism shows "▼ Improving", the arrow and the word seem to disagree.
 
 ### Dataset card
 - Title, one-line plain-English description, tags (borough/topic), "Updated" date, row count, link to source on NYC Open Data, "Explore" CTA.
@@ -245,6 +246,9 @@ Build as reusable components with props, not one-off markup.
 ---
 
 ## 6. Page templates
+
+### Storytelling: takeaways first (soft guideline)
+Open each page or section with the few takeaways a reader should leave with: a headline finding, two or three key stats, or a verdict. Put the supporting detail after that (full charts, breakdowns, tables, methodology) for readers who want to dig in. Someone who stops reading after the first screen should still get the main point. This is a default, not a hard rule. A page built for lookups, like a searchable table, can lead with the tool.
 
 ### 6.1 Home
 1. **Hero:** big display headline, one-line subhead, search bar, 3 suggested searches as pills ("Restaurant grades near me", "311 noise complaints", "Rent-stabilized buildings"). Subtle skyline illustration in the background. No chat box.

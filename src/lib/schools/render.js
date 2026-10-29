@@ -45,13 +45,9 @@ export function bandBadge(score, { short = false } = {}) {
   return `<span class="sq-band" data-band="${band.tone}" title="DOE metric score ${score.toFixed(2)} of 4.99">${escape(short ? band.short : band.label)}</span>`;
 }
 
-const TREND_ICON = { improving: "▲", declining: "▼", steady: "–" };
-
-// "▲ Improving" / "▼ Improving" (falling absenteeism): the arrow is the number's direction, the word is good or bad.
 export function trendChip(metric, t) {
   if (!t?.dir) return `<span class="sq-trend" data-dir="none">Not enough years for a trend</span>`;
-  const arrow = t.dir === "steady" ? TREND_ICON.steady : t.change > 0 ? TREND_ICON.improving : TREND_ICON.declining;
-  return `<span class="sq-trend" data-dir="${t.dir}"><span aria-hidden="true">${arrow}</span> ${TREND_TEXT[t.dir]}</span>`;
+  return `<span class="sq-trend" data-dir="${t.dir}">${TREND_TEXT[t.dir]}</span>`;
 }
 
 // "6 pts above NYC avg (54%)" or "" when there's nothing to compare.
@@ -63,17 +59,17 @@ export function vsCityText(metric, v, city) {
   return c.dir === "same" ? `Same as NYC avg (${avg})` : `${c.text} NYC avg (${avg})`;
 }
 
-// The headline call next to the NYC average (values.js verdict()). Icon + words, color only helps.
+// The headline call next to the NYC average (values.js verdict()). Words carry the meaning, color only helps.
 export const VERDICTS = {
-  better: { icon: "✓", label: "Better than NYC average", group: "Better than the NYC average" },
-  similar: { icon: "≈", label: "About the NYC average", group: "About the same as the NYC average" },
-  worse: { icon: "!", label: "Worse than NYC average", group: "Worse than the NYC average" }
+  better: { label: "Better than NYC average", group: "Better than the NYC average" },
+  similar: { label: "About the NYC average", group: "About the same as the NYC average" },
+  worse: { label: "Worse than NYC average", group: "Worse than the NYC average" }
 };
 
 export function verdictPill(v) {
   const x = VERDICTS[v];
   if (!x) return "";
-  return `<span class="sq-verdict" data-verdict="${v}"><span aria-hidden="true">${x.icon}</span> ${escape(x.label)}</span>`;
+  return `<span class="sq-verdict" data-verdict="${v}">${escape(x.label)}</span>`;
 }
 
 // ---------- Filters ----------
