@@ -2,8 +2,8 @@
 /*
  * Section B, "Performance over time": for one report, a chart per curated
  * metric over every school year (drawn by src/lib/schools/charts.js from the
- * page's JSON), the trend over the last 3 years, DOE's target band each year
- * as a colored timeline, and the numbers as a table (rendered here, so they
+ * page's JSON) with the trend over the last 3 years, and the numbers, NYC
+ * average, similar schools and DOE rating as a table (rendered here, so they
  * read without script).
  */
 import { REPORTS, yearLabel } from '../../lib/schools/config.js';
@@ -37,9 +37,13 @@ const hasSimilar = (entry: any) => years.some((y) => entry.points[y]?.cmp != nul
       Performance over time{multiple && <span class="sq-head-report"> {REPORTS[report.report].label} grades</span>}
     </h2>
     <p class="section-intro">
-      Every school year with a report for this school as one of the city’s {REPORTS[report.report].plural},
-      from {yearLabel(years[0])} to {yearLabel(years[years.length - 1])}, with the NYC average as a dashed line.
+      For a closer look: each measure from {yearLabel(years[0])} to {yearLabel(years[years.length - 1])}. Point at a
+      year for its numbers and DOE rating.
     </p>
+    <ul class="legend sq-legend" aria-hidden="true">
+      <li><span class="swatch sq-swatch-school"></span>This school</li>
+      <li><span class="swatch sq-swatch-city"></span>NYC average for {REPORTS[report.report].plural}</li>
+    </ul>
   </div>
 
   {gapNotes.length > 0 && (
@@ -59,10 +63,6 @@ const hasSimilar = (entry: any) => years.some((y) => entry.points[y]?.cmp != nul
           {!metric.context && <p class="sq-chart-trend"><Fragment set:html={trendChip(metric, entry.trend)} /></p>}
         </div>
         <p class="sq-chart-sentence">{metric.context ? 'Context, not a sign of quality.' : trendSentence(metric, entry.trend)}</p>
-        <ul class="legend sq-legend" aria-hidden="true">
-          <li><span class="swatch sq-swatch-school"></span>This school</li>
-          {hasCity(entry) && <li><span class="swatch sq-swatch-city"></span>NYC average</li>}
-        </ul>
         <div class="chart sq-chart">
           <noscript><p class="chart-fallback">The chart needs JavaScript. The numbers are in the table below.</p></noscript>
           <div class="chart-tooltip" hidden></div>
@@ -71,23 +71,6 @@ const hasSimilar = (entry: any) => years.some((y) => entry.points[y]?.cmp != nul
         <p class="chart-hint sq-axis-note" hidden></p>
         {metric.seriesBreak && years.includes(metric.seriesBreak.year) && years[0] < metric.seriesBreak.year && (
           <p class="chart-hint"><strong>New measure:</strong> {metric.seriesBreak.note}</p>
-        )}
-
-        {scored && (
-          <div class="sq-timeline">
-            <p class="sq-timeline-title">DOE target rating by year <span class="sq-muted">(– not rated)</span></p>
-            <ol class="sq-timeline-list">
-              {years.map((y) => {
-                const band = targetBand(entry.points[y]?.score ?? null);
-                return (
-                  <li class="sq-timeline-year" data-band={band?.tone ?? 'none'} title={`${yearLabel(y)}: ${band?.label ?? 'No rating'}`}>
-                    <span class="sq-timeline-label"><span aria-hidden="true">’{String(y).slice(-2)}</span><span class="sr-only">{yearLabel(y)}</span></span>
-                    <span class="sq-timeline-value">{band ? band.short : '–'}</span>
-                  </li>
-                );
-              })}
-            </ol>
-          </div>
         )}
 
         <details class="sq-table-toggle">

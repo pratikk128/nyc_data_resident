@@ -63,6 +63,19 @@ export function vsCityText(metric, v, city) {
   return c.dir === "same" ? `Same as NYC avg (${avg})` : `${c.text} NYC avg (${avg})`;
 }
 
+// The headline call next to the NYC average (values.js verdict()). Icon + words, color only helps.
+export const VERDICTS = {
+  better: { icon: "✓", label: "Better than NYC average", group: "Better than the NYC average" },
+  similar: { icon: "≈", label: "About the NYC average", group: "About the same as the NYC average" },
+  worse: { icon: "!", label: "Worse than NYC average", group: "Worse than the NYC average" }
+};
+
+export function verdictPill(v) {
+  const x = VERDICTS[v];
+  if (!x) return "";
+  return `<span class="sq-verdict" data-verdict="${v}"><span aria-hidden="true">${x.icon}</span> ${escape(x.label)}</span>`;
+}
+
 // ---------- Filters ----------
 
 const option = (value, label, selected) =>

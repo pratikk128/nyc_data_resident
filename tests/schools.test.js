@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { typeSlug, boroughFromDbn, districtFromDbn, yearLabel, REPORTS, TYPES } from "../src/lib/schools/config.js";
 import { METRICS, METRIC_KEYS, metricsFor, cardMetrics } from "../src/lib/schools/metrics.js";
 import {
-  toNumber, normalize, pointFromRow, formatValue, targetBand, compare, trend, gapYears, latestYearWithValue
+  toNumber, normalize, pointFromRow, formatValue, targetBand, compare, verdict, trend, gapYears, latestYearWithValue
 } from "../src/lib/schools/values.js";
 import {
   words, parseDbn, dbnMatches, nameScore, addressMatches, editDistance, normalizeQuery, queryToParams,
@@ -120,6 +120,15 @@ test("comparisons are in points, and know which way is better", () => {
   assert.equal(compare(ELA, 0.5, 0.504).dir, "same");
   assert.equal(compare(ELA, 0.51, 0.5).text, "1 pt above");
   assert.equal(compare(ELA, null, 0.5), null);
+});
+
+test("verdict: better or worse than NYC, similar within 2 pts", () => {
+  assert.equal(verdict(ELA, 0.42, 0.59), "worse");
+  assert.equal(verdict(ABSENT, 0.061, 0.3), "better");
+  assert.equal(verdict(ABSENT, 0.54, 0.3), "worse");
+  assert.equal(verdict(ELA, 0.61, 0.59), "similar");
+  assert.equal(verdict(ELA, 0.62, 0.59), "better");
+  assert.equal(verdict(ELA, 0.5, null), null);
 });
 
 test("trend: last 3 years with a value, slope over the span, direction by higher-is-better", () => {

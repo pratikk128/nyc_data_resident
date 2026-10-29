@@ -89,6 +89,19 @@ export function compare(metric, v, ref) {
 }
 
 /*
+ * The headline call for a measure: "better" or "worse" than the NYC average,
+ * "similar" within 2 points either way, or null when there's nothing to
+ * compare (no value, no average, a count, or no better direction).
+ */
+export const SIMILAR_PTS = 2;
+export function verdict(metric, v, city) {
+  const c = compare(metric, v, city);
+  if (!c) return null;
+  if (Math.abs(Math.round((v - city) * 100)) <= SIMILAR_PTS) return "similar";
+  return c.good == null ? null : c.good ? "better" : "worse";
+}
+
+/*
  * Improving, steady or declining, from the last 3 years with a value (not
  * counting years before the metric's seriesBreak). The change is the
  * least-squares slope × the years spanned, so one odd year moves it less
