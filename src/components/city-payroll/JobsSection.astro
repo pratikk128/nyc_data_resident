@@ -3,17 +3,26 @@
  * "What do city jobs actually pay?"
  * Median pay by job title for full-time, active, annual-salary employees who
  * worked the whole fiscal year; "# employees" counts everyone in the title.
- * The first page of the table (default sort) is rendered at build time from
- * src/data/payroll-jobs.json; the script at the bottom handles search, chips,
- * sorting, paging and the per-title salary chart from the same snapshot.
+ * The first page of the table (default sort) is rendered on the server from
+ * the payroll data (src/lib/server/payroll.js); the script at the bottom
+ * handles search, chips, sorting, paging and the per-title salary chart from
+ * the same jobs, inlined as JSON in #jobs-data.
  */
-import snapshot from '../../data/payroll-jobs.json';
-import payroll from '../../data/payroll-by-year.json';
+import type bundledJobs from '../../data/payroll-jobs.json';
+import type bundledByYear from '../../data/payroll-by-year.json';
 import { date } from '../../lib/format.js';
 import { COLUMNS, DEFAULT_SORT, PAGE_SIZE, sortJobs, jobRowsHtml } from '../../lib/jobs-table.js';
 
+interface Props {
+  jobs: typeof bundledJobs;
+  byYear: typeof bundledByYear;
+}
+
+const { jobs: snapshot, byYear: payroll } = Astro.props;
 const { jobs, chips, latestFiscalYear: fy, compareFiscalYear, minEmployees, checks } = snapshot;
 const { dataset } = payroll;
+// For the script below; "<" escaped so no title can end the <script> early.
+const clientData = JSON.stringify({ jobs, chips, compareFiscalYear, minEmployees }).replace(/</g, '\\u003c');
 const maxExtra = Math.max(...jobs.map((j) => j.extra));
 const firstPage = sortJobs(jobs, DEFAULT_SORT).slice(0, PAGE_SIZE);
 
@@ -173,17 +182,21 @@ const SORT_OPTIONS = [
   </footer>
 </section>
 
+<script is:inline type="application/json" id="jobs-data" set:html={clientData} />
+
 <script>
-  import snapshot from '../../data/payroll-jobs.json';
+  import type bundledJobs from '../../data/payroll-jobs.json';
   import { COLUMNS, DEFAULT_SORT, PAGE_SIZE, sortJobs, jobRowsHtml } from '../../lib/jobs-table.js';
   import { drawSalaryLine, salarySentence } from '../../lib/salary-line-chart.js';
 
-  type Job = (typeof snapshot.jobs)[number];
+  type Snapshot = Pick<typeof bundledJobs, 'jobs' | 'chips' | 'compareFiscalYear' | 'minEmployees'>;
+  type Job = Snapshot['jobs'][number];
   type Sort = { key: string; dir: 'asc' | 'desc' };
 
   const section = document.querySelector<HTMLElement>('#jobs');
 
   if (section) {
+    const snapshot: Snapshot = JSON.parse(document.getElementById('jobs-data')?.textContent ?? '{}');
     const { jobs, chips, compareFiscalYear: compareYear, minEmployees } = snapshot;
     const byTitle = new Map(jobs.map((j) => [j.title, j]));
     const maxExtra = Math.max(...jobs.map((j) => j.extra));

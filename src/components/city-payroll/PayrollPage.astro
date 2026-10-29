@@ -7,7 +7,7 @@
 import DashboardLayout from '../../layouts/DashboardLayout.astro';
 import SectionNav from '../SectionNav.astro';
 import SectionPager from '../SectionPager.astro';
-import payroll from '../../data/payroll-by-year.json';
+import type byYear from '../../data/payroll-by-year.json';
 import { date } from '../../lib/format.js';
 
 // Add a section here and a page in src/pages/city-payroll/ to add a view.
@@ -29,9 +29,10 @@ const SECTIONS = [
 interface Props {
   section: 'spending' | 'jobs';
   description: string;
+  payroll: typeof byYear; // the cron's copy (src/lib/server/payroll.js); same shape
 }
 
-const { section, description } = Astro.props;
+const { section, description, payroll } = Astro.props;
 const current = SECTIONS.find((s) => s.id === section)!;
 ---
 

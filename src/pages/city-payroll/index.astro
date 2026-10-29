@@ -5,11 +5,20 @@
  */
 import PayrollPage from '../../components/city-payroll/PayrollPage.astro';
 import WorkforceSection from '../../components/city-payroll/WorkforceSection.astro';
+import { getPayroll } from '../../lib/server/payroll.js';
+
+// Rendered on demand from the payroll data the hourly cron keeps in KV.
+export const prerender = false;
+
+const payroll = await getPayroll();
+// Production only: in dev a cached page hides edits for an hour.
+if (import.meta.env.PROD) Astro.response.headers.set('Cache-Control', 'public, max-age=3600');
 ---
 
 <PayrollPage
+  payroll={payroll.byYear}
   section="spending"
   description="How much NYC spends on its workforce: total payroll, overtime and other pay by fiscal year, from NYC Open Data."
 >
-  <WorkforceSection />
+  <WorkforceSection byYear={payroll.byYear} byAgency={payroll.byAgency} />
 </PayrollPage>

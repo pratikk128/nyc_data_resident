@@ -34,8 +34,9 @@ import { complaints311Dataset } from "./complaints311.js";
 import { waterDataset } from "./water.js";
 import { shopDiverseDataset } from "./shop-diverse.js";
 import { schoolsDataset } from "./schools.js";
+import { payrollDataset } from "./payroll.js";
 
-export const DATASETS = [restaurantsDataset, complaints311Dataset, waterDataset, shopDiverseDataset, schoolsDataset];
+export const DATASETS = [restaurantsDataset, complaints311Dataset, waterDataset, shopDiverseDataset, schoolsDataset, payrollDataset];
 
 const STATE_KEY = "etl:state";
 const iso = (ms) => new Date(ms).toISOString();

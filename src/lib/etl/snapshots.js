@@ -1,8 +1,8 @@
 /*
  * Data the site bundles at build time (src/data/*.json) instead of reading
- * from KV: pages that are prerendered (City Payroll), and lookups that join
- * several datasets (school addresses, water station locations). The Worker
- * can't rewrite them, so their refresh is a script plus a deploy.
+ * from KV: lookups that join several datasets (school addresses, water
+ * station locations). The Worker can't rewrite them, so their refresh is a
+ * script plus a deploy.
  *
  * Each script records when it ran in src/data/snapshots.json
  * (scripts/lib/snapshot-manifest.mjs). The hourly cron and
@@ -13,13 +13,6 @@
  *            attached to the dataset (by name) instead of its rows.
  */
 export const SNAPSHOTS = [
-  {
-    id: "payroll",
-    dashboard: "city-payroll",
-    files: ["src/data/payroll-by-year.json", "src/data/payroll-by-agency.json", "src/data/payroll-jobs.json"],
-    command: "npm run data:payroll",
-    sources: [{ datasetId: "k397-673e" }]
-  },
   {
     id: "school-locations",
     dashboard: "school-quality",

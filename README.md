@@ -9,10 +9,11 @@ Built with [Astro](https://docs.astro.build) and deployed to Cloudflare Workers.
 ```
 src/pages/index.astro     Landing page markup
 src/styles/landing.css    Landing page styles (theme tokens at the top in :root)
-src/pages/city-payroll/        City Payroll Spending dashboard, one page per section
+src/pages/city-payroll/        City Payroll Spending dashboard, one page per section (rendered on demand)
 src/components/city-payroll/   PayrollPage.astro (shared heading + section nav) and the sections
 src/layouts/DashboardLayout.astro   Shared shell for dashboard pages
 src/lib/                  Formatting helpers, payroll stats, chart code
+src/lib/payroll/build.js  Payroll queries and checks, shared by the cron and npm run data:payroll
 src/pages/restaurant-inspections/   NYC Restaurant Inspections (rendered on demand)
 src/pages/311-complaints/  311 Complaints in My Neighborhood (rendered on demand)
 src/pages/drinking-water/  NYC Drinking Water Quality, one page per section (rendered on demand)
@@ -97,12 +98,13 @@ Each dashboard's data reaches the site one of two ways, and both are tracked in 
 | Drinking Water | `bkwf-xfky` | monthly | no | 7 days |
 | Shop Diverse | `ci93-uc8s` | biweekly | no | 7 days |
 | School Quality | `dnpx-dfnc` (+ `school-locations.json`) | yearly | no | 30 days |
+| City Payroll | `k397-673e` | yearly | no | 30 days |
 
 Cadences are `daily`, `weekly`, `biweekly`, `monthly`, `quarterly`, `yearly` and `as-needed`. Each also sets when the source counts as **late** (`overdueDays`: 3 days for daily data, 45 for monthly, 400 for yearly, never for as-needed), which is logged and reported. Every source is checked hourly whatever its cadence, so an off-schedule or as-needed update is picked up within the hour.
 
 A job that fails keeps its last good value in KV and is retried the next hour; the run throws so the failure shows in the Worker's cron events. Within a dataset jobs run in parallel, except a job with `after` (water stations waits for the monthly aggregate). What each job was built from is kept in the `etl:state` KV entry. A job that joins a bundled snapshot (`snapshots: ["school-locations"]`) also rebuilds after a deploy that refreshed that snapshot. Each isolate checks a small `<key>:at` KV entry every 5 minutes, so a rebuilt value reaches every request within minutes.
 
-**2. Build-time snapshots, checked automatically and refreshed by command.** City Payroll is prerendered, and school addresses and water station locations join several datasets, so they're committed JSON in `src/data/`. The Worker can't rewrite them. `src/lib/etl/snapshots.js` lists each snapshot, its sources and its refresh command. Each script records when it ran in `src/data/snapshots.json`, and the hourly cron flags a snapshot as stale when a source's rows (or, for the water sites, the attached spreadsheet) changed after that.
+**2. Build-time snapshots, checked automatically and refreshed by command.** School addresses and water station locations join several datasets, so they're committed JSON in `src/data/`. The Worker can't rewrite them. `src/lib/etl/snapshots.js` lists each snapshot, its sources and its refresh command. Each script records when it ran in `src/data/snapshots.json`, and the hourly cron flags a snapshot as stale when a source's rows (or, for the water sites, the attached spreadsheet) changed after that.
 
 ```sh
 npm run data:check                # which snapshots are stale; exits 1 if any
@@ -218,17 +220,17 @@ The map section is a placeholder; its props and the plan for it are at the top o
 
 ## Refresh the payroll data
 
-The "How much does NYC spend on its workforce?" section reads `src/data/payroll-by-year.json`, a small snapshot of yearly totals from NYC Open Data's [Citywide Payroll Data (Fiscal Year)](https://data.cityofnewyork.us/City-Government/Citywide-Payroll-Data-Fiscal-Year-/k397-673e) (`k397-673e`). The source updates about once a year, so the site never queries it live.
+Both sections are built from NYC Open Data's [Citywide Payroll Data (Fiscal Year)](https://data.cityofnewyork.us/City-Government/Citywide-Payroll-Data-Fiscal-Year-/k397-673e) (`k397-673e`), which updates about once a year. **It refreshes itself:** when the source changes, the hourly cron runs the queries below (about 30 seconds) and saves the results in one KV entry, `payroll:data:v1` (`src/lib/server/payroll.js`). The pages render on demand from it, and the agency picker loads every agency's rows from `GET /api/payroll/agencies`. Requests never query Socrata.
+
+The queries and checks live in `src/lib/payroll/build.js`, shared by the cron and a script that writes the same data to `src/data/payroll-by-year.json`, `payroll-by-agency.json` and `payroll-jobs.json`. The pages show that bundled copy only while KV has none (local dev, or a new deployment before its first cron run), so refreshing it is optional; it's also a handy way to review a change as a diff:
 
 ```sh
-npm run data:check     # is the payroll snapshot behind the source? (the hourly cron checks too)
-npm run data:payroll   # rewrites src/data/payroll-by-year.json, payroll-by-agency.json and payroll-jobs.json
-npm run deploy         # rebuild the site with the new numbers
+npm run data:payroll   # rewrites the bundled copy in src/data/
 ```
 
-Set `SOCRATA_APP_TOKEN` to avoid anonymous rate limits (optional). The script picks up new fiscal years automatically, prints each year's total, and warns if a total looks implausible, a year is missing, or the latest year looks like a partial load (people paid or total pay under 85% of the prior 3-year median). A warning also shows a "Heads up" note on the page.
+Set `SOCRATA_APP_TOKEN` to avoid anonymous rate limits (optional). New fiscal years are picked up automatically. A build warns (in the cron's logs, or the script's output) if a total looks implausible, a year is missing, or the latest year looks like a partial load (people paid or total pay under 85% of the prior 3-year median). A partial load also shows a "Heads up" note on the page. A build that fails or returns nothing keeps the last good copy.
 
-The dataset has millions of rows (one per employee per fiscal year), so the script asks Socrata to aggregate server-side:
+The dataset has millions of rows (one per employee per fiscal year), so the queries ask Socrata to aggregate server-side:
 
 ```
 GET https://data.cityofnewyork.us/resource/k397-673e.json
@@ -238,13 +240,13 @@ GET https://data.cityofnewyork.us/resource/k397-673e.json
   $order  = fiscal_year
 ```
 
-A second query groups by `agency_name, payroll_number, fiscal_year` for the agency picker and writes `src/data/payroll-by-agency.json` (one line per agency). The page loads that file only when someone picks an agency. A few agencies are spelled differently in FY2014 (e.g. `Police Department`, `Bronx DA`); `AGENCY_ALIASES` in the script folds them into the later name, and `AGENCY_LABELS` gives readable names for truncated ones (everything else is title-cased). A year published without agency names (FY2026 at first) takes each `payroll_number`'s name from the latest year that has one, with a warning. The script warns if the agency totals for the latest year don't add up to the citywide total.
+A second query groups by `agency_name, payroll_number, fiscal_year` for the agency picker (`byAgency`; one line per agency in `src/data/payroll-by-agency.json`). The page loads it only when someone picks an agency. A few agencies are spelled differently in FY2014 (e.g. `Police Department`, `Bronx DA`); `AGENCY_ALIASES` in `build.js` folds them into the later name, and `AGENCY_LABELS` gives readable names for truncated ones (everything else is title-cased). A year published without agency names (FY2026 at first) takes each `payroll_number`'s name from the latest year that has one, with a warning. The build warns if the agency totals for the latest year don't add up to the citywide total.
 
 Total pay = regular + overtime + other. Negative amounts (refunds, retro adjustments) stay in the sums. "People paid" is the row count per year, not headcount. Dollars are nominal.
 
 ### Job titles ("What do city jobs actually pay?")
 
-The same command writes `src/data/payroll-jobs.json` (one line per job title). Socrata computes the medians server-side with SoQL `median()` (checked against medians computed from raw rows), so no rows are downloaded. This query is the slow one, about a minute or two:
+The same build makes the job title data (`jobs`; one line per title in `src/data/payroll-jobs.json`). Socrata computes the medians server-side with SoQL `median()` (checked against medians computed from raw rows), so no rows are downloaded. This query is the slow one, about a minute or two:
 
 ```
 GET https://data.cityofnewyork.us/resource/k397-673e.json
@@ -262,14 +264,14 @@ Filters:
 - `pay_basis = 'per Annum'`: full-time annual salaries. The other values are `per Day`, `per Hour` and `Prorated Annual`, all excluded.
 - `leave_status_as_of_june_30 = 'ACTIVE'`: excludes `CEASED`, `ON LEAVE`, `ON SEPARATION LEAVE` and `SEASONAL`.
 - `base_salary > 0`.
-- Titles are normalized with `upper(trim(title_description))` and shown in Title Case (`titleLabel()` in the script).
+- Titles are normalized with `upper(trim(title_description))` and shown in Title Case (`titleLabel()` in `build.js`).
 - Only titles with 25 or more employees in the latest fiscal year are kept (`MIN_EMPLOYEES`).
 
-Before querying, the script checks that `per Annum` and `ACTIVE` still exist as values and stops if they don't.
+Before querying, the build checks that `per Annum` and `ACTIVE` still exist as values and stops if they don't.
 
-For each title, the snapshot stores the latest year's employee count (everyone active in the title) and full-year employee count, median base salary, extra (the median of each person's own overtime plus other pay), the 5-year change in median base salary (`null` if the title had fewer than 25 full-year employees five years earlier), and `series`: `[fiscal year, median base, full-year employees]` for every year the title appears. The script warns if a chip matches no titles or if Teacher, Firefighter or Police Officer medians fall outside $50K–$200K.
+For each title, the snapshot stores the latest year's employee count (everyone active in the title) and full-year employee count, median base salary, extra (the median of each person's own overtime plus other pay), the 5-year change in median base salary (`null` if the title had fewer than 25 full-year employees five years earlier), and `series`: `[fiscal year, median base, full-year employees]` for every year the title appears. The build warns if a chip matches no titles or if Teacher, Firefighter or Police Officer medians fall outside $50K–$200K.
 
-Quick-filter chips (`JOB_CHIPS` in the script). A chip with no matching title in the latest year is left out of the snapshot and isn't shown.
+Quick-filter chips (`JOB_CHIPS` in `build.js`). A chip with no matching title in the latest year is left out of the snapshot and isn't shown.
 
 | Chip | `title_description` values |
 |---|---|

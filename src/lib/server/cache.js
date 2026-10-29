@@ -66,17 +66,7 @@ function remember(job, stored) {
  * A daily job is { key, maxAgeHours, run }. run() returns a JSON-safe value.
  */
 export async function dailyValue(job) {
-  let stored = memory.get(job.key);
-  if (isFresh(stored, job)) {
-    if (Date.now() - (checkedAt.get(job.key) ?? 0) < RECHECK_MS) return stored.value;
-    if ((await env.DATA_CACHE?.get(versionKey(job))) === stored.computedAt) {
-      checkedAt.set(job.key, Date.now());
-      return stored.value;
-    }
-  }
-
-  stored = (await env.DATA_CACHE?.get(job.key, "json")) ?? stored;
-  if (stored) remember(job, stored);
+  const stored = await latestStored(job);
   if (isFresh(stored, job)) return stored.value;
 
   if (stored) {
@@ -86,6 +76,32 @@ export async function dailyValue(job) {
     return stored.value;
   }
   return refreshDaily(job);
+}
+
+/*
+ * The job's value as the cron last built it, or null when KV has none. Never
+ * runs the job: for jobs too slow to run on a request, whose page has a
+ * fallback (City Payroll's bundled copy).
+ */
+export async function storedValue(job) {
+  return (await latestStored(job))?.value ?? null;
+}
+
+// The newest { computedAt, value } this isolate can see: memory while it's
+// fresh and KV hasn't built a newer one, otherwise KV (or memory if KV has none).
+async function latestStored(job) {
+  let stored = memory.get(job.key);
+  if (isFresh(stored, job)) {
+    if (Date.now() - (checkedAt.get(job.key) ?? 0) < RECHECK_MS) return stored;
+    if ((await env.DATA_CACHE?.get(versionKey(job))) === stored.computedAt) {
+      checkedAt.set(job.key, Date.now());
+      return stored;
+    }
+  }
+
+  stored = (await env.DATA_CACHE?.get(job.key, "json")) ?? stored;
+  if (stored) remember(job, stored);
+  return stored;
 }
 
 // One refresh per job per isolate; callers that arrive meanwhile get the same promise.

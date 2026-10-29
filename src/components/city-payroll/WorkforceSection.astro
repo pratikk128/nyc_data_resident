@@ -1,22 +1,29 @@
 ---
 /*
  * "How much does NYC spend on its workforce?"
- * Headline numbers, table and notes are rendered at build time from
- * the payroll snapshot for all agencies; the stacked bar chart is drawn in
- * the browser by the script at the bottom (same data, no API calls from the
- * page). Picking an agency swaps in that agency's rows and redraws the stats,
+ * Headline numbers, table and notes are rendered on the server from the
+ * payroll data for all agencies (src/lib/server/payroll.js); the stacked bar
+ * chart is drawn in the browser by the script at the bottom, from the same
+ * years passed in data-years. Picking an agency loads every agency's rows from
+ * /api/payroll/agencies, swaps in that agency's and redraws the stats,
  * chart, table and CSV link in place. The pay type checkboxes narrow the
  * total card, chart, table and CSV to regular pay, overtime and/or other pay.
  */
 import StatCard from '../StatCard.astro';
-import snapshot from '../../data/payroll-by-year.json';
-import byAgency from '../../data/payroll-by-agency.json';
+import type bundledByYear from '../../data/payroll-by-year.json';
+import type bundledByAgency from '../../data/payroll-by-agency.json';
 import { money, count, date } from '../../lib/format.js';
 import { payrollCsvHref } from '../../lib/payroll-csv.js';
 import { payrollRowsHtml } from '../../lib/payroll-table.js';
 import { yearChange } from '../../lib/year-change.js';
 import { rankAgencies, agencyRankingHtml, TOP_N } from '../../lib/agency-ranking.js';
 
+interface Props {
+  byYear: typeof bundledByYear;
+  byAgency: typeof bundledByAgency;
+}
+
+const { byYear: snapshot, byAgency } = Astro.props;
 const { years, dataset, checks } = snapshot;
 const latest = years[years.length - 1];
 const first = years[0];
@@ -35,7 +42,7 @@ const latestRows = byAgency.agencies.flatMap((a) => {
 });
 ---
 
-<section class="dash-section" id="workforce" aria-labelledby="workforce-title">
+<section class="dash-section" id="workforce" aria-labelledby="workforce-title" data-years={JSON.stringify(years)}>
   <header class="section-head">
     <h2 id="workforce-title">How much does NYC spend on its workforce?</h2>
     <p class="section-intro">
@@ -219,7 +226,7 @@ const latestRows = byAgency.agencies.flatMap((a) => {
 </section>
 
 <script>
-  import snapshot from '../../data/payroll-by-year.json';
+  import type bundledByYear from '../../data/payroll-by-year.json';
   import { mountWorkforceChart, missingYearsSentence } from '../../lib/workforce-chart.js';
   import { money, count, percent } from '../../lib/format.js';
   import { payrollCsvHref } from '../../lib/payroll-csv.js';
@@ -227,15 +234,19 @@ const latestRows = byAgency.agencies.flatMap((a) => {
   import { yearChange } from '../../lib/year-change.js';
   import { rankAgencies, agencyRankingHtml, TOP_N } from '../../lib/agency-ranking.js';
 
-  type Year = (typeof snapshot.years)[number];
+  type Year = (typeof bundledByYear.years)[number];
   type Agency = { id: string; label: string; years: Year[] };
 
-  // The per-agency file is ~200 KB, so it loads only once someone picks an agency.
+  // Every agency's rows are ~250 KB, so they load only once someone picks an agency.
   // A failed load isn't cached, so picking an agency again retries it.
   let agencies: Promise<Agency[]> | null = null;
   const loadAgencies = () =>
-    (agencies ??= import('../../data/payroll-by-agency.json')
-      .then((m) => m.default.agencies)
+    (agencies ??= fetch('/api/payroll/agencies')
+      .then((res) => {
+        if (!res.ok) throw new Error(`agencies: ${res.status}`);
+        return res.json();
+      })
+      .then((data: { agencies: Agency[] }) => data.agencies)
       .catch((err) => {
         agencies = null;
         throw err;
@@ -245,6 +256,7 @@ const latestRows = byAgency.agencies.flatMap((a) => {
   const frame = section?.querySelector<HTMLElement>('#workforce-frame');
 
   if (section && frame) {
+    const snapshot: { years: Year[] } = { years: JSON.parse(section.dataset.years ?? '[]') };
     const chart = mountWorkforceChart(frame, snapshot.years);
     const select = section.querySelector<HTMLSelectElement>('#workforce-agency')!;
     const subject = section.querySelector<HTMLElement>('[data-subject]')!;
