@@ -19,6 +19,7 @@ export const SITES_FILE_NAME = "Distribution Water Quality Sampling Sites (June 
 // parsed (parse.js) and cast in SoQL (soql.js).
 export const FIELDS = {
   date: "sample_date",
+  time: "sample_time",   // "8:41", local time
   site: "sample_site",
   sampleClass: "sample_class",
   number: "sample_number",

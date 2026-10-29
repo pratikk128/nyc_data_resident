@@ -261,6 +261,7 @@ export function normalizeDetection(row) {
   return {
     sample: row.sample_number ?? null,
     date: String(row.sample_date ?? "").slice(0, 10),
+    time: row.sample_time ?? null,
     site: row.sample_site ?? null,
     sampleClass: row.sample_class ?? null,
     coliform: parseMeasurement(row.coliform_quanti_tray_mpn_100ml, "bacteria"),
@@ -316,21 +317,64 @@ export function plainDescription(text) {
   return out ? out[0].toUpperCase() + out.slice(1) : "";
 }
 
+// "8:41" → minutes after midnight, or null.
+const minutesOf = (time) => {
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(time ?? "").trim());
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+};
+
 /*
- * One line on DEP's follow-up samples after an E. coli detection (d.followUps,
- * from the detections job): "3 follow-up samples on Aug 5: all clear."
+ * The samples at d's station taken after it, through `days` days later, from
+ * `samples` (any class, any station). A same-day sample counts when it was
+ * taken later that day, or when either sample has no time.
+ */
+export function laterSamples(d, samples, days = 14) {
+  const end = new Date(Date.parse(`${d.date}T00:00:00Z`) + days * 864e5).toISOString().slice(0, 10);
+  const t = minutesOf(d.time);
+  return samples.filter((f) => {
+    if (f.site !== d.site || f.date < d.date || f.date > end) return false;
+    if (f.date > d.date) return true;
+    if (f.sample != null && f.sample === d.sample) return false;
+    const ft = minutesOf(f.time);
+    return t == null || ft == null || ft > t;
+  });
+}
+
+/*
+ * One line on the samples at the station after an E. coli detection
+ * (d.followUps, from laterSamples()): "3 resamples on Aug 13: all clear ...".
+ * Only samples DEP labeled as resamples are called that; DEP doesn't label
+ * every repeat sample, and busy stations are sampled most days anyway, so
+ * the rest are "later routine samples".
  */
 export function followUpText(d, days = 14) {
   const f = d.followUps ?? [];
-  if (!f.length) return `No follow-up samples at this station in the data within ${days} days.`;
-  const dates = [...new Set(f.map((x) => x.date))];
-  const when = dates.length === 1 ? `on ${shortDate(dates[0])}` : `${shortDate(dates[0])}–${shortDate(dates[dates.length - 1])}`;
-  const ecoli = f.filter((x) => isDetected(x.ecoli)).length;
-  const coli = f.filter((x) => isDetected(x.coliform)).length;
-  const result = ecoli ? `${ecoli} also had E. coli.`
-    : coli ? `no E. coli; ${coli} had coliform bacteria.`
-    : "all clear (no coliform or E. coli).";
-  return `${f.length} follow-up ${f.length === 1 ? "sample" : "samples"} ${when}: ${result}`;
+  if (!f.length) return `No later samples at this station in the data within ${days} days.`;
+  const resamples = f.filter((x) => isResample(x.sampleClass));
+  const routine = f.filter((x) => !isResample(x.sampleClass));
+  const parts = [];
+  if (resamples.length) parts.push(`${countText(resamples.length, "resample")} ${whenText(resamples)}: ${resultText(resamples)}`);
+  if (routine.length) {
+    const label = countText(routine.length, "later routine sample");
+    parts.push(`${resamples.length ? "Also " : ""}${label} ${whenText(routine)}: ${resultText(routine)}`);
+  }
+  return parts.join(" ");
+}
+
+const countText = (n, noun) => `${n} ${noun}${n === 1 ? "" : "s"}`;
+
+function whenText(samples) {
+  const dates = [...new Set(samples.map((x) => x.date))].sort();
+  return dates.length === 1 ? `on ${shortDate(dates[0])}` : `${shortDate(dates[0])}–${shortDate(dates[dates.length - 1])}`;
+}
+
+function resultText(samples) {
+  const ecoli = samples.filter((x) => isDetected(x.ecoli)).length;
+  const coli = samples.filter((x) => isDetected(x.coliform)).length;
+  const one = samples.length === 1;
+  if (ecoli) return one ? "it also had E. coli." : `${ecoli} also had E. coli.`;
+  if (coli) return one ? "no E. coli, but it had coliform bacteria." : `no E. coli; ${coli} had coliform bacteria.`;
+  return one ? "clear (no coliform or E. coli)." : "all clear (no coliform or E. coli).";
 }
 
 // "2026-08-05" → "Aug 5"

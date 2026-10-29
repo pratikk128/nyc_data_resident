@@ -130,12 +130,13 @@ const chartData = series && {
         <summary>Every E. coli detection since {monthLabel(series.months[0], 'short')} {detectionsError ? '(didn’t load)' : `(${ecoliListCount})`}</summary>
         <p class="water-note">
           One positive sample isn't a violation by itself. DEP takes repeat samples at the same station and nearby
-          within 24 hours.
+          within 24 hours. DEP doesn't label every repeat sample as a resample, so the last column lists every later
+          sample at the station and only calls the labeled ones resamples.
         </p>
         {ecoliList.length ? (
           <div class="table-scroll" tabindex="0" role="region" aria-label="E. coli detections">
             <table>
-              <thead><tr><th scope="col">Date</th><th scope="col">Station</th><th scope="col">E. coli (MPN/100 mL)</th><th scope="col">Follow-up</th></tr></thead>
+              <thead><tr><th scope="col">Date</th><th scope="col">Station</th><th scope="col">E. coli (MPN/100 mL)</th><th scope="col">At this station in the next 14 days</th></tr></thead>
               <tbody>
                 {ecoliList.map((d: any) => (
                   <tr>

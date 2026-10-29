@@ -10,11 +10,12 @@ import assert from "node:assert/strict";
 import { parseMeasurement, isDetected, measurementText } from "../src/lib/water/parse.js";
 import {
   normalizeMonth, latestCompleteMonth, missingMonths, reportCard, verdict, historyTakeaway, summerShare, sharePct, tileStatus,
-  nearestSites, addMonths, monthLabel, normalizeDetection, hasEcoli, plainDescription, completeMonths
+  nearestSites, addMonths, monthLabel, normalizeDetection, hasEcoli, plainDescription, completeMonths,
+  laterSamples, followUpText
 } from "../src/lib/water/stats.js";
 import { historySeries } from "../src/lib/water/history.js";
 import { bacteriaHtml } from "../src/lib/water/near-me.js";
-import { monthlyParams, siteMonthlyParams, detectionParams } from "../src/lib/water/soql.js";
+import { monthlyParams, siteMonthlyParams, windowTotalParams, detectionParams, followUpParams } from "../src/lib/water/soql.js";
 import { statePlaneToLatLon } from "../src/lib/water/state-plane.js";
 
 // ---------- Parser ----------
@@ -70,14 +71,29 @@ test("numbers and '>X' are measured; '>X' is flagged as at least X", () => {
 // ---------- SoQL mirrors the parser ----------
 
 test("queries count '<X'/'ND' as not detected, skip negatives and use routine samples", () => {
-  const p = monthlyParams();
-  assert.match(p.$select, /LIKE '<%' OR upper\(coliform_quanti_tray_mpn_100ml\) = 'ND'/);
-  assert.match(p.$select, /residual_free_chlorine_mg_l NOT LIKE '-%'/);
-  assert.match(p.$select, /residual_free_chlorine_mg_l::number <= 4/);
-  assert.match(p.$select, /turbidity_ntu::number <= 5/);
-  assert.match(p.$where, /sample_class IN \('Compliance', 'Operational'\)/);
-  assert.match(siteMonthlyParams("2025-10-01", "2026-10-01").$where, /sample_date >= '2025-10-01' AND sample_date < '2026-10-01'/);
-  assert.doesNotMatch(detectionParams().$where, /sample_class/); // detections from every class
+  const q = monthlyParams().$query;
+  assert.match(q, /upper\(coli_t\) IN \('ND', 'ND\.', 'N\.D', 'N\.D\.'\), 'below'/);
+  assert.match(q, /case\(cl_k = 'number', cl_t::number\) > 0 AND case\(cl_k = 'number', cl_t::number\) <= 4/);
+  assert.match(q, /case\(turb_k = 'number', turb_t::number\) <= 5/);
+  assert.match(q, /WHERE sample_class IN \('Compliance', 'Operational'\) \|>/);
+  assert.match(siteMonthlyParams("2025-10-01", "2026-10-01").$query, /sample_date >= '2025-10-01' AND sample_date < '2026-10-01'/);
+  assert.doesNotMatch(detectionParams().$query, /sample_class IN/); // detections from every class
+});
+
+// Text like "NA" must never reach a ::number cast, or Socrata rejects the whole query.
+test("queries only cast number-shaped text, and stay under Socrata's URL limit", () => {
+  const queries = [monthlyParams(), siteMonthlyParams("2025-10-01", "2026-10-01"),
+    windowTotalParams("2025-10-01", "2026-10-01", { bySite: true }), detectionParams()].map((p) => p.$query);
+  for (const q of queries) {
+    const casts = q.match(/[\w()]+::number/g);
+    assert.ok(casts.length > 0);
+    for (const cast of casts) assert.match(cast, /^\w+_t::number$/);
+    for (const [, k] of q.matchAll(/(\w+)_t::number/g)) {
+      assert.ok(q.includes(`case(${k}_k = 'number', ${k}_t::number)`));
+    }
+    assert.equal(q.match(/::number/g).length, q.match(/case\(\w+_k = 'number', \w+_t::number\)/g).length);
+    assert.ok(new URLSearchParams({ $query: q }).toString().length < 7000);
+  }
 });
 
 // ---------- Months ----------
@@ -219,6 +235,38 @@ test("detections parse coliform and E. coli values", () => {
   assert.equal(d.date, "2026-08-03");
   assert.ok(hasEcoli(d));
   assert.equal(hasEcoli({ ...d, ecoli: parseMeasurement("<1", "bacteria") }), false);
+});
+
+const sample = (date, time, sampleClass, ecoli = "<1", coliform = "<1", number = `${date}-${time}`) => normalizeDetection({
+  sample_number: number, sample_date: `${date}T00:00:00.000`, sample_time: time, sample_site: "45050",
+  sample_class: sampleClass, coliform_quanti_tray_mpn_100ml: coliform, e_coli_quanti_tray_mpn_100ml: ecoli
+});
+
+test("later samples include same-day ones taken after the detection, not the detection itself", () => {
+  const d = sample("2026-08-03", "8:41", "Compliance", "2", "4.2", "1");
+  const all = [
+    d,
+    sample("2026-08-03", "7:10", "Compliance"),             // earlier that morning
+    sample("2026-08-03", "11:05", "Resample_Compliance"),   // same day, later
+    { ...sample("2026-08-05", "8:34", "Compliance"), site: "99999" },
+    sample("2026-08-17", "9:00", "Compliance"),             // the 14th day
+    sample("2026-08-18", "9:00", "Compliance")              // too late
+  ];
+  assert.deepEqual(laterSamples(d, all).map((f) => `${f.date} ${f.time}`), ["2026-08-03 11:05", "2026-08-17 9:00"]);
+  // Without times, same-day samples other than the detection count.
+  assert.equal(laterSamples({ ...d, time: null }, all).length, 3);
+  assert.match(followUpParams([d]).$where, /sample_date >= '2026-08-03' AND sample_date <= '2026-08-17'/);
+});
+
+test("follow-up text only calls labeled resamples resamples", () => {
+  const d = sample("2026-08-03", "8:41", "Compliance", "2");
+  assert.equal(followUpText({ ...d, followUps: [] }), "No later samples at this station in the data within 14 days.");
+  assert.equal(followUpText({ ...d, followUps: [sample("2026-08-05", "8:34", "Compliance"), sample("2026-08-15", "10:01", "Compliance")] }),
+    "2 later routine samples Aug 5–Aug 15: all clear (no coliform or E. coli).");
+  assert.equal(followUpText({ ...d, followUps: [
+    sample("2026-08-04", "8:00", "Resample_Compliance"), sample("2026-08-04", "8:20", "Resample_Compliance", "<1", "3"),
+    sample("2026-08-12", "9:00", "Compliance", "1")
+  ] }), "2 resamples on Aug 4: no E. coli; 1 had coliform bacteria. Also 1 later routine sample on Aug 12: it also had E. coli.");
 });
 
 // ---------- Places ----------

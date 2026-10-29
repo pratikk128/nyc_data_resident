@@ -7,7 +7,7 @@
  * a reader never waits on Socrata unless KV is empty (first deploy, local dev).
  *   monthly     citywide aggregates for every month (~140 rows, one query)
  *   detections  every sample with coliform or E. coli (~750 rows), and for
- *               each E. coli detection the station's samples in the next 14 days
+ *               each E. coli detection the station's later samples within 14 days
  *   stations    per site and month for the last 12 complete months (~4,500 rows)
  */
 import { soql, datasetMetadata } from "./socrata.js";
@@ -17,11 +17,11 @@ import {
   monthlyParams, latestDateParams, siteMonthlyParams, detectionParams, followUpParams, windowTotalParams
 } from "../water/soql.js";
 import {
-  normalizeMonth, normalizeDetection, latestCompleteMonth, missingMonths, addMonths, nextMonth, hasEcoli
+  normalizeMonth, normalizeDetection, latestCompleteMonth, missingMonths, addMonths, nextMonth, hasEcoli, laterSamples
 } from "../water/stats.js";
 
 const MAX_AGE_HOURS = 26;
-const QUERY_TIMEOUT_MS = 60000; // the monthly query takes ~2–5 s warm
+const QUERY_TIMEOUT_MS = 120000; // the monthly query takes ~10–35 s (the medians are most of it)
 
 export const metadataJob = {
   key: `water:metadata:${DATASET_ID}`,
@@ -53,7 +53,7 @@ export const monthlyJob = {
 export const FOLLOW_UP_DAYS = 14;
 
 export const detectionsJob = {
-  key: "water:detections:v1",
+  key: "water:detections:v2",
   maxAgeHours: MAX_AGE_HOURS,
   async run() {
     const opts = { timeoutMs: QUERY_TIMEOUT_MS };
@@ -61,10 +61,7 @@ export const detectionsJob = {
     // Follow-ups aren't always labeled as resamples, so they're found by station and date.
     const ecoli = detections.filter((d) => hasEcoli(d) && d.site && d.date);
     const later = ecoli.length ? (await soql(DATASET_ID, followUpParams(ecoli, FOLLOW_UP_DAYS), opts)).map(normalizeDetection) : [];
-    for (const d of ecoli) {
-      const end = new Date(Date.parse(`${d.date}T00:00:00Z`) + FOLLOW_UP_DAYS * 864e5).toISOString().slice(0, 10);
-      d.followUps = later.filter((f) => f.site === d.site && f.date > d.date && f.date <= end);
-    }
+    for (const d of ecoli) d.followUps = laterSamples(d, later, FOLLOW_UP_DAYS);
     return { computedAt: new Date().toISOString(), detections };
   }
 };
