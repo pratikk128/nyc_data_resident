@@ -857,6 +857,7 @@ th[aria-sort="none"] .sort-btn:hover .sort-icon::after { content: "↕"; color: 
 .field-hint { font-size: .8125rem; color: var(--ink-soft); }
 .field-near { padding-top: calc(.9375rem * 1.6 + var(--space-1)); } /* lines the button up with the inputs */
 .search-input[aria-invalid="true"] { border-color: var(--critical); }
+.field-error { font-size: .8125rem; font-weight: 600; color: var(--critical); }
 
 .near-btn {
   display: inline-flex;
@@ -2204,7 +2205,9 @@ a.sd-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
   border: 1.5px solid var(--ink);
   border-radius: var(--radius-pill);
   background: var(--card);
+  color: var(--ink);
   font-weight: 700;
+  text-decoration: none;
   cursor: pointer;
 }
 .sd-close:hover { background: var(--yellow-tint); }

@@ -163,6 +163,15 @@ test("keyword match: industry beats name beats description", () => {
   assert.ok(score("name") > score("description"));
 });
 
+test("keyword: plurals and -er/-ing forms find each other", () => {
+  const same = [["plumber", "plumbing", "plumbers"], ["bakery", "bakeries", "bakers"], ["catering", "caterers"], ["supplies", "supplier"]];
+  for (const forms of same) assert.equal(new Set(forms.map((w) => keywordWords(w).join())).size, 1, forms.join());
+  assert.deepEqual(keywordWords("boxes tiles shipping staffing"), ["BOX", "TILE", "SHIP", "STAFF"]);
+  assert.deepEqual(keywordWords("bus 3d it"), ["BUS", "3D", "IT"]);
+  for (const w of ["plumber", "plumbing"]) assert.equal(keywordMatch(keywordWords(w), haystack(biz())), "industry");
+  assert.equal(keywordMatch(keywordWords("bakeries"), haystack(biz({ name: "Sweet Bakery" }))), "name");
+});
+
 test("picking a subcategory scores above a category, above neither", () => {
   const s = (query) => scoreBusiness(biz(), { today: TODAY, query }).score;
   assert.ok(s({ cat: "Construction", sub: "Specialty Trade Contractors" }) > s({ cat: "Construction" }));

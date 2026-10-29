@@ -4,40 +4,57 @@
  * certified by NYC Small Business Services. Rendered on demand so a shared
  * link (?who=wbe&cat=Construction&boro=brooklyn) shows its results on first
  * paint, from the daily vendor list in KV (src/lib/server/shop-diverse.js).
- * ?biz=<account> opens a business's detail once the script runs.
+ * ?biz=<account> also renders that business's detail panel and puts its
+ * name in the title and link preview.
  */
 import DashboardLayout from '../../layouts/DashboardLayout.astro';
 import ShopDiverseFinder from '../../components/shop-diverse/ShopDiverseFinder.astro';
 import AboutSection from '../../components/shop-diverse/AboutSection.astro';
-import { getMetadata, loadSearch } from '../../lib/server/shop-diverse.js';
+import { getMetadata, loadSearch, loadBusiness, isAccount } from '../../lib/server/shop-diverse.js';
+import { RateLimited } from '../../lib/server/rate-limit.js';
 import { normalizeQuery } from '../../lib/shop-diverse/filter.js';
+import { businessMeta } from '../../lib/shop-diverse/render.js';
 import { date } from '../../lib/format.js';
 
 export const prerender = false;
 
 const normalized = normalizeQuery(Astro.url.searchParams);
 const query = normalized.query ?? normalizeQuery(new URLSearchParams()).query!;
-const [meta, initial] = await Promise.allSettled([getMetadata(), loadSearch(query, Astro.url, Astro.locals.cfContext)]);
+const bizId = Astro.url.searchParams.get('biz');
+// Shares its edge cache entry with /api/shop-diverse/business/:id.
+const loadShared = async () => {
+  if (!isAccount(bizId)) return null;
+  return (await loadBusiness(bizId, Astro.url, Astro.locals.cfContext, Astro.clientAddress)) ?? { missing: true };
+};
+const [meta, initial, shared] = await Promise.allSettled([
+  getMetadata(), loadSearch(query, Astro.url, Astro.locals.cfContext), loadShared()
+]);
 for (const r of [meta, initial]) if (r.status === 'rejected') console.error(r.reason);
+if (shared.status === 'rejected' && !(shared.reason instanceof RateLimited)) console.error(shared.reason);
 const metaValue = meta.status === 'fulfilled' ? meta.value : null;
+// A business detail, { missing: true }, or null (no ?biz=, or it couldn't load: the script retries)
+const business = shared.status === 'fulfilled' ? shared.value : null;
+const bizMeta = business && !business.missing ? businessMeta(business) : null;
+const pageTitle = 'Women and Minority Owned Businesses';
 // Production only: in dev a cached page hides edits for an hour.
 if (import.meta.env.PROD) Astro.response.headers.set('Cache-Control', 'public, max-age=3600');
 ---
 
 <DashboardLayout
-  title="Shop Diverse NYC"
-  description="Find and support women- and minority-owned businesses certified by NYC Small Business Services, by what you need and where."
-  path="/shop-diverse/"
+  title={bizMeta ? `${bizMeta.title} | ${pageTitle}` : pageTitle}
+  description={bizMeta?.description ??
+    'Find and support women- and minority-owned businesses certified by NYC Small Business Services, by what you need and where.'}
+  path={bizMeta ? `/shop-diverse/?biz=${bizId}` : '/shop-diverse/'}
   category="Business"
   lastRefreshed={metaValue?.rowsUpdatedAt ? date(metaValue.rowsUpdatedAt) : undefined}
   dataUpdated={metaValue?.rowsUpdatedAt ?? undefined}
 >
   <header class="page-head sd-head">
     <p class="sd-eyebrow">Certified by NYC Small Business Services</p>
-    <h1>Shop Diverse NYC</h1>
+    <h1>{pageTitle}</h1>
     <p>
-      New York’s women- and minority-owned businesses build, cater, design and supply across the city. Find certified
-      firms by ownership, what you need and where, and put your spending behind them.
+      New York’s women- and minority-owned businesses build, cater, design and supply across the city. Browse the firms
+      the city has certified by ownership, what you need and where, and find the right one for your next job.
     </p>
   </header>
 
@@ -45,6 +62,7 @@ if (import.meta.env.PROD) Astro.response.headers.set('Cache-Control', 'public, m
     query={query}
     initial={initial.status === 'fulfilled' ? initial.value : null}
     inputError={normalized.error ?? null}
+    business={business}
   />
 
   <AboutSection meta={metaValue} />

@@ -12,6 +12,13 @@ export const escape = (str) => String(str ?? "").replace(/[&<>"']/g, (c) => `&#$
 
 export const UPSTREAM_TEXT = "We couldn’t reach NYC Open Data just now. Please try again in a minute.";
 export const LOADING_TEXT = "Loading businesses…";
+export const ZIP_ERROR = "Enter a 5-digit ZIP code, like 11216.";
+export const NOT_FOUND_TEXT = "This business is no longer on the list. It may have left since the link was shared.";
+
+// The ZIP only moves businesses up in the Recommended order.
+export const zipHint = (sort) => sort === "recommended"
+  ? "Businesses in this ZIP, then its borough, come first."
+  : "Applies to the Recommended order only. Switch Sort by to Recommended to use it.";
 
 const plural = (n, one, many = `${one}s`) => `${count(n)} ${n === 1 ? one : many}`;
 
@@ -197,6 +204,20 @@ function capacityBlock(v) {
  * v: businessDetail() (status and years included). The heading gets
  * id="sd-detail-title" and tabindex=-1 so the panel can focus it.
  */
+// Page title and meta description for a shared ?biz= link.
+export function businessMeta(v) {
+  const name = v.dba || v.name;
+  const certs = CERT_ORDER.filter((c) => v.certs?.includes(c)).map((c) => CERTS[c].label.toLowerCase());
+  const what = [v.title || v.sector, v.borough ?? [v.city, v.state].filter(Boolean).join(", ")].filter(Boolean).join(" in ");
+  const lead = `${name}${what ? `: ${what}` : ""}.${certs.length ? ` Certified ${certs.join(" and ")} by NYC Small Business Services.` : ""}`;
+  const about = String(v.description ?? "").replace(/\s+/g, " ").trim();
+  const description = about ? `${lead} ${about}` : lead;
+  return {
+    title: name,
+    description: description.length > 200 ? `${description.slice(0, 199).replace(/\s+\S*$/, "")}…` : description
+  };
+}
+
 export function detailHtml(v) {
   const name = v.dba || v.name;
   const lines = addressLines(v);

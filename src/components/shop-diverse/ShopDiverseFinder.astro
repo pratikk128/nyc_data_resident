@@ -9,14 +9,16 @@
  * form work without script. The script then fetches /api/shop-diverse/search
  * for every change and keeps the URL in step; a card opens
  * /api/shop-diverse/business/:id in a <dialog> (side panel on wide screens,
- * full-screen sheet on phones) and adds ?biz=<id> to the URL.
+ * full-screen sheet on phones) and adds ?biz=<id> to the URL. A shared ?biz=
+ * link arrives with that panel rendered here, shown without script by the
+ * <noscript> style and opened as a modal by the script.
  */
 import { CERTS, SORTS, MAX_KEYWORD_LENGTH } from '../../lib/shop-diverse/config.js';
 import { queryToParams } from '../../lib/shop-diverse/filter.js';
 import { POINTS } from '../../lib/shop-diverse/ranking.js';
 import {
   kpisHtml, cardsHtml, pagerHtml, statusText, categoryOptionsHtml, boroughOptionsHtml,
-  ethnicityChipsHtml, UPSTREAM_TEXT
+  ethnicityChipsHtml, detailHtml, zipHint, UPSTREAM_TEXT, ZIP_ERROR, NOT_FOUND_TEXT
 } from '../../lib/shop-diverse/render.js';
 import { count } from '../../lib/format.js';
 
@@ -24,8 +26,9 @@ interface Props {
   query: any;          // normalizeQuery() result
   initial: any;        // searchBusinesses() result, or null if the data couldn't load
   inputError: string | null;
+  business: any;       // the ?biz= business's detail, { missing: true }, or null
 }
-const { query, initial, inputError } = Astro.props;
+const { query, initial, inputError, business } = Astro.props;
 
 const base = '/shop-diverse/';
 const hrefWith = (extra: Record<string, string>) => {
@@ -40,8 +43,13 @@ const pageHref = (page: number) => {
 const facets = initial?.facets;
 const who = (c: string) => query.who.includes(c);
 const status = inputError ?? (initial ? statusText(initial) : UPSTREAM_TEXT);
+// normalizeQuery() drops a malformed ZIP; keep what was typed and say so.
+const rawZip = Astro.url.searchParams.get('zip')?.trim() ?? '';
+const zipInvalid = Boolean(rawZip) && !query.zip;
+const listHref = pageHref(query.page);
+const detail = business && !business.missing ? business : null;
 // Safe inside <script type="application/json">
-const initialJson = JSON.stringify({ query, loaded: Boolean(initial) }).replace(/</g, '\\u003c');
+const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: detail }).replace(/</g, '\\u003c');
 ---
 
 <section class="dash-section sd-finder" aria-labelledby="sd-find-title">
@@ -114,8 +122,10 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial) }).replace(
             <div class="field">
               <label class="filter-label" for="sd-zip">Near ZIP code <span class="field-optional">(optional)</span></label>
               <input class="search-input" id="sd-zip" name="zip" type="text" inputmode="numeric" maxlength="5" pattern="[0-9]{5}"
-                value={query.zip} autocomplete="postal-code" placeholder="e.g. 11216" aria-describedby="sd-zip-hint" data-zip />
-              <p class="field-hint" id="sd-zip-hint">Businesses in this ZIP, then its borough, come first.</p>
+                value={query.zip || rawZip} autocomplete="postal-code" placeholder="e.g. 11216"
+                aria-describedby="sd-zip-error sd-zip-hint" aria-invalid={zipInvalid ? 'true' : undefined} data-zip />
+              <p class="field-error" id="sd-zip-error" data-zip-error hidden={!zipInvalid}>{ZIP_ERROR}</p>
+              <p class="field-hint" id="sd-zip-hint" data-zip-hint>{zipHint(query.sort)}</p>
             </div>
           </fieldset>
         </div>
@@ -177,13 +187,17 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial) }).replace(
 
 <dialog class="sd-detail" aria-labelledby="sd-detail-title" data-detail>
   <div class="sd-detail-bar">
-    <button type="button" class="sd-close" data-close>
+    <a class="sd-close" href={listHref} data-close>
       <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
       Close
-    </button>
+    </a>
   </div>
-  <div class="sd-detail-body" data-detail-body></div>
+  <div class="sd-detail-body" data-detail-body>
+    {detail && <Fragment set:html={detailHtml(detail)} />}
+    {business?.missing && <p class="sd-detail-error" role="alert">{NOT_FOUND_TEXT}</p>}
+  </div>
 </dialog>
+{business && <noscript><style is:inline>.sd-detail { display: block; }</style></noscript>}
 
 <script type="application/json" id="sd-initial" set:html={initialJson}></script>
 
@@ -191,13 +205,13 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial) }).replace(
   import { normalizeQuery, queryToParams } from '../../lib/shop-diverse/filter.js';
   import {
     kpisHtml, cardsHtml, skeletonCards, pagerHtml, statusText, categoryOptionsHtml,
-    boroughOptionsHtml, ethnicityChipsHtml, detailHtml, contactText, UPSTREAM_TEXT, LOADING_TEXT
+    boroughOptionsHtml, ethnicityChipsHtml, detailHtml, contactText, zipHint, UPSTREAM_TEXT, LOADING_TEXT,
+    NOT_FOUND_TEXT
   } from '../../lib/shop-diverse/render.js';
   import { count } from '../../lib/format.js';
 
   const BASE = '/shop-diverse/';
   const DEBOUNCE_MS = 350;
-  const NOT_FOUND_TEXT = 'This business is no longer on the list. It may have left since the link was shared.';
 
   const $ = <T extends Element = HTMLElement>(sel: string, root: ParentNode = document) => root.querySelector<T>(sel)!;
   const form = $<HTMLFormElement>('[data-filters]');
@@ -207,6 +221,8 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial) }).replace(
   const boroSelect = $<HTMLSelectElement>('[data-boro]');
   const qInput = $<HTMLInputElement>('[data-q]');
   const zipInput = $<HTMLInputElement>('[data-zip]');
+  const zipError = $('[data-zip-error]');
+  const zipHintText = $('[data-zip-hint]');
   const sortSelect = $<HTMLSelectElement>('[data-sort]');
   const lapsedWrap = $('[data-lapsed-wrap]');
   const lapsedBox = $<HTMLInputElement>('[data-lapsed]');
@@ -258,6 +274,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial) }).replace(
     zipInput.value = q.zip;
     sortSelect.value = q.sort;
     lapsedBox.checked = q.lapsed;
+    showZipError(false);
     // Category, subcategory, borough and ethnicity options come back with the results.
     syncVisibility(q);
   }
@@ -265,6 +282,15 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial) }).replace(
   function syncVisibility(q: any) {
     matchSet.hidden = !(q.who.includes('WBE') && q.who.includes('MBE'));
     ethSet.hidden = !q.who.includes('MBE');
+    zipHintText.textContent = zipHint(q.sort);
+  }
+
+  // A ZIP that isn't 5 digits is left out of the search; say so once the
+  // visitor has finished typing (change, submit), not on every keystroke.
+  const zipIsValid = () => !zipInput.value.trim() || /^\d{5}$/.test(zipInput.value.trim());
+  function showZipError(show: boolean) {
+    zipError.hidden = !show;
+    if (show) zipInput.setAttribute('aria-invalid', 'true'); else zipInput.removeAttribute('aria-invalid');
   }
 
   function activeFilterCount(q: any) {
@@ -344,17 +370,24 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial) }).replace(
 
   form.addEventListener('change', (e) => {
     const target = e.target as HTMLElement;
-    if (target === qInput || target === zipInput) return; // handled on input
+    if (target === zipInput) return showZipError(!zipIsValid());
+    if (target === qInput) return; // handled on input
     if (target === catSelect) subSelect.value = '';
     applyForm();
   });
   sortSelect.addEventListener('change', applyForm);
-  form.addEventListener('submit', (e) => { e.preventDefault(); applyForm(); });
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    showZipError(!zipIsValid());
+    applyForm();
+  });
   for (const input of [qInput, zipInput]) {
     input.addEventListener('input', () => {
       clearTimeout(typingTimer);
-      const zip = zipInput.value.trim();
-      if (input === zipInput && zip && !/^\d{5}$/.test(zip)) return; // wait for 5 digits
+      if (input === zipInput) {
+        if (zipIsValid()) showZipError(false);
+        else return; // wait for 5 digits
+      }
       typingTimer = window.setTimeout(applyForm, DEBOUNCE_MS);
     });
   }
@@ -433,7 +466,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial) }).replace(
     openBusiness(card.dataset.id!, { push: true });
   });
 
-  $('[data-close]', dialog).addEventListener('click', () => dialog.close());
+  $('[data-close]', dialog).addEventListener('click', (e) => { e.preventDefault(); dialog.close(); });
   // A click on the backdrop lands on the dialog element itself.
   dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.close(); });
   dialog.addEventListener('close', () => {
@@ -485,5 +518,10 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial) }).replace(
     search();
   }
   const startBiz = bizParam();
-  if (startBiz) openBusiness(startBiz);
+  if (startBiz && initial.business?.id === startBiz) {
+    // Rendered on the server: just open it.
+    current = initial.business;
+    dialog.showModal();
+    $('#sd-detail-title', detailBody).focus();
+  } else if (startBiz) openBusiness(startBiz);
 </script>

@@ -245,6 +245,29 @@ export function searchText(value) {
   return ` ${String(value ?? "").toUpperCase().replace(/['‘’ʼ`]/g, "").replace(/[^A-Z0-9]+/g, " ").trim()} `;
 }
 
+// Endings cut from a keyword so its other forms match too. Keywords match the
+// start of a word, so "PLUMBER" and "PLUMBING" both become "PLUMB", and
+// "BAKERY" and "BAKERIES" both become "BAKER". The first ending that leaves a
+// long enough stem wins ("BAKERS" → "BAKER", not "BAK"). -ES only goes after
+// s, x, z, ch and sh ("BOXES" → "BOX", but "TILES" → "TILE").
+const ENDINGS = [
+  ["IERS", 4], ["IES", 3], ["IER", 4], ["ERS", 4], ["ING", 4], ["ER", 4], ["Y", 4],
+  [/(S|X|Z|CH|SH)ES$/, 3], ["S", 3]
+];
+
+export function stem(word) {
+  if (/\d/.test(word)) return word;
+  for (const [ending, min] of ENDINGS) {
+    const cut = typeof ending === "string"
+      ? (word.endsWith(ending) ? word.slice(0, -ending.length) : null)
+      : (ending.test(word) ? word.slice(0, -2) : null);
+    if (cut === null || cut.length < min) continue;
+    // "SHIPPING" → "SHIP", "PLANNER" → "PLAN"; "INSTALL", "DRESS", "STAFF" keep theirs
+    return /([B-DGKMNPRT])\1$/.test(cut) ? cut.slice(0, -1) : cut;
+  }
+  return word;
+}
+
 export function keywordWords(value) {
-  return searchText(value).trim().split(" ").filter(Boolean);
+  return searchText(value).trim().split(" ").filter(Boolean).map(stem);
 }
