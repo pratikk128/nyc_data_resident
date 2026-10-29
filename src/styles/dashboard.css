@@ -1900,8 +1900,25 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
 }
 .water-card-head { display: flex; align-items: flex-start; gap: var(--space-3); }
 .water-card-head > div { flex: 1; min-width: 0; }
-.water-card-title { font-size: 1.0625rem; font-weight: 800; }
-.water-card-place { font-size: .9375rem; overflow-wrap: anywhere; }
+.water-card-title { font-size: 1.0625rem; font-weight: 800; overflow-wrap: anywhere; }
+.water-card-verdict {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-left: 4px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  font-size: .9375rem;
+  font-weight: 600;
+}
+.water-card-verdict .water-status-icon { flex-shrink: 0; }
+.water-card-verdict[data-status="green"] { border-left-color: var(--status-green-deep); background: var(--status-green); }
+.water-card-verdict[data-status="green"] .water-status-icon { background: var(--status-green-deep); color: #fff; }
+.water-card-verdict[data-status="amber"] { border-left-color: var(--accent-deep); background: var(--status-amber); }
+.water-card-verdict[data-status="amber"] .water-status-icon { background: var(--yellow); }
+.water-card-verdict[data-status="red"] { border-left-color: var(--status-red-deep); background: var(--status-red); }
+.water-card-verdict[data-status="red"] .water-status-icon { background: var(--status-red-deep); color: #fff; }
 .water-card-meta { font-size: .8125rem; color: var(--ink-soft); }
 .water-remove {
   min-height: 44px;

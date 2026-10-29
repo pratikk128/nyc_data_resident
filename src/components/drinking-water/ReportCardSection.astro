@@ -5,10 +5,10 @@
  * from the daily monthly and detections jobs (src/lib/server/water.js).
  */
 import HistorySection from './HistorySection.astro';
-import { reportCard, verdict, monthLabel, hasEcoli, isResample, resampleEcoli, plainDescription, followUpText, STATUS_TEXT } from '../../lib/water/stats.js';
+import { reportCard, verdict, monthLabel, hasEcoli, isResample, resampleEcoli, plainDescription, followUpText, isStale, STATUS_TEXT, STATUS_ICON as ICON } from '../../lib/water/stats.js';
 import { boroughLabel } from '../../lib/water/config.js';
 import { measurementText } from '../../lib/water/parse.js';
-import { count, date } from '../../lib/format.js';
+import { count, date, nycToday } from '../../lib/format.js';
 import sitesFile from '../../data/water-sites.json';
 
 interface Props {
@@ -38,7 +38,8 @@ const lastEcoli = month ? ecoliAll.find((d: any) => d.date.slice(0, 7) <= month.
 const loading: string[] = month ? monthly.months.map((m: any) => m.month).filter((k: string) => k > month.month) : [];
 const ecoliLoading = ecoliAll.filter((d: any) => d.date.slice(0, 7) > (month?.month ?? '9999'));
 const lastEcoliBorough = lastEcoli ? sites.get(lastEcoli.site)?.borough : null;
-const ICON = { green: '✓', amber: '!', red: '✕', none: '–' };
+// DEP hasn't posted a newer full month in a while: "right now" is older than it looks.
+const stale = month ? isStale(month.month, nycToday()) : false;
 ---
 
 <section class="dash-section" id="now" aria-labelledby="now-title">
@@ -58,6 +59,13 @@ const ICON = { green: '✓', amber: '!', red: '✕', none: '–' };
 
   {month && (
     <>
+      {stale && (
+        <p class="callout callout-heads-up" role="note">
+          These are the newest full month of results DEP has published, from {monthLabel(month.month)}. Newer samples
+          haven't been posted yet, so today's water could differ.
+        </p>
+      )}
+
       <div class="water-verdict" data-status={headline!.status}>
         <p class="water-verdict-title">
           <span class="water-status-icon" aria-hidden="true">{ICON[headline!.status]}</span>
@@ -89,7 +97,7 @@ const ICON = { green: '✓', amber: '!', red: '✕', none: '–' };
       {ecoliThisMonth.length > 0 ? (
         <div class="callout callout-heads-up water-ecoli" role="note">
           <h3 class="water-h3">E. coli found in {monthLabel(month.month)}</h3>
-          <div class="table-scroll">
+          <div class="table-scroll" tabindex="0" role="region" aria-label={`E. coli detections in ${monthLabel(month.month)}`}>
             <table>
               <thead><tr><th scope="col">Station</th><th scope="col">Date</th><th scope="col">E. coli (MPN/100 mL)</th><th scope="col">At this station in the next 14 days</th></tr></thead>
               <tbody>

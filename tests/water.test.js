@@ -8,10 +8,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { parseMeasurement, isDetected, measurementText } from "../src/lib/water/parse.js";
-import { meaningText } from "../src/lib/water/near-me.js";
+import { meaningText, stationVerdict } from "../src/lib/water/near-me.js";
 import {
   normalizeMonth, latestCompleteMonth, missingMonths, reportCard, verdict, historyTakeaway, summerShare, sharePct, tileStatus,
-  nearestSites, addMonths, monthLabel, normalizeDetection, hasEcoli, plainDescription, completeMonths,
+  nearestSites, addMonths, monthLabel, monthsBetween, isStale, normalizeDetection, hasEcoli, plainDescription, completeMonths,
   laterSamples, followUpText
 } from "../src/lib/water/stats.js";
 import { historySeries } from "../src/lib/water/history.js";
@@ -188,6 +188,28 @@ test("report card: fluoride below the city's target band isn't green", () => {
   // No fluoridation: safe, but far under 0.7 in every sample.
   const none = reportCard(row("2026-09", 1000, { fl_med: "0.1", fl_ok: "0" })).find((t) => t.key === "fluoride");
   assert.equal(none.status, "red");
+});
+
+test("report card is flagged as old after two months without a newer full month", () => {
+  assert.equal(monthsBetween("2025-11", "2026-02"), 3);
+  assert.equal(isStale("2026-09", "2026-10-29"), false);
+  assert.equal(isStale("2026-09", "2026-11-30"), false);
+  assert.equal(isStale("2026-09", "2026-12-01"), true);
+});
+
+test("near me: each card gets a one-line verdict", () => {
+  const totals = { n: 60, coliN: 60, coliPos: 0, ecoliPos: 0, clN: 60, clOk: 60, turbN: 60, turbOk: 60 };
+  assert.deepEqual(stationVerdict({ totals, detections: [] }),
+    { status: "green", text: "Looks good. No bacteria found; chlorine and cloudiness normal." });
+  const ecoli = stationVerdict({ totals: { ...totals, coliPos: 1, ecoliPos: 1 }, detections: [] });
+  assert.equal(ecoli.status, "amber");
+  assert.equal(ecoli.text, "Worth a look. E. coli in 1 sample, details below; chlorine and cloudiness normal.");
+  const resample = { sampleClass: "Resample_Compliance", ecoli: { status: "measured", value: 1 } };
+  assert.match(stationVerdict({ totals, detections: [resample] }).text, /E\. coli in 1 sample/);
+  const lowChlorine = stationVerdict({ totals: { ...totals, clOk: 50 }, detections: [] });
+  assert.equal(lowChlorine.status, "red");
+  assert.equal(lowChlorine.text, "Outside the usual range. No bacteria found; chlorine out of range in more than 5% of samples.");
+  assert.equal(stationVerdict({ totals: { n: 0 }, detections: [] }), null);
 });
 
 test("near me: the chlorine and cloudiness lines say what normal is", () => {

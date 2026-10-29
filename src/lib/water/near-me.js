@@ -1,11 +1,12 @@
 /*
  * HTML for the near-me station cards (plain strings, drawn by the section
- * script) and the comparison sentences. Sparklines are drawn into the
+ * script): each leads with the street description and a one-line verdict,
+ * then the comparison sentences. Sparklines are drawn into the
  * [data-spark] slots after the HTML is inserted (charts.js).
  */
-import { monthLabel, isResample, sharePct } from "./stats.js";
+import { monthLabel, isResample, sharePct, tileStatus, STATUS_TEXT, STATUS_ICON } from "./stats.js";
 import { measurementText, isDetected } from "./parse.js";
-import { boroughLabel, REFERENCES as R } from "./config.js";
+import { boroughLabel, REFERENCES as R, TILE_THRESHOLDS } from "./config.js";
 import { count, date } from "../format.js";
 
 export const escape = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -34,6 +35,38 @@ export function meaningText(kind, ok, n) {
   return kind === "cl"
     ? `Any detectable amount up to ${R.chlorine.max} mg/L is normal, higher or lower; ${share} of samples here were in that range.`
     : `Lower is clearer: ${share} of samples here were under the state’s ${R.turbidity.max} NTU standard.`;
+}
+
+const RANK = { none: 0, green: 1, amber: 2, red: 3 };
+const samplesText = (k) => `${count(k)} ${k === 1 ? "sample" : "samples"}`;
+
+/*
+ * The card's one-line answer, like the report card's verdict, from the
+ * station's totals and detections: { status, text }, or null with no samples.
+ * E. coli makes it amber at least; the rest use the report card's thresholds.
+ */
+export function stationVerdict(details) {
+  const t = details?.totals;
+  if (!t?.n) return null;
+  const ecoli = (t.ecoliPos ?? 0) + details.detections.filter((d) => isResample(d.sampleClass) && isDetected(d.ecoli)).length;
+  const share = (ok, n) => (n ? ok / n : null);
+  const checks = {
+    ecoli: ecoli ? "amber" : t.coliN ? "green" : "none",
+    coliform: tileStatus(share(t.coliN - t.coliPos, t.coliN)),
+    chlorine: tileStatus(share(t.clOk, t.clN)),
+    cloudiness: tileStatus(share(t.turbOk, t.turbN))
+  };
+  const status = Object.values(checks).reduce((a, s) => (RANK[s] > RANK[a] ? s : a), "none");
+
+  const bacteria = !t.coliN ? "No bacteria results"
+    : ecoli ? `E. coli in ${samplesText(ecoli)}, details below`
+    : t.coliPos ? `No E. coli; coliform in ${count(t.coliPos)} of ${samplesText(t.coliN)}`
+    : "No bacteria found";
+  const off = ["chlorine", "cloudiness"].filter((k) => checks[k] === "amber" || checks[k] === "red");
+  const water = off.length
+    ? `${off.join(" and ")} out of range in more than ${Math.round((1 - TILE_THRESHOLDS.green) * 100)}% of samples`
+    : "chlorine and cloudiness normal";
+  return { status, text: `${STATUS_TEXT[status]}. ${bacteria}; ${water}.` };
 }
 
 export function bacteriaHtml(details, range) {
@@ -67,9 +100,8 @@ export function stationCardHtml(station, details, ctx) {
   const head =
     `<header class="water-card-head">` +
       `<span class="water-pin water-pin-inline" aria-hidden="true"><span>${ctx.index + 1}</span></span>` +
-      `<div><h3 class="water-card-title">Station ${escape(station.site)}</h3>` +
-      `<p class="water-card-place">${escape(station.place)}</p>` +
-      `<p class="water-card-meta">${escape(boroughLabel(station.borough))}` +
+      `<div><h3 class="water-card-title">${escape(station.place || `Station ${station.site}`)}</h3>` +
+      `<p class="water-card-meta">Station ${escape(station.site)} · ${escape(boroughLabel(station.borough))}` +
         `${station.miles != null ? ` · ${station.miles < 0.1 ? "under 0.1" : station.miles.toFixed(1)} mi away` : ""}</p></div>` +
       `<button type="button" class="water-remove" data-remove="${escape(station.site)}" aria-label="Remove station ${escape(station.site)}">Remove</button>` +
     `</header>`;
@@ -78,8 +110,11 @@ export function stationCardHtml(station, details, ctx) {
       `This station may have been retired or paused.</p></article>`;
   }
   const c = ctx.cityTotals;
+  const v = stationVerdict(details);
   return (
     `<article class="water-card">${head}` +
+      (v ? `<p class="water-card-verdict" data-status="${v.status}">` +
+        `<span class="water-status-icon" aria-hidden="true">${STATUS_ICON[v.status]}</span>${escape(v.text)}</p>` : "") +
       `<div class="water-metric">` +
         `<h4 class="water-h4">Bacteria</h4>` +
         bacteriaHtml(details, range) +

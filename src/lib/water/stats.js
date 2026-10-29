@@ -42,6 +42,17 @@ export function addMonths(key, k) {
   return `${Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, "0")}`;
 }
 
+// Whole months from a to b: monthsBetween("2026-09", "2026-12") → 3.
+export function monthsBetween(a, b) {
+  const [ya, ma] = a.split("-").map(Number), [yb, mb] = b.split("-").map(Number);
+  return (yb - ya) * 12 + (mb - ma);
+}
+
+// DEP posts a month's samples a few weeks after it ends, so the report card is
+// usually last month's. Older than this many months, the page says so.
+export const STALE_AFTER_MONTHS = 2;
+export const isStale = (month, today) => monthsBetween(month, today.slice(0, 7)) > STALE_AFTER_MONTHS;
+
 const daysInMonth = (key) => {
   const [y, m] = key.split("-").map(Number);
   return new Date(Date.UTC(y, m, 0)).getUTCDate();
@@ -112,6 +123,8 @@ export function tileStatus(share) {
   if (share >= TILE_THRESHOLDS.amber) return "amber";
   return "red";
 }
+
+export const STATUS_ICON = { green: "✓", amber: "!", red: "✕", none: "–" };
 
 export const STATUS_TEXT = {
   green: "Looks good",
