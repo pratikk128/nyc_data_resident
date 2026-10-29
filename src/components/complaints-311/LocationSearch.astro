@@ -79,6 +79,7 @@ const { initialLabel, initialPrefix = 'Showing results near:' } = Astro.props;
   import { suggest, resolveLocation, placeToLocation, narrow } from '../../lib/complaints311/geocode.js';
   import { boroughLabel } from '../../lib/complaints311/config.js';
   import { escape } from '../../lib/complaints311/render.js';
+  import type { Location } from '../../lib/complaints311/location-input.js';
 
   const MSG = {
     looking: 'Looking that up…',
@@ -108,6 +109,11 @@ const { initialLabel, initialPrefix = 'Showing results near:' } = Astro.props;
   // ---------- Suggestions (combobox) ----------
   // Each option is a ready-to-use location: a GeoSearch place, a ZIP or a borough.
   type Option = { label: string; hint?: string; location: any };
+  // geocode.js is plain JS, so resolveLocation's results come through as one loose union.
+  type Resolved =
+    | { status: 'resolved'; location: Location; onStreet?: string | null }
+    | { status: 'choose'; reason: 'inexact' | 'ambiguous'; suggestions: any[] }
+    | { status: 'not-found' };
   let options: Option[] = [];
   let active = -1;
   let timer = 0;
@@ -157,7 +163,7 @@ const { initialLabel, initialPrefix = 'Showing results near:' } = Astro.props;
       const places = await suggest(text, { signal: suggestAbort.signal });
       const zip = zipInput.value.trim();
       const filtered = narrow(places, { borough: boroSelect.value, zip: /^\d{5}$/.test(zip) ? zip : null });
-      renderOptions([...local, ...filtered.map((p) => ({ label: p.label, location: placeToLocation(p) }))].slice(0, 6));
+      renderOptions([...local, ...filtered.map((p: any) => ({ label: p.label, location: placeToLocation(p) }))].slice(0, 6));
     } catch (err: any) {
       if (err.name !== 'AbortError') renderOptions(local); // typing still works; Enter resolves on submit
     }
@@ -205,7 +211,7 @@ const { initialLabel, initialPrefix = 'Showing results near:' } = Astro.props;
 
     status.textContent = MSG.looking;
     try {
-      const result = await resolveLocation(parsed);
+      const result = (await resolveLocation(parsed)) as Resolved;
       if (result.status === 'resolved') {
         status.textContent = '';
         closeOptions();
@@ -246,14 +252,14 @@ const { initialLabel, initialPrefix = 'Showing results near:' } = Astro.props;
     const loc = state.location;
     closeOptions();
     status.textContent = '';
-    input.value = !loc ? '' : loc.kind === 'point' ? loc.label : loc.kind === 'zip' ? loc.zip : boroughLabel(loc.borough);
+    input.value = !loc ? '' : loc.kind === 'point' ? loc.label : loc.kind === 'zip' ? loc.zip : boroughLabel(loc.borough) ?? '';
     boroSelect.value = loc?.kind === 'zip' ? loc.borough ?? '' : '';
     zipInput.value = '';
   }
   window.addEventListener('popstate', fillForm);
 
   function describe(s: typeof state) {
-    const loc = s.location;
+    const loc = s.location!; // only called once a place is picked
     if (loc.kind === 'borough') {
       return {
         prefix: 'Showing results for:', label: `${boroughLabel(loc.borough)} (whole borough)`,

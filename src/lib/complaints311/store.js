@@ -14,21 +14,25 @@ import { locationFromParams, locationToParams } from "./location-input.js";
 const IDLE = Object.freeze({ status: "idle", data: null, error: null });
 const LOADING = Object.freeze({ status: "loading", data: null, error: null });
 
+/** @typedef {import("./location-input.js").Location} Location */
+/** @typedef {{ status: "idle" | "loading" | "ready" | "error", data: any, error: any }} Slice */
+
 export const state = {
-  location: null,
-  window: "12m",
+  location: /** @type {Location | null} */ (null),
+  window: /** @type {keyof typeof import("./config.js").WINDOWS} */ ("12m"),
   area: "neighborhood",
   vs: "borough",
-  borough: null,
-  onStreet: null, // street name when a spot was picked along a street with no house number
-  immediate: IDLE,
-  neighborhood: IDLE,
-  zip: IDLE,
-  baseline: IDLE,
-  distribution: IDLE
+  borough: /** @type {string | null} */ (null),
+  onStreet: /** @type {string | null} */ (null), // street name when a spot was picked along a street with no house number
+  immediate: /** @type {Slice} */ (IDLE),
+  neighborhood: /** @type {Slice} */ (IDLE),
+  zip: /** @type {Slice} */ (IDLE),
+  baseline: /** @type {Slice} */ (IDLE),
+  distribution: /** @type {Slice} */ (IDLE)
 };
 
 const listeners = new Set();
+/** @param {(s: typeof state) => void} fn */
 export function subscribe(fn) {
   listeners.add(fn);
   fn(state);
@@ -140,6 +144,10 @@ export function readUrl() {
   load();
 }
 
+/**
+ * @param {Location} loc
+ * @param {{ onStreet?: string | null }} [opts]
+ */
 export function setLocation(loc, { onStreet = null } = {}) {
   patch({ location: loc, onStreet });
   writeUrl(true);

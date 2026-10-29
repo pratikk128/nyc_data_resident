@@ -12,6 +12,13 @@
  */
 import { BOROUGHS, WINDOWS, DEFAULT_WINDOW } from "./config.js";
 
+/**
+ * The place the page shows, as kept in the URL and the store.
+ * @typedef {{ kind: "point", lat: number, lon: number, label: string, borough: string | null, zip: string | null }
+ *   | { kind: "zip", zip: string, borough: string | null }
+ *   | { kind: "borough", borough: string }} Location
+ */
+
 export const MAX_INPUT_LENGTH = 120;
 
 // What people type for each borough, longest first so "staten island" wins over "si".
@@ -129,6 +136,7 @@ export function inNyc(lat, lon) {
   return lat > 40.47 && lat < 40.93 && lon > -74.27 && lon < -73.68;
 }
 
+/** @returns {{ window: keyof typeof WINDOWS, area: string, vs: string, location: Location | null }} */
 export function locationFromParams(params) {
   const get = (k) => clean(params.get(k));
   const window = WINDOWS[get("window")] ? get("window") : DEFAULT_WINDOW;

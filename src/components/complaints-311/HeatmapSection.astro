@@ -53,7 +53,7 @@
       dateRange: { since: nb.data.since, through: nb.data.through },
       complaintTypes,
       selectedTypes,
-      onComplaintTypeChange: (selected) => { selectedTypes = selected; }
+      onComplaintTypeChange: (selected: string[]) => { selectedTypes = selected; }
     });
   });
 </script>
