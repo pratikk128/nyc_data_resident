@@ -12,6 +12,8 @@ export const escape = (str) => String(str ?? "").replace(/[&<>"']/g, (c) => `&#$
 
 export const UPSTREAM_TEXT = "We couldn’t reach NYC Open Data just now. Please try again in a minute.";
 export const LOADING_TEXT = "Loading businesses…";
+// The detail panel's name until a business heading is in it
+export const DETAIL_LABEL = "Business details";
 export const ZIP_ERROR = "Enter a 5-digit ZIP code, like 11216.";
 export const NOT_FOUND_TEXT = "This business is no longer on the list. It may have left since the link was shared.";
 
