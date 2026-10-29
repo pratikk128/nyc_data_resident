@@ -325,9 +325,9 @@ test("station card counts resample detections next to the routine ones", () => {
 
 test("station card bacteria: no results, none found, and routine finds listed", () => {
   assert.equal(bacteriaHtml({ totals: { coliN: 0 }, detections: [] }, "Oct 2025–Sep 2026"),
-    "<p>No bacteria results for Oct 2025–Sep 2026.</p>");
-  assert.match(bacteriaHtml({ totals: { coliN: 1, coliPos: 0 }, detections: [] }, "<range>"),
-    /<strong>None found\.<\/strong> No coliform or E\. coli in 1 sample \(&#60;range&#62;\)/);
+    "<p>None of this station’s samples in Oct 2025–Sep 2026 were tested for bacteria.</p>");
+  assert.equal(bacteriaHtml({ totals: { coliN: 1, coliPos: 0 }, detections: [] }, "<range>"),
+    "<p>1 sample tested for coliform and E. coli (&#60;range&#62;).</p>");
   const found = [
     { date: "2026-08-04", sampleClass: "Compliance", ecoli: parseMeasurement("1", "bacteria"), coliform: parseMeasurement("2", "bacteria") },
     { date: "2026-03-10", sampleClass: "Operational", ecoli: parseMeasurement("<1", "bacteria"), coliform: parseMeasurement(">200.5", "bacteria") }

@@ -1,7 +1,7 @@
 ---
 /*
- * "What about near me?": pick a borough and stations, or search an address or
- * ZIP for the 3 nearest stations. Each picked station gets a card with any
+ * "What about near me?": search an address or ZIP, or use the browser's
+ * location, for the 3 nearest stations; or browse a borough and pick stations. Each picked station gets a card with any
  * bacteria found over 12 months, a chlorine sparkline against the citywide
  * median, and a one-line cloudiness comparison. The station list (from src/data/water-sites.json,
  * only stations sampled in the last 12 months) is inlined; the card data
@@ -37,15 +37,20 @@ const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(
   ) : (
     <>
       <form class="water-search" data-search novalidate>
-        <div class="field water-field-wide">
-          <label class="filter-label" for="water-q">Address or ZIP code <span class="field-optional">(optional)</span></label>
+        <div class="field">
+          <label class="filter-label water-search-label" for="water-q">Your address or ZIP code</label>
           <input class="search-input" id="water-q" name="q" type="search" autocomplete="street-address"
             placeholder="Try 350 5th Ave, or 11211" maxlength="120" aria-describedby="water-q-hint" />
           <span class="field-hint" id="water-q-hint">We'll pick the {NEAREST_COUNT} nearest stations.</span>
         </div>
-        <div class="field water-field-btn">
-          <button class="near-btn water-go" type="submit">Find nearest</button>
+        <div class="water-search-btns">
+          <button class="near-btn water-go water-go-primary" type="submit">Find nearest</button>
+          <button class="near-btn water-go" type="button" data-locate>Use my location</button>
         </div>
+      </form>
+
+      <fieldset class="water-browse">
+        <legend class="water-browse-legend">Or browse by borough</legend>
         <div class="field">
           <label class="filter-label" for="water-boro">Borough</label>
           <select class="filter-select" id="water-boro" name="boro">
@@ -53,14 +58,14 @@ const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(
             {BOROUGHS.map((b) => <option value={b.value}>{b.label}</option>)}
           </select>
         </div>
-        <div class="field water-field-wide">
+        <div class="field">
           <label class="filter-label" for="water-station">Add a station</label>
           <select class="filter-select" id="water-station" name="station" aria-describedby="water-station-hint">
             <option value="">Pick a station…</option>
           </select>
           <span class="field-hint" id="water-station-hint">Up to {MAX_SELECTED} at a time. You can also tap a dot on the map.</span>
         </div>
-      </form>
+      </fieldset>
 
       <div class="water-suggest" data-suggest hidden></div>
       <p class="rest-status" role="status" aria-live="polite" data-status></p>
@@ -74,7 +79,7 @@ const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(
 
       <div class="water-cards" data-cards></div>
       <p class="water-empty" data-empty>
-        No stations picked yet. Search an address or ZIP, or pick a borough and a station. The pigeons are
+        No stations picked yet. Search an address or ZIP, use your location, or browse by borough. The pigeons are
         standing by.
       </p>
       <p class="chart-hint" data-spark-hint hidden>
@@ -105,8 +110,9 @@ const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(
     const stations: Station[] = JSON.parse(root.dataset.stations!);
     const bySite = new Map(stations.map((s) => [s.site, s]));
     const input = form.querySelector<HTMLInputElement>('#water-q')!;
-    const boroSelect = form.querySelector<HTMLSelectElement>('#water-boro')!;
-    const stationSelect = form.querySelector<HTMLSelectElement>('#water-station')!;
+    const boroSelect = root.querySelector<HTMLSelectElement>('#water-boro')!;
+    const stationSelect = root.querySelector<HTMLSelectElement>('#water-station')!;
+    const locateBtn = form.querySelector<HTMLButtonElement>('[data-locate]')!;
     const status = root.querySelector<HTMLElement>('[data-status]')!;
     const suggest = root.querySelector<HTMLElement>('[data-suggest]')!;
     const cards = root.querySelector<HTMLElement>('[data-cards]')!;
@@ -304,6 +310,29 @@ const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(
     }
 
     form.addEventListener('submit', (e) => { e.preventDefault(); search(input.value); });
+    locateBtn.addEventListener('click', () => {
+      suggest.hidden = true;
+      if (!navigator.geolocation) { status.textContent = 'Your browser can’t share its location. Type an address or ZIP code instead.'; return; }
+      const id = ++lookup;
+      locateBtn.disabled = true;
+      status.textContent = 'Finding you…';
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          locateBtn.disabled = false;
+          if (id !== lookup) return;
+          const { latitude: lat, longitude: lon } = pos.coords;
+          if (!inNyc(lat, lon)) { status.textContent = 'You seem to be outside NYC. Type an address or ZIP code instead.'; return; }
+          input.value = '';
+          usePoint({ lat, lon, label: 'your location' });
+        },
+        () => {
+          locateBtn.disabled = false;
+          if (id !== lookup) return;
+          status.textContent = 'We couldn’t get your location. Check your browser’s location setting, or type an address or ZIP code.';
+        },
+        { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
+      );
+    });
     boroSelect.addEventListener('change', () => {
       borough = boroSelect.value;
       point = null;

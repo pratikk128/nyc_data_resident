@@ -1849,10 +1849,29 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
   margin-top: var(--space-5);
 }
 @media (min-width: 768px) {
-  .water-search { grid-template-columns: minmax(0, 2fr) auto minmax(0, 1fr) minmax(0, 2fr); }
-  .water-field-btn { padding-top: calc(.9375rem * 1.6 + var(--space-1)); }
+  .water-search { grid-template-columns: minmax(0, 1fr) auto; }
+  .water-search-btns { padding-top: calc(1rem * 1.6 + var(--space-1)); } /* lines the buttons up with the input */
 }
+.water-search-label { font-size: 1rem; }
+.water-search-btns { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .water-go { min-height: 44px; white-space: nowrap; }
+.water-go-primary { background: var(--link); color: #fff; }
+.water-go-primary:hover { background: var(--ink); border-color: var(--ink); }
+/* Secondary path: a quieter box under the search. */
+.water-browse {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-3) var(--space-4);
+  margin: var(--space-4) 0 0;
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  min-width: 0;
+}
+.water-browse-legend { padding: 0 var(--space-1); font-size: .875rem; font-weight: 700; color: var(--ink-soft); }
+@media (min-width: 768px) {
+  .water-browse { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+}
 .water-suggest { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
 .water-suggest[hidden] { display: none; }
 .water-map { height: min(420px, 60vh); }
@@ -1918,6 +1937,7 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
 .water-card-verdict[data-status="red"] { border-left-color: var(--status-red-deep); background: var(--status-red); }
 .water-card-verdict[data-status="red"] .water-status-icon { background: var(--status-red-deep); color: #fff; }
 .water-card-meta { font-size: .8125rem; color: var(--ink-soft); }
+.water-card-place { margin-top: var(--space-1); font-size: .875rem; overflow-wrap: anywhere; }
 .water-remove {
   min-height: 44px;
   padding: 0 var(--space-3);

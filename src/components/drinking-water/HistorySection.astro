@@ -162,10 +162,15 @@ const chartData = series && {
   const coliformFrame = document.querySelector<HTMLElement>('[data-water-chart="coliform"]');
 
   // "#history" links (and the old /drinking-water/history/ URL) land on the chart, not a closed toggle.
+  // Clicks are caught too: with #history already in the URL the hash doesn't change, so a
+  // second click (after closing it) wouldn't fire hashchange.
   const more = document.querySelector<HTMLDetailsElement>('.water-past-more');
   const openForHash = () => { if (more && location.hash === '#history') more.open = true; };
   openForHash();
   addEventListener('hashchange', openForHash);
+  document.addEventListener('click', (e) => {
+    if (more && (e.target as HTMLElement).closest('a[href="#history"]')) more.open = true;
+  });
 
   if (coliformFrame) {
     const raw = JSON.parse(coliformFrame.dataset.chart!);

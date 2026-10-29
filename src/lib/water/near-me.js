@@ -1,7 +1,9 @@
 /*
  * HTML for the near-me station cards (plain strings, drawn by the section
- * script): each leads with the street description and a one-line verdict,
- * then the comparison sentences. Sparklines are drawn into the
+ * script): each leads with the station number and its street description (as
+ * plain text: DEP's run to two or three lines), a one-line verdict, then the
+ * detail and comparison sentences. The verdict already says whether bacteria
+ * turned up, so the Bacteria section only adds what it doesn't. Sparklines are drawn into the
  * [data-spark] slots after the HTML is inserted (charts.js).
  */
 import { monthLabel, isResample, sharePct, tileStatus, STATUS_TEXT, STATUS_ICON } from "./stats.js";
@@ -72,10 +74,9 @@ export function stationVerdict(details) {
 export function bacteriaHtml(details, range) {
   const t = details.totals;
   const found = details.detections;
-  if (!t?.coliN) return `<p>No bacteria results for ${escape(range)}.</p>`;
+  if (!t?.coliN) return `<p>None of this station’s samples in ${escape(range)} were tested for bacteria.</p>`;
   if (!found.length) {
-    return `<p><strong>None found.</strong> No coliform or E. coli in ${count(t.coliN)} ` +
-      `${t.coliN === 1 ? "sample" : "samples"} (${escape(range)}).</p>`;
+    return `<p>${count(t.coliN)} ${t.coliN === 1 ? "sample" : "samples"} tested for coliform and E. coli (${escape(range)}).</p>`;
   }
   const items = found.map((d) => {
     const parts = [];
@@ -100,9 +101,10 @@ export function stationCardHtml(station, details, ctx) {
   const head =
     `<header class="water-card-head">` +
       `<span class="water-pin water-pin-inline" aria-hidden="true"><span>${ctx.index + 1}</span></span>` +
-      `<div><h3 class="water-card-title">${escape(station.place || `Station ${station.site}`)}</h3>` +
-      `<p class="water-card-meta">Station ${escape(station.site)} · ${escape(boroughLabel(station.borough))}` +
-        `${station.miles != null ? ` · ${station.miles < 0.1 ? "under 0.1" : station.miles.toFixed(1)} mi away` : ""}</p></div>` +
+      `<div><h3 class="water-card-title">Station ${escape(station.site)}</h3>` +
+      `<p class="water-card-meta">${escape(boroughLabel(station.borough))}` +
+        `${station.miles != null ? ` · ${station.miles < 0.1 ? "under 0.1" : station.miles.toFixed(1)} mi away` : ""}</p>` +
+      (station.place ? `<p class="water-card-place">${escape(station.place)}</p>` : "") + `</div>` +
       `<button type="button" class="water-remove" data-remove="${escape(station.site)}" aria-label="Remove station ${escape(station.site)}">Remove</button>` +
     `</header>`;
   if (!t?.n) {
