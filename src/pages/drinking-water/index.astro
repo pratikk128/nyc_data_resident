@@ -19,6 +19,7 @@ const value = <T,>(r: PromiseSettledResult<T>) => (r.status === 'fulfilled' ? r.
   section="now"
   description="Is NYC tap water safe? A plain-English report card from the city's latest month of drinking water tests (bacteria, chlorine, cloudiness and fluoride) and how they compare since 2015."
   meta={value(meta)}
+  failed={[meta, monthly, detections].some((r) => r.status === 'rejected')}
 >
   <ReportCardSection
     monthly={value(monthly)}

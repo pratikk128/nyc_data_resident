@@ -136,7 +136,8 @@ const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(
       if (borough) p.set('boro', borough);
       if (selected.length) p.set('sites', selected.join(','));
       if (point) { p.set('lat', String(point.lat)); p.set('lon', String(point.lon)); p.set('place', point.label); }
-      history.replaceState(null, '', p.size ? `?${p}` : location.pathname);
+      const query = p.toString();
+      history.replaceState(null, '', query ? `?${query}` : location.pathname);
     }
 
     // ---------- Drawing ----------

@@ -32,7 +32,8 @@ const ecoliThisMonth = month ? ecoliAll.filter((d: any) => d.date.startsWith(mon
 // The tiles count routine samples; resample positives are listed below, so the E. coli tile counts them too.
 const tiles = month ? reportCard(month, { resampleEcoli: resampleEcoli(ecoliThisMonth).length }) : [];
 const headline = month ? verdict(tiles) : null;
-const lastEcoli = ecoliAll[0] ?? null; // newest first
+// Newest first; months after the report card's are still loading and left out of the history it links to.
+const lastEcoli = month ? ecoliAll.find((d: any) => d.date.slice(0, 7) <= month.month) ?? null : null;
 // Months after the report card's that are still loading, left out of the history.
 const loading: string[] = month ? monthly.months.map((m: any) => m.month).filter((k: string) => k > month.month) : [];
 const ecoliLoading = ecoliAll.filter((d: any) => d.date.slice(0, 7) > (month?.month ?? '9999'));

@@ -64,13 +64,15 @@ const refs = [
       </p>
       <p>
         <strong>“Not detected.”</strong> Lab results like “&lt;1” or “ND” mean the lab found less than it can measure.
-        We count them as zero for bacteria and as within range for turbidity and fluoride. For chlorine they count
-        as out of range, since chlorine has to be detectable. Blank results
+        We count them as zero for bacteria and as within range for turbidity. For chlorine and fluoride they count
+        as out of range, since chlorine has to be detectable and fluoride is added on purpose. Blank results
         (fluoride is only tested at some stations) and placeholder values like −9 are left out.
       </p>
       <p>
         <strong>In range.</strong> Chlorine is in range when it's detectable (above 0) and at most 4.0 mg/L;
-        turbidity when it's at most 5 NTU; fluoride when it's at most 4.0 mg/L.
+        turbidity when it's at most 5 NTU; fluoride when it's between {REFERENCES.fluoride.range.min.toFixed(1)} and
+        {REFERENCES.fluoride.range.max.toFixed(1)} mg/L, near the city's {REFERENCES.fluoride.target} mg/L target (that band is ours, not a
+        regulator's; anything up to the EPA maximum of 4.0 mg/L is safe).
       </p>
       <p>
         <strong>Colors.</strong> A tile is green when at least {pct(TILE_THRESHOLDS.green)} of samples are within the

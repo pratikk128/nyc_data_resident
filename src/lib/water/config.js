@@ -89,8 +89,11 @@ export const REFERENCES = {
     label: "Fluoride",
     unit: "mg/L",
     target: 0.7,
+    // Our own display band around the target (not a regulator's): a month
+    // without fluoridation falls below it. Single samples sit at 0.6–0.8.
+    range: { min: 0.5, max: 1.0 },
     max: 4.0,
-    rule: "NYC adds fluoride to about 0.7 mg/L. The EPA maximum is 4.0 mg/L.",
+    rule: "NYC adds fluoride to about 0.7 mg/L; we count 0.5–1.0 mg/L as near that. The EPA maximum is 4.0 mg/L.",
     detail: "Fluoride is added to help prevent tooth decay.",
     source: {
       name: "NYC DEP Drinking Water FAQs (target about 0.7 mg/L); EPA, 40 CFR 141.62 (maximum 4.0 mg/L)",

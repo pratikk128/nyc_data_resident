@@ -33,12 +33,15 @@ interface Props {
   section: 'now' | 'near-me';
   description: string;
   meta: { rowsUpdatedAt: string | null } | null;
+  /** Some of the page's data failed to load: don't cache the error. */
+  failed?: boolean;
 }
 
-const { section, description, meta } = Astro.props;
+const { section, description, meta, failed = false } = Astro.props;
 const current = SECTIONS.find((s) => s.id === section)!;
 // Production only: in dev a cached page hides edits for an hour.
-if (import.meta.env.PROD) Astro.response.headers.set('Cache-Control', 'public, max-age=3600');
+if (failed) Astro.response.headers.set('Cache-Control', 'no-store');
+else if (import.meta.env.PROD) Astro.response.headers.set('Cache-Control', 'public, max-age=3600');
 ---
 
 <DashboardLayout

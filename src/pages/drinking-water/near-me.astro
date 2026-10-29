@@ -26,6 +26,7 @@ const list = sitesFile.sites
   section="near-me"
   description="Find the NYC drinking water sampling stations nearest your address or ZIP and see their last 12 months of chlorine, cloudiness and bacteria results."
   meta={meta.status === 'fulfilled' ? meta.value : null}
+  failed={[meta, stations].some((r) => r.status === 'rejected')}
 >
   <NearMeSection
     stations={list}

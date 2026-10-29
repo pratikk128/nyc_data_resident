@@ -8,6 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { parseMeasurement, isDetected, measurementText } from "../src/lib/water/parse.js";
+import { meaningText } from "../src/lib/water/near-me.js";
 import {
   normalizeMonth, latestCompleteMonth, missingMonths, reportCard, verdict, historyTakeaway, summerShare, sharePct, tileStatus,
   nearestSites, addMonths, monthLabel, normalizeDetection, hasEcoli, plainDescription, completeMonths,
@@ -180,13 +181,29 @@ test("report card leaves fluoride out when no samples were tested for it", () =>
   assert.equal(tiles.length, 4);
 });
 
+test("report card: fluoride below the city's target band isn't green", () => {
+  const ok = reportCard(row("2026-09", 1000)).find((t) => t.key === "fluoride");
+  assert.equal(ok.status, "green");
+  assert.equal(ok.sentence, "Added to prevent cavities. The city aims for about 0.7 mg/L; 100% of samples were between 0.5 and 1.0 mg/L.");
+  // No fluoridation: safe, but far under 0.7 in every sample.
+  const none = reportCard(row("2026-09", 1000, { fl_med: "0.1", fl_ok: "0" })).find((t) => t.key === "fluoride");
+  assert.equal(none.status, "red");
+});
+
+test("near me: the chlorine and cloudiness lines say what normal is", () => {
+  assert.equal(meaningText("cl", 995, 1000),
+    "Any detectable amount up to 4 mg/L is normal, higher or lower; 99.5% of samples here were in that range.");
+  assert.equal(meaningText("turb", 1000, 1000), "Lower is clearer: 100% of samples here were under the state’s 5 NTU standard.");
+  assert.equal(meaningText("cl", 0, 0), "");
+});
+
 test("verdict: all clear when every tile is green, else names the ones to check", () => {
   assert.deepEqual(verdict(reportCard(row("2026-09", 1124))),
-    { status: "green", title: "All clear", sentence: "Every measure was in its normal range." });
+    { status: "green", title: "All clear", sentence: "Every measure looked normal, with at least 95% of samples in range for each." });
   const v = verdict(reportCard(row("2026-08", 1100, { ecoli_pos: "1" })));
   assert.equal(v.status, "amber");
   assert.equal(v.title, "Mostly clear");
-  assert.equal(v.sentence, "4 of 5 measures were in their normal range. Check E. coli below.");
+  assert.equal(v.sentence, "4 of 5 measures looked normal. Check E. coli below.");
   assert.match(verdict(reportCard(row("2026-08", 100, { coli_pos: "20" }))).sentence, /Check coliform bacteria below/);
 });
 

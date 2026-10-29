@@ -30,7 +30,7 @@ export const metadataJob = {
 };
 
 export const monthlyJob = {
-  key: "water:monthly:v1",
+  key: "water:monthly:v2",
   maxAgeHours: MAX_AGE_HOURS,
   async run() {
     const opts = { timeoutMs: QUERY_TIMEOUT_MS };
@@ -68,10 +68,13 @@ export const detectionsJob = {
 
 // Compact per-site rows: [month, n, clMed, turbMed, coliN, coliPos, ecoliPos]; and
 // per-site and citywide totals over the whole window, for "here vs. citywide".
-const totals = (m) => ({ n: m.n, clMed: m.cl.med, turbMed: m.turb.med, coliN: m.coli.n, coliPos: m.coli.pos, ecoliPos: m.ecoli.pos });
+const totals = (m) => ({
+  n: m.n, clMed: m.cl.med, clN: m.cl.n, clOk: m.cl.ok, turbMed: m.turb.med, turbN: m.turb.n, turbOk: m.turb.ok,
+  coliN: m.coli.n, coliPos: m.coli.pos, ecoliPos: m.ecoli.pos
+});
 
 export const stationsJob = {
-  key: "water:stations:v1",
+  key: "water:stations:v2",
   maxAgeHours: MAX_AGE_HOURS,
   async run() {
     const { completeMonth } = await dailyValue(monthlyJob);

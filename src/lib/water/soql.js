@@ -62,6 +62,9 @@ const atMost = (k, max) => `(${below(k)} OR ${num(k)} <= ${max})`;
 // Chlorine must be detectable (above 0) and at most the EPA maximum.
 const chlorineOk = `(${num("cl")} > ${R.chlorine.min} AND ${num("cl")} <= ${R.chlorine.max})`;
 
+// Fluoride near the city's target; a below-limit result means none was added.
+const fluorideOk = `(${num("fl")} >= ${R.fluoride.range.min} AND ${num("fl")} <= ${R.fluoride.range.max})`;
+
 export const ROUTINE = `${F.sampleClass} IN (${ROUTINE_CLASSES.map((c) => `'${c}'`).join(", ")})`;
 
 // Shared by the citywide and per-site queries.
@@ -81,7 +84,7 @@ function measures({ fluoride = true } = {}) {
     ...(fluoride ? [
       `${countIf(valid("fl"))} AS fl_n`,
       `${medianOf("fl")} AS fl_med`,
-      `${countIf(atMost("fl", R.fluoride.max))} AS fl_ok`
+      `${countIf(fluorideOk)} AS fl_ok`
     ] : [])
   ].join(", ");
 }

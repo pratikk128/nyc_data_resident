@@ -3,9 +3,9 @@
  * script) and the comparison sentences. Sparklines are drawn into the
  * [data-spark] slots after the HTML is inserted (charts.js).
  */
-import { monthLabel, isResample } from "./stats.js";
+import { monthLabel, isResample, sharePct } from "./stats.js";
 import { measurementText, isDetected } from "./parse.js";
-import { boroughLabel } from "./config.js";
+import { boroughLabel, REFERENCES as R } from "./config.js";
 import { count, date } from "../format.js";
 
 export const escape = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -22,6 +22,18 @@ export function compareText(here, city, unit) {
   const close = Math.abs(diff) <= Math.max(0.05, Math.abs(city) * 0.1);
   const words = close ? "About the same as" : diff > 0 ? "Higher than" : "Lower than";
   return `${words} the citywide median (${fmt2(here)} vs. ${fmt2(city)} ${unit}).`;
+}
+
+/*
+ * What the comparison means, from this station's samples (totals over the window):
+ * "Any detectable amount up to 4 mg/L is normal, higher or lower; 99.6% of samples here were in that range."
+ */
+export function meaningText(kind, ok, n) {
+  if (!n) return "";
+  const share = sharePct(ok, n);
+  return kind === "cl"
+    ? `Any detectable amount up to ${R.chlorine.max} mg/L is normal, higher or lower; ${share} of samples here were in that range.`
+    : `Lower is clearer: ${share} of samples here were under the state’s ${R.turbidity.max} NTU standard.`;
 }
 
 export function bacteriaHtml(details, range) {
@@ -75,11 +87,11 @@ export function stationCardHtml(station, details, ctx) {
       `<div class="water-metric">` +
         `<h4 class="water-h4">Chlorine (mg/L)</h4>` +
         `<div class="water-spark-slot" data-spark="cl"></div>` +
-        `<p>${escape(compareText(t.clMed, c?.clMed, "mg/L"))}</p>` +
+        `<p>${escape(compareText(t.clMed, c?.clMed, "mg/L"))} ${escape(meaningText("cl", t.clOk, t.clN))}</p>` +
       `</div>` +
       `<div class="water-metric">` +
         `<h4 class="water-h4">Cloudiness (NTU)</h4>` +
-        `<p>${escape(compareText(t.turbMed, c?.turbMed, "NTU"))}</p>` +
+        `<p>${escape(compareText(t.turbMed, c?.turbMed, "NTU"))} ${escape(meaningText("turb", t.turbOk, t.turbN))}</p>` +
       `</div>` +
     `</article>`
   );

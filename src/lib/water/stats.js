@@ -190,7 +190,8 @@ export function reportCard(m, { resampleEcoli = 0 } = {}) {
       status: tileStatus(m.fl.ok / m.fl.n),
       value: m.fl.med == null ? "–" : `${fmt(m.fl.med)} mg/L`,
       valueLabel: "median",
-      sentence: `Added to prevent cavities. The city aims for about ${R.fluoride.target} mg/L.`
+      sentence: `Added to prevent cavities. The city aims for about ${R.fluoride.target} mg/L; ` +
+        `${sharePct(m.fl.ok, m.fl.n)} of samples were between ${R.fluoride.range.min.toFixed(1)} and ${R.fluoride.range.max.toFixed(1)} mg/L.`
     });
   }
   return tiles;
@@ -206,12 +207,15 @@ export function verdict(tiles) {
   const status = off.some((t) => t.status === "red") ? "red" : off.length ? "amber" : "green";
   const names = new Intl.ListFormat("en", { type: "conjunction" }).format(off.map((t) => t.label.replace(/^[A-Z](?=[a-z])/, (c) => c.toLowerCase())));  // "E. coli" stays
   if (status === "green") {
-    return { status, title: "All clear", sentence: `Every measure was in its normal range.` };
+    return {
+      status, title: "All clear",
+      sentence: `Every measure looked normal, with at least ${Math.round(TILE_THRESHOLDS.green * 100)}% of samples in range for each.`
+    };
   }
   return {
     status,
     title: status === "red" ? "Some results need a look" : "Mostly clear",
-    sentence: `${scored.length - off.length} of ${scored.length} measures were in their normal range. Check ${names} below.`
+    sentence: `${scored.length - off.length} of ${scored.length} measures looked normal. Check ${names} below.`
   };
 }
 
