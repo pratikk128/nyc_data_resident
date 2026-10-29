@@ -1,0 +1,51 @@
+---
+/*
+ * Shop Diverse NYC: find and support women- and minority-owned businesses
+ * certified by NYC Small Business Services. Rendered on demand so a shared
+ * link (?who=wbe&cat=Construction&boro=brooklyn) shows its results on first
+ * paint, from the daily vendor list in KV (src/lib/server/shop-diverse.js).
+ * ?biz=<account> opens a business's detail once the script runs.
+ */
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+import ShopDiverseFinder from '../../components/shop-diverse/ShopDiverseFinder.astro';
+import AboutSection from '../../components/shop-diverse/AboutSection.astro';
+import { getMetadata, loadSearch } from '../../lib/server/shop-diverse.js';
+import { normalizeQuery } from '../../lib/shop-diverse/filter.js';
+import { date } from '../../lib/format.js';
+
+export const prerender = false;
+
+const normalized = normalizeQuery(Astro.url.searchParams);
+const query = normalized.query ?? normalizeQuery(new URLSearchParams()).query!;
+const [meta, initial] = await Promise.allSettled([getMetadata(), loadSearch(query, Astro.url, Astro.locals.cfContext)]);
+for (const r of [meta, initial]) if (r.status === 'rejected') console.error(r.reason);
+const metaValue = meta.status === 'fulfilled' ? meta.value : null;
+// Production only: in dev a cached page hides edits for an hour.
+if (import.meta.env.PROD) Astro.response.headers.set('Cache-Control', 'public, max-age=3600');
+---
+
+<DashboardLayout
+  title="Shop Diverse NYC"
+  description="Find and support women- and minority-owned businesses certified by NYC Small Business Services, by what you need and where."
+  path="/shop-diverse/"
+  category="Business"
+  lastRefreshed={metaValue?.rowsUpdatedAt ? date(metaValue.rowsUpdatedAt) : undefined}
+  dataUpdated={metaValue?.rowsUpdatedAt ?? undefined}
+>
+  <header class="page-head sd-head">
+    <span class="sd-head-dots" aria-hidden="true"><i data-tone="pink"></i><i data-tone="purple"></i><i data-tone="green"></i><i data-tone="orange"></i><i data-tone="yellow"></i><i data-tone="blue"></i></span>
+    <h1>Shop Diverse NYC</h1>
+    <p>
+      Find and celebrate NYC's women- and minority-owned businesses. Every business here is certified by NYC Small
+      Business Services. Pick who you want to support and what you need.
+    </p>
+  </header>
+
+  <ShopDiverseFinder
+    query={query}
+    initial={initial.status === 'fulfilled' ? initial.value : null}
+    inputError={normalized.error ?? null}
+  />
+
+  <AboutSection meta={metaValue} />
+</DashboardLayout>

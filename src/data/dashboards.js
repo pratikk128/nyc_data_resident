@@ -46,6 +46,13 @@ export const dashboards = [
     description: "Is the water safe right now? Monthly test results for bacteria, chlorine and more, citywide and near you.",
     category: "Environment",
     url: "/drinking-water/"
+  },
+  {
+    id: "shop-diverse",
+    title: "Shop Diverse NYC",
+    description: "Find and support women- and minority-owned businesses certified by the city, by what you need and where.",
+    category: "Business",
+    url: "/shop-diverse/"
   }
 ];
 

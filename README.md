@@ -17,9 +17,12 @@ src/pages/restaurant-inspections/   NYC Restaurant Inspections (rendered on dema
 src/pages/311-complaints/  311 Complaints in My Neighborhood (rendered on demand)
 src/pages/drinking-water/  NYC Drinking Water Quality, one page per section (rendered on demand)
 src/components/drinking-water/  WaterPage.astro (heading, section nav, context box, method notes) and the sections
-src/pages/api/            API routes (Worker): /api/restaurants/search, /api/restaurants/:camis, /api/311/*, /api/water/stations
+src/pages/shop-diverse/    Shop Diverse NYC (rendered on demand)
+src/components/shop-diverse/  The finder (filters, results, detail panel) and method notes
+src/pages/api/            API routes (Worker): /api/restaurants/search, /api/restaurants/:camis, /api/311/*, /api/water/stations, /api/shop-diverse/*
 src/lib/restaurants/      Restaurant logic: SoQL builders, inspection rules, violation categories, rendering
 src/lib/complaints311/    311 logic: config, SoQL, share math, labels, input parsing, geocoding, rendering
+src/lib/shop-diverse/     Shop Diverse NYC logic: cleaning, ranking, filters, rendering
 src/lib/water/            Drinking water logic: reference values (config.js), lab value parser, SoQL, stats, charts, map
 src/lib/server/           Server-only: Socrata client (holds the token), caches, daily jobs
 src/worker.js             Worker entry: Astro for requests, cron for daily jobs
@@ -46,7 +49,7 @@ Production build: `npm run build` (output in `dist/`), preview with `npm run pre
 Live data needs no setup locally (Socrata allows anonymous requests at low volume). To use a token, copy `.dev.vars.example` to `.dev.vars` and fill in `SOCRATA_APP_TOKEN`.
 
 ```sh
-npm test             # restaurant, 311 and drinking water logic tests
+npm test             # restaurant, 311, drinking water and Shop Diverse NYC logic tests
 ```
 
 ## Deploy (Cloudflare Workers)
@@ -261,6 +264,33 @@ The old `/drinking-water/history/` URL redirects to `/drinking-water/#history` (
 **Reference values** (with sources, checked Oct 2026) and the tile color cutoffs are in `src/lib/water/config.js`. They're labeled as reference values, not a compliance determination.
 
 **Station locations** come from DEP's 2021 sampling site spreadsheet, converted to `src/data/water-sites.json` (State Plane EPSG:2263 → lat/lon, borough by point-in-polygon), with ZIP points in `src/data/zip-centroids.json`. Rebuild both with `npm run data:water-sites`; it also lists dataset site codes missing from the spreadsheet.
+
+## Shop Diverse NYC
+
+`/shop-diverse/` helps residents find and support Women-owned (WBE) and Minority-owned (MBE) businesses from NYC Small Business Services' [SBS Certified Business List](https://data.cityofnewyork.us/d/ci93-uc8s) (`ci93-uc8s`, ~11,850 rows, updated about every two weeks).
+
+**Architecture.** A daily job (`shop-diverse:vendors:v1` in `src/lib/server/shop-diverse.js`) pages through the dataset with SoQL, cleans every row (`src/lib/shop-diverse/clean.js`) and keeps a slim index in KV (~10 MB: the fields search, ranking and cards use). `/api/shop-diverse/search` filters, ranks and pages that index in the Worker and caches each view at the edge for an hour (keyed by query, NYC date and data version). It never calls Socrata per request. Ranking has to run over every match before a page is cut, which SoQL can't do here: renewal dates are text, and ties use a seeded hash. `/api/shop-diverse/business/:id` reads one vendor live by `account_number` (edge-cached 6 h, `DETAIL_RATE_LIMITER` on misses). The page renders the first view on the server, so shared links and the form work without JavaScript.
+
+**URL state** (`src/lib/shop-diverse/filter.js`): `who=wbe,mbe`, `match=all` (both, default either), `eth=black,asian` (narrows the MBE side), `cat`/`sub` (NAICS sector/subsector as spelled in the data), `q`, `boro` (`manhattan` … `staten-island`, `outside`), `zip`, `sort` (`recommended`, `az`, `newest`, `oldest`), `lapsed=1`, `page`, and `biz=<account>` for the open business.
+
+**Fields used.** `account_number`, `vendor_formal_name`, `vendor_dba`, `certification`, `cert_renewal_date`, `ethnicity`, `naics_sector`/`naics_subsector`/`naics_title`/`id6_digit_naics_code`, `nigp_codes`, `business_description`, `first_name`/`last_name`, `telephone`, `website`, address fields, `borough`, `date_of_establishment`, `aggregate_bonding_limit`, `signatory_to_union_contracts`, `largest_value_of_contract`, the three past-job blocks, `enrolled_in_passport`.
+
+**Recommended order** (`src/lib/shop-diverse/ranking.js`, tested in `tests/shop-diverse.test.js`). Points are summed, highest first:
+
+| Rule | Points |
+|---|---|
+| Every renewal date has passed (hidden unless `lapsed=1`) | −100 |
+| Subcategory picked / category picked (the same for every result) | +30 / +20 |
+| Keyword in the industry name / business name / only the description | +20 / +15 / +8 |
+| Valid website, description of 40+ characters, usable phone | +6, +5, +2 |
+| Holds both MBE and WBE, only when the visitor picked both | +3 |
+| Years in business | +0.5 per year, max +5 |
+| Same ZIP as the one entered / else same borough | +12 / +6 |
+| Ties | FNV-1a hash of id + NYC date (stable all day, reshuffled daily) |
+
+Ethnicity and gender never score. **No renewal date scores the same as a current one**, because every WBE-only firm has no renewal date; penalizing that would bury women-owned businesses. The MBE+WBE bonus is limited to visitors who asked for both because most firms max out the other points, so an always-on bonus decided nearly every tie.
+
+**Data quirks found (Oct 2026).** One row per vendor, so no dedupe was needed, and each vendor has exactly one NAICS code. There's **no email column**. `cert_renewal_date` is text (`M/D/YYYY`), sometimes doubled (`11/30/2026;11/30/2026`), and blank for all WBE-only firms. ZIPs are numeric, so NJ/New England ZIPs lose their leading zero. Names have junk prefixes (`=---`) and ~700 are all caps. Websites include `N/A`, `http://Under Construction` and company names. Phones come in mixed formats. Some establishment dates are in the future (up to 2996). `borough` is blank for ~4,700 rows: mostly outside NYC (NJ alone is ~1,000), but some NYC addresses failed to geocode and get a borough from their ZIP. `types_of_construction_projects_performed` and `capacity_building_programs` are always empty.
 
 ## Theme
 

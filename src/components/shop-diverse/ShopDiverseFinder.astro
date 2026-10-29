@@ -1,0 +1,548 @@
+---
+/*
+ * The Shop Diverse NYC finder: filters (who, what, where), summary chips, a
+ * category chart, ranked result cards and the business detail panel.
+ *
+ * The first view is rendered here on the server from the URL's query (see
+ * src/lib/shop-diverse/filter.js for the parameters), so shared links and the
+ * form work without script. The script then fetches /api/shop-diverse/search
+ * for every change and keeps the URL in step; a card opens
+ * /api/shop-diverse/business/:id in a <dialog> (side panel on wide screens,
+ * full-screen sheet on phones) and adds ?biz=<id> to the URL.
+ */
+import { CERTS, SORTS, MAX_KEYWORD_LENGTH } from '../../lib/shop-diverse/config.js';
+import { queryToParams } from '../../lib/shop-diverse/filter.js';
+import { POINTS } from '../../lib/shop-diverse/ranking.js';
+import {
+  kpisHtml, chartHtml, chartTableHtml, cardsHtml, pagerHtml, statusText, categoryOptionsHtml, boroughOptionsHtml,
+  ethnicityChipsHtml, UPSTREAM_TEXT
+} from '../../lib/shop-diverse/render.js';
+import { count } from '../../lib/format.js';
+
+interface Props {
+  query: any;          // normalizeQuery() result
+  initial: any;        // searchBusinesses() result, or null if the data couldn't load
+  inputError: string | null;
+}
+const { query, initial, inputError } = Astro.props;
+
+const base = '/shop-diverse/';
+const hrefWith = (extra: Record<string, string>) => {
+  const p = queryToParams(query);
+  for (const [k, v] of Object.entries(extra)) p.set(k, v);
+  return `${base}?${p}`;
+};
+const pageHref = (page: number) => {
+  const p = queryToParams({ ...query, page });
+  return p.toString() ? `${base}?${p}` : base;
+};
+const facets = initial?.facets;
+const who = (c: string) => query.who.includes(c);
+const chartTitle = (q: any) => (q.cat ? `Businesses by subcategory in ${q.cat}` : 'Businesses by category');
+const status = inputError ?? (initial ? statusText(initial) : UPSTREAM_TEXT);
+// Safe inside <script type="application/json">
+const initialJson = JSON.stringify({ query, loaded: Boolean(initial), chart: initial?.chart ?? null }).replace(/</g, '\\u003c');
+---
+
+<section class="dash-section sd-finder" aria-labelledby="sd-find-title">
+  <h2 class="sr-only" id="sd-find-title">Find a business</h2>
+
+  <div class="sd-layout">
+    <div class="sd-filter-col">
+      <button type="button" class="near-btn sd-filter-toggle" aria-expanded="false" aria-controls="sd-filters" hidden data-filter-toggle>
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+        Filters <span class="sd-filter-count" data-filter-count></span>
+      </button>
+
+      <form class="sd-filters" id="sd-filters" action={base} method="get" novalidate data-filters>
+        <fieldset class="sd-step">
+          <legend class="sd-step-title"><span class="sd-step-bullet" data-tone="pink" aria-hidden="true">1</span> Who do you want to support?</legend>
+          <div class="sd-who">
+            {(['WBE', 'MBE'] as const).map((c) => (
+              <label class="sd-who-chip" data-tone={CERTS[c].tone}>
+                <input type="checkbox" name="who" value={c.toLowerCase()} checked={who(c)} />
+                <span class="sd-who-text">
+                  <span class="sd-who-label">{CERTS[c].label} <span class="sd-who-code">({c})</span></span>
+                  <span class="sd-count" data-who-count={c}>{facets ? count(facets.who[c]) : ''}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+
+          <fieldset class="sd-sub-fieldset" data-match hidden={!(who('WBE') && who('MBE'))}>
+            <legend class="filter-label">Show businesses that are</legend>
+            <div class="sd-radio-row">
+              <label class="pay-chip"><input type="radio" name="match" value="any" checked={query.match !== 'all'} /> Either</label>
+              <label class="pay-chip"><input type="radio" name="match" value="all" checked={query.match === 'all'} /> Both</label>
+            </div>
+          </fieldset>
+
+          <fieldset class="sd-sub-fieldset" data-eth hidden={!who('MBE')}>
+            <legend class="filter-label">Owner ethnicity <span class="field-optional">(optional, any of)</span></legend>
+            <div class="sd-radio-row" data-eth-chips set:html={facets ? ethnicityChipsHtml(facets.eth, query.eth) : ''}></div>
+          </fieldset>
+        </fieldset>
+
+        <fieldset class="sd-step">
+          <legend class="sd-step-title"><span class="sd-step-bullet" data-tone="purple" aria-hidden="true">2</span> What do you need?</legend>
+          <div class="field">
+            <label class="filter-label" for="sd-cat">Category</label>
+            <select class="filter-select" id="sd-cat" name="cat" data-cat
+              set:html={facets ? categoryOptionsHtml(facets.categories, query.cat, 'All categories') : '<option value="">All categories</option>'}></select>
+          </div>
+          <div class="field" data-sub-field hidden={!query.cat || !facets?.subcategories.length}>
+            <label class="filter-label" for="sd-sub">Subcategory</label>
+            <select class="filter-select" id="sd-sub" name="sub" data-sub
+              set:html={facets ? categoryOptionsHtml(facets.subcategories, query.sub, 'All subcategories') : ''}></select>
+          </div>
+          <div class="field">
+            <label class="filter-label" for="sd-q">Keyword</label>
+            <input class="search-input" id="sd-q" name="q" type="search" maxlength={MAX_KEYWORD_LENGTH} value={query.q}
+              autocomplete="off" placeholder="Try “catering” or “bakery”" aria-describedby="sd-q-hint" data-q />
+            <p class="field-hint" id="sd-q-hint">Searches names, descriptions and industries.</p>
+          </div>
+        </fieldset>
+
+        <fieldset class="sd-step">
+          <legend class="sd-step-title"><span class="sd-step-bullet" data-tone="green" aria-hidden="true">3</span> Where?</legend>
+          <div class="field">
+            <label class="filter-label" for="sd-boro">Borough</label>
+            <select class="filter-select" id="sd-boro" name="boro" data-boro
+              set:html={facets ? boroughOptionsHtml(facets.boroughs, query.boro) : '<option value="">Anywhere</option>'}></select>
+          </div>
+          <div class="field">
+            <label class="filter-label" for="sd-zip">Near ZIP code <span class="field-optional">(optional)</span></label>
+            <input class="search-input" id="sd-zip" name="zip" type="text" inputmode="numeric" maxlength="5" pattern="[0-9]{5}"
+              value={query.zip} autocomplete="postal-code" placeholder="e.g. 11216" aria-describedby="sd-zip-hint" data-zip />
+            <p class="field-hint" id="sd-zip-hint">Businesses in this ZIP, then its borough, come first.</p>
+          </div>
+        </fieldset>
+
+        <label class="sd-lapsed" data-lapsed-wrap hidden={!query.lapsed && !facets?.lapsed}>
+          <input type="checkbox" name="lapsed" value="1" checked={query.lapsed} data-lapsed />
+          Include lapsed certifications <span class="sd-count" data-lapsed-count>{facets ? count(facets.lapsed) : ''}</span>
+        </label>
+
+        <div class="sd-filter-actions">
+          <noscript><button type="submit" class="near-btn">Show businesses</button></noscript>
+          <a class="sd-clear" href={base} data-clear>Clear filters</a>
+        </div>
+      </form>
+    </div>
+
+    <div class="sd-results-col">
+      <ul class="sd-kpis" aria-label="Matching businesses" data-kpis set:html={initial ? kpisHtml(initial.kpis) : ''}></ul>
+
+      <figure class="sd-chart" data-chart hidden={!initial?.chart.rows.length}>
+        <figcaption>
+          <h3 class="chart-title" data-chart-title>{chartTitle(query)}</h3>
+          <p class="chart-subtitle">Certified businesses matching your filters. Pick a bar to filter by it.</p>
+        </figcaption>
+        <div data-chart-bars set:html={initial ? chartHtml(initial.chart) : ''}></div>
+        <details class="sd-chart-table">
+          <summary>View as table</summary>
+          <div class="table-scroll" data-chart-table set:html={initial ? chartTableHtml(initial.chart) : ''}></div>
+          <a class="download-link" href="#" download="shop-diverse-categories.csv" data-csv>Download CSV</a>
+        </details>
+      </figure>
+
+      <div class="sd-results-head">
+        <p class="sd-status" role="status" aria-live="polite" data-status>{status}</p>
+        <div class="sd-sort">
+          <label class="filter-label" for="sd-sort">Sort by</label>
+          <select class="filter-select" id="sd-sort" name="sort" form="sd-filters" data-sort>
+            {SORTS.map((s) => <option value={s.value} selected={s.value === query.sort}>{s.label}</option>)}
+          </select>
+          <details class="sd-why">
+            <summary>Why this order?</summary>
+            <div class="sd-why-body">
+              <p>
+                <strong>Recommended</strong> puts first the businesses that best match your keyword and category, are easiest to
+                reach (website, phone, a real description) and have more years in business (up to {POINTS.maxYearsCounted}).
+                Lapsed certifications go last.
+              </p>
+              <p>
+                Owner ethnicity and gender are filters only. They never move a business up or down. Ties are shuffled once a
+                day. <a href="#why-this-order" data-why-link>See the full rules</a>.
+              </p>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <ul class="sd-results" id="sd-results" aria-label="Businesses" data-results
+        set:html={initial ? cardsHtml(initial.results, (id: string) => hrefWith({ biz: id })) : ''}></ul>
+
+      <div class="sd-empty" data-empty hidden={!initial || initial.total > 0}>
+        <p class="sd-empty-title">No matches. Even the pigeons came up empty.</p>
+        <p>Try fewer filters or a shorter keyword.</p>
+        <a class="near-btn" href={base} data-clear>Clear filters</a>
+      </div>
+
+      <nav class="pager sd-pager" aria-label="Result pages" data-pager set:html={initial ? pagerHtml(initial, pageHref) : ''}></nav>
+    </div>
+  </div>
+</section>
+
+<dialog class="sd-detail" aria-labelledby="sd-detail-title" data-detail>
+  <div class="sd-detail-bar">
+    <button type="button" class="sd-close" data-close>
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      Close
+    </button>
+  </div>
+  <div class="sd-detail-body" data-detail-body></div>
+</dialog>
+
+<script type="application/json" id="sd-initial" set:html={initialJson}></script>
+
+<script>
+  import { normalizeQuery, queryToParams } from '../../lib/shop-diverse/filter.js';
+  import {
+    kpisHtml, chartHtml, chartTableHtml, chartCsv, cardsHtml, skeletonCards, pagerHtml, statusText, categoryOptionsHtml,
+    boroughOptionsHtml, ethnicityChipsHtml, detailHtml, contactText, UPSTREAM_TEXT, LOADING_TEXT
+  } from '../../lib/shop-diverse/render.js';
+  import { count } from '../../lib/format.js';
+
+  const BASE = '/shop-diverse/';
+  const DEBOUNCE_MS = 350;
+  const NOT_FOUND_TEXT = 'We couldn’t find that business. It may have left the list since the link was shared.';
+
+  const $ = <T extends Element = HTMLElement>(sel: string, root: ParentNode = document) => root.querySelector<T>(sel)!;
+  const form = $<HTMLFormElement>('[data-filters]');
+  const catSelect = $<HTMLSelectElement>('[data-cat]');
+  const subSelect = $<HTMLSelectElement>('[data-sub]');
+  const subField = $('[data-sub-field]');
+  const boroSelect = $<HTMLSelectElement>('[data-boro]');
+  const qInput = $<HTMLInputElement>('[data-q]');
+  const zipInput = $<HTMLInputElement>('[data-zip]');
+  const sortSelect = $<HTMLSelectElement>('[data-sort]');
+  const lapsedWrap = $('[data-lapsed-wrap]');
+  const lapsedBox = $<HTMLInputElement>('[data-lapsed]');
+  const matchSet = $('[data-match]');
+  const ethSet = $('[data-eth]');
+  const ethChips = $('[data-eth-chips]');
+  const status = $('[data-status]');
+  const list = $<HTMLUListElement>('[data-results]');
+  const empty = $('[data-empty]');
+  const pager = $('[data-pager]');
+  const kpis = $('[data-kpis]');
+  const chart = $('[data-chart]');
+  const chartTitle = $('[data-chart-title]');
+  const chartBars = $('[data-chart-bars]');
+  const chartTable = $('[data-chart-table]');
+  const csvLink = $<HTMLAnchorElement>('[data-csv]');
+  const filterToggle = $<HTMLButtonElement>('[data-filter-toggle]');
+  const filterCount = $('[data-filter-count]');
+  const dialog = $<HTMLDialogElement>('[data-detail]');
+  const detailBody = $('[data-detail-body]');
+
+  const initial = JSON.parse(document.getElementById('sd-initial')!.textContent || '{}');
+  let query: any = initial.query;
+  let lastChart: any = initial.chart; // for the CSV download
+  let searchAbort: AbortController | null = null;
+  let detailAbort: AbortController | null = null;
+  let current: any = null; // the business in the panel
+  let typingTimer = 0;
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+
+  // ---------- URL ----------
+  const pageUrl = (q: any, extra: Record<string, string> = {}) => {
+    const p = queryToParams(q);
+    for (const [k, v] of Object.entries(extra)) p.set(k, v);
+    const s = p.toString();
+    return s ? `${BASE}?${s}` : BASE;
+  };
+  const bizParam = () => new URL(location.href).searchParams.get('biz');
+
+  // ---------- Form ↔ query ----------
+  function readForm() {
+    const p = new URLSearchParams();
+    const data = new FormData(form);
+    for (const [k, v] of data) if (typeof v === 'string' && v) p.append(k, v);
+    p.set('sort', sortSelect.value);
+    // A half-typed ZIP doesn't filter yet
+    if (!/^\d{5}$/.test(zipInput.value.trim())) p.delete('zip');
+    return normalizeQuery(p);
+  }
+
+  function fillForm(q: any) {
+    form.querySelectorAll<HTMLInputElement>('input[name="who"]').forEach((b) => { b.checked = q.who.includes(b.value.toUpperCase()); });
+    form.querySelectorAll<HTMLInputElement>('input[name="match"]').forEach((b) => { b.checked = b.value === q.match; });
+    qInput.value = q.q;
+    zipInput.value = q.zip;
+    sortSelect.value = q.sort;
+    lapsedBox.checked = q.lapsed;
+    // Category, subcategory, borough and ethnicity options come back with the results.
+    syncVisibility(q);
+  }
+
+  function syncVisibility(q: any) {
+    matchSet.hidden = !(q.who.includes('WBE') && q.who.includes('MBE'));
+    ethSet.hidden = !q.who.includes('MBE');
+  }
+
+  function activeFilterCount(q: any) {
+    return q.who.length + q.eth.length + [q.cat, q.sub, q.q, q.boro, q.zip, q.lapsed].filter(Boolean).length;
+  }
+
+  // ---------- Render ----------
+  function render(data: any) {
+    lastChart = data.chart;
+    const f = data.facets;
+    for (const c of ['WBE', 'MBE']) $(`[data-who-count="${c}"]`).textContent = count(f.who[c]);
+    ethChips.innerHTML = ethnicityChipsHtml(f.eth, query.eth);
+    catSelect.innerHTML = categoryOptionsHtml(f.categories, query.cat, 'All categories');
+    subSelect.innerHTML = categoryOptionsHtml(f.subcategories, query.sub, 'All subcategories');
+    subField.hidden = !query.cat || !f.subcategories.length;
+    boroSelect.innerHTML = boroughOptionsHtml(f.boroughs, query.boro);
+    lapsedWrap.hidden = !query.lapsed && !f.lapsed;
+    $('[data-lapsed-count]').textContent = count(f.lapsed);
+
+    kpis.innerHTML = kpisHtml(data.kpis);
+    chart.hidden = !data.chart.rows.length;
+    chartTitle.textContent = query.cat ? `Businesses by subcategory in ${query.cat}` : 'Businesses by category';
+    chartBars.innerHTML = chartHtml(data.chart);
+    chartTable.innerHTML = chartTableHtml(data.chart);
+
+    list.innerHTML = cardsHtml(data.results, (id: string) => pageUrl(query, { biz: id }));
+    empty.hidden = data.total > 0;
+    pager.innerHTML = pagerHtml(data, (page: number) => pageUrl({ ...query, page }));
+    status.textContent = statusText(data);
+    const n = activeFilterCount(query);
+    filterCount.textContent = n ? `(${n})` : '';
+  }
+
+  async function search({ push = false, scroll = false } = {}) {
+    clearTimeout(typingTimer);
+    searchAbort?.abort();
+    searchAbort = new AbortController();
+    syncVisibility(query);
+    const biz = bizParam();
+    const url = pageUrl(query, biz ? { biz } : {});
+    if (url !== location.pathname + location.search) {
+      if (push) history.pushState(null, '', url); else history.replaceState(history.state, '', url);
+    }
+
+    status.textContent = LOADING_TEXT;
+    list.setAttribute('aria-busy', 'true');
+    list.innerHTML = skeletonCards();
+    empty.hidden = true;
+    try {
+      const res = await fetch(`/api/shop-diverse/search?${queryToParams(query)}`, { signal: searchAbort.signal });
+      const data = await res.json().catch(() => null);
+      if (res.status === 400 && typeof data?.error === 'string') {
+        list.replaceChildren();
+        status.textContent = data.error;
+        return;
+      }
+      if (!res.ok || !Array.isArray(data?.results)) throw new Error('upstream');
+      // The server clamps a page past the end; keep the URL honest.
+      if (data.page !== query.page) {
+        query = { ...query, page: data.page };
+        history.replaceState(history.state, '', pageUrl(query, biz ? { biz } : {}));
+      }
+      render(data);
+      if (scroll) $('.sd-results-head').scrollIntoView({ block: 'start', behavior: reducedMotion.matches ? 'auto' : 'smooth' });
+    } catch (err: any) {
+      if (err.name === 'AbortError') return;
+      list.replaceChildren();
+      pager.replaceChildren();
+      status.textContent = UPSTREAM_TEXT;
+    } finally {
+      list.removeAttribute('aria-busy');
+    }
+  }
+
+  // A filter changed: back to page 1.
+  function applyForm() {
+    const { query: q, error } = readForm();
+    if (error) { status.textContent = error; return; }
+    query = { ...q, page: 1 };
+    search();
+  }
+
+  form.addEventListener('change', (e) => {
+    const target = e.target as HTMLElement;
+    if (target === qInput || target === zipInput) return; // handled on input
+    if (target === catSelect) subSelect.value = '';
+    applyForm();
+  });
+  sortSelect.addEventListener('change', applyForm);
+  form.addEventListener('submit', (e) => { e.preventDefault(); applyForm(); });
+  for (const input of [qInput, zipInput]) {
+    input.addEventListener('input', () => {
+      clearTimeout(typingTimer);
+      const zip = zipInput.value.trim();
+      if (input === zipInput && zip && !/^\d{5}$/.test(zip)) return; // wait for 5 digits
+      typingTimer = window.setTimeout(applyForm, DEBOUNCE_MS);
+    });
+  }
+
+  document.querySelectorAll<HTMLAnchorElement>('[data-clear]').forEach((link) => link.addEventListener('click', (e) => {
+    e.preventDefault();
+    query = normalizeQuery(new URLSearchParams()).query;
+    form.reset();
+    fillForm(query);
+    search({ push: true });
+    qInput.focus();
+  }));
+
+  chartBars.addEventListener('click', (e) => {
+    const bar = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-pick]');
+    if (!bar) return;
+    query = bar.dataset.level === 'subcategory'
+      ? { ...query, sub: bar.dataset.pick, page: 1 }
+      : { ...query, cat: bar.dataset.pick, sub: '', page: 1 };
+    search({ push: true });
+  });
+
+  pager.addEventListener('click', (e) => {
+    const link = (e.target as HTMLElement).closest<HTMLAnchorElement>('a[data-page]');
+    if (!link || e.metaKey || e.ctrlKey || e.shiftKey) return;
+    e.preventDefault();
+    query = { ...query, page: Number(link.dataset.page) };
+    search({ push: true, scroll: true });
+  });
+
+  // Built on click, so it always matches the chart on screen.
+  let csvUrl = '';
+  csvLink.addEventListener('click', () => {
+    if (csvUrl) URL.revokeObjectURL(csvUrl);
+    csvUrl = lastChart ? URL.createObjectURL(new Blob([chartCsv(lastChart)], { type: 'text/csv' })) : '#';
+    csvLink.href = csvUrl;
+  });
+
+  // "See the full rules" opens the method note at the bottom.
+  $('[data-why-link]').addEventListener('click', () => {
+    const rules = document.getElementById('why-this-order') as HTMLDetailsElement | null;
+    if (rules) rules.open = true;
+  });
+
+  // Phones: the filters live in a drawer.
+  filterToggle.addEventListener('click', () => {
+    const open = filterToggle.getAttribute('aria-expanded') !== 'true';
+    filterToggle.setAttribute('aria-expanded', String(open));
+    form.classList.toggle('is-open', open);
+  });
+
+  // ---------- Detail ----------
+  function celebrate() {
+    let seen = false;
+    try { seen = sessionStorage.getItem('sd-celebrated') === '1'; sessionStorage.setItem('sd-celebrated', '1'); } catch { /* storage blocked */ }
+    if (seen || reducedMotion.matches) return;
+    const burst = document.createElement('div');
+    burst.className = 'sd-confetti';
+    burst.setAttribute('aria-hidden', 'true');
+    const tones = ['pink', 'purple', 'green', 'orange', 'yellow', 'blue'];
+    for (let i = 0; i < 18; i++) {
+      const dot = document.createElement('i');
+      dot.dataset.tone = tones[i % tones.length];
+      const angle = (i / 18) * Math.PI * 2;
+      const dist = 60 + (i % 3) * 30;
+      dot.style.setProperty('--dx', `${Math.cos(angle) * dist}px`);
+      dot.style.setProperty('--dy', `${Math.sin(angle) * dist - 20}px`);
+      burst.appendChild(dot);
+    }
+    $('.sd-detail-head', detailBody)?.appendChild(burst);
+    setTimeout(() => burst.remove(), 1200);
+  }
+
+  function showDetailMessage(message: string) {
+    current = null;
+    detailBody.innerHTML = '<p class="sd-detail-error" role="alert"></p>';
+    detailBody.querySelector('p')!.textContent = message;
+  }
+
+  async function openBusiness(id: string, { push = false } = {}) {
+    detailAbort?.abort();
+    detailAbort = new AbortController();
+    if (push) history.pushState({ fromList: true }, '', pageUrl(query, { biz: id }));
+    detailBody.setAttribute('aria-busy', 'true');
+    detailBody.innerHTML = '<p class="sd-muted">Looking up their details…</p><div class="sk-block"></div><div class="sk-block"></div>';
+    if (!dialog.open) dialog.showModal();
+    try {
+      const res = await fetch(`/api/shop-diverse/business/${encodeURIComponent(id)}`, { signal: detailAbort.signal });
+      if (res.status === 404 || res.status === 400) return showDetailMessage(NOT_FOUND_TEXT);
+      const data = await res.json().catch(() => null);
+      if (res.status === 429 && typeof data?.error === 'string') return showDetailMessage(data.error);
+      if (!res.ok || !data) throw new Error('upstream');
+      current = data;
+      detailBody.innerHTML = detailHtml(data);
+      $('#sd-detail-title', detailBody).focus();
+      celebrate();
+    } catch (err: any) {
+      if (err.name !== 'AbortError') showDetailMessage(UPSTREAM_TEXT);
+    } finally {
+      detailBody.setAttribute('aria-busy', 'false');
+    }
+  }
+
+  // Closing goes back if the card pushed the entry, so Back doesn't reopen it.
+  function closeBusiness() {
+    if (!bizParam()) return;
+    if (history.state?.fromList) history.back();
+    else history.replaceState(null, '', pageUrl(query));
+  }
+
+  list.addEventListener('click', (e) => {
+    const card = (e.target as HTMLElement).closest<HTMLAnchorElement>('a.sd-card');
+    if (!card || e.metaKey || e.ctrlKey || e.shiftKey || (e as MouseEvent).button !== 0) return;
+    e.preventDefault();
+    openBusiness(card.dataset.id!, { push: true });
+  });
+
+  $('[data-close]', dialog).addEventListener('click', () => dialog.close());
+  // A click on the backdrop lands on the dialog element itself.
+  dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.close(); });
+  dialog.addEventListener('close', () => {
+    detailAbort?.abort();
+    const id = current?.id;
+    current = null;
+    closeBusiness();
+    // Back to the card that opened it
+    if (id) list.querySelector<HTMLElement>(`a.sd-card[data-id="${CSS.escape(id)}"]`)?.focus();
+  });
+
+  detailBody.addEventListener('click', async (e) => {
+    const copy = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-copy]');
+    if (!copy || !current) return;
+    const copyStatus = $('[data-copy-status]', detailBody);
+    try {
+      await navigator.clipboard.writeText(contactText(current));
+      copy.textContent = copyStatus.textContent = 'Contact info copied';
+    } catch {
+      copy.textContent = copyStatus.textContent = 'Couldn’t copy. Select the details above instead.';
+    }
+    setTimeout(() => { copy.textContent = 'Copy contact info'; copyStatus.textContent = ''; }, 2500);
+  });
+
+  // ---------- Back / forward ----------
+  window.addEventListener('popstate', () => {
+    const params = new URL(location.href).searchParams;
+    const next = normalizeQuery(params).query ?? normalizeQuery(new URLSearchParams()).query;
+    if (pageUrl(next) !== pageUrl(query)) {
+      query = next;
+      fillForm(query);
+      search();
+    }
+    const biz = params.get('biz');
+    if (biz && biz !== current?.id) openBusiness(biz);
+    else if (!biz && dialog.open) { current = null; dialog.close(); }
+  });
+
+  // ---------- Start ----------
+  // Phones and tablets: collapse the filters into the drawer (left open without script).
+  form.classList.add('is-collapsible');
+  filterToggle.hidden = false;
+  const n = activeFilterCount(query);
+  filterCount.textContent = n ? `(${n})` : '';
+  // The browser may have kept edited fields (back/forward cache, autofill).
+  const fromForm = readForm().query;
+  if (!initial.loaded || (fromForm && pageUrl({ ...fromForm, page: query.page }) !== pageUrl(query))) {
+    if (fromForm) query = { ...fromForm, page: query.page };
+    search();
+  }
+  const startBiz = bizParam();
+  if (startBiz) openBusiness(startBiz);
+</script>

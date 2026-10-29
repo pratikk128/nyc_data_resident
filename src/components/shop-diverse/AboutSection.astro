@@ -1,0 +1,88 @@
+---
+/*
+ * "How to read this list": what certification means, how the Recommended
+ * order works (the same rules as src/lib/shop-diverse/ranking.js), data
+ * quirks, and the source.
+ */
+import { DATASET_URL, DATASET_NAME, DATASET_ID, LINKS } from '../../lib/shop-diverse/config.js';
+import { POINTS } from '../../lib/shop-diverse/ranking.js';
+import { date } from '../../lib/format.js';
+
+interface Props {
+  meta: { rowsUpdatedAt: string | null } | null;
+}
+const { meta } = Astro.props;
+---
+
+<section class="dash-section sd-about" aria-labelledby="sd-about-title">
+  <h2 class="chart-title" id="sd-about-title">How to read this list</h2>
+
+  <p class="callout callout-heads-up">
+    <strong>Heads up:</strong> certification status comes from NYC Small Business Services (SBS). Confirm details
+    directly with the business, and use the <a href={LINKS.sbsDirectory}>SBS Online Directory</a> to verify that a
+    certification is current.
+  </p>
+
+  <details class="about-data">
+    <summary>What the certifications mean</summary>
+    <div class="about-body">
+      <p>
+        <strong>Women-owned (WBE)</strong> and <strong>Minority-owned (MBE)</strong> businesses are at least 51% owned,
+        operated and controlled by women, or by Black, Hispanic, Asian American or Native American owners. A business
+        can hold both. <strong>Emerging (EBE)</strong> businesses are owned by people facing social and economic
+        disadvantage, and <strong>Locally based (LBE)</strong> is a program for small construction firms. Only a handful
+        of businesses on this list hold those two. <a href={LINKS.sbsCertification}>Read more from SBS</a>.
+      </p>
+      <p>
+        Certified firms can work anywhere, so about four in ten listed here are outside the five boroughs. Pick a borough
+        under “Where?” to narrow it down.
+      </p>
+    </div>
+  </details>
+
+  <details class="about-data" id="why-this-order">
+    <summary>How “Recommended” orders businesses</summary>
+    <div class="about-body">
+      <p>
+        Each business gets points, and the most points come first. Owner ethnicity, gender and certification type are
+        filters only. They never change the order, except for a small bonus (+{POINTS.bothMbeWbe}) for businesses
+        holding both MBE and WBE when you've asked for both.
+      </p>
+      <ul class="caveats">
+        <li><strong>Lapsed certification:</strong> if every renewal date on file has passed, the business is hidden unless you ask for it, and then it sorts last. A business with no renewal date isn't marked down: SBS lists none for women-owned-only firms.</li>
+        <li><strong>How well it matches:</strong> your keyword in the industry name +{POINTS.keywordIndustry}, in the business name +{POINTS.keywordName}, only in the description +{POINTS.keywordDescription}. Picking a category or subcategory adds the same points to every result.</li>
+        <li><strong>Easy to reach:</strong> a working website +{POINTS.website}, a description of {POINTS.minDescriptionLength}+ characters +{POINTS.description}, a phone number +{POINTS.phone}.</li>
+        <li><strong>Experience:</strong> +{POINTS.perYearInBusiness} per year in business, up to {POINTS.maxYearsCounted} years, so newer businesses aren't buried.</li>
+        <li><strong>Near your ZIP:</strong> if you enter one, the same ZIP +{POINTS.sameZip}, otherwise the same borough +{POINTS.sameBorough}.</li>
+        <li><strong>Ties</strong> are broken by a shuffle that changes once a day, so the same businesses don't always come first.</li>
+      </ul>
+    </div>
+  </details>
+
+  <details class="about-data">
+    <summary>How we cleaned the data</summary>
+    <div class="about-body">
+      <p>
+        There's one row per business. We tidy names written in all caps, format phone numbers, add https:// to bare
+        website addresses and drop ones that aren't web addresses (like “N/A” or a company name), put back the leading
+        zero that New Jersey and New England ZIP codes lose, and ignore establishment dates in the future. Businesses at a
+        New York address without a borough get one from their ZIP code. The list has no email addresses.
+      </p>
+    </div>
+  </details>
+
+  <footer class="section-sources">
+    <h3 class="sources-title">Where this comes from</h3>
+    <p>
+      <a href={DATASET_URL}>{DATASET_NAME}</a> on NYC Open Data (dataset {DATASET_ID}), published by NYC Small
+      Business Services.
+      {meta?.rowsUpdatedAt && <> Last updated {date(meta.rowsUpdatedAt)}. </>}
+      SBS updates the list about every two weeks; we check for changes daily.
+    </p>
+    <ul class="caveats">
+      <li>Business descriptions, contacts and past clients are written by the businesses themselves.</li>
+      <li>Each business is listed under one industry code, even if it does more than one kind of work.</li>
+    </ul>
+    <p><a href={DATASET_URL}>Report a data problem</a> to NYC Open Data.</p>
+  </footer>
+</section>
