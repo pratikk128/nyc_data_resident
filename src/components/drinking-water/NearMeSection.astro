@@ -71,12 +71,12 @@ const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(
         <span class="water-key"><span class="water-key-you"></span>Your search</span>
       </div>
 
-      <div class="water-cards" data-cards aria-live="polite"></div>
+      <div class="water-cards" data-cards></div>
       <p class="water-empty" data-empty>
         No stations picked yet. Search an address or ZIP, or pick a borough and a station. The pigeons are
         standing by.
       </p>
-      <p class="chart-hint">
+      <p class="chart-hint" data-spark-hint hidden>
         Chlorine lines: this station (solid) vs. citywide (dashed). Each month is only a few samples, so small wiggles
         are normal.
       </p>
@@ -110,13 +110,16 @@ const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(
     const suggest = root.querySelector<HTMLElement>('[data-suggest]')!;
     const cards = root.querySelector<HTMLElement>('[data-cards]')!;
     const empty = root.querySelector<HTMLElement>('[data-empty]')!;
+    const sparkHint = root.querySelector<HTMLElement>('[data-spark-hint]')!;
     const map = mountStationMap(root.querySelector<HTMLElement>('[data-map]')!, { onPick: (site: string) => add(site) });
 
     let borough = '';
     let selected: string[] = [];
     let point: Point | null = null;
     let request = 0;
+    let lookup = 0; // bumped by every redraw, so a slow address lookup can't undo a later pick
     const cache = new Map<string, any>(); // site → details, plus the shared context
+    const loading = new Map<string, Promise<void>>(); // site → its fetch in flight
     let context: any = null;
 
     // ---------- URL ----------
@@ -158,10 +161,27 @@ const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(
       return point ? { ...s, miles: nearestSites([s], point, 1)[0]?.miles } : s;
     }
 
+    // Fetches the sites not already on their way, then waits for all of them.
+    function load(sites: string[]) {
+      const fresh = sites.filter((s) => !loading.has(s));
+      if (fresh.length) {
+        const done = (async () => {
+          const res = await fetch(`/api/water/stations?sites=${encodeURIComponent(fresh.join(','))}`);
+          const data = await res.json().catch(() => null);
+          if (!res.ok || !data?.stations) throw new Error(res.status === 400 && data?.error ? data.error : 'upstream');
+          context = { months: data.months, city: data.city, cityTotals: data.cityTotals };
+          for (const [site, d] of Object.entries(data.stations)) cache.set(site, d);
+        })().finally(() => fresh.forEach((s) => loading.delete(s)));
+        fresh.forEach((s) => loading.set(s, done));
+      }
+      return Promise.all(sites.map((s) => loading.get(s)));
+    }
+
     // message: shown in the status line instead of the usual "Showing N stations."
     async function drawCards(message = '') {
       const id = ++request;
       empty.hidden = selected.length > 0;
+      sparkHint.hidden = true;
       if (!selected.length) { cards.innerHTML = ''; status.textContent = message; return; }
       const missing = selected.filter((s) => !cache.has(s));
       if (missing.length) {
@@ -169,11 +189,7 @@ const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(
         cards.innerHTML = selected.map(() => cardSkeletonHtml()).join('');
         status.textContent = 'Pulling up the station results…';
         try {
-          const res = await fetch(`/api/water/stations?sites=${encodeURIComponent(missing.join(','))}`);
-          const data = await res.json().catch(() => null);
-          if (!res.ok || !data?.stations) throw new Error(res.status === 400 && data?.error ? data.error : 'upstream');
-          context = { months: data.months, city: data.city, cityTotals: data.cityTotals };
-          for (const [site, d] of Object.entries(data.stations)) cache.set(site, d);
+          await load(missing);
         } catch (err: any) {
           if (id !== request) return;
           cards.setAttribute('aria-busy', 'false');
@@ -208,9 +224,11 @@ const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(
         };
         spark('cl', 'clMed', 'mg/L');
       });
+      sparkHint.hidden = !cards.querySelector('[data-spark] svg');
     }
 
     function render(message = '') {
+      lookup++;
       boroSelect.value = borough;
       fillStationSelect();
       drawMap();
@@ -248,13 +266,16 @@ const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(
         return;
       }
       status.textContent = 'Looking up that address…';
+      const id = ++lookup;
       let result: any;
       try {
         result = await resolveLocation(parsed);
       } catch {
+        if (id !== lookup) return;
         status.textContent = 'Couldn’t reach the address lookup. Try again in a minute, or pick a borough instead.';
         return;
       }
+      if (id !== lookup) return;
       if (result.status === 'resolved') { usePoint(result.location); return; }
       if (result.status === 'choose') {
         status.textContent = result.reason === 'ambiguous' ? 'That could be a few places. Which one?' : 'No exact match. Did you mean one of these?';

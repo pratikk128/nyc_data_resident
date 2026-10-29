@@ -1,7 +1,8 @@
 ---
 /*
- * "Has it always been this good?": a quieter subsection at the end of the
- * report card (ReportCardSection). One takeaway line shows; the coliform share
+ * "Has it always been this good?" (or a neutral heading when this month's
+ * verdict isn't green): a quieter subsection at the end of the report card
+ * (ReportCardSection). One takeaway line shows; the coliform share
  * for every month back to 2015, with E. coli detections marked, opens on
  * request (opened for #history links). Only complete months count: the one
  * still loading is left out (the report card notes it). Errors and empty data are reported by the report card. Data comes from
@@ -19,8 +20,9 @@ interface Props {
   monthly: any | null;
   detections: any | null;
   detectionsError: boolean;
+  status: 'green' | 'amber' | 'red' | 'none';
 }
-const { monthly, detections, detectionsError } = Astro.props;
+const { monthly, detections, detectionsError, status } = Astro.props;
 
 const have = completeMonths(monthly);
 const series = have.length ? historySeries(monthly, detections?.detections ?? []) : null;
@@ -59,7 +61,7 @@ const chartData = series && {
 
 {series && (
   <section class="water-past" id="history" aria-labelledby="history-title">
-    <h3 class="water-h3" id="history-title">Has it always been this good?</h3>
+    <h3 class="water-h3" id="history-title">{status === 'green' ? 'Has it always been this good?' : 'How have past months compared?'}</h3>
     <p class="water-past-takeaway">{takeaway}</p>
 
     <details class="water-past-more">
@@ -83,7 +85,8 @@ const chartData = series && {
         </ul>
         <div class="chart">
           <noscript><p class="chart-fallback">Turn on JavaScript to see the chart, or open the table below.</p></noscript>
-          <div class="chart-tooltip" role="status" aria-live="polite" hidden></div>
+          <div class="chart-tooltip" hidden></div>
+          <p class="sr-only chart-live" aria-live="polite"></p>
         </div>
         <p class="chart-hint">Hover, tap or use the arrow keys for a month's numbers.</p>
         {gapText && <p class="chart-hint">{gapText}</p>}

@@ -5,8 +5,9 @@
  * mountMonthlyLine(frame, opts)  A line over every month of the history, with
  *   gaps where a month has no data, an optional shaded band and reference line,
  *   and optional point markers (E. coli). Hover, tap or arrow keys show a
- *   month's details in the frame's .chart-tooltip.
- *   frame: the chart's <figure>, containing .chart and .chart-tooltip.
+ *   month's details in the frame's .chart-tooltip; arrow keys also read them
+ *   out through .chart-live (pointer moves don't, so screen readers stay quiet).
+ *   frame: the chart's <figure>, containing .chart, .chart-tooltip and .chart-live.
  *   opts: {
  *     months:   ["2015-01", ...] every month from first to last, gaps included
  *     values:   { "2015-01": number | null }
@@ -18,7 +19,8 @@
  *     tooltip:  (month) => HTML for that month
  *   }
  *
- * drawSparkline(container, values, cityValues, { fmt, label })  12 small points.
+ * drawSparkline(container, values, cityValues, { fmt, label })  12 small points,
+ *   redrawn when the container's width changes.
  */
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -43,6 +45,7 @@ function linePath(points) {
 export function mountMonthlyLine(frame, opts) {
   const chart = frame.querySelector(".chart");
   const tooltip = frame.querySelector(".chart-tooltip");
+  const live = frame.querySelector(".chart-live");
   let active = null;
   let geom = null;
 
@@ -116,9 +119,9 @@ export function mountMonthlyLine(frame, opts) {
     svg.addEventListener("keydown", (e) => {
       const last = months.length - 1;
       const step = { ArrowLeft: -1, ArrowRight: 1 }[e.key];
-      if (step) show(Math.max(0, Math.min(last, (active ?? last + (step < 0 ? 1 : -1)) + step)));
-      else if (e.key === "Home") show(0);
-      else if (e.key === "End") show(last);
+      if (step) show(Math.max(0, Math.min(last, (active ?? last + (step < 0 ? 1 : -1)) + step)), true);
+      else if (e.key === "Home") show(0, true);
+      else if (e.key === "End") show(last, true);
       else if (e.key === "Escape") hide();
       else return;
       e.preventDefault();
@@ -131,7 +134,7 @@ export function mountMonthlyLine(frame, opts) {
     if (active != null) show(active);
   }
 
-  function show(i) {
+  function show(i, announce = false) {
     active = i;
     const k = opts.months[i];
     const v = opts.values[k];
@@ -144,6 +147,11 @@ export function mountMonthlyLine(frame, opts) {
     if (v != null) { dot.setAttribute("cx", x(i)); dot.setAttribute("cy", y(v)); }
     tooltip.innerHTML = opts.tooltip(k);
     tooltip.hidden = false;
+    if (announce && live) {
+      live.textContent = [...tooltip.querySelectorAll(".tt-title, .tt-note, tr")]
+        .map((n) => (n.matches("tr") ? [...n.children].map((c) => c.textContent).join(": ") : n.textContent))
+        .join(". ");
+    }
     const left = x(i) > width / 2 ? x(i) - tooltip.offsetWidth - 12 : x(i) + 12;
     tooltip.style.left = `${Math.max(0, left)}px`;
     tooltip.style.top = "8px";
@@ -168,8 +176,21 @@ export function mountMonthlyLine(frame, opts) {
  * values / cityValues: 12 numbers (or null) oldest first. The station's line
  * in ink, the citywide median dashed; the last value labeled.
  */
-export function drawSparkline(container, values, cityValues, { fmt, label }) {
-  const width = Math.max(140, Math.min(260, container.clientWidth || 200));
+export function drawSparkline(container, values, cityValues, opts) {
+  const widthFor = () => Math.max(140, Math.min(260, container.clientWidth || 200));
+  let width = widthFor();
+  drawSpark(container, values, cityValues, opts, width);
+  container._sparkObserver?.disconnect();
+  container._sparkObserver = new ResizeObserver(() => {
+    if (!container.isConnected) { container._sparkObserver.disconnect(); return; }
+    if (widthFor() === width) return;
+    width = widthFor();
+    drawSpark(container, values, cityValues, opts, width);
+  });
+  container._sparkObserver.observe(container);
+}
+
+function drawSpark(container, values, cityValues, { fmt, label }, width) {
   const height = 48;
   const m = { top: 6, right: 40, bottom: 6, left: 4 };
   const all = [...values, ...cityValues].filter((v) => v != null);
