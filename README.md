@@ -269,7 +269,7 @@ The old `/drinking-water/history/` URL redirects to `/drinking-water/#history` (
 
 `/shop-diverse/` helps residents find and support Women-owned (WBE) and Minority-owned (MBE) businesses from NYC Small Business Services' [SBS Certified Business List](https://data.cityofnewyork.us/d/ci93-uc8s) (`ci93-uc8s`, ~11,850 rows, updated about every two weeks).
 
-**Architecture.** A daily job (`shop-diverse:vendors:v1` in `src/lib/server/shop-diverse.js`) pages through the dataset with SoQL, cleans every row (`src/lib/shop-diverse/clean.js`) and keeps a slim index in KV (~10 MB: the fields search, ranking and cards use). `/api/shop-diverse/search` filters, ranks and pages that index in the Worker and caches each view at the edge for an hour (keyed by query, NYC date and data version). It never calls Socrata per request. Ranking has to run over every match before a page is cut, which SoQL can't do here: renewal dates are text, and ties use a seeded hash. `/api/shop-diverse/business/:id` reads one vendor live by `account_number` (edge-cached 6 h, `DETAIL_RATE_LIMITER` on misses). The page renders the first view on the server, so shared links and the form work without JavaScript.
+**Architecture.** A daily job (`shop-diverse:vendors:v2` in `src/lib/server/shop-diverse.js`) pages through the dataset with SoQL, cleans every row (`src/lib/shop-diverse/clean.js`) and keeps a slim index in KV: the fields search, ranking and cards use, with each description reduced to its card excerpt plus, for keyword search, the other words it holds (each once). `/api/shop-diverse/search` filters, ranks and pages that index in the Worker and caches each view at the edge for an hour (keyed by query, NYC date and data version), with `SEARCH_RATE_LIMITER` on misses. It never calls Socrata per request. Ranking has to run over every match before a page is cut, which SoQL can't do here: renewal dates are text, and ties use a seeded hash. `/api/shop-diverse/business/:id` reads one vendor live by `account_number` (edge-cached 6 h, `DETAIL_RATE_LIMITER` on misses). The page renders the first view on the server, so shared links and the form work without JavaScript; it's cached for an hour only when that view (and any `?biz=` business) loaded.
 
 **URL state** (`src/lib/shop-diverse/filter.js`): `who=wbe,mbe`, `match=all` (both, default either), `eth=black,asian` (narrows the MBE side), `cat`/`sub` (NAICS sector/subsector as spelled in the data), `q`, `boro` (`manhattan` … `staten-island`, `outside`), `zip`, `sort` (`recommended`, `az`, `newest`, `oldest`), `lapsed=1`, `page`, and `biz=<account>` for the open business.
 
@@ -279,7 +279,6 @@ The old `/drinking-water/history/` URL redirects to `/drinking-water/#history` (
 
 | Rule | Points |
 |---|---|
-| Every renewal date has passed (hidden unless `lapsed=1`) | −100 |
 | Subcategory picked / category picked (the same for every result) | +30 / +20 |
 | Keyword in the industry name / business name / only the description | +20 / +15 / +8 |
 | Valid website, description of 40+ characters, usable phone | +6, +5, +2 |
@@ -287,6 +286,8 @@ The old `/drinking-water/history/` URL redirects to `/drinking-water/#history` (
 | Years in business | +0.5 per year, max +5 |
 | Same ZIP as the one entered / else same borough | +12 / +6 |
 | Ties | FNV-1a hash of id + NYC date (stable all day, reshuffled daily) |
+
+A firm whose renewal dates have all passed is hidden unless `lapsed=1`, and then sorts last in every order; it isn't scored.
 
 Ethnicity and gender never score. **No renewal date scores the same as a current one**, because every WBE-only firm has no renewal date; penalizing that would bury women-owned businesses. The MBE+WBE bonus is limited to visitors who asked for both because most firms max out the other points, so an always-on bonus decided nearly every tie.
 

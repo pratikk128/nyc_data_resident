@@ -230,16 +230,30 @@ export function cleanVendor(row, today) {
   });
 }
 
+const EXCERPT_LENGTH = 160;
+
+// First ~160 characters of the description, cut at a word.
+export function excerpt(description) {
+  const s = String(description ?? "").replace(/\s+/g, " ").trim();
+  if (s.length <= EXCERPT_LENGTH) return s;
+  const cut = s.slice(0, EXCERPT_LENGTH);
+  return `${cut.slice(0, cut.lastIndexOf(" ") > 80 ? cut.lastIndexOf(" ") : EXCERPT_LENGTH).replace(/[\s,;:.–-]+$/, "")}…`;
+}
+
 // The fields the search, ranking and result cards use; the daily job keeps
-// only these in KV. The detail view loads the whole record by id.
+// only these in KV. The detail view loads the whole record by id. The full
+// description stays out: the index keeps its excerpt, for the cards and the
+// ranking, and its other words, for the keyword search (descriptionHaystack).
 const INDEX_FIELDS = [
   "id", "name", "dba", "certs", "renewals", "ethnicity", "sector", "subsector", "title",
-  "description", "phone", "website", "city", "state", "zip", "borough", "established"
+  "phone", "website", "city", "state", "zip", "borough", "established"
 ];
 export function indexRecord(vendor) {
   const out = {};
   for (const k of INDEX_FIELDS) if (vendor[k] !== undefined) out[k] = vendor[k];
   if (out.phone) out.phone = { tel: out.phone.tel ?? null };
+  out.excerpt = excerpt(vendor.description);
+  out.keywords = extraWords(vendor.description, out.excerpt);
   return compact(out);
 }
 
@@ -247,6 +261,20 @@ export function indexRecord(vendor) {
 // spaces, so "Joe’s" and "JOES" both find "joe".
 export function searchText(value) {
   return ` ${String(value ?? "").toUpperCase().replace(/['‘’ʼ`]/g, "").replace(/[^A-Z0-9]+/g, " ").trim()} `;
+}
+
+const words = (value) => searchText(value).trim().split(" ").filter(Boolean);
+
+// The description's words that its excerpt doesn't already hold, each once
+// ("TILE FLOORS"). Keywords match the start of any word, so repeats add nothing.
+export function extraWords(description, shown) {
+  const skip = new Set(words(shown));
+  return [...new Set(words(description))].filter((w) => !skip.has(w)).join(" ");
+}
+
+// The description as keyword search sees it: the excerpt's words plus the rest.
+export function descriptionHaystack(record) {
+  return `${searchText(record.excerpt)}${record.keywords ? `${record.keywords} ` : ""}`;
 }
 
 // Endings cut from a keyword so its other forms match too. Keywords match the

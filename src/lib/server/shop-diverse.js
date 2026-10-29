@@ -5,7 +5,8 @@
  *
  * The list is ~12,000 vendors (one row each) and SBS updates it about every
  * two weeks, so a daily job keeps a slim copy in KV (the fields the search,
- * ranking and cards use, ~10 MB). Searches filter and rank that copy in the
+ * ranking and cards use, with each description cut to an excerpt and its
+ * search words). Searches filter and rank that copy in the
  * Worker, because the "Recommended" order has to rank every match before a
  * page is cut, which SoQL can't do (the renewal dates are text, and ties are
  * broken by a seeded hash). The detail view reads one vendor live by id.
@@ -40,7 +41,7 @@ export const metadataJob = {
 };
 
 export const vendorsJob = {
-  key: "shop-diverse:vendors:v1",
+  key: "shop-diverse:vendors:v2", // v2: excerpt and search words in place of the description
   maxAgeHours: MAX_AGE_HOURS,
   async run() {
     const today = nycToday();
@@ -76,12 +77,16 @@ export const getVendors = () => dailyValue(vendorsJob);
 
 // One view of the page for a normalized query (filter.js). Cached at the edge
 // per query, day (the order and lapsed status change with the date) and
-// data version. It reads only KV, so it needs no rate limit.
-export async function loadSearch(query, requestUrl, ctx) {
+// data version. It reads only KV, but a miss filters and ranks the whole
+// list, so misses are rate limited per client. Throws RateLimited.
+export async function loadSearch(query, requestUrl, ctx, clientAddress) {
   const { computedAt, vendors } = await getVendors();
   const today = nycToday();
   const key = `shop-diverse/search/${computedAt}/${today}/${queryToParams(query)}`;
-  return edgeCached(requestUrl, key, SEARCH_TTL, async () => searchBusinesses(vendors, query, { today }), ctx);
+  return edgeCached(requestUrl, key, SEARCH_TTL, async () => {
+    await checkRateLimit("SEARCH_RATE_LIMITER", clientAddress);
+    return searchBusinesses(vendors, query, { today });
+  }, ctx);
 }
 
 export const isAccount = (value) => /^\d{1,12}$/.test(String(value ?? ""));

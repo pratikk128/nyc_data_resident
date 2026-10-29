@@ -10,20 +10,19 @@
  * both of their intents. (Most firms max out the other points, so a bonus
  * that applied all the time would decide nearly every tie in their favor.)
  *
- * Certification currency: a firm whose renewal dates have all passed loses
- * 100 points, which puts it below every current firm (and it's hidden unless
- * the visitor asks for lapsed certifications). A firm with no renewal date
- * gets the same 0 as a firm with a future one: every WBE-only firm in the
- * dataset has no renewal date, so treating "no date" as worse would bury
- * women-owned businesses.
+ * Certification currency doesn't score. A firm whose renewal dates have all
+ * passed is hidden unless the visitor asks for lapsed certifications, and
+ * then rankBusinesses() sorts it last in every order. A firm with no renewal
+ * date is treated like a current one: every WBE-only firm in the dataset has
+ * no renewal date, so treating "no date" as worse would bury women-owned
+ * businesses.
  *
  * Ties are broken by a hash of the vendor's id and today's date, so the order
  * is stable all day and the same firms don't win every tie forever.
  */
-import { searchText } from "./clean.js";
+import { searchText, descriptionHaystack } from "./clean.js";
 
 export const POINTS = {
-  lapsed: -100,
   // What the visitor picked: every result shares these, so they only matter
   // next to the keyword points.
   subcategory: 30,
@@ -59,12 +58,13 @@ export function yearsInBusiness(established, today) {
   return y2 - y1 - (m2 < m1 || (m2 === m1 && d2 < d1) ? 1 : 0);
 }
 
-// The text keyword search looks in, as searchText() strings.
+// The text keyword search looks in, as searchText() strings. The index has
+// only the description's excerpt and other words (indexRecord).
 export function haystack(record) {
   return {
     name: searchText(`${record.name} ${record.dba ?? ""}`),
     industry: searchText(`${record.sector ?? ""} ${record.subsector ?? ""} ${record.title ?? ""}`),
-    description: searchText(record.description)
+    description: descriptionHaystack(record)
   };
 }
 
@@ -90,7 +90,7 @@ const KEYWORD_POINTS = {
 };
 
 /*
- * record: a cleaned vendor (clean.js). ctx: {
+ * record: an index record (indexRecord in clean.js). ctx: {
  *   today:      "YYYY-MM-DD"
  *   query:      { who, cat, sub, zip } from the filters (filter.js)
  *   zipBorough: the borough of query.zip, if it's a NYC ZIP
@@ -100,12 +100,11 @@ const KEYWORD_POINTS = {
  */
 export function scoreBusiness(record, { today, query = {}, zipBorough = null, match = null }) {
   const parts = {};
-  if (certStatus(record, today) === "lapsed") parts.lapsed = POINTS.lapsed;
   if (query.sub) parts.subcategory = POINTS.subcategory;
   else if (query.cat) parts.category = POINTS.category;
   if (match) parts.keyword = KEYWORD_POINTS[match];
   if (record.website) parts.website = POINTS.website;
-  if ((record.description ?? "").length >= POINTS.minDescriptionLength) parts.description = POINTS.description;
+  if ((record.excerpt ?? "").length >= POINTS.minDescriptionLength) parts.description = POINTS.description;
   if (record.phone?.tel) parts.phone = POINTS.phone;
   const certs = record.certs ?? [];
   const wantsBoth = query.who?.includes("MBE") && query.who?.includes("WBE");
@@ -131,9 +130,10 @@ export function tieBreak(id, seed) {
 
 export const displayName = (record) => record.dba || record.name;
 
+// One collator for every comparison: localeCompare with options builds one per call.
+const collator = new Intl.Collator("en", { sensitivity: "base", numeric: true });
 const byName = (a, b) =>
-  displayName(a.record).localeCompare(displayName(b.record), "en", { sensitivity: "base", numeric: true }) ||
-  a.record.id.localeCompare(b.record.id);
+  collator.compare(displayName(a.record), displayName(b.record)) || a.record.id.localeCompare(b.record.id);
 
 // Missing dates sort last either way.
 const byDate = (dir) => (a, b) => {

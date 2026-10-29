@@ -21,7 +21,6 @@ import { haystack, keywordMatch, rankBusinesses, certStatus, displayName } from 
 
 const MAX_CATEGORY_LENGTH = 150;
 const MAX_PAGE = 1000;
-const EXCERPT_LENGTH = 160;
 
 export const slug = (label) => label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const ETHNICITY_BY_SLUG = Object.fromEntries(MINORITY_ETHNICITIES.map((e) => [slug(e), e]));
@@ -110,14 +109,6 @@ export function outsideShare(vendors) {
   return vendors.filter((v) => !v.borough).length / vendors.length;
 }
 
-// First ~160 characters of the description, cut at a word.
-export function excerpt(description) {
-  const s = String(description ?? "").replace(/\s+/g, " ").trim();
-  if (s.length <= EXCERPT_LENGTH) return s;
-  const cut = s.slice(0, EXCERPT_LENGTH);
-  return `${cut.slice(0, cut.lastIndexOf(" ") > 80 ? cut.lastIndexOf(" ") : EXCERPT_LENGTH).replace(/[\s,;:.–-]+$/, "")}…`;
-}
-
 // What a result card needs.
 export function cardSummary(record, today) {
   return {
@@ -126,7 +117,7 @@ export function cardSummary(record, today) {
     ...(record.dba && { legalName: record.name }),
     certs: record.certs ?? [],
     category: record.title || record.subsector || record.sector || "",
-    excerpt: excerpt(record.description),
+    excerpt: record.excerpt ?? "",
     place: record.borough ?? [record.city, record.state].filter(Boolean).join(", "),
     ...(certStatus(record, today) === "lapsed" && { lapsed: true })
   };

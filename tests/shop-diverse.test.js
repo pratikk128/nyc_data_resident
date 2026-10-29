@@ -9,12 +9,12 @@ import assert from "node:assert/strict";
 
 import {
   titleCase, businessName, phone, website, zip, boroughFromZip, certifications, renewalDates, pastDate, ethnicity,
-  cleanVendor, indexRecord, keywordWords
+  cleanVendor, indexRecord, keywordWords, extraWords, excerpt
 } from "../src/lib/shop-diverse/clean.js";
 import {
   POINTS, certStatus, yearsInBusiness, haystack, keywordMatch, scoreBusiness, tieBreak, rankBusinesses
 } from "../src/lib/shop-diverse/ranking.js";
-import { normalizeQuery, queryToParams, searchBusinesses, excerpt, outsideShare } from "../src/lib/shop-diverse/filter.js";
+import { normalizeQuery, queryToParams, searchBusinesses, outsideShare } from "../src/lib/shop-diverse/filter.js";
 import { contactText, mapsUrl, detailHtml } from "../src/lib/shop-diverse/render.js";
 
 const TODAY = "2026-10-28";
@@ -121,13 +121,26 @@ test("indexRecord keeps only what search and cards need", () => {
   assert.equal(idx.jobs, undefined);
   assert.deepEqual(idx.phone, { tel: "+12012561092" });
   assert.equal(idx.title, "Architectural Services");
+  assert.equal(idx.description, undefined, "the full description stays out of the index");
+  assert.equal(idx.excerpt, "000 Architecture PLLC is an architectural studio.");
+  assert.equal(idx.keywords, undefined, "every word is in the excerpt");
+});
+
+test("a long description is searchable past its excerpt, each extra word kept once", () => {
+  const description = `${"Tile setting and repair. ".repeat(8)}We also do grout work, grout sealing and stone floors.`;
+  const idx = indexRecord(cleanVendor({ ...ROW, business_description: description }, TODAY));
+  assert.ok(idx.excerpt.length <= 161);
+  assert.equal(idx.keywords, "WE ALSO DO GROUT WORK SEALING STONE FLOORS");
+  assert.equal(extraWords("Tile, tile and more TILE.", "Tile"), "AND MORE");
+  assert.equal(keywordMatch(keywordWords("stone floor"), haystack(idx)), "description");
+  assert.equal(keywordMatch(keywordWords("tile repair"), haystack(idx)), "description");
 });
 
 // ---------- Ranking ----------
 
 const biz = (over = {}) => ({
   id: "1", name: "Example LLC", certs: ["WBE"], sector: "Construction", subsector: "Specialty Trade Contractors",
-  title: "Plumbing, Heating, and Air-Conditioning Contractors", description: "x".repeat(60), ...over
+  title: "Plumbing, Heating, and Air-Conditioning Contractors", excerpt: "x".repeat(60), ...over
 });
 
 test("certification currency: past dates are lapsed, no date isn't", () => {
@@ -138,12 +151,12 @@ test("certification currency: past dates are lapsed, no date isn't", () => {
   assert.equal(certStatus(biz(), TODAY), "undated");
 });
 
-test("an undated certification (every WBE-only firm) scores the same as a current one", () => {
+test("certification currency doesn't score: undated (every WBE-only firm), current and lapsed are equal", () => {
   const undated = scoreBusiness(biz(), { today: TODAY }).score;
   const current = scoreBusiness(biz({ renewals: ["2030-01-31"] }), { today: TODAY }).score;
   const lapsed = scoreBusiness(biz({ renewals: ["2026-01-31"] }), { today: TODAY }).score;
   assert.equal(undated, current);
-  assert.equal(lapsed, current + POINTS.lapsed);
+  assert.equal(lapsed, current);
 });
 
 test("years in business count whole years, capped for points", () => {
@@ -158,7 +171,7 @@ test("keyword match: industry beats name beats description", () => {
   const words = keywordWords("plumb");
   assert.equal(keywordMatch(words, haystack(biz())), "industry");
   assert.equal(keywordMatch(words, haystack(biz({ title: "Painting", subsector: "", sector: "", name: "Plumbers R Us" }))), "name");
-  assert.equal(keywordMatch(words, haystack(biz({ title: "Painting", subsector: "", sector: "", description: "We also do plumbing." }))), "description");
+  assert.equal(keywordMatch(words, haystack(biz({ title: "Painting", subsector: "", sector: "", excerpt: "We also do plumbing." }))), "description");
   assert.equal(keywordMatch(keywordWords("bakery"), haystack(biz())), null);
   assert.equal(keywordMatch(keywordWords("joe’s"), haystack(biz({ name: "JOES PLUMBING" }))), "name");
   const score = (match) => scoreBusiness(biz(), { today: TODAY, match }).score;
@@ -182,10 +195,10 @@ test("picking a subcategory scores above a category, above neither", () => {
 });
 
 test("reachability: website, a real description and a phone each add points", () => {
-  const bare = biz({ description: "Short." });
+  const bare = biz({ excerpt: "Short." });
   const s = (r) => scoreBusiness(r, { today: TODAY }).score;
   assert.equal(s({ ...bare, website: "https://a.com" }) - s(bare), POINTS.website);
-  assert.equal(s({ ...bare, description: "y".repeat(40) }) - s(bare), POINTS.description);
+  assert.equal(s({ ...bare, excerpt: "y".repeat(40) }) - s(bare), POINTS.description);
   assert.equal(s({ ...bare, phone: { tel: "+12125550100" } }) - s(bare), POINTS.phone);
   assert.equal(s({ ...bare, phone: { tel: null } }), s(bare), "an unusable number doesn't count");
 });

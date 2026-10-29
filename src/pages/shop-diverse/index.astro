@@ -27,10 +27,10 @@ const loadShared = async () => {
   return (await loadBusiness(bizId, Astro.url, Astro.locals.cfContext, Astro.clientAddress)) ?? { missing: true };
 };
 const [meta, initial, shared] = await Promise.allSettled([
-  getMetadata(), loadSearch(query, Astro.url, Astro.locals.cfContext), loadShared()
+  getMetadata(), loadSearch(query, Astro.url, Astro.locals.cfContext, Astro.clientAddress), loadShared()
 ]);
-for (const r of [meta, initial]) if (r.status === 'rejected') console.error(r.reason);
-if (shared.status === 'rejected' && !(shared.reason instanceof RateLimited)) console.error(shared.reason);
+if (meta.status === 'rejected') console.error(meta.reason);
+for (const r of [initial, shared]) if (r.status === 'rejected' && !(r.reason instanceof RateLimited)) console.error(r.reason);
 // The whole list is in memory once loadSearch has run, so this costs one pass.
 const share = await getVendors().then(({ vendors }) => outsideShare(vendors), () => null);
 const metaValue = meta.status === 'fulfilled' ? meta.value : null;
@@ -38,8 +38,12 @@ const metaValue = meta.status === 'fulfilled' ? meta.value : null;
 const business = shared.status === 'fulfilled' ? shared.value : null;
 const bizMeta = business && !business.missing ? businessMeta(business) : null;
 const pageTitle = 'Women and Minority Owned Businesses';
-// Production only: in dev a cached page hides edits for an hour.
-if (import.meta.env.PROD) Astro.response.headers.set('Cache-Control', 'public, max-age=3600');
+// Production only: in dev a cached page hides edits for an hour. A page whose
+// results or shared business failed to load isn't cached, so a visitor
+// without script isn't stuck on the error.
+if (import.meta.env.PROD && initial.status === 'fulfilled' && shared.status === 'fulfilled') {
+  Astro.response.headers.set('Cache-Control', 'public, max-age=3600');
+}
 ---
 
 <DashboardLayout

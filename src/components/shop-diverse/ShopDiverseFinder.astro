@@ -319,6 +319,16 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
     filterCount.textContent = n ? `(${n})` : '';
   }
 
+  // An error leaves nothing from the last view: no cards, pager, summary or counts.
+  function clearResults() {
+    list.replaceChildren();
+    pager.replaceChildren();
+    kpis.replaceChildren();
+    form.querySelectorAll('.sd-count').forEach((el) => { el.textContent = ''; });
+    form.querySelectorAll<HTMLInputElement>('input[name="eth"]').forEach((b) => { b.disabled = false; });
+    form.querySelectorAll('select option').forEach((o) => { o.textContent = o.textContent!.replace(/ \([\d,]+\)$/, ''); });
+  }
+
   async function search({ push = false, scroll = false } = {}) {
     clearTimeout(typingTimer);
     searchAbort?.abort();
@@ -337,8 +347,8 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
     try {
       const res = await fetch(`/api/shop-diverse/search?${queryToParams(query)}`, { signal: searchAbort.signal });
       const data = await res.json().catch(() => null);
-      if (res.status === 400 && typeof data?.error === 'string') {
-        list.replaceChildren();
+      if ((res.status === 400 || res.status === 429) && typeof data?.error === 'string') {
+        clearResults();
         status.textContent = data.error;
         return;
       }
@@ -352,8 +362,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
       if (scroll) $('.sd-results-head').scrollIntoView({ block: 'start', behavior: reducedMotion.matches ? 'auto' : 'smooth' });
     } catch (err: any) {
       if (err.name === 'AbortError') return;
-      list.replaceChildren();
-      pager.replaceChildren();
+      clearResults();
       status.textContent = UPSTREAM_TEXT;
     } finally {
       list.removeAttribute('aria-busy');
@@ -383,11 +392,12 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
   });
   for (const input of [qInput, zipInput]) {
     input.addEventListener('input', () => {
-      clearTimeout(typingTimer);
       if (input === zipInput) {
-        if (zipIsValid()) showZipError(false);
-        else return; // wait for 5 digits
+        // Wait for 5 digits, without cancelling a keyword search that's pending.
+        if (!zipIsValid()) return;
+        showZipError(false);
       }
+      clearTimeout(typingTimer);
       typingTimer = window.setTimeout(applyForm, DEBOUNCE_MS);
     });
   }
