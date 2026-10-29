@@ -26,7 +26,7 @@
 import { env } from "cloudflare:workers";
 import { refreshDaily } from "./cache.js";
 import { datasetMetadata } from "./socrata.js";
-import { cadenceOf, refreshReason, sourceVersion, isOverdue, snapshotChanges } from "../etl/cadence.js";
+import { cadenceOf, refreshReason, sourceVersion, isOverdue, snapshotChanges, cronProblem } from "../etl/cadence.js";
 import { SNAPSHOTS, snapshotSourceIds } from "../etl/snapshots.js";
 import snapshotManifest from "../../data/snapshots.json";
 import { restaurantsDataset } from "./restaurants.js";
@@ -138,6 +138,8 @@ async function checkSnapshots(metadata, prev, now) {
 export async function etlStatus(now = Date.now()) {
   const state = await readState();
   const attention = [];
+  const cron = cronProblem(state.updatedAt, now);
+  if (cron) attention.push(cron);
   const datasets = DATASETS.map((ds) => {
     const s = state.datasets?.[ds.id] ?? {};
     const updated = s.source?.rowsUpdatedAt ?? null;

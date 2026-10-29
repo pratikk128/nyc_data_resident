@@ -8,7 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  CADENCES, refreshReason, sourceVersion, isOverdue, snapshotChanges, rebuildHours, requestMaxAgeHours
+  CADENCES, refreshReason, sourceVersion, isOverdue, snapshotChanges, rebuildHours, requestMaxAgeHours, cronProblem
 } from "../src/lib/etl/cadence.js";
 import { SNAPSHOTS } from "../src/lib/etl/snapshots.js";
 
@@ -109,4 +109,10 @@ test("every snapshot names its files, its refresh command and its sources", () =
     ids.add(s.id);
     assert.ok(s.files.length && s.command.startsWith("npm run data:") && s.sources.length, s.id);
   }
+});
+
+test("the status flags a cron that never ran or has stopped", () => {
+  assert.equal(cronProblem(null, NOW), "the hourly refresh has never run");
+  assert.equal(cronProblem(ago(1), NOW), null);
+  assert.match(cronProblem(ago(5), NOW), /hasn't run since .* \(5 h ago\)/);
 });

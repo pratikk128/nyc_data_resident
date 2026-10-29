@@ -2,7 +2,7 @@
 
 **asknycdata.com** · NYC's public data, made easy to understand.
 
-Interactive dashboards for NYC residents, built on public [NYC Open Data](https://opendata.cityofnewyork.us/). This repo currently holds the landing page; the dashboards themselves come later.
+Interactive dashboards for NYC residents, built on public [NYC Open Data](https://opendata.cityofnewyork.us/): a landing page plus six dashboards (restaurant inspections, 311 complaints, city payroll, drinking water, women- and minority-owned businesses, school quality).
 
 Built with [Astro](https://docs.astro.build) and deployed to Cloudflare Workers. The page's interactivity is plain vanilla JavaScript. Most pages are prerendered; pages and API routes that read live NYC Open Data run in the Worker (`export const prerender = false`).
 
@@ -31,6 +31,8 @@ src/lib/water/            Drinking water logic: reference values (config.js), la
 src/lib/server/           Server-only: Socrata client (holds the token), caches, the data refresh pipeline (etl.js)
 src/lib/etl/              Refresh policy: cadences and when to rebuild (cadence.js), build-time snapshots (snapshots.js)
 src/worker.js             Worker entry: Astro for requests, hourly cron for the data refresh
+src/middleware.js         Security headers on Worker responses (public/_headers for static files)
+src/pages/sitemap.xml.js  Sitemap from the dashboard registry; public/robots.txt points to it
 wrangler.jsonc            Worker config: KV namespace, cron trigger
 tests/                    `npm test` (node:test, no extra dependencies)
 src/data/                 Precomputed data snapshots (generated, committed)
@@ -62,7 +64,7 @@ npm test             # restaurant, 311, drinking water, women- and minority-owne
 ```sh
 npx wrangler login
 npx wrangler secret put SOCRATA_APP_TOKEN   # once
-npm run deploy                              # astro build && wrangler deploy
+npm run deploy                              # tests, astro check, astro build, wrangler deploy
 ```
 
 The first deploy creates the `DATA_CACHE` KV namespace and the hourly cron trigger (`15 * * * *`). `npm run deploy` first checks the build-time snapshots against NYC Open Data and warns about stale ones (it never blocks the deploy). The search cache (Workers Cache API) only works on a custom domain, so add asknycdata.com as a custom domain on the Worker; on `*.workers.dev` every search goes straight to Socrata.
@@ -112,7 +114,7 @@ npm run data:check -- --refresh   # also runs each stale snapshot's script
 npm run deploy                    # after reviewing the diff in src/data/
 ```
 
-**Is everything current?** `GET /api/etl/status` returns every dataset's last source update, cadence, whether it's late, and each job's last build, reason, duration, whether it's current and its last error, plus each snapshot's state. `ok` is `false` and `attention` lists plain sentences when something needs a look. To run the cron locally: `npm run build && npx wrangler dev -c dist/server/wrangler.json --test-scheduled`, then open `http://localhost:8787/cdn-cgi/handler/scheduled` (the first run builds everything, a few minutes for 311; a second run rebuilds nothing).
+**Is everything current?** `GET /api/etl/status` returns every dataset's last source update, cadence, whether it's late, and each job's last build, reason, duration, whether it's current and its last error, plus each snapshot's state. `ok` is `false` and `attention` lists plain sentences when something needs a look, including when the hourly cron hasn't run for over 2 hours. To run the cron locally: `npm run build && npx wrangler dev -c dist/server/wrangler.json --test-scheduled`, then open `http://localhost:8787/cdn-cgi/handler/scheduled` (the first run builds everything, a few minutes for 311; a second run rebuilds nothing).
 
 **Adding a dataset.** In its server module, define jobs (`{ key, maxAgeHours: requestMaxAgeHours(CADENCE), run }`) and export a dataset (`{ id, dashboard, datasetId, cadence, rolling?, snapshots?, metadataJob, jobs }`). Add it to `DATASETS` in `src/lib/server/etl.js`, and read the jobs with `dailyValue(job)`. Change a job's key when its output shape changes, so the next run rebuilds it. **Adding a snapshot:** add it to `SNAPSHOTS` in `src/lib/etl/snapshots.js`, and have its script call `recordSnapshot(id, startedAt)` from `scripts/lib/snapshot-manifest.mjs` after it writes its files.
 

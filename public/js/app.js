@@ -89,7 +89,7 @@
     root.classList.add("drawer-open");
     backdrop.hidden = false;
     syncToggle();
-    var current = categoryList.querySelector('[aria-current="true"]') || categoryList.querySelector("button");
+    var current = categoryList.querySelector('[aria-current="page"]') || categoryList.querySelector(".category-btn");
     if (current) current.focus();
   }
 

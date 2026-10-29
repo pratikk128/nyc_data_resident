@@ -78,6 +78,17 @@ export function isOverdue(cadence, sourceUpdatedAt, now = Date.now()) {
   return now - Date.parse(sourceUpdatedAt) > overdueDays * 864e5;
 }
 
+// The cron runs hourly; this long without a run means it has stopped.
+export const CRON_LATE_HOURS = 2;
+
+// Why the cron needs a look, or null: never ran, or hasn't run lately.
+export function cronProblem(lastRunAt, now = Date.now()) {
+  if (!lastRunAt) return "the hourly refresh has never run";
+  const hours = (now - Date.parse(lastRunAt)) / 3600e3;
+  if (hours > CRON_LATE_HOURS) return `the hourly refresh hasn't run since ${lastRunAt} (${Math.floor(hours)} h ago)`;
+  return null;
+}
+
 /*
  * A build-time snapshot (src/lib/etl/snapshots.js) is stale when a source
  * changed after it was built: rows updated later, or (for a file attached to

@@ -1,0 +1,6 @@
+# Static files (served without the Worker). Keep in sync with src/middleware.js.
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: SAMEORIGIN
+  Permissions-Policy: geolocation=(self), camera=(), microphone=()

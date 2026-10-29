@@ -192,7 +192,8 @@ export async function radiusSummary(lat, lon, areaKey, windowKey) {
   const summary = await areaSummary(circle(roundCoord(lat), roundCoord(lon), RADII[areaKey]), windowKey, {
     withBorough: areaKey === "neighborhood"
   });
-  console.log(`311 radius ${areaKey} (${RADII[areaKey]} m) ${windowKey} at ${roundCoord(lat)},${roundCoord(lon)}: ` +
+  // No coordinates in the logs: they're where someone lives or is standing.
+  console.log(`311 radius ${areaKey} (${RADII[areaKey]} m) ${windowKey}: ` +
     `${Date.now() - started} ms, ${summary.total} requests`);
   return { ...summary, area: areaKey, center: { lat: roundCoord(lat), lon: roundCoord(lon) }, radius: RADII[areaKey] };
 }
@@ -212,7 +213,7 @@ export async function heatmapCells(lat, lon, windowKey, types = []) {
     if (r.y == null || r.x == null) continue;
     cells.push([Math.round(((Number(r.y) + 0.5) / g) * 1e5) / 1e5, Math.round(((Number(r.x) + 0.5) / g) * 1e5) / 1e5, Number(r.n)]);
   }
-  console.log(`311 heatmap ${windowKey} at ${roundCoord(lat)},${roundCoord(lon)} (${types.length} types): ` +
+  console.log(`311 heatmap ${windowKey} (${types.length} types): ` +
     `${Date.now() - started} ms, ${cells.length} cells`);
   return {
     window: windowKey, since, through: today(),
