@@ -24,6 +24,13 @@
  * firm outside NYC that does what was asked still beats one that only
  * mentions it.
  *
+ * A keyword in the specific industry title (NAICS title) scores above one
+ * only in the broader sector or subsector: "plumber" finds plumbing
+ * contractors by title, but also hardware and HVAC wholesalers whose
+ * subsector reads "Hardware, and Plumbing and Heating Equipment and Supplies
+ * Merchant Wholesalers". The gap is smaller than the NYC bonus, so it orders
+ * firms within NYC and within the rest, not one against the other.
+ *
  * Ties are broken by a hash of the vendor's id and today's date, so the order
  * is stable all day and the same firms don't win every tie forever.
  */
@@ -35,6 +42,7 @@ export const POINTS = {
   subcategory: 30,
   category: 20,
   // Where the keyword was found (the best place that holds every word)
+  keywordTitle: 25,
   keywordIndustry: 20,
   keywordName: 15,
   keywordDescription: 8,
@@ -71,6 +79,7 @@ export function yearsInBusiness(established, today) {
 export function haystack(record) {
   return {
     name: searchText(`${record.name} ${record.dba ?? ""}`),
+    title: searchText(record.title ?? ""),
     industry: searchText(`${record.sector ?? ""} ${record.subsector ?? ""} ${record.title ?? ""}`),
     description: descriptionHaystack(record)
   };
@@ -81,12 +90,14 @@ export function haystack(record) {
 const found = (text, word) => text.includes(word.length <= 2 ? ` ${word} ` : ` ${word}`);
 
 // Each word must start a word somewhere ("plumb" finds "PLUMBING"). Returns
-// the best single place that holds every word — "industry", "name",
+// the best single place that holds every word — "title" (the industry
+// title alone), "industry" (sector, subsector and title), "name",
 // "description" — "mixed" when the words are spread across places, or null
 // when some word isn't found at all.
 export function keywordMatch(words, hay) {
   if (!words.length) return null;
   const has = (field) => words.every((w) => found(hay[field], w));
+  if (has("title")) return "title";
   if (has("industry")) return "industry";
   if (has("name")) return "name";
   if (has("description")) return "description";
@@ -95,6 +106,7 @@ export function keywordMatch(words, hay) {
 }
 
 const KEYWORD_POINTS = {
+  title: POINTS.keywordTitle,
   industry: POINTS.keywordIndustry,
   name: POINTS.keywordName,
   description: POINTS.keywordDescription,

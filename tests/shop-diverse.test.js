@@ -172,14 +172,16 @@ test("years in business count whole years, capped for points", () => {
   assert.equal(old, POINTS.maxYearsCounted * POINTS.perYearInBusiness);
 });
 
-test("keyword match: industry beats name beats description", () => {
+test("keyword match: title beats the rest of the industry beats name beats description", () => {
   const words = keywordWords("plumb");
-  assert.equal(keywordMatch(words, haystack(biz())), "industry");
+  assert.equal(keywordMatch(words, haystack(biz())), "title");
+  assert.equal(keywordMatch(words, haystack(biz({ title: "Painting", subsector: "Plumbing Supplies" }))), "industry");
   assert.equal(keywordMatch(words, haystack(biz({ title: "Painting", subsector: "", sector: "", name: "Plumbers R Us" }))), "name");
   assert.equal(keywordMatch(words, haystack(biz({ title: "Painting", subsector: "", sector: "", excerpt: "We also do plumbing." }))), "description");
   assert.equal(keywordMatch(keywordWords("bakery"), haystack(biz())), null);
   assert.equal(keywordMatch(keywordWords("joe’s"), haystack(biz({ name: "JOES PLUMBING" }))), "name");
   const score = (match) => scoreBusiness(biz(), { today: TODAY, match }).score;
+  assert.ok(score("title") > score("industry"));
   assert.ok(score("industry") > score("name"));
   assert.ok(score("name") > score("description"));
 });
@@ -189,7 +191,7 @@ test("keyword: plurals and -er/-ing forms find each other", () => {
   for (const forms of same) assert.equal(new Set(forms.map((w) => keywordWords(w).join())).size, 1, forms.join());
   assert.deepEqual(keywordWords("boxes tiles shipping staffing"), ["BOX", "TILE", "SHIP", "STAFF"]);
   assert.deepEqual(keywordWords("bus 3d it"), ["BUS", "3D", "IT"]);
-  for (const w of ["plumber", "plumbing"]) assert.equal(keywordMatch(keywordWords(w), haystack(biz())), "industry");
+  for (const w of ["plumber", "plumbing"]) assert.equal(keywordMatch(keywordWords(w), haystack(biz())), "title");
   assert.equal(keywordMatch(keywordWords("bakeries"), haystack(biz({ name: "Sweet Bakery" }))), "name");
 });
 
@@ -229,6 +231,26 @@ test("a business in the five boroughs scores above one elsewhere, but not above 
   const away = biz({ city: "Newark", state: "NJ" });
   assert.equal(s(local) - s(away), POINTS.inNyc);
   assert.ok(s(away, "industry") > s(local, "description"));
+});
+
+test("\"plumber\": contractors (title) rank above wholesalers whose subsector mentions plumbing", () => {
+  const wholesaler = (over) => biz({
+    id: "w", sector: "Wholesale Trade",
+    subsector: "Hardware, and Plumbing and Heating Equipment and Supplies Merchant Wholesalers",
+    title: "Warm Air Heating and Air-Conditioning Equipment and Supplies Merchant Wholesalers", ...over
+  });
+  const contractor = (over) => biz({ id: "c", ...over });
+  const order = (records) => {
+    const words = keywordWords("plumber");
+    const items = records.map((record) => ({ record, match: keywordMatch(words, haystack(record)) }));
+    return rankBusinesses(items, { today: TODAY }).map((r) => r.record.id).join();
+  };
+  // Outside NYC, where no bonus separates them
+  assert.equal(order([wholesaler({ state: "NJ" }), contractor({ state: "NJ" })]), "c,w");
+  // Within NYC
+  assert.equal(order([wholesaler({ borough: "Queens" }), contractor({ borough: "Queens" })]), "c,w");
+  // The gap stays under the NYC bonus
+  assert.ok(POINTS.keywordTitle - POINTS.keywordIndustry < POINTS.inNyc);
 });
 
 test("keywords of one or two letters match whole words only", () => {
@@ -375,7 +397,7 @@ test("search words: what the name and industry hold isn't repeated, and still ma
   assert.equal(idx.keywords, "LICENSED ELECTRICAL CONTRACTORS KITCHENS");
   const services = indexRecord(cleanVendor({ ...ROW, business_description: `${"We build. ".repeat(20)}Architectural services.` }, TODAY));
   assert.equal(services.keywords, undefined, "both words are in the industry");
-  assert.equal(keywordMatch(keywordWords("architectural services"), haystack(services)), "industry");
+  assert.equal(keywordMatch(keywordWords("architectural services"), haystack(services)), "title");
 });
 
 test("keywords: filler words are ignored, unless that's all there is", () => {

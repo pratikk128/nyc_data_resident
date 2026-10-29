@@ -283,7 +283,7 @@ The old `/drinking-water/history/` URL redirects to `/drinking-water/#history` (
 | Rule | Points |
 |---|---|
 | Subcategory picked / category picked (the same for every result) | +30 / +20 |
-| Keyword in the industry name / business name / only the description | +20 / +15 / +8 |
+| Keyword in the industry title / only its sector or subsector / business name / only the description | +25 / +20 / +15 / +8 |
 | Valid website, description of 40+ characters, usable phone | +6, +5, +2 |
 | Holds both MBE and WBE, only when the visitor picked both | +3 |
 | Years in business | +0.5 per year, max +5 |
@@ -293,7 +293,7 @@ The old `/drinking-water/history/` URL redirects to `/drinking-water/#history` (
 
 A firm whose renewal dates have all passed is hidden unless `lapsed=1`, and then sorts last in every order; it isn't scored.
 
-Ethnicity and gender never score. **No renewal date scores the same as a current one**, because every WBE-only firm has no renewal date; penalizing that would bury women-owned businesses. The MBE+WBE bonus is limited to visitors who asked for both because most firms max out the other points, so an always-on bonus decided nearly every tie. The NYC bonus exists because about a third of the list is outside the five boroughs and, with no keyword, the order is mostly the daily tie shuffle; it's kept below the 12-point gap between an industry and a description keyword match. Keywords of one or two letters (`it`, `av`) must match a whole word, since a word-start match finds nearly everything.
+Ethnicity and gender never score. **No renewal date scores the same as a current one**, because every WBE-only firm has no renewal date; penalizing that would bury women-owned businesses. The MBE+WBE bonus is limited to visitors who asked for both because most firms max out the other points, so an always-on bonus decided nearly every tie. The NYC bonus exists because about a third of the list is outside the five boroughs and, with no keyword, the order is mostly the daily tie shuffle; it's kept below the 12-point gap between an industry and a description keyword match. The industry title outscores the sector and subsector so `plumber` puts plumbing contractors (title) above hardware and HVAC wholesalers (whose subsector mentions plumbing); that 5-point gap is under the NYC bonus, so it orders firms within NYC and outside it, not across. Keywords of one or two letters (`it`, `av`) must match a whole word, since a word-start match finds nearly everything.
 
 **Data quirks found (Oct 2026).** One row per vendor, so no dedupe was needed, and each vendor has exactly one NAICS code. There's **no email column**. `cert_renewal_date` is text (`M/D/YYYY`), sometimes doubled (`11/30/2026;11/30/2026`), and blank for all WBE-only firms. ZIPs are numeric, so NJ/New England ZIPs lose their leading zero. Names have junk prefixes (`=---`) and ~700 are all caps. Websites include `N/A`, `http://Under Construction` and company names. Phones come in mixed formats. Some establishment dates are in the future (up to 2996). `borough` is blank for ~4,700 rows: mostly outside NYC (NJ alone is ~1,000), but some NYC addresses failed to geocode and get a borough from their ZIP. `types_of_construction_projects_performed` and `capacity_building_programs` are always empty.
 
