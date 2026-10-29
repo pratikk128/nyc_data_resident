@@ -7,6 +7,13 @@ import { percent } from "./format.js";
 // `value` picks the number from a year row; `format` prints the prior value.
 // Returns null when there's nothing fair to compare with: no row for the
 // fiscal year right before the latest one, or a prior value of zero or less.
+/**
+ * @template {{ fiscalYear: number }} Y
+ * @param {Y[]} years
+ * @param {(y: Y) => number} value
+ * @param {(n: number) => string} format
+ * @returns {{ dir: "up" | "down" | "flat", text: string } | null}
+ */
 export function yearChange(years, value, format) {
   const last = years[years.length - 1];
   const prev = years.find((y) => y.fiscalYear === last.fiscalYear - 1);

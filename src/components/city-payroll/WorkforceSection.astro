@@ -24,7 +24,7 @@ const range = `FY${first.fiscalYear}–FY${latest.fiscalYear}`;
 const peopleContext = (y: (typeof years)[number]) =>
   `On the payroll on the last day of FY${y.fiscalYear}. ${count(y.peoplePaid)} people were paid at some point that year.`;
 
-const latestTotal = (agency) => agency.years.find((y) => y.fiscalYear === latest.fiscalYear)?.total ?? 0;
+const latestTotal = (agency: (typeof byAgency.agencies)[number]) => agency.years.find((y) => y.fiscalYear === latest.fiscalYear)?.total ?? 0;
 const largest = byAgency.agencies.slice().sort((a, b) => latestTotal(b) - latestTotal(a)).slice(0, 10);
 
 // Latest-year pay for every agency with records that year: small enough to
@@ -367,7 +367,7 @@ const latestRows = byAgency.agencies.flatMap((a) => {
     // ---------- Agency ranking (latest fiscal year) ----------
     function updateRanking() {
       const keys = selectedPay();
-      const ranked = rankAgencies(rankRows, keys);
+      const ranked: ((typeof rankRows)[number] & { amount: number })[] = rankAgencies(rankRows, keys);
       const id = select.value;
       rankList.innerHTML = agencyRankingHtml(ranked, keys, id);
       rankSubject.textContent = allPay()
