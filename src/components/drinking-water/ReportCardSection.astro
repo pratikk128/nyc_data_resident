@@ -5,11 +5,11 @@
  * from the daily monthly and detections jobs (src/lib/server/water.js).
  */
 import HistorySection from './HistorySection.astro';
-import { reportCard, verdict, monthLabel, hasEcoli, isResample, resampleEcoli, plainDescription, followUpText, isStale, STATUS_TEXT, STATUS_ICON as ICON } from '../../lib/water/stats.js';
-import { boroughLabel } from '../../lib/water/config.js';
+import { reportCard, verdict, monthLabel, hasEcoli, isResample, resampleEcoli, followUpText, isStale, STATUS_TEXT, STATUS_ICON as ICON } from '../../lib/water/stats.js';
+import { boroughLabel, ERROR_TEXT, RESAMPLE_NOTE } from '../../lib/water/config.js';
+import { SITES, siteDescription } from '../../lib/water/sites.js';
 import { measurementText } from '../../lib/water/parse.js';
 import { count, date, nycToday } from '../../lib/format.js';
-import sitesFile from '../../data/water-sites.json';
 
 interface Props {
   monthly: any | null;
@@ -19,12 +19,6 @@ interface Props {
   detectionsError: boolean;
 }
 const { monthly, detections, error, detectionsError } = Astro.props;
-
-const sites = new Map(sitesFile.sites.map((s) => [s.site, s]));
-const where = (code: string) => {
-  const s = sites.get(code);
-  return s ? plainDescription(s.description) : 'Location not in DEP’s site list';
-};
 
 const month = monthly?.completeMonth ? monthly.months.find((m: any) => m.month === monthly.completeMonth) : null;
 const ecoliAll = (detections?.detections ?? []).filter(hasEcoli);
@@ -37,7 +31,7 @@ const lastEcoli = month ? ecoliAll.find((d: any) => d.date.slice(0, 7) <= month.
 // Months after the report card's that are still loading, left out of the history.
 const loading: string[] = month ? monthly.months.map((m: any) => m.month).filter((k: string) => k > month.month) : [];
 const ecoliLoading = ecoliAll.filter((d: any) => d.date.slice(0, 7) > (month?.month ?? '9999'));
-const lastEcoliBorough = lastEcoli ? sites.get(lastEcoli.site)?.borough : null;
+const lastEcoliBorough = lastEcoli ? SITES.get(lastEcoli.site)?.borough : null;
 // DEP hasn't posted a newer full month in a while: "right now" is older than it looks.
 const stale = month ? isStale(month.month, nycToday()) : false;
 ---
@@ -48,9 +42,7 @@ const stale = month ? isStale(month.month, nycToday()) : false;
   </header>
 
   {error && (
-    <p class="callout callout-heads-up" role="alert">
-      Couldn't reach NYC Open Data. Their servers might be stuck behind a double-parked truck. Try again in a minute.
-    </p>
+    <p class="callout callout-heads-up" role="alert">{ERROR_TEXT}</p>
   )}
 
   {!error && !month && (
@@ -103,7 +95,7 @@ const stale = month ? isStale(month.month, nycToday()) : false;
               <tbody>
                 {ecoliThisMonth.map((d: any) => (
                   <tr>
-                    <th scope="row">{d.site}<span class="water-cell-sub">{where(d.site)}</span></th>
+                    <th scope="row">{d.site}<span class="water-cell-sub">{siteDescription(d.site)}</span></th>
                     <td>{date(d.date)}{isResample(d.sampleClass) && <span class="water-cell-sub">Resample</span>}</td>
                     <td>{measurementText(d.ecoli)}</td>
                     <td class="water-cell-wrap">{followUpText(d)}</td>
@@ -112,13 +104,7 @@ const stale = month ? isStale(month.month, nycToday()) : false;
               </tbody>
             </table>
           </div>
-          <p>
-            One positive sample doesn't by itself mean the water was unsafe. When a sample tests positive, DEP
-            resamples: federal rules call for repeat samples within 24 hours at the same station and nearby. It only
-            becomes a violation if those follow-up samples also find coliform bacteria (or aren't taken). DEP doesn't
-            label every repeat sample as a resample, so the last column lists every later sample at the station and
-            only calls the labeled ones resamples.
-          </p>
+          <p>{RESAMPLE_NOTE}</p>
         </div>
       ) : detectionsError && month.ecoli.pos > 0 ? (
         <p class="callout callout-heads-up water-ecoli" role="alert">

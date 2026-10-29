@@ -10,11 +10,11 @@
  * months, no API call from the page). Tables and CSVs are rendered here.
  */
 import { historySeries, historyCsvHref } from '../../lib/water/history.js';
-import { historyTakeaway, summerShare, completeMonths, monthLabel, plainDescription, followUpText, isResample, sharePct } from '../../lib/water/stats.js';
+import { historyTakeaway, summerShare, completeMonths, monthLabel, followUpText, isResample, sharePct } from '../../lib/water/stats.js';
 import { measurementText } from '../../lib/water/parse.js';
-import { REFERENCES } from '../../lib/water/config.js';
+import { REFERENCES, RESAMPLE_NOTE } from '../../lib/water/config.js';
+import { siteDescription } from '../../lib/water/sites.js';
 import { count, date } from '../../lib/format.js';
-import sitesFile from '../../data/water-sites.json';
 
 interface Props {
   monthly: any | null;
@@ -35,8 +35,6 @@ const ecoliList = Object.values(series?.ecoli ?? {}).flat().sort((a: any, b: any
 const ecoliListCount = resampleCount
   ? `${ecoliList.length - resampleCount} routine, ${resampleCount} ${resampleCount === 1 ? 'resample' : 'resamples'}`
   : `${ecoliList.length}`;
-const sites = new Map(sitesFile.sites.map((s) => [s.site, s]));
-const where = (code: string) => (sites.has(code) ? plainDescription(sites.get(code)!.description) : 'Location not in DEP’s site list');
 
 const peak = series ? series.rows.reduce((a, r) => (r.coliTested && r.coliPositive / r.coliTested > (a.coliTested ? a.coliPositive / a.coliTested : -1) ? r : a), series.rows[0]) : null;
 // Titles state the finding only when the data supports it.
@@ -52,9 +50,9 @@ const summerText = summer && summer.share >= 0.6
 const gapText = gaps.length ? `No samples in the data for ${new Intl.ListFormat('en', { type: 'conjunction' }).format(gaps.map((g) => monthLabel(g, 'short')))}; the line breaks there.` : '';
 
 // Rows as arrays to keep the inlined JSON small:
-// [month, samples, coliTested, coliPositive, chlorineMedian, ecoliRoutine, ecoliResample (null if not loaded)].
+// [month, samples, coliTested, coliPositive, ecoliRoutine, ecoliResample (null if not loaded)].
 const chartData = series && {
-  rows: series.rows.map((r) => [r.month, r.samples, r.coliTested, r.coliPositive, r.chlorineMedian, r.ecoliPositive, detectionsError ? null : r.ecoliResample]),
+  rows: series.rows.map((r) => [r.month, r.samples, r.coliTested, r.coliPositive, r.ecoliPositive, detectionsError ? null : r.ecoliResample]),
   coliformRef: REFERENCES.coliform.maxPositiveShare
 };
 ---
@@ -131,11 +129,7 @@ const chartData = series && {
 
       <details class="data-table water-ecoli-history">
         <summary>Every E. coli detection since {monthLabel(series.months[0], 'short')} {detectionsError ? '(didn’t load)' : `(${ecoliListCount})`}</summary>
-        <p class="water-note">
-          One positive sample isn't a violation by itself. DEP takes repeat samples at the same station and nearby
-          within 24 hours. DEP doesn't label every repeat sample as a resample, so the last column lists every later
-          sample at the station and only calls the labeled ones resamples.
-        </p>
+        <p class="water-note">{RESAMPLE_NOTE}</p>
         {ecoliList.length ? (
           <div class="table-scroll" tabindex="0" role="region" aria-label="E. coli detections">
             <table>
@@ -144,7 +138,7 @@ const chartData = series && {
                 {ecoliList.map((d: any) => (
                   <tr>
                     <th scope="row">{date(d.date)}{isResample(d.sampleClass) && <span class="water-cell-sub">Resample</span>}</th>
-                    <td class="water-cell-wrap">{d.site}<span class="water-cell-sub">{where(d.site)}</span></td>
+                    <td class="water-cell-wrap">{d.site}<span class="water-cell-sub">{siteDescription(d.site)}</span></td>
                     <td>{measurementText(d.ecoli)}</td>
                     <td class="water-cell-wrap">{followUpText(d)}</td>
                   </tr>
@@ -175,10 +169,10 @@ const chartData = series && {
 
   if (coliformFrame) {
     const raw = JSON.parse(coliformFrame.dataset.chart!);
-    type Row = { samples: number; coliTested: number; coliPositive: number; chlorineMedian: number | null; ecoli: number; ecoliResample: number | null };
+    type Row = { samples: number; coliTested: number; coliPositive: number; ecoli: number; ecoliResample: number | null };
     const rows: Record<string, Row> = {};
-    for (const [month, samples, coliTested, coliPositive, chlorineMedian, ecoli, ecoliResample] of raw.rows) {
-      rows[month] = { samples, coliTested, coliPositive, chlorineMedian, ecoli, ecoliResample };
+    for (const [month, samples, coliTested, coliPositive, ecoli, ecoliResample] of raw.rows) {
+      rows[month] = { samples, coliTested, coliPositive, ecoli, ecoliResample };
     }
     const months: string[] = raw.rows.map((r: any[]) => r[0]);
     const d = {

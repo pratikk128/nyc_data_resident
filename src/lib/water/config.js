@@ -137,3 +137,14 @@ export const LINKS = {
   boroughBoundaries: "https://data.cityofnewyork.us/d/wh2p-dxnf",
   zipAreas: "https://data.cityofnewyork.us/d/pri4-ifjk"
 };
+
+// Shown whenever NYC Open Data doesn't answer (server render or browser fetch).
+export const ERROR_TEXT = "Couldn’t reach NYC Open Data. Their servers might be stuck behind a double-parked truck. Try again in a minute.";
+
+// Under each E. coli table, whose last column lists the later samples at the station.
+export const RESAMPLE_NOTE =
+  "One positive sample doesn’t by itself mean the water was unsafe. When a sample tests positive, DEP " +
+  "resamples: federal rules call for repeat samples within 24 hours at the same station and nearby. It only " +
+  "becomes a violation if those follow-up samples also find coliform bacteria (or aren’t taken). DEP doesn’t " +
+  "label every repeat sample as a resample, so the last column lists every later sample at the station and " +
+  "only calls the labeled ones resamples.";

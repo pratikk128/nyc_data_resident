@@ -12,6 +12,8 @@
  *   refit     true to zoom to the search or stations again; otherwise the
  *             reader's view stays (the first draw always fits)
  */
+import { escape } from "./near-me.js";
+
 const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas";
 const BASE_TILES = `${ESRI}/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}`;
 const LABEL_TILES = `${ESRI}/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}`;
@@ -26,8 +28,6 @@ function loadLeaflet() {
   leaflet ??= Promise.all([import("leaflet"), import("leaflet/dist/leaflet.css")]).then(([m]) => m.default);
   return leaflet;
 }
-
-const escape = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 export function mountStationMap(canvas, { onPick }) {
   let map = null, layer = null, L = null;

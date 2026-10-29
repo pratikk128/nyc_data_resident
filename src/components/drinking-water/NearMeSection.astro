@@ -6,9 +6,12 @@
  * median, and a one-line cloudiness comparison. The station list (from src/data/water-sites.json,
  * only stations sampled in the last 12 months) is inlined; the card data
  * comes from /api/water/stations. State lives in the URL:
- *   ?boro=QUEENS&sites=79150,79450&lat=40.69&lon=-73.76&place=...
+ *   ?boro=QUEENS&sites=79150,79450&zip=11211         a ZIP search
+ *   ?boro=QUEENS&sites=79150,79450&lat=40.692&lon=-73.761   an address search
+ * An address itself never goes in the URL (it would sit in browser history and
+ * in shared links): only its spot, rounded to about a block.
  */
-import { BOROUGHS, NEAREST_COUNT, MAX_SELECTED } from '../../lib/water/config.js';
+import { BOROUGHS, NEAREST_COUNT, MAX_SELECTED, ERROR_TEXT } from '../../lib/water/config.js';
 import { monthLabel } from '../../lib/water/stats.js';
 
 interface Props {
@@ -30,9 +33,7 @@ const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(
   </header>
 
   {error ? (
-    <p class="callout callout-heads-up" role="alert">
-      Couldn't reach NYC Open Data. Their servers might be stuck behind a double-parked truck. Try again in a minute.
-    </p>
+    <p class="callout callout-heads-up" role="alert">{ERROR_TEXT}</p>
   ) : (
     <>
       <form class="water-search" data-search novalidate>
@@ -89,13 +90,13 @@ const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(
   import { stationCardHtml, cardSkeletonHtml, escape } from '../../lib/water/near-me.js';
   import { drawSparkline } from '../../lib/water/charts.js';
   import { nearestSites } from '../../lib/water/stats.js';
-  import { BOROUGHS, NEAREST_COUNT, MAX_SELECTED, boroughLabel } from '../../lib/water/config.js';
+  import { BOROUGHS, NEAREST_COUNT, MAX_SELECTED, ERROR_TEXT, boroughLabel } from '../../lib/water/config.js';
   import { parseLocationInput, inNyc } from '../../lib/complaints311/location-input.js';
   import { resolveLocation } from '../../lib/complaints311/geocode.js';
   import zipFile from '../../data/zip-centroids.json';
 
   type Station = { site: string; place: string; borough: string | null; lat: number; lon: number; miles?: number };
-  type Point = { lat: number; lon: number; label: string };
+  type Point = { lat: number; lon: number; label: string; zip?: string };
 
   const root = document.querySelector<HTMLElement>('[data-near-me]');
   const form = root?.querySelector<HTMLFormElement>('[data-search]');
@@ -127,15 +128,21 @@ const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(
       const p = new URLSearchParams(location.search);
       borough = BOROUGHS.some((b) => b.value === p.get('boro')) ? p.get('boro')! : '';
       selected = (p.get('sites') ?? '').split(',').filter((s) => bySite.has(s)).slice(0, MAX_SELECTED);
+      const zip = p.get('zip') ?? '';
+      const c = (zipFile.zips as Record<string, number[]>)[zip];
       const lat = Number(p.get('lat')), lon = Number(p.get('lon'));
-      point = p.get('lat') && Number.isFinite(lat) && Number.isFinite(lon) && inNyc(lat, lon)
-        ? { lat, lon, label: (p.get('place') ?? 'your search').slice(0, 120) } : null;
+      point = c ? { lat: c[0], lon: c[1], label: `ZIP ${zip}`, zip }
+        : p.get('lat') && Number.isFinite(lat) && Number.isFinite(lon) && inNyc(lat, lon)
+          ? { lat, lon, label: 'your search' } : null;
     }
+    // 3 decimals is about 100 m: enough for the distances and the map dot.
+    const round = (v: number) => String(Math.round(v * 1000) / 1000);
     function writeUrl() {
       const p = new URLSearchParams();
       if (borough) p.set('boro', borough);
       if (selected.length) p.set('sites', selected.join(','));
-      if (point) { p.set('lat', String(point.lat)); p.set('lon', String(point.lon)); p.set('place', point.label); }
+      if (point?.zip) p.set('zip', point.zip);
+      else if (point) { p.set('lat', round(point.lat)); p.set('lon', round(point.lon)); }
       const query = p.toString();
       history.replaceState(null, '', query ? `?${query}` : location.pathname);
     }
@@ -195,8 +202,7 @@ const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(
           if (id !== request) return;
           cards.setAttribute('aria-busy', 'false');
           status.textContent = '';
-          cards.innerHTML = `<p class="c311-error" role="alert">${escape(err.message !== 'upstream' ? err.message
-            : 'Couldn’t reach NYC Open Data. Their servers might be stuck behind a double-parked truck. Try again in a minute.')}` +
+          cards.innerHTML = `<p class="c311-error" role="alert">${escape(err.message !== 'upstream' ? err.message : ERROR_TEXT)}` +
             ` <button type="button" class="near-btn water-retry" data-retry>Try again</button></p>`;
           return;
         }
@@ -211,19 +217,15 @@ const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(
       cards.querySelectorAll<HTMLElement>('.water-card').forEach((card, i) => {
         const d = cache.get(selected[i]);
         if (!d?.totals?.n) return;
-        const city = context.city;
-        const spark = (key: 'cl' | 'turb', field: 'clMed' | 'turbMed', unit: string) => {
-          const slot = card.querySelector<HTMLElement>(`[data-spark="${key}"]`);
-          if (!slot) return;
-          const values = d.series.map((m: any) => m?.[field] ?? null);
-          const cityValues = city.map((m: any) => m?.[field] ?? null);
-          const listed = values.map((v: number | null, j: number) => `${context.months[j]}: ${v ?? 'no samples'}`).join(', ');
-          drawSparkline(slot, values, cityValues, {
-            fmt: (v: number) => String(+v.toFixed(2)),
-            label: `Monthly median ${key === 'cl' ? 'chlorine' : 'turbidity'} at station ${selected[i]}, in ${unit}: ${listed}.`
-          });
-        };
-        spark('cl', 'clMed', 'mg/L');
+        const slot = card.querySelector<HTMLElement>('[data-spark="cl"]');
+        if (!slot) return;
+        const values = d.series.map((m: any) => m?.clMed ?? null);
+        const cityValues = context.city.map((m: any) => m?.clMed ?? null);
+        const listed = values.map((v: number | null, j: number) => `${context.months[j]}: ${v ?? 'no samples'}`).join(', ');
+        drawSparkline(slot, values, cityValues, {
+          fmt: (v: number) => String(+v.toFixed(2)),
+          label: `Monthly median chlorine at station ${selected[i]}, in mg/L: ${listed}.`
+        });
       });
       sparkHint.hidden = !cards.querySelector('[data-spark] svg');
     }
@@ -263,7 +265,7 @@ const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(
       if (parsed.kind === 'zip') {
         const c = (zipFile.zips as Record<string, number[]>)[parsed.zip];
         if (!c) { status.textContent = `We don’t have a location for ZIP ${parsed.zip}. Try an address in it.`; return; }
-        usePoint({ lat: c[0], lon: c[1], label: `ZIP ${parsed.zip}` });
+        usePoint({ lat: c[0], lon: c[1], label: `ZIP ${parsed.zip}`, zip: parsed.zip });
         return;
       }
       status.textContent = 'Looking up that address…';
@@ -293,8 +295,8 @@ const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(
       status.textContent = 'No matches. Try a nearby ZIP code or fewer words.';
     }
 
-    function usePoint(p: { lat: number; lon: number; label: string }) {
-      point = { lat: p.lat, lon: p.lon, label: p.label };
+    function usePoint(p: Point) {
+      point = { lat: p.lat, lon: p.lon, label: p.label, zip: p.zip };
       const near = nearestSites(stations, point, NEAREST_COUNT);
       selected = near.map((s) => s.site);
       borough = near[0]?.borough ?? '';
@@ -321,7 +323,7 @@ const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(
     });
 
     readUrl();
-    if (point) input.value = point.label;
+    if (point?.zip) input.value = point.zip;
     render();
   }
 </script>

@@ -1711,7 +1711,6 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
   --status-red: #FFE8E6;
   --status-red-deep: #B3261E;
   --water-line: var(--blue-deep);
-  --water-band: rgba(169, 203, 255, .28);   /* pastel blue, light */
 }
 
 /* "What this doesn't cover": always open, after the results */
@@ -1825,8 +1824,7 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
 .water-line { fill: none; stroke: var(--water-line); stroke-width: 2; stroke-linejoin: round; }
 .water-dot { fill: var(--water-line); }
 .water-marker { fill: var(--accent); stroke: var(--ink); stroke-width: 2; }
-.water-band { fill: var(--water-band); }
-.water-band-label, .water-ref-label { font-size: 12px; fill: var(--ink-soft); }
+.water-ref-label { font-size: 12px; fill: var(--ink-soft); }
 .water-ref { stroke: var(--ink-soft); stroke-width: 1.5; stroke-dasharray: 5 4; }
 .water-focus-line { stroke: var(--ink-soft); stroke-width: 1; stroke-dasharray: 2 3; }
 .water-focus-dot { fill: var(--card); stroke: var(--ink); stroke-width: 2; }

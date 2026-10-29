@@ -3,7 +3,7 @@
  * payroll charts). Browser only.
  *
  * mountMonthlyLine(frame, opts)  A line over every month of the history, with
- *   gaps where a month has no data, an optional shaded band and reference line,
+ *   gaps where a month has no data, an optional reference line,
  *   and optional point markers (E. coli). Hover, tap or arrow keys show a
  *   month's details in the frame's .chart-tooltip; arrow keys also read them
  *   out through .chart-live (pointer moves don't, so screen readers stay quiet).
@@ -12,7 +12,6 @@
  *     months:   ["2015-01", ...] every month from first to last, gaps included
  *     values:   { "2015-01": number | null }
  *     yMax:     top of the axis; ticks: values for gridlines; fmt: tick label
- *     band:     { from, to, label } shaded "normal range" (clipped to the axis)
  *     ref:      { value, label } dashed reference line (drawn if within yMax)
  *     markers:  { "2017-05": "label" } months to mark with a point on the line
  *     summary:  aria-label text
@@ -50,7 +49,7 @@ export function mountMonthlyLine(frame, opts) {
   let geom = null;
 
   function render() {
-    const { months, values, yMax, ticks, fmt, band, ref, markers = {} } = opts;
+    const { months, values, yMax, ticks, fmt, ref, markers = {} } = opts;
     const width = Math.max(280, chart.clientWidth);
     const narrow = width < 520;
     const height = narrow ? 220 : 280;
@@ -65,12 +64,6 @@ export function mountMonthlyLine(frame, opts) {
       role: "img", tabindex: "0", "aria-label": opts.summary
     });
 
-    if (band) {
-      const top = y(Math.min(band.to, yMax)), bottom = y(Math.max(band.from, 0));
-      el("rect", { x: m.left, y: top, width: plotW, height: Math.max(0, bottom - top), class: "water-band", "aria-hidden": "true" }, svg);
-      const t = el("text", { x: m.left + plotW - 6, y: top + 14, "text-anchor": "end", class: "water-band-label", "aria-hidden": "true" }, svg);
-      t.textContent = band.label;
-    }
 
     const grid = el("g", { class: "chart-grid", "aria-hidden": "true" }, svg);
     for (const v of ticks) {

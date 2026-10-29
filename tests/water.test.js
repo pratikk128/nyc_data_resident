@@ -14,9 +14,9 @@ import {
   nearestSites, addMonths, monthLabel, monthsBetween, isStale, normalizeDetection, hasEcoli, plainDescription, completeMonths,
   laterSamples, followUpText
 } from "../src/lib/water/stats.js";
-import { historySeries } from "../src/lib/water/history.js";
-import { bacteriaHtml } from "../src/lib/water/near-me.js";
-import { monthlyParams, siteMonthlyParams, windowTotalParams, detectionParams, followUpParams } from "../src/lib/water/soql.js";
+import { historySeries, historyCsvHref } from "../src/lib/water/history.js";
+import { bacteriaHtml, compareText } from "../src/lib/water/near-me.js";
+import { monthlyParams, siteMonthlyParams, windowTotalParams, detectionParams, followUpParams, latestDateParams } from "../src/lib/water/soql.js";
 import { statePlaneToLatLon } from "../src/lib/water/state-plane.js";
 
 // ---------- Parser ----------
@@ -95,6 +95,35 @@ test("queries only cast number-shaped text, and stay under Socrata's URL limit",
     assert.equal(q.match(/::number/g).length, q.match(/case\(\w+_k = 'number', \w+_t::number\)/g).length);
     assert.ok(new URLSearchParams({ $query: q }).toString().length < 7000);
   }
+});
+
+test("monthly queries group by month with fluoride; window totals don't ask for it", () => {
+  const monthly = monthlyParams().$query;
+  assert.match(monthly, /count\(distinct site\) AS sites/);
+  assert.match(monthly, /AS fl_ok GROUP BY month ORDER BY month/);
+  const site = siteMonthlyParams("2025-10-01", "2026-10-01").$query;
+  assert.match(site, /GROUP BY site, month ORDER BY site, month/);
+  assert.doesNotMatch(site, /fl_ok/);
+  const city = windowTotalParams("2025-10-01", "2026-10-01").$query;
+  assert.match(city, /\|> SELECT count\(\*\) AS n, .* LIMIT 1$/);
+  assert.doesNotMatch(city, /GROUP BY|AS site/);
+  assert.match(windowTotalParams("2025-10-01", "2026-10-01", { bySite: true }).$query, /^SELECT sample_site AS site, .* GROUP BY site ORDER BY site LIMIT 50000$/);
+  assert.deepEqual(latestDateParams(), { $select: "max(sample_date) AS latest" });
+});
+
+test("detection query lists coliform or E. coli finds, newest first, under the dataset's column names", () => {
+  const q = detectionParams().$query;
+  assert.match(q, /^SELECT sample_number AS sample_number, sample_date AS sample_date,/);
+  assert.match(q, /\|> SELECT sample_number, sample_date, sample_time, sample_site, sample_class, coliform_quanti_tray_mpn_100ml, e_coli_quanti_tray_mpn_100ml WHERE \(coli_k = 'above' OR .*\) OR \(ecoli_k = 'above' OR /);
+  assert.match(q, /ORDER BY sample_date DESC, sample_number LIMIT 50000$/);
+});
+
+test("follow-up query covers each detection's 14 days and escapes quotes in site codes", () => {
+  const p = followUpParams([{ site: "1SCL1", date: "2026-12-25" }, { site: "O'1", date: "2026-08-03" }], 7);
+  assert.equal(p.$where,
+    "(sample_site = '1SCL1' AND sample_date >= '2026-12-25' AND sample_date <= '2027-01-01') OR " +
+    "(sample_site = 'O''1' AND sample_date >= '2026-08-03' AND sample_date <= '2026-08-10')");
+  assert.equal(p.$order, "sample_date, sample_number");
 });
 
 // ---------- Months ----------
@@ -261,11 +290,66 @@ test("history leaves out months after the latest complete one", () => {
   assert.equal(s.rows[1].ecoliResample, 1);
 });
 
+test("history fills gaps with null and leaves out E. coli from outside its months", () => {
+  const monthly = { completeMonth: "2026-04", months: [row("2026-01", 1000, { coli_pos: "10" }), row("2026-04", 1000)] };
+  const det = (date) => ({ date, site: "1", sampleClass: "Resample_Compliance", ecoli: parseMeasurement("2", "bacteria") });
+  const s = historySeries(monthly, [det("2025-12-30"), det("2026-02-10"), det("2026-05-01"),
+    { ...det("2026-01-05"), ecoli: parseMeasurement("<1", "bacteria") }]);
+  assert.deepEqual(s.months, ["2026-01", "2026-02", "2026-03", "2026-04"]);
+  assert.deepEqual(Object.keys(s.ecoli), ["2026-02"]);
+  assert.deepEqual(s.rows[1], { month: "2026-02", samples: 0, coliTested: 0, coliPositive: 0, ecoliPositive: 0, ecoliResample: 1, chlorineMedian: null });
+  assert.deepEqual(historySeries({ completeMonth: null, months: [] }), { months: [], ecoli: {}, rows: [] });
+});
+
+test("history CSV has one line per month, blanks for unknowns", () => {
+  const href = historyCsvHref([
+    { month: "2026-01", samples: 1000, coliTested: 990, coliPositive: 3, ecoliPositive: 1, ecoliResample: 2, chlorineMedian: 0.61 },
+    { month: "2026-02", samples: 0, coliTested: 0, coliPositive: 0, ecoliPositive: 0, ecoliResample: null, chlorineMedian: null }
+  ]);
+  assert.match(href, /^data:text\/csv;charset=utf-8,/);
+  const lines = decodeURIComponent(href.slice(href.indexOf(",") + 1)).split("\n");
+  assert.deepEqual(lines, [
+    "month,routine_samples,coliform_tested,coliform_positive,coliform_positive_pct,ecoli_positive,ecoli_positive_resamples,median_free_chlorine_mg_l",
+    "2026-01,1000,990,3,0.30,1,2,0.61",
+    "2026-02,0,0,0,,0,,",
+    ""
+  ]);
+});
+
 test("station card counts resample detections next to the routine ones", () => {
   const found = [{ date: "2026-08-04", sampleClass: "Resample_Compliance",
     ecoli: parseMeasurement("1", "bacteria"), coliform: parseMeasurement("3", "bacteria") }];
   const html = bacteriaHtml({ totals: { coliN: 40, coliPos: 0 }, detections: found }, "Oct 2025–Sep 2026");
   assert.match(html, /Found in none of 40 routine samples, but in 1 resample \(Oct 2025–Sep 2026\)/);
+});
+
+test("station card bacteria: no results, none found, and routine finds listed", () => {
+  assert.equal(bacteriaHtml({ totals: { coliN: 0 }, detections: [] }, "Oct 2025–Sep 2026"),
+    "<p>No bacteria results for Oct 2025–Sep 2026.</p>");
+  assert.match(bacteriaHtml({ totals: { coliN: 1, coliPos: 0 }, detections: [] }, "<range>"),
+    /<strong>None found\.<\/strong> No coliform or E\. coli in 1 sample \(&#60;range&#62;\)/);
+  const found = [
+    { date: "2026-08-04", sampleClass: "Compliance", ecoli: parseMeasurement("1", "bacteria"), coliform: parseMeasurement("2", "bacteria") },
+    { date: "2026-03-10", sampleClass: "Operational", ecoli: parseMeasurement("<1", "bacteria"), coliform: parseMeasurement(">200.5", "bacteria") }
+  ];
+  const html = bacteriaHtml({ totals: { coliN: 40, coliPos: 2 }, detections: found }, "Oct 2025–Sep 2026");
+  assert.match(html, /^<p>Found in 2 of 40 routine samples \(Oct 2025–Sep 2026\)\. /);
+  const items = html.match(/<li>.*?<\/li>/g);
+  assert.equal(items.length, 2);
+  assert.match(items[0], /<strong>E\. coli 1<\/strong>, coliform 2 MPN\/100 mL<\/li>$/);
+  assert.doesNotMatch(items[1], /E\. coli|resample/);
+  assert.match(items[1], /coliform ≥200\.5 MPN\/100 mL/);
+});
+
+test("compareText: within 10% (or 0.05) is about the same", () => {
+  assert.equal(compareText(0.52, 0.66, "mg/L"), "Lower than the citywide median (0.52 vs. 0.66 mg/L).");
+  assert.equal(compareText(0.9, 0.66, "mg/L"), "Higher than the citywide median (0.9 vs. 0.66 mg/L).");
+  assert.equal(compareText(0.7, 0.66, "mg/L"), "About the same as the citywide median (0.7 vs. 0.66 mg/L).");
+  assert.equal(compareText(0.1, 0.06, "NTU"), "About the same as the citywide median (0.1 vs. 0.06 NTU).");
+  assert.equal(compareText(1.09, 1, "NTU"), "About the same as the citywide median (1.09 vs. 1 NTU).");
+  assert.equal(compareText(1.11, 1, "NTU"), "Higher than the citywide median (1.11 vs. 1 NTU).");
+  assert.equal(compareText(null, 0.66, "mg/L"), "Not enough results to compare.");
+  assert.equal(compareText(0.5, null, "mg/L"), "Not enough results to compare.");
 });
 
 test("detections parse coliform and E. coli values", () => {

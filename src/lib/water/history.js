@@ -1,8 +1,7 @@
 /*
  * The history subsection's data: every complete month from the first to the
- * latest complete one (gaps included, as null), the two charted series, the
- * E. coli detections by month, and the table/CSV rows. A month still loading
- * is left out. Built on the server from the monthly and detections jobs and
+ * latest complete one (gaps included, as null), the E. coli detections by
+ * month, and the table/CSV rows. A month still loading is left out. Built on the server from the monthly and detections jobs and
  * handed to the chart script as JSON.
  */
 import { nextMonth, hasEcoli, isResample, completeMonths } from "./stats.js";
@@ -14,12 +13,6 @@ export function historySeries(monthly, detections = []) {
   if (have.length) {
     const last = have[have.length - 1].month;
     for (let k = have[0].month; k <= last; k = nextMonth(k)) months.push(k);
-  }
-  const coliform = {}, chlorine = {};
-  for (const k of months) {
-    const m = byMonth.get(k);
-    coliform[k] = m?.coli.n ? m.coli.pos / m.coli.n : null;
-    chlorine[k] = m?.cl.med ?? null;
   }
   // Every E. coli detection in those months, any sample class, for the list.
   const ecoli = {};
@@ -41,7 +34,7 @@ export function historySeries(monthly, detections = []) {
       chlorineMedian: m?.cl.med ?? null
     };
   });
-  return { months, coliform, chlorine, ecoli, rows };
+  return { months, ecoli, rows };
 }
 
 const pctText = (share) => (share == null ? "" : (share * 100).toFixed(2));
