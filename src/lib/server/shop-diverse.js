@@ -4,7 +4,7 @@
  * ranking in filter.js and ranking.js.
  *
  * The list is ~12,000 vendors (one row each) and SBS updates it about every
- * two weeks, so a daily job keeps a slim copy in KV (the fields the search,
+ * two weeks, so a job rebuilt when it changes (etl.js) keeps a slim copy in KV (the fields the search,
  * ranking and cards use, with each description cut to an excerpt and its
  * search words, and the industry names kept once in a table: packIndex()).
  * Searches filter and rank that copy in the
@@ -15,6 +15,7 @@
 import { env } from "cloudflare:workers";
 import { soql, datasetMetadata } from "./socrata.js";
 import { dailyValue, edgeCached } from "./cache.js";
+import { requestMaxAgeHours } from "../etl/cadence.js";
 import { checkRateLimit } from "./rate-limit.js";
 import { nycToday } from "../format.js";
 import { DATASET_ID } from "../shop-diverse/config.js";
@@ -24,7 +25,8 @@ import { certStatus, yearsInBusiness } from "../shop-diverse/ranking.js";
 
 export const SEARCH_TTL = 3600;
 export const DETAIL_TTL = 6 * 3600;
-const MAX_AGE_HOURS = 26;
+const CADENCE = "biweekly";
+const MAX_AGE_HOURS = requestMaxAgeHours(CADENCE);
 const FETCH_PAGE = 5000;
 const MAX_ROWS = 50000; // stop paging past this; the list is ~12,000
 const QUERY_TIMEOUT_MS = 60000;
@@ -74,7 +76,14 @@ export const vendorsJob = {
   }
 };
 
-export const shopDiverseDailyJobs = [metadataJob, vendorsJob];
+export const shopDiverseDataset = {
+  id: "shop-diverse",
+  dashboard: "shop-diverse",
+  datasetId: DATASET_ID,
+  cadence: CADENCE,
+  metadataJob,
+  jobs: [vendorsJob]
+};
 
 export const getMetadata = () => dailyValue(metadataJob);
 

@@ -40,13 +40,18 @@ export function soql(datasetId, params, { timeoutMs } = {}) {
   return get(url, timeoutMs);
 }
 
-// Name, source page and when the rows were last updated.
+// Name, source page and when the rows were last updated: rowsUpdatedAt is
+// the date the pages show, rowsUpdatedTime the full timestamp the ETL
+// compares (src/lib/server/etl.js), plus attached files ({ name, assetId }).
 export async function datasetMetadata(datasetId) {
   const meta = await get(new URL(`/api/views/${datasetId}.json`, DOMAIN));
+  const updated = meta.rowsUpdatedAt ? new Date(meta.rowsUpdatedAt * 1000).toISOString() : null;
   return {
     id: datasetId,
     name: meta.name,
     url: `${DOMAIN}/d/${datasetId}`,
-    rowsUpdatedAt: meta.rowsUpdatedAt ? new Date(meta.rowsUpdatedAt * 1000).toISOString().slice(0, 10) : null
+    rowsUpdatedAt: updated?.slice(0, 10) ?? null,
+    rowsUpdatedTime: updated,
+    attachments: (meta.metadata?.attachments ?? []).map((a) => ({ name: a.name ?? a.filename, assetId: a.assetId }))
   };
 }

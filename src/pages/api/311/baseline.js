@@ -1,7 +1,7 @@
 /*
  * GET /api/311/baseline?window=12m&boro=BROOKLYN
  * Citywide counts (and one borough's, if asked) by complaint type, location
- * type and status. Computed once a day and kept in KV (daily-jobs.js);
+ * type and status. Computed once a day and kept in KV (src/lib/server/etl.js);
  * the first request after a deploy waits about a minute while it's built.
  */
 import { baseline, BASELINE_TTL } from "../../../lib/server/complaints311.js";

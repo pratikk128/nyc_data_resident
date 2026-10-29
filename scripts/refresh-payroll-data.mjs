@@ -16,6 +16,7 @@
  * Optional: set SOCRATA_APP_TOKEN to avoid anonymous rate limits.
  */
 import { writeFile, mkdir } from "node:fs/promises";
+import { recordSnapshot } from "./lib/snapshot-manifest.mjs";
 
 const DATASET_ID = "k397-673e";
 const DOMAIN = "https://data.cityofnewyork.us";
@@ -507,7 +508,8 @@ async function main() {
   }
 }
 
-main().catch((err) => {
+const startedAt = new Date();
+main().then(() => recordSnapshot("payroll", startedAt)).catch((err) => {
   console.error(err);
   process.exit(1);
 });

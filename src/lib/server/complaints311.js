@@ -10,6 +10,7 @@
  */
 import { soql, datasetMetadata } from "./socrata.js";
 import { dailyValue } from "./cache.js";
+import { requestMaxAgeHours } from "../etl/cadence.js";
 import {
   DATASET_ID, FIELDS as F, WINDOWS, RADII, BOROUGHS, UNSPECIFIED_BOROUGH, STATUS_CLOSED, GRID_CHUNK_MONTHS,
   HEATMAP_CELLS_PER_DEGREE
@@ -26,16 +27,20 @@ export const BASELINE_TTL = 3600;      // the baseline API response (the value i
 const BASELINE_TIMEOUT_MS = 240000;    // ~1 minute each on a good day
 const HEATMAP_TIMEOUT_MS = 45000;      // a few seconds warm, but a cold 1 mile query can pass the default 20
 
+// 311 updates daily, and every window ends today.
+const CADENCE = "daily";
+const MAX_AGE_HOURS = requestMaxAgeHours(CADENCE, true);
+
 const today = () => nycToday();
 
 // Rounded to ~100 m so nearby lookups share a cache entry (and the same query).
 export const roundCoord = (v) => Math.round(Number(v) * 1000) / 1000;
 
-// ---------- Daily jobs (see daily-jobs.js) ----------
+// ---------- Daily jobs (see src/lib/server/etl.js) ----------
 
 export const metadataJob = {
   key: `311:metadata:${DATASET_ID}`,
-  maxAgeHours: 26,
+  maxAgeHours: MAX_AGE_HOURS,
   run: () => datasetMetadata(DATASET_ID)
 };
 
@@ -47,7 +52,7 @@ function emptyArea() {
 function baselineJob(windowKey) {
   return {
     key: `311:baseline:v2:${windowKey}`,
-    maxAgeHours: 26,
+    maxAgeHours: MAX_AGE_HOURS,
     async run() {
       const since = windowStart(windowKey);
       const through = today();
@@ -97,7 +102,7 @@ export const baselineJobs = Object.fromEntries(Object.keys(WINDOWS).map((w) => [
 function distributionJob(windowKey) {
   return {
     key: `311:distribution:v1:${windowKey}`,
-    maxAgeHours: 26,
+    maxAgeHours: MAX_AGE_HOURS,
     async run() {
       const since = windowStart(windowKey);
       const through = today();
@@ -121,7 +126,15 @@ function distributionJob(windowKey) {
 
 export const distributionJobs = Object.fromEntries(Object.keys(WINDOWS).map((w) => [w, distributionJob(w)]));
 
-export const complaints311DailyJobs = [metadataJob, ...Object.values(baselineJobs), ...Object.values(distributionJobs)];
+export const complaints311Dataset = {
+  id: "311",
+  dashboard: "311-complaints",
+  datasetId: DATASET_ID,
+  cadence: CADENCE,
+  rolling: true,
+  metadataJob,
+  jobs: [...Object.values(baselineJobs), ...Object.values(distributionJobs)]
+};
 
 export function distribution(windowKey) {
   return dailyValue(distributionJobs[windowKey]);

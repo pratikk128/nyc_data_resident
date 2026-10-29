@@ -27,8 +27,9 @@ src/lib/complaints311/    311 logic: config, SoQL, share math, labels, input par
 src/lib/shop-diverse/     Women- and minority-owned businesses logic: cleaning, ranking, filters, rendering
 src/lib/schools/          School Quality Explorer logic: curated metrics (metrics.js), values, search, charts, maps
 src/lib/water/            Drinking water logic: reference values (config.js), lab value parser, SoQL, stats, charts, map
-src/lib/server/           Server-only: Socrata client (holds the token), caches, daily jobs
-src/worker.js             Worker entry: Astro for requests, cron for daily jobs
+src/lib/server/           Server-only: Socrata client (holds the token), caches, the data refresh pipeline (etl.js)
+src/lib/etl/              Refresh policy: cadences and when to rebuild (cadence.js), build-time snapshots (snapshots.js)
+src/worker.js             Worker entry: Astro for requests, hourly cron for the data refresh
 wrangler.jsonc            Worker config: KV namespace, cron trigger
 tests/                    `npm test` (node:test, no extra dependencies)
 src/data/                 Precomputed data snapshots (generated, committed)
@@ -63,7 +64,7 @@ npx wrangler secret put SOCRATA_APP_TOKEN   # once
 npm run deploy                              # astro build && wrangler deploy
 ```
 
-The first deploy creates the `DATA_CACHE` KV namespace and the daily cron trigger (`0 11 * * *`, 11:00 UTC). The search cache (Workers Cache API) only works on a custom domain, so add asknycdata.com as a custom domain on the Worker; on `*.workers.dev` every search goes straight to Socrata.
+The first deploy creates the `DATA_CACHE` KV namespace and the hourly cron trigger (`15 * * * *`). `npm run deploy` first checks the build-time snapshots against NYC Open Data and warns about stale ones (it never blocks the deploy). The search cache (Workers Cache API) only works on a custom domain, so add asknycdata.com as a custom domain on the Worker; on `*.workers.dev` every search goes straight to Socrata.
 
 To test the cron locally: `npm run build && npx wrangler dev -c dist/server/wrangler.json --test-scheduled`, then open `http://localhost:8787/cdn-cgi/handler/scheduled`.
 
@@ -75,10 +76,43 @@ All Socrata calls go through `src/lib/server/socrata.js`, which adds the `X-App-
 |---|---|---|
 | Search results | Workers Cache API, keyed by the normalized query | 1 hour |
 | One restaurant | Workers Cache API | 1 hour |
-| Benchmarks (category averages), 311 borough and city baselines and citywide distributions, drinking water monthly/detections/station aggregates, dataset metadata | KV `DATA_CACHE`, refreshed by the cron | 24 hours (a request recomputes only if KV has nothing newer than 26 h; if Socrata is down the last value is served, kept up to 7 days) |
+| Benchmarks (category averages), 311 borough and city baselines and citywide distributions, drinking water monthly/detections/station aggregates, Shop Diverse and School Quality indexes, dataset metadata | KV `DATA_CACHE`, rebuilt by the hourly cron when the source changes (see [Data refresh pipeline](#data-refresh-pipeline)) | Until the source changes, or the cadence's safety rebuild (a request recomputes only if the cron is 2 h past due; if Socrata is down the last value is served, kept up to 90 days) |
 | 311 areas (¼ and 1 mile) and ZIPs | Workers Cache API, keyed by lat/lon rounded to 3 decimals + radius + window | 6 hours |
 
-**Adding another dataset's daily aggregate:** write a server module like `src/lib/server/restaurants.js` that exports jobs (`{ key, maxAgeHours, run }`), add them to `DAILY_JOBS` in `src/lib/server/daily-jobs.js`, and read them with `dailyValue(job)`. The one cron run refreshes every job in parallel.
+## Data refresh pipeline
+
+Each dashboard's data reaches the site one of two ways, and both are tracked in one place.
+
+**1. KV aggregates (most dashboards), refreshed automatically.** Each dataset's server module declares how often the city publishes it. An hourly cron (`src/lib/server/etl.js`) reads every dataset's `rowsUpdatedAt` from NYC Open Data (one small request each) and rebuilds only the jobs that are due (`src/lib/etl/cadence.js`):
+
+- **never built**: a new dataset, or a job whose key changed with the code,
+- **source updated**: the dataset's rows changed since the job was built, at most once every `minGapHours` (6 h for daily data, 12 h otherwise), so a source touched every hour doesn't rebuild every hour,
+- **scheduled rebuild**: a safety net after `rebuildHours`, in case a change was missed,
+- **new day**: `rolling` jobs, whose windows end "today", rebuild at least every 24 h whatever the source does.
+
+| Dashboard | Dataset | Cadence | Rolling | Safety rebuild |
+|---|---|---|---|---|
+| Restaurant Inspections | `43nn-pn8j` | daily | yes | 24 h |
+| 311 Complaints | `erm2-nwe9` | daily | yes | 24 h |
+| Drinking Water | `bkwf-xfky` | monthly | no | 7 days |
+| Shop Diverse | `ci93-uc8s` | biweekly | no | 7 days |
+| School Quality | `dnpx-dfnc` (+ `school-locations.json`) | yearly | no | 30 days |
+
+Cadences are `daily`, `weekly`, `biweekly`, `monthly`, `quarterly`, `yearly` and `as-needed`. Each also sets when the source counts as **late** (`overdueDays`: 3 days for daily data, 45 for monthly, 400 for yearly, never for as-needed), which is logged and reported. Every source is checked hourly whatever its cadence, so an off-schedule or as-needed update is picked up within the hour.
+
+A job that fails keeps its last good value in KV and is retried the next hour; the run throws so the failure shows in the Worker's cron events. Within a dataset jobs run in parallel, except a job with `after` (water stations waits for the monthly aggregate). What each job was built from is kept in the `etl:state` KV entry. A job that joins a bundled snapshot (`snapshots: ["school-locations"]`) also rebuilds after a deploy that refreshed that snapshot. Each isolate checks a small `<key>:at` KV entry every 5 minutes, so a rebuilt value reaches every request within minutes.
+
+**2. Build-time snapshots, checked automatically and refreshed by command.** City Payroll is prerendered, and school addresses and water station locations join several datasets, so they're committed JSON in `src/data/`. The Worker can't rewrite them. `src/lib/etl/snapshots.js` lists each snapshot, its sources and its refresh command. Each script records when it ran in `src/data/snapshots.json`, and the hourly cron flags a snapshot as stale when a source's rows (or, for the water sites, the attached spreadsheet) changed after that.
+
+```sh
+npm run data:check                # which snapshots are stale; exits 1 if any
+npm run data:check -- --refresh   # also runs each stale snapshot's script
+npm run deploy                    # after reviewing the diff in src/data/
+```
+
+**Is everything current?** `GET /api/etl/status` returns every dataset's last source update, cadence, whether it's late, and each job's last build, reason, duration, whether it's current and its last error, plus each snapshot's state. `ok` is `false` and `attention` lists plain sentences when something needs a look. To run the cron locally: `npm run build && npx wrangler dev -c dist/server/wrangler.json --test-scheduled`, then open `http://localhost:8787/cdn-cgi/handler/scheduled` (the first run builds everything, a few minutes for 311; a second run rebuilds nothing).
+
+**Adding a dataset.** In its server module, define jobs (`{ key, maxAgeHours: requestMaxAgeHours(CADENCE), run }`) and export a dataset (`{ id, dashboard, datasetId, cadence, rolling?, snapshots?, metadataJob, jobs }`). Add it to `DATASETS` in `src/lib/server/etl.js`, and read the jobs with `dailyValue(job)`. Change a job's key when its output shape changes, so the next run rebuilds it. **Adding a snapshot:** add it to `SNAPSHOTS` in `src/lib/etl/snapshots.js`, and have its script call `recordSnapshot(id, startedAt)` from `scripts/lib/snapshot-manifest.mjs` after it writes its files.
 
 ## Add a new dashboard
 
@@ -178,7 +212,7 @@ All tunables are in `src/lib/complaints311/config.js`: `RADII` (402 m and 1,609 
 - `status`: only `Closed` counts as closed; Open, In Progress, Assigned, Pending, Started and Unspecified count as still open.
 - About 2% of requests have no coordinates and so aren't in any radius.
 
-**Timing.** The ¼ mile takes Socrata ~2 s, the 1 mile ~3–12 s (4–5 queries each, in parallel; each is logged as `311 radius ...`). The borough and city baselines group the whole window by borough and take about a minute per query, so they're daily jobs (`311:baseline:v1:<window>`) that the cron fills. The "more requests than 72% of NYC blocks with any 311 requests" line under each radius comes from `311:distribution:v1:<window>`: requests counted on a ~100 m grid (`gridCountParams`, run in 3 month pieces at once since the 12 month grid in one query takes Socrata over 4 minutes), then summed within ¼ and 1 mile of every cell with a request (`circleDistributions` in `stats.js`) and kept as 1,001 quantiles per radius. The page fetches it from `/api/311/distribution`. Before the first cron run (fresh deploy, local dev) the first request for each window waits for them, a few minutes without an app token.
+**Timing.** The ¼ mile takes Socrata ~2 s, the 1 mile ~3–12 s (4–5 queries each, in parallel; each is logged as `311 radius ...`). The borough and city baselines group the whole window by borough and take about a minute per query, so they're jobs (`311:baseline:v2:<window>`) that the cron rebuilds daily. The "more requests than 72% of NYC blocks with any 311 requests" line under each radius comes from `311:distribution:v1:<window>`: requests counted on a ~100 m grid (`gridCountParams`, run in 3 month pieces at once since the 12 month grid in one query takes Socrata over 4 minutes), then summed within ¼ and 1 mile of every cell with a request (`circleDistributions` in `stats.js`) and kept as 1,001 quantiles per radius. The page fetches it from `/api/311/distribution`. Before the first cron run (fresh deploy, local dev) the first request for each window waits for them, a few minutes without an app token.
 
 The map section is a placeholder; its props and the plan for it are at the top of `src/lib/complaints311/heatmap.js`.
 
@@ -187,8 +221,9 @@ The map section is a placeholder; its props and the plan for it are at the top o
 The "How much does NYC spend on its workforce?" section reads `src/data/payroll-by-year.json`, a small snapshot of yearly totals from NYC Open Data's [Citywide Payroll Data (Fiscal Year)](https://data.cityofnewyork.us/City-Government/Citywide-Payroll-Data-Fiscal-Year-/k397-673e) (`k397-673e`). The source updates about once a year, so the site never queries it live.
 
 ```sh
-npm run data:payroll   # rewrites src/data/payroll-by-year.json and payroll-by-agency.json
-npm run build          # rebuild the site with the new numbers
+npm run data:check     # is the payroll snapshot behind the source? (the hourly cron checks too)
+npm run data:payroll   # rewrites src/data/payroll-by-year.json, payroll-by-agency.json and payroll-jobs.json
+npm run deploy         # rebuild the site with the new numbers
 ```
 
 Set `SOCRATA_APP_TOKEN` to avoid anonymous rate limits (optional). The script picks up new fiscal years automatically, prints each year's total, and warns if a total looks implausible, a year is missing, or the latest year looks like a partial load (people paid or total pay under 85% of the prior 3-year median). A warning also shows a "Heads up" note on the page.
@@ -262,7 +297,7 @@ Quick-filter chips (`JOB_CHIPS` in the script). A chip with no matching title in
 
 The old `/drinking-water/history/` URL redirects to `/drinking-water/#history` (`astro.config.mjs`), which opens the history toggle.
 
-**Data.** Every measurement column is text (chlorine included). `parseMeasurement()` in `src/lib/water/parse.js` reads `<X` and `ND` as not detected (0 for bacteria), `>X` as at least X, and blanks and negative placeholders (`-9`, `-9.99`) as missing; `soql.js` applies the same rules inside SoQL so all aggregation happens on Socrata. Shares and medians use routine samples (Compliance, Operational); detections list every class. Four daily jobs in `src/lib/server/water.js` (`water:*` in KV) hold everything the pages read, so readers don't wait on Socrata.
+**Data.** Every measurement column is text (chlorine included). `parseMeasurement()` in `src/lib/water/parse.js` reads `<X` and `ND` as not detected (0 for bacteria), `>X` as at least X, and blanks and negative placeholders (`-9`, `-9.99`) as missing; `soql.js` applies the same rules inside SoQL so all aggregation happens on Socrata. Shares and medians use routine samples (Compliance, Operational); detections list every class. Four jobs in `src/lib/server/water.js`, rebuilt when the dataset changes, (`water:*` in KV) hold everything the pages read, so readers don't wait on Socrata.
 
 **Reference values** (with sources, checked Oct 2026) and the tile color cutoffs are in `src/lib/water/config.js`. They're labeled as reference values, not a compliance determination.
 
@@ -272,7 +307,7 @@ The old `/drinking-water/history/` URL redirects to `/drinking-water/#history` (
 
 `/shop-diverse/` helps residents find and support Women-owned (WBE) and Minority-owned (MBE) businesses from NYC Small Business Services' [SBS Certified Business List](https://data.cityofnewyork.us/d/ci93-uc8s) (`ci93-uc8s`, ~11,850 rows, updated about every two weeks).
 
-**Architecture.** A daily job (`shop-diverse:vendors:v3` in `src/lib/server/shop-diverse.js`) pages through the dataset with SoQL, cleans every row (`src/lib/shop-diverse/clean.js`) and keeps a slim index in KV (about 7 MB): the fields search, ranking and cards use, each industry name once in a shared table, and each description reduced to its card excerpt plus, for keyword search, the other words it holds (each once, without filler words or words the name and industry already hold). It also stores the share of businesses outside NYC for the About section. `/api/shop-diverse/search` filters, ranks and pages that index in the Worker and caches each view at the edge for an hour (keyed by query, NYC date, data version and deploy version), with `SHOP_SEARCH_RATE_LIMITER` on misses. It never calls Socrata per request. Ranking has to run over every match before a page is cut, which SoQL can't do here: renewal dates are text, and ties use a seeded hash. `/api/shop-diverse/business/:id` reads one vendor live by `account_number` (edge-cached 6 h per deploy, `SHOP_DETAIL_RATE_LIMITER` on misses). Shop Diverse has its own rate limiters, so busy use doesn't block the other dashboards. The page script's URL, form and history decisions are in `src/lib/shop-diverse/page-state.js`, with tests. The page renders the first view on the server, so shared links and the form work without JavaScript; it's cached for an hour only when that view (and any `?biz=` business) loaded.
+**Architecture.** A job (`shop-diverse:vendors:v3`, rebuilt when the list changes, in `src/lib/server/shop-diverse.js`) pages through the dataset with SoQL, cleans every row (`src/lib/shop-diverse/clean.js`) and keeps a slim index in KV (about 7 MB): the fields search, ranking and cards use, each industry name once in a shared table, and each description reduced to its card excerpt plus, for keyword search, the other words it holds (each once, without filler words or words the name and industry already hold). It also stores the share of businesses outside NYC for the About section. `/api/shop-diverse/search` filters, ranks and pages that index in the Worker and caches each view at the edge for an hour (keyed by query, NYC date, data version and deploy version), with `SHOP_SEARCH_RATE_LIMITER` on misses. It never calls Socrata per request. Ranking has to run over every match before a page is cut, which SoQL can't do here: renewal dates are text, and ties use a seeded hash. `/api/shop-diverse/business/:id` reads one vendor live by `account_number` (edge-cached 6 h per deploy, `SHOP_DETAIL_RATE_LIMITER` on misses). Shop Diverse has its own rate limiters, so busy use doesn't block the other dashboards. The page script's URL, form and history decisions are in `src/lib/shop-diverse/page-state.js`, with tests. The page renders the first view on the server, so shared links and the form work without JavaScript; it's cached for an hour only when that view (and any `?biz=` business) loaded.
 
 **URL state** (`src/lib/shop-diverse/filter.js`): `who=wbe,mbe`, `match=all` (both, default either), `eth=black,asian` (narrows the MBE side), `cat`/`sub` (NAICS sector/subsector as spelled in the data), `q`, `boro` (`manhattan` … `staten-island`, `outside`), `zip`, `sort` (`recommended`, `az`, `newest`, `oldest`), `lapsed=1`, `page`, and `biz=<account>` for the open business.
 
@@ -303,7 +338,7 @@ Ethnicity and gender never score. **No renewal date scores the same as a current
 
 **Data shape.** Long format: one row per `dbn` × `school_year` × `metric_variable_name`, with `metric_value`, `comparison_group_average` (DOE's similar-schools average), `metric_score` (DOE's 1.00–4.99 rating against targets) and `number_of_students`. `school_year` is the fall year (2024 = 2024–25). A school has one report per `report_type` (EMS, HS, HST, EC, D75, YABC); 6–12 schools have two. There's no value-type column and no citywide value.
 
-**Architecture.** A daily job (`schools:index:v2` in `src/lib/server/schools.js`) keeps an index in KV: each school's name (its newest), report types, location, card and sort values for its newest year, and the NYC average of every curated metric for every year, `sum(metric_value * number_of_students) / sum(number_of_students)` per report type, computed by Socrata. `/api/schools/search` filters, sorts and pages it in the Worker (edge-cached 1 h, `SCHOOL_SEARCH_RATE_LIMITER` on misses; `view=map` returns every match as points). `/school-quality/<DBN>/` reads that school's curated metrics for every year live (one query by DBN, edge-cached 6 h, `DETAIL_RATE_LIMITER` on misses); lower-case DBNs redirect, unknown ones 404.
+**Architecture.** A job (`schools:index:v3`, rebuilt when the reports or the bundled locations change, in `src/lib/server/schools.js`) keeps an index in KV: each school's name (its newest), report types, location, card and sort values for its newest year, and the NYC average of every curated metric for every year, `sum(metric_value * number_of_students) / sum(number_of_students)` per report type, computed by Socrata. `/api/schools/search` filters, sorts and pages it in the Worker (edge-cached 1 h, `SCHOOL_SEARCH_RATE_LIMITER` on misses; `view=map` returns every match as points). `/school-quality/<DBN>/` reads that school's curated metrics for every year live (one query by DBN, edge-cached 6 h, `DETAIL_RATE_LIMITER` on misses); lower-case DBNs redirect, unknown ones 404.
 
 **Curated metrics** are all in `src/lib/schools/metrics.js` (label, description, format, scale/invert, report types, higher-is-better, card order, sort key, series break, trend threshold). Pages and cards read only that file.
 

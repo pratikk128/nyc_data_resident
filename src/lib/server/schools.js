@@ -4,7 +4,7 @@
  * search in filter.js.
  *
  * The dataset is 1.5 million rows (school × year × metric) and changes about
- * once a year, so a daily job keeps a small index in KV for the browse page:
+ * once a year, so a job rebuilt when it changes (etl.js) keeps a small index in KV for the browse page:
  * every school's latest report types, name, location (joined from
  * src/data/school-locations.json by DBN), the card and sort metrics for its
  * latest year, and the NYC average of every curated metric for every year
@@ -18,6 +18,7 @@
  */
 import { soql, datasetMetadata } from "./socrata.js";
 import { dailyValue, edgeCached } from "./cache.js";
+import { requestMaxAgeHours } from "../etl/cadence.js";
 import { checkRateLimit } from "./rate-limit.js";
 import locations from "../../data/school-locations.json";
 import {
@@ -29,7 +30,8 @@ import { searchSchools, searchPoints, queryToParams } from "../schools/filter.js
 
 export const SEARCH_TTL = 3600;
 export const SCHOOL_TTL = 6 * 3600;
-const MAX_AGE_HOURS = 26;
+const CADENCE = "yearly";
+const MAX_AGE_HOURS = requestMaxAgeHours(CADENCE);
 const QUERY_TIMEOUT_MS = 90000;
 const ROW_LIMIT = 50000;
 
@@ -176,7 +178,16 @@ export const indexJob = {
   }
 };
 
-export const schoolsDailyJobs = [metadataJob, indexJob];
+export const schoolsDataset = {
+  id: "schools",
+  dashboard: "school-quality",
+  datasetId: DATASET_ID,
+  cadence: CADENCE,
+  // the index joins school-locations.json, so a deploy with a refreshed copy rebuilds it
+  snapshots: ["school-locations"],
+  metadataJob,
+  jobs: [indexJob]
+};
 
 export const getMetadata = () => dailyValue(metadataJob);
 export const getIndex = () => dailyValue(indexJob);

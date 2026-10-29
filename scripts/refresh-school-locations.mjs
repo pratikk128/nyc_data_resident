@@ -22,6 +22,9 @@
  */
 import { writeFile } from "node:fs/promises";
 import { boroughFromDbn } from "../src/lib/schools/config.js";
+import { recordSnapshot } from "./lib/snapshot-manifest.mjs";
+
+const startedAt = new Date();
 
 const DOMAIN = "https://data.cityofnewyork.us";
 const SQR_ID = "dnpx-dfnc";
@@ -125,6 +128,7 @@ for (const s of schools) {
 
 const sorted = Object.fromEntries(Object.entries(out).sort(([a], [b]) => a.localeCompare(b)));
 await writeFile(OUT_FILE, `${JSON.stringify(sorted, null, 0).replace(/},"/g, '},\n"')}\n`);
+await recordSnapshot("school-locations", startedAt);
 
 console.log(`Matched by DBN in ${LOCATIONS_ID}: ${counts.lcgms} (ZIP by BBL ${counts.zipByBbl}, by address ${counts.zipByAddress}, none ${counts.noZip})`);
 console.log(`Matched by name in ${FACDB_ID}: ${counts.facdbByName}`);

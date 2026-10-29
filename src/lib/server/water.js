@@ -2,8 +2,8 @@
  * Drinking Water Quality queries (dataset bkwf-xfky). Builds on socrata.js;
  * the query text is in src/lib/water/soql.js and the math in stats.js.
  *
- * DEP adds a month of samples at a time, so everything here is a daily job
- * kept in KV (daily-jobs.js), and every page and API response reads from it:
+ * DEP adds a month of samples at a time, so everything here is a job kept in
+ * KV, rebuilt when the dataset changes (etl.js), and every page and API response reads from it:
  * a reader never waits on Socrata unless KV is empty (first deploy, local dev).
  *   monthly     citywide aggregates for every month (~140 rows, one query)
  *   detections  every sample with coliform or E. coli (~750 rows), and for
@@ -12,6 +12,7 @@
  */
 import { soql, datasetMetadata } from "./socrata.js";
 import { dailyValue } from "./cache.js";
+import { requestMaxAgeHours } from "../etl/cadence.js";
 import { DATASET_ID, STATION_MONTHS } from "../water/config.js";
 import {
   monthlyParams, latestDateParams, siteMonthlyParams, detectionParams, followUpParams, windowTotalParams
@@ -20,7 +21,8 @@ import {
   normalizeMonth, normalizeDetection, latestCompleteMonth, missingMonths, addMonths, nextMonth, hasEcoli, laterSamples
 } from "../water/stats.js";
 
-const MAX_AGE_HOURS = 26;
+const CADENCE = "monthly";
+const MAX_AGE_HOURS = requestMaxAgeHours(CADENCE);
 const QUERY_TIMEOUT_MS = 120000; // the monthly query takes ~10–35 s (the medians are most of it)
 
 export const metadataJob = {
@@ -76,6 +78,7 @@ const totals = (m) => ({
 export const stationsJob = {
   key: "water:stations:v2",
   maxAgeHours: MAX_AGE_HOURS,
+  after: monthlyJob, // reads its completeMonth, so the ETL builds it second
   async run() {
     const { completeMonth } = await dailyValue(monthlyJob);
     if (!completeMonth) return { computedAt: new Date().toISOString(), months: [], sites: {}, totals: {}, city: null };
@@ -106,7 +109,14 @@ export const stationsJob = {
   }
 };
 
-export const waterDailyJobs = [metadataJob, monthlyJob, detectionsJob, stationsJob];
+export const waterDataset = {
+  id: "water",
+  dashboard: "drinking-water",
+  datasetId: DATASET_ID,
+  cadence: CADENCE,
+  metadataJob,
+  jobs: [monthlyJob, detectionsJob, stationsJob]
+};
 
 export const getMetadata = () => dailyValue(metadataJob);
 export const getMonthly = () => dailyValue(monthlyJob);

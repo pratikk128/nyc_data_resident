@@ -26,6 +26,9 @@
 import { writeFile } from "node:fs/promises";
 import { inflateRawSync } from "node:zlib";
 import { statePlaneToLatLon } from "../src/lib/water/state-plane.js";
+import { recordSnapshot } from "./lib/snapshot-manifest.mjs";
+
+const startedAt = new Date();
 
 const DOMAIN = "https://data.cityofnewyork.us";
 const DATASET_ID = "bkwf-xfky";
@@ -214,6 +217,7 @@ await writeFile(ZIP_OUT_FILE, JSON.stringify({
   // ZIP → [lat, lon]
   zips
 }) + "\n");
+await recordSnapshot("water-sites", startedAt);
 
 console.log(`Wrote ${sites.length} sites to ${OUT_FILE.pathname}`);
 console.log(`Wrote ${Object.keys(zips).length} ZIP points to ${ZIP_OUT_FILE.pathname}`);

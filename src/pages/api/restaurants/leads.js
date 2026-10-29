@@ -4,7 +4,7 @@
  * the last 30 days of the data, for the leads page to filter and rank.
  * → { referenceDate, since, days, descriptions, restaurants: [...] } or { error }
  *
- * Computed once a day and kept in KV (daily-jobs.js), so requests don't go
+ * Computed once a day and kept in KV (src/lib/server/etl.js), so requests don't go
  * to Socrata and aren't rate limited.
  */
 import { getLeads, LEADS_TTL } from "../../../lib/server/restaurants.js";

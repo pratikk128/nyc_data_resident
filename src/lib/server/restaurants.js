@@ -5,6 +5,7 @@
  */
 import { soql, datasetMetadata } from "./socrata.js";
 import { dailyValue } from "./cache.js";
+import { requestMaxAgeHours } from "../etl/cadence.js";
 import { nycToday } from "../format.js";
 import {
   SEARCH_LIMIT, searchParams, milesBetween, gradesParams, detailParams,
@@ -26,11 +27,15 @@ export const DETAIL_TTL = 3600;
 export const LEADS_TTL = 3600;   // the leads API response (the value itself lives in KV)
 const LEADS_ROW_LIMIT = 50000;    // the $limit in leadViolationParams / leadInspectionParams
 
-// ---------- Daily jobs (see daily-jobs.js) ----------
+// DOHMH updates daily, and the benchmarks and leads windows end today.
+const CADENCE = "daily";
+const MAX_AGE_HOURS = requestMaxAgeHours(CADENCE, true);
+
+// ---------- Daily jobs (see src/lib/server/etl.js) ----------
 
 export const metadataJob = {
   key: `restaurants:metadata:${DATASET_ID}`,
-  maxAgeHours: 26, // cron runs daily; a little slack so a late run doesn't trigger request-time work
+  maxAgeHours: MAX_AGE_HOURS,
   run: () => datasetMetadata(DATASET_ID)
 };
 
@@ -38,7 +43,7 @@ export const metadataJob = {
 // of inspections in the window (the denominator for the mean) and of restaurants behind them.
 export const benchmarksJob = {
   key: `restaurants:benchmarks:violations-per-inspection:v3:${LOOKBACK_YEARS}y`,
-  maxAgeHours: 26,
+  maxAgeHours: MAX_AGE_HOURS,
   async run() {
     const since = cutoffDate(nycToday(), LOOKBACK_YEARS);
     const [cityCount, cityFamilies, similarCounts, similarFamilies] = await Promise.all([
@@ -90,7 +95,7 @@ const LEADS_DAYS = Math.max(...LEADS_CONFIG.windows);
 // inspection date in the data. The page narrows that to a group and window.
 export const leadsJob = {
   key: `restaurants:leads:v2:${LEADS_DAYS}d:${mappingTag()}`, // v2: re-inspection likely needs an initial inspection
-  maxAgeHours: 26,
+  maxAgeHours: MAX_AGE_HOURS,
   async run() {
     const [{ latest } = {}] = await soql(DATASET_ID, latestInspectionParams(nycToday()));
     const referenceDate = day(latest);
@@ -115,7 +120,15 @@ export const leadsJob = {
   }
 };
 
-export const restaurantDailyJobs = [metadataJob, benchmarksJob, leadsJob];
+export const restaurantsDataset = {
+  id: "restaurants",
+  dashboard: "restaurant-inspections",
+  datasetId: DATASET_ID,
+  cadence: CADENCE,
+  rolling: true,
+  metadataJob,
+  jobs: [benchmarksJob, leadsJob]
+};
 
 export function getLeads() {
   return dailyValue(leadsJob);

@@ -6,19 +6,26 @@
  *               is per data center and only works on a custom domain (on
  *               *.workers.dev it's a no-op, so every request goes to Socrata).
  *
- * dailyValue()  Aggregates that are expensive and change once a day
- *               (benchmarks, dataset metadata), kept in the DATA_CACHE KV
- *               namespace. The cron trigger refreshes every job in
- *               src/lib/server/daily-jobs.js. When KV's copy is stale (a failed
- *               cron) requests keep serving it and refresh it in the background;
- *               only an empty KV (first deploy, local dev) makes a request wait.
- *               Each isolate also keeps the value in memory and runs at most one
- *               refresh per job at a time, so concurrent requests share it.
+ * dailyValue()  Aggregates that are expensive and change only when their
+ *               dataset does (benchmarks, indexes, dataset metadata), kept in
+ *               the DATA_CACHE KV namespace. The hourly cron rebuilds each job
+ *               when its source changes (src/lib/server/etl.js). When KV's copy
+ *               is past the job's maxAgeHours (the cron has stopped) requests
+ *               keep serving it and refresh it in the background; only an
+ *               empty KV (first deploy, local dev) makes a request wait.
+ *               Each isolate also keeps the value in memory, asks KV every few
+ *               minutes whether the cron has built a newer one (a small
+ *               "<key>:at" entry, so the full value is only read when it
+ *               changed), and runs at most one refresh per job at a time, so
+ *               concurrent requests share it.
  */
 import { env, waitUntil } from "cloudflare:workers";
 
 const CACHE_VERSION = "v1";
-const KV_EXPIRY_SECONDS = 7 * 24 * 3600; // keep a stale copy for a week in case Socrata is down
+// Longer than any job's rebuild interval (30 days for yearly data, cadence.js),
+// so a stale copy outlives a long Socrata outage.
+const KV_EXPIRY_SECONDS = 90 * 24 * 3600;
+const RECHECK_MS = 5 * 60e3; // how long an isolate trusts its in-memory copy
 
 export async function edgeCached(requestUrl, key, ttl, compute, ctx) {
   const cache = globalThis.caches?.default;
@@ -39,26 +46,41 @@ export async function edgeCached(requestUrl, key, ttl, compute, ctx) {
 
 const REFRESH_LOCK_SECONDS = 120; // KV's minimum TTL is 60
 
-// Per isolate: the last value seen ({ computedAt, value }) and refreshes in flight.
+// Per isolate: the last value seen ({ computedAt, value }), when it was last
+// checked against KV, and refreshes in flight.
 const memory = new Map();
+const checkedAt = new Map();
 const inFlight = new Map();
 
 const isFresh = (stored, job) =>
   Boolean(stored) && Date.now() - Date.parse(stored.computedAt) < job.maxAgeHours * 3600e3;
+
+const versionKey = (job) => `${job.key}:at`;
+
+function remember(job, stored) {
+  memory.set(job.key, stored);
+  checkedAt.set(job.key, Date.now());
+}
 
 /*
  * A daily job is { key, maxAgeHours, run }. run() returns a JSON-safe value.
  */
 export async function dailyValue(job) {
   let stored = memory.get(job.key);
-  if (isFresh(stored, job)) return stored.value;
+  if (isFresh(stored, job)) {
+    if (Date.now() - (checkedAt.get(job.key) ?? 0) < RECHECK_MS) return stored.value;
+    if ((await env.DATA_CACHE?.get(versionKey(job))) === stored.computedAt) {
+      checkedAt.set(job.key, Date.now());
+      return stored.value;
+    }
+  }
 
   stored = (await env.DATA_CACHE?.get(job.key, "json")) ?? stored;
-  if (stored) memory.set(job.key, stored);
+  if (stored) remember(job, stored);
   if (isFresh(stored, job)) return stored.value;
 
   if (stored) {
-    // Stale (a failed cron): serve it now and refresh behind the response.
+    // Stale (the cron has stopped): serve it now and refresh behind the response.
     waitUntil(backgroundRefresh(job).catch((err) =>
       console.warn(`Serving stale ${job.key} from ${stored.computedAt}: ${err.message}`)));
     return stored.value;
@@ -78,8 +100,13 @@ export function refreshDaily(job) {
 
 async function runJob(job) {
   const entry = { computedAt: new Date().toISOString(), value: await job.run() };
-  memory.set(job.key, entry);
-  await env.DATA_CACHE?.put(job.key, JSON.stringify(entry), { expirationTtl: KV_EXPIRY_SECONDS });
+  remember(job, entry);
+  const kv = env.DATA_CACHE;
+  if (kv) {
+    // The value first, so an isolate that sees the new version finds it.
+    await kv.put(job.key, JSON.stringify(entry), { expirationTtl: KV_EXPIRY_SECONDS });
+    await kv.put(versionKey(job), entry.computedAt, { expirationTtl: KV_EXPIRY_SECONDS });
+  }
   return entry.value;
 }
 

@@ -2,7 +2,7 @@
  * GET /api/311/distribution?window=12m
  * How many requests fall within ¼ and 1 mile of locations across NYC, as
  * sorted quantiles, so the page can rank a spot against the rest of the city.
- * Computed once a day and kept in KV (daily-jobs.js); the first request after
+ * Computed once a day and kept in KV (src/lib/server/etl.js); the first request after
  * a deploy waits about a minute while it's built.
  */
 import { distribution, BASELINE_TTL } from "../../../lib/server/complaints311.js";
