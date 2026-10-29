@@ -2448,6 +2448,7 @@ a.sd-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
   margin-top: var(--space-4);
 }
 .sq-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -2461,11 +2462,14 @@ a.sd-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
   text-decoration: none;
   transition: transform var(--speed) var(--ease), box-shadow var(--speed) var(--ease), border-color var(--speed) var(--ease);
 }
-a.sq-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-hover); border-color: var(--line-strong); }
-a.sq-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
+.sq-card:has(.sq-card-link:hover) { transform: translateY(-3px); box-shadow: var(--shadow-hover); border-color: var(--line-strong); }
+.sq-card:has(.sq-card-link:focus-visible) { outline: 3px solid var(--link); outline-offset: 2px; }
+.sq-card-link { color: inherit; text-decoration: none; }
+.sq-card-link:focus-visible { outline: none; }
+.sq-card-link::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
 .sq-card.is-skeleton { min-height: 220px; box-shadow: none; }
 .sq-card-badges { display: flex; flex-wrap: wrap; gap: var(--space-1); }
-.sq-card-name { font-size: 1.125rem; font-weight: 800; line-height: 1.25; overflow-wrap: anywhere; }
+.sq-card-name { margin: 0; font-size: 1.125rem; font-weight: 800; line-height: 1.25; overflow-wrap: anywhere; }
 .sq-card-meta { font-size: .875rem; font-weight: 600; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 .sq-card-place { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); font-size: .875rem; }
 .sq-card-address.is-missing { color: var(--ink-soft); font-style: italic; }
@@ -2481,7 +2485,7 @@ a.sq-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
 .sq-card-metric dd { margin: 0; display: flex; flex-direction: column; align-items: flex-end; text-align: right; }
 .sq-card-value { font-size: 1.125rem; font-weight: 800; font-variant-numeric: tabular-nums; }
 .sq-card-value.is-missing { font-size: .875rem; font-weight: 600; color: var(--ink-soft); }
-.sq-card-vs { font-size: .75rem; color: var(--ink-soft); white-space: nowrap; }
+.sq-card-vs { font-size: .75rem; color: var(--ink-soft); }
 .sq-card-vs[data-verdict] { color: var(--verdict-deep); font-weight: 700; }
 .sq-card-year { margin-top: auto; padding-top: var(--space-1); font-size: .8125rem; color: var(--ink-soft); }
 .sq-cards-note { margin-top: var(--space-4); }
@@ -2674,6 +2678,6 @@ a.sq-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
 
 @media (prefers-reduced-motion: reduce) {
   .sq-card { transition: none; }
-  a.sq-card:hover { transform: none; }
+  .sq-card:has(.sq-card-link:hover) { transform: none; }
   .sq-card.is-skeleton .sk-line { animation: none; }
 }

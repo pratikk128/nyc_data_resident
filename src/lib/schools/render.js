@@ -129,17 +129,19 @@ function cardMetricsHtml(r) {
   return `<dl class="sq-card-metrics">${items}</dl>`;
 }
 
+// Only the name is a link (screen readers hear the school, not every number);
+// its ::after stretches over the card so the whole card is still clickable.
 export function cardsHtml(results, latestYear) {
   return results.map((r) => `
     <li>
-      <a class="sq-card" href="${escape(schoolPath(r.dbn))}">
+      <article class="sq-card">
         <span class="sq-card-badges">${typeBadges(r.types)}</span>
-        <span class="sq-card-name">${escape(r.name)}</span>
+        <h3 class="sq-card-name"><a class="sq-card-link" href="${escape(schoolPath(r.dbn))}">${escape(r.name)}</a></h3>
         <span class="sq-card-meta">${escape(r.dbn)}${r.district ? ` · ${escape(r.district)}` : ""}</span>
         <span class="sq-card-place">${boroughHtml(r.boro)}<span class="sq-card-address${r.loc?.address ? "" : " is-missing"}">${escape(addressText(r.loc))}</span></span>
         ${cardMetricsHtml(r)}
         <span class="sq-card-year">${r.current ? `${yearLabel(r.year)} report` : `Latest report: ${yearLabel(r.year)} · none for ${yearLabel(latestYear)}`}</span>
-      </a>
+      </article>
     </li>`).join("");
 }
 

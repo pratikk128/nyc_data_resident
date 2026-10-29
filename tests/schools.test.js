@@ -99,6 +99,8 @@ test("formatting: whole percents, one decimal under 10%, signed points, counts",
   assert.equal(formatValue(ELA, 0.887), "89%");
   assert.equal(formatValue(ELA, 0.061), "6.1%");
   assert.equal(formatValue(ELA, 0), "0%");
+  assert.equal(formatValue(ELA, 0.997), "99.7%");
+  assert.equal(formatValue(ELA, 1), "100%");
   assert.equal(formatValue(ATTEND_CHANGE, -0.085), "−8.5 pts");
   assert.equal(formatValue(ATTEND_CHANGE, 0.012), "+1.2 pts");
   assert.equal(formatValue(METRICS.find((m) => m.id === "students_hs"), 3267), "3,267");
@@ -119,6 +121,8 @@ test("comparisons are in points, and know which way is better", () => {
   assert.deepEqual(compare(ABSENT, 0.061, 0.3), { dir: "below", text: "24 pts below", good: true });
   assert.equal(compare(ELA, 0.5, 0.504).dir, "same");
   assert.equal(compare(ELA, 0.51, 0.5).text, "1 pt above");
+  // Compares the numbers as shown: 54% vs 54% is the same, however they round
+  assert.equal(compare(ELA, 0.544, 0.536).dir, "same");
   assert.equal(compare(ELA, null, 0.5), null);
 });
 
@@ -151,10 +155,13 @@ test("trend: last 3 years with a value, slope over the span, direction by higher
 
 test("gaps: blank years inside the span, with the COVID-19 reason when known", () => {
   const points = { 2017: { v: 0.5 }, 2018: { v: 0.5 }, 2019: { v: null }, 2021: { v: 0.6 }, 2024: { v: null } };
-  const gaps = gapYears(points, [2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024]);
+  const years = [2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024];
+  const gaps = gapYears(ELA, points, years);
   assert.deepEqual(gaps.map((g) => g.year), [2019, 2020]);
   assert.match(gaps[0].reason, /COVID-19/);
   assert.match(gaps[1].reason, /optional/);
+  // Not a state test: no testing explanation
+  assert.equal(gapYears(metric("grad_pct_4_all"), points, years)[0].reason, "Not reported this year.");
   assert.equal(latestYearWithValue(points), 2021);
 });
 
@@ -254,6 +261,9 @@ test("search: metric sorts put schools without the measure last", () => {
   assert.deepEqual(searchSchools(INDEX, q("sort=ela")).results.map((r) => r.dbn), ["15K321", "17K382", "10X100", "02M475"]);
   assert.deepEqual(searchSchools(INDEX, q("sort=grad")).results.slice(0, 2).map((r) => r.dbn), ["02M475", "17K382"]);
   assert.equal(searchSchools(INDEX, q("sort=absent")).results[0].dbn, "15K321");
+  // Scores from before the 2023 tests aren't ranked with newer ones
+  const old = school("01M999", "Old School", ["elementary"], { values: { prof_pct_ela_all: { v: 0.99, s: null, y: 2021 } } });
+  assert.equal(sortValue(old, "ela"), null);
 });
 
 test("search: a metric sort uses the card report's measure, and cards show it when it isn't a card measure", () => {

@@ -120,12 +120,12 @@ export function mountYearChart(frame, opts) {
       const label = el("text", { x: m.left - 6, y: y(v), dy: "0.32em", "text-anchor": "end" }, grid);
       label.textContent = formatTick(metric, v);
     }
-    // One label per school year ("’24" = 2024–25), every other one when tight.
-    const every = step < 34 ? 2 : 1;
+    // One label per school year ("24–25" when tight, never "’24", which reads as either year), every other one when tighter.
+    const every = step < 40 ? 2 : 1;
     years.forEach((yr, i) => {
       if ((years.length - 1 - i) % every) return;
       const t = el("text", { x: x(i), y: height - 8, "text-anchor": "middle", class: "x-label" }, grid);
-      t.textContent = step < 56 ? `’${String(yr).slice(-2)}` : `${yr}–${String(yr + 1).slice(-2)}`;
+      t.textContent = step < 56 ? `${String(yr).slice(-2)}–${String(yr + 1).slice(-2)}` : `${yr}–${String(yr + 1).slice(-2)}`;
     });
 
     if (seriesBreak && years.includes(seriesBreak.year) && years.indexOf(seriesBreak.year) > 0) {

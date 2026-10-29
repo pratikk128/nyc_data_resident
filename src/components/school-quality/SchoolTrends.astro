@@ -21,15 +21,17 @@ const byId = Object.fromEntries(METRICS.map((m) => [m.id, m]));
 const years: number[] = report.years;
 const charts = report.metrics.map((entry: any) => {
   const metric = byId[entry.id];
-  const gaps = gapYears(entry.points, years);
-  const scored = years.some((y) => entry.points[y]?.score != null);
-  return { entry, metric, gaps, scored };
+  // A measure that started recently (college readiness) charts from its first year.
+  const metricYears = metric.firstYear ? years.filter((y) => y >= metric.firstYear) : years;
+  const gaps = gapYears(metric, entry.points, metricYears);
+  const scored = metricYears.some((y) => entry.points[y]?.score != null);
+  return { entry, metric, years: metricYears, gaps, scored };
 });
 const gapNotes = [...new Map(charts.flatMap((c: any) => c.gaps).map((g: any) => [g.year, g])).values()]
   .sort((a: any, b: any) => a.year - b.year);
 const id = `trends-${report.report.toLowerCase()}`;
-const hasCity = (entry: any) => years.some((y) => entry.city?.[y] != null);
-const hasSimilar = (entry: any) => years.some((y) => entry.points[y]?.cmp != null);
+const hasCity = (entry: any, years: number[]) => years.some((y) => entry.city?.[y] != null);
+const hasSimilar = (entry: any, years: number[]) => years.some((y) => entry.points[y]?.cmp != null);
 ---
 
 <section class="dash-section sq-trends" aria-labelledby={`${id}-title`} id={id}>
@@ -57,7 +59,7 @@ const hasSimilar = (entry: any) => years.some((y) => entry.points[y]?.cmp != nul
   )}
 
   <div class="sq-charts">
-    {charts.map(({ entry, metric, gaps, scored }: any) => (
+    {charts.map(({ entry, metric, years, gaps, scored }: any) => (
       <figure class="sq-chart-card" data-chart={entry.id} data-report={report.report}>
         <div class="sq-chart-head">
           <h3 class="sq-chart-title">{metric.label}</h3>
@@ -73,6 +75,7 @@ const hasSimilar = (entry: any) => years.some((y) => entry.points[y]?.cmp != nul
         {metric.seriesBreak && years.includes(metric.seriesBreak.year) && years[0] < metric.seriesBreak.year && (
           <p class="chart-hint"><strong>New measure:</strong> {metric.seriesBreak.note}</p>
         )}
+        {metric.firstYear && <p class="chart-hint"><strong>New measure:</strong> {metric.note}</p>}
 
         <details class="sq-table-toggle">
           <summary>View as table</summary>
@@ -83,21 +86,21 @@ const hasSimilar = (entry: any) => years.some((y) => entry.points[y]?.cmp != nul
                 <tr>
                   <th scope="col">School year</th>
                   <th scope="col">This school</th>
-                  {hasCity(entry) && <th scope="col">NYC average</th>}
-                  {hasSimilar(entry) && <th scope="col">Similar schools</th>}
+                  {hasCity(entry, years) && <th scope="col">NYC average</th>}
+                  {hasSimilar(entry, years) && <th scope="col">Similar schools</th>}
                   {scored && <th scope="col">DOE rating</th>}
                 </tr>
               </thead>
               <tbody>
-                {years.map((y) => {
+                {years.map((y: number) => {
                   const p = entry.points[y];
                   const gap = gaps.find((g: any) => g.year === y);
                   return (
                     <tr>
                       <th scope="row">{yearLabel(y)}</th>
                       <td title={gap?.reason}>{formatValue(metric, p?.v ?? null)}</td>
-                      {hasCity(entry) && <td>{entry.city?.[y] != null ? formatValue(metric, entry.city[y]) : '–'}</td>}
-                      {hasSimilar(entry) && <td>{p?.cmp != null ? formatValue(metric, p.cmp) : '–'}</td>}
+                      {hasCity(entry, years) && <td>{entry.city?.[y] != null ? formatValue(metric, entry.city[y]) : '–'}</td>}
+                      {hasSimilar(entry, years) && <td>{p?.cmp != null ? formatValue(metric, p.cmp) : '–'}</td>}
                       {scored && <td>{targetBand(p?.score ?? null)?.label ?? '–'}</td>}
                     </tr>
                   );

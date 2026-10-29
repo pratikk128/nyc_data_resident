@@ -5,7 +5,8 @@
  * on the browse page and every school page.
  */
 import { SIMILAR_PTS } from '../../lib/schools/values.js';
-import { DATASET_URL, DATASET_NAME, DATASET_ID, LOCATION_SOURCES, LINKS, TARGET_BANDS, yearLabel } from '../../lib/schools/config.js';
+import { DATASET_URL, DATASET_NAME, DATASET_ID, LOCATION_SOURCES, LINKS, TARGET_BANDS, REPORTS, yearLabel } from '../../lib/schools/config.js';
+import { metricsFor } from '../../lib/schools/metrics.js';
 import { date } from '../../lib/format.js';
 
 interface Props {
@@ -14,6 +15,7 @@ interface Props {
 }
 const { meta, latestYear } = Astro.props;
 const locations = Object.entries(LOCATION_SOURCES);
+const mostMeasures = Math.max(...Object.keys(REPORTS).map((r) => metricsFor(r).length));
 ---
 
 <section class="dash-section sq-about" id="about-this-data" aria-labelledby="sq-about-title">
@@ -30,7 +32,7 @@ const locations = Object.entries(LOCATION_SOURCES);
       </p>
       <p>
         <strong>Which measures.</strong> The reports have over 100 measures per school type, many of them broken out
-        by student group. We show 6 to 10 per type: test results or graduation and college outcomes, attendance, and
+        by student group. We show up to {mostMeasures} per type, fewer for some: test results or graduation and college outcomes, attendance, and
         how former students did at their next school. Everything else is in the dataset.
       </p>
       <p>
@@ -67,7 +69,7 @@ const locations = Object.entries(LOCATION_SOURCES);
       <p>
         <strong>Trend</strong> uses the last 3 school years with a value. We fit a straight line through them and call it
         improving or declining when it moved at least 3 percentage points over those years (1 point for average
-        attendance, 2 for changes in attendance and moves to less restrictive settings), and steady otherwise.
+        attendance, 2 for changes in attendance, moves to less restrictive settings and moves out of District 75), and steady otherwise.
         “Improving” means better for students: for chronic absenteeism, that’s going down.
       </p>
       <p>

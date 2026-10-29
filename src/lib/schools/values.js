@@ -56,8 +56,23 @@ export function formatValue(metric, v) {
     const sign = pts > 0.05 ? "+" : pts < -0.05 ? "−" : "";
     return `${sign}${Math.abs(pts).toFixed(1)} pts`;
   }
+  return `${shownPct(v)}%`;
+}
+
+// A percent as formatValue shows it: one decimal under 10%, and from 99.5%
+// rounded down, so a rate short of 100% never reads "100%".
+function shownPct(v) {
   const pct = v * 100;
-  return `${pct > 0 && pct < 10 ? pct.toFixed(1) : Math.round(pct)}%`;
+  if (pct > 0 && pct < 10) return pct.toFixed(1);
+  if (pct >= 99.5 && pct < 100) return (Math.floor(pct * 10) / 10).toFixed(1);
+  return String(Math.round(pct));
+}
+
+// v − ref in whole percentage points, from the numbers as shown, so a card
+// never says "1 pt above NYC avg (54%)" next to 54%.
+function diffPts(metric, v, ref) {
+  if (metric.format === "percent") return Math.round(Number(shownPct(v)) - Number(shownPct(ref)));
+  return Math.round((v - ref) * 100);
 }
 
 // Axis ticks and other places where a short label fits.
@@ -76,12 +91,12 @@ export function targetBand(score) {
 /*
  * How v compares with a reference (the NYC average or similar schools):
  * { dir: "above" | "below" | "same", text: "6 pts above", good: true | false | null }.
- * Percent and points differences are in percentage points; within half a
- * point counts as the same.
+ * Percent and points differences are in percentage points, between the
+ * values as shown; within half a point counts as the same.
  */
 export function compare(metric, v, ref) {
   if (v == null || ref == null || metric.format === "count") return null;
-  const pts = Math.round((v - ref) * 100);
+  const pts = diffPts(metric, v, ref);
   if (pts === 0) return { dir: "same", text: "Same as", good: null };
   const dir = pts > 0 ? "above" : "below";
   const good = metric.higherIsBetter == null ? null : (pts > 0) === metric.higherIsBetter;
@@ -97,19 +112,19 @@ export const SIMILAR_PTS = 2;
 export function verdict(metric, v, city) {
   const c = compare(metric, v, city);
   if (!c) return null;
-  if (Math.abs(Math.round((v - city) * 100)) <= SIMILAR_PTS) return "similar";
+  if (Math.abs(diffPts(metric, v, city)) <= SIMILAR_PTS) return "similar";
   return c.good == null ? null : c.good ? "better" : "worse";
 }
 
 /*
  * Improving, steady or declining, from the last 3 years with a value (not
- * counting years before the metric's seriesBreak). The change is the
+ * counting years before the metric's seriesBreak or firstYear). The change is the
  * least-squares slope × the years spanned, so one odd year moves it less
  * than first-to-last would. Fewer than 3 values → { dir: null }.
  * points: { [year]: { v } }.
  */
 export function trend(metric, points) {
-  const from = metric.seriesBreak?.year ?? -Infinity;
+  const from = metric.seriesBreak?.year ?? metric.firstYear ?? -Infinity;
   const series = Object.entries(points ?? {})
     .map(([y, p]) => [Number(y), p?.v])
     .filter(([y, v]) => v != null && y >= from)
@@ -145,14 +160,15 @@ export function trendSentence(metric, t) {
 
 /*
  * Years between a metric's first and last value that have no value, with
- * why when we know (COVID-19 testing years): [{ year, reason }].
+ * why when we know (COVID-19 testing years, for state test measures only):
+ * [{ year, reason }].
  */
-export function gapYears(points, years) {
+export function gapYears(metric, points, years) {
   const has = years.filter((y) => points?.[y]?.v != null);
   if (!has.length) return [];
   return years
     .filter((y) => y > has[0] && y < has[has.length - 1] && points?.[y]?.v == null)
-    .map((y) => ({ year: y, reason: GAP_REASONS[y] ?? "Not reported this year." }));
+    .map((y) => ({ year: y, reason: (metric.stateTest && GAP_REASONS[y]) || "Not reported this year." }));
 }
 
 // The newest year with a value, or null.

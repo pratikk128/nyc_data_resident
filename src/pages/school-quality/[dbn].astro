@@ -15,6 +15,7 @@ import { RateLimited, RATE_LIMITED_TEXT } from '../../lib/server/rate-limit.js';
 import { REPORTS, BASE_PATH, schoolPath, yearLabel } from '../../lib/schools/config.js';
 import { typeBadges, boroughHtml, NO_ADDRESS, UPSTREAM_TEXT } from '../../lib/schools/render.js';
 import { gapYears } from '../../lib/schools/values.js';
+import { METRICS } from '../../lib/schools/metrics.js';
 import { date } from '../../lib/format.js';
 
 export const prerender = false;
@@ -52,14 +53,20 @@ const description = school
 const chartData = reports.map((r: any) => ({
   report: r.report,
   years: r.years,
-  metrics: r.metrics.map((e: any) => ({
-    id: e.id,
-    values: Object.fromEntries(r.years.map((y: number) => [y, e.points[y]?.v ?? null])),
-    cmp: Object.fromEntries(r.years.map((y: number) => [y, e.points[y]?.cmp ?? null])),
-    scores: Object.fromEntries(r.years.map((y: number) => [y, e.points[y]?.score ?? null])),
-    city: e.city ?? {},
-    gaps: gapYears(e.points, r.years)
-  }))
+  metrics: r.metrics.map((e: any) => {
+    const metric = METRICS.find((m) => m.id === e.id)!;
+    // A measure that started recently (college readiness) charts from its first year.
+    const years = metric.firstYear ? r.years.filter((y: number) => y >= metric.firstYear!) : r.years;
+    return {
+      id: e.id,
+      years,
+      values: Object.fromEntries(years.map((y: number) => [y, e.points[y]?.v ?? null])),
+      cmp: Object.fromEntries(years.map((y: number) => [y, e.points[y]?.cmp ?? null])),
+      scores: Object.fromEntries(years.map((y: number) => [y, e.points[y]?.score ?? null])),
+      city: e.city ?? {},
+      gaps: gapYears(metric, e.points, years)
+    };
+  })
 }));
 const json = JSON.stringify({ name: school?.name, loc: loc?.lat != null ? { lat: loc.lat, lon: loc.lon } : null, reports: chartData })
   .replace(/</g, '\\u003c');
@@ -81,7 +88,7 @@ const json = JSON.stringify({ name: school?.name, loc: loc?.lat != null ? { lat:
       <p>
         {failed
           ? (loaded.reason instanceof RateLimited ? RATE_LIMITED_TEXT : UPSTREAM_TEXT)
-          : <>There’s no School Quality Report for {dbn ? <strong>{dbn}</strong> : 'that address'}. Check the DBN, or <a href={BASE_PATH}>search all schools</a>.</>}
+          : <>There’s no School Quality Report for <strong>{dbn ?? Astro.params.dbn}</strong>. Check the DBN (like 02M475), or <a href={BASE_PATH}>search all schools</a>.</>}
       </p>
     </header>
   )}
@@ -116,7 +123,7 @@ const json = JSON.stringify({ name: school?.name, loc: loc?.lat != null ? { lat:
           )}
         </div>
         {loc?.lat != null && (
-          <div class="sq-mini-map" data-mini-map role="img" aria-label={`Map showing ${school.name} at ${loc.address ?? 'its location'}`}></div>
+          <div class="sq-mini-map" data-mini-map role="region" aria-label={`Map showing ${school.name} at ${loc.address ?? 'its location'}`}></div>
         )}
       </header>
 
@@ -160,15 +167,15 @@ const json = JSON.stringify({ name: school?.name, loc: loc?.lat != null ? { lat:
       const gapsByYear = new Map<number, string>(entry.gaps.map((g: any) => [g.year, g.reason]));
       const row = (label: string, v: number | null) =>
         v == null ? '' : `<tr><th>${label}</th><td>${esc(formatValue(metric, v))}</td></tr>`;
-      const latest = report.years.filter((y: number) => entry.values[y] != null).pop();
+      const latest = entry.years.filter((y: number) => entry.values[y] != null).pop();
       mountYearChart(frame, {
         metric,
-        years: report.years,
+        years: entry.years,
         values: entry.values,
         city: entry.city,
         gaps: entry.gaps,
         seriesBreak: metric.seriesBreak,
-        summary: `${metric.label} at ${data.name}, ${yearLabel(report.years[0])} to ${yearLabel(report.years[report.years.length - 1])}` +
+        summary: `${metric.label} at ${data.name}, ${yearLabel(entry.years[0])} to ${yearLabel(entry.years[entry.years.length - 1])}` +
           (latest != null ? `. ${yearLabel(latest)}: ${formatValue(metric, entry.values[latest])}.` : '.') +
           ' Use the left and right arrow keys to read each year.',
         tooltip: (y: number) => {

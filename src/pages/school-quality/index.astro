@@ -10,7 +10,7 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
 import SchoolFinder from '../../components/school-quality/SchoolFinder.astro';
 import AboutSection from '../../components/school-quality/AboutSection.astro';
 import { getMetadata, loadSearch } from '../../lib/server/schools.js';
-import { RateLimited } from '../../lib/server/rate-limit.js';
+import { RateLimited, RATE_LIMITED_TEXT } from '../../lib/server/rate-limit.js';
 import { normalizeQuery } from '../../lib/schools/filter.js';
 import { date } from '../../lib/format.js';
 
@@ -19,13 +19,16 @@ export const prerender = false;
 const normalized = normalizeQuery(Astro.url.searchParams);
 const query = normalized.query ?? normalizeQuery(new URLSearchParams()).query!;
 const view = Astro.url.searchParams.get('view') === 'map' ? 'map' : 'list';
+// A search that's too long shows only its error, not every school.
 const [meta, initial] = await Promise.allSettled([
-  getMetadata(), loadSearch(query, { view: 'list' }, Astro.url, Astro.locals.cfContext, Astro.clientAddress)
+  getMetadata(),
+  normalized.error ? Promise.resolve(null) : loadSearch(query, { view: 'list' }, Astro.url, Astro.locals.cfContext, Astro.clientAddress)
 ]);
 if (meta.status === 'rejected') console.error(meta.reason);
 if (initial.status === 'rejected' && !(initial.reason instanceof RateLimited)) console.error(initial.reason);
 const metaValue = meta.status === 'fulfilled' ? meta.value : null;
 const initialValue = initial.status === 'fulfilled' ? initial.value : null;
+const loadError = initial.status === 'rejected' && initial.reason instanceof RateLimited ? RATE_LIMITED_TEXT : null;
 const pageTitle = 'NYC School Quality Explorer';
 // Production only: in dev a cached page hides edits for an hour. A page
 // whose results failed to load isn't cached.
@@ -49,7 +52,7 @@ if (import.meta.env.PROD && initialValue) Astro.response.headers.set('Cache-Cont
     </p>
   </header>
 
-  <SchoolFinder query={query} initial={initialValue} inputError={normalized.error ?? null} view={view} />
+  <SchoolFinder query={query} initial={initialValue} inputError={normalized.error ?? null} loadError={loadError} view={view} />
 
   <AboutSection meta={metaValue} latestYear={initialValue?.latestYear} />
 </DashboardLayout>

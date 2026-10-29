@@ -25,6 +25,10 @@
  *                metric_value (enrollment isn't in the dataset)
  *   card         order on the browse cards (1–3), per report type
  *   sortKey      offered as a browse sort under this URL value
+ *   stateTest    a New York State test result: blank 2019–20 and 2020–21
+ *                years get the COVID-19 testing explanation (GAP_REASONS)
+ *   firstYear    the measure exists only from this school year: charts and
+ *                tables start there, with `note` under the chart
  *   seriesBreak  { year, note }: the measure changed that year; the chart
  *                marks it and the trend only uses years from then on
  *   trendThreshold  smallest change over the last 3 years that counts as
@@ -38,7 +42,7 @@ const NEW_STATE_TESTS = {
 };
 
 const CCR_STARTED = {
-  year: 2023,
+  firstYear: 2023,
   note: "DOE started reporting this measure in 2023–24. Earlier college readiness numbers used a different definition and aren’t shown."
 };
 
@@ -48,13 +52,13 @@ export const METRICS = [
     key: "prof_pct_ela_all", reports: ["EMS", "EC"], card: { EMS: 1 }, sortKey: "ela",
     label: "ELA proficiency",
     description: "Share of tested students (grades 3–8) scoring at Level 3 or 4, proficient, on the New York State English test.",
-    format: "percent", higherIsBetter: true, seriesBreak: NEW_STATE_TESTS
+    format: "percent", higherIsBetter: true, stateTest: true, seriesBreak: NEW_STATE_TESTS
   },
   {
     key: "prof_pct_mth_all", reports: ["EMS", "EC"], card: { EMS: 2 }, sortKey: "math",
     label: "Math proficiency",
     description: "Share of tested students (grades 3–8) scoring at Level 3 or 4, proficient, on the New York State math test.",
-    format: "percent", higherIsBetter: true, seriesBreak: NEW_STATE_TESTS
+    format: "percent", higherIsBetter: true, stateTest: true, seriesBreak: NEW_STATE_TESTS
   },
   {
     key: "ele_core_all", reports: ["EMS"],
@@ -86,7 +90,7 @@ export const METRICS = [
     key: "ccr_4yr_all", reports: ["HS"], card: { HS: 2 }, scale: 100,
     label: "College and career readiness",
     description: "Share of the 4-year class who graduated and met DOE’s college- or career-readiness standards (exams, courses or credentials).",
-    format: "percent", higherIsBetter: true, seriesBreak: CCR_STARTED
+    format: "percent", higherIsBetter: true, ...CCR_STARTED
   },
   {
     key: "pct_cer_18mo_all", reports: ["HS"], card: { HS: 3 },
@@ -124,7 +128,7 @@ export const METRICS = [
     key: "ccr_6yr_all", reports: ["HST"], scale: 100,
     label: "College and career readiness",
     description: "Share of the school’s 6-year class who graduated and met DOE’s college- or career-readiness standards.",
-    format: "percent", higherIsBetter: true, seriesBreak: { ...CCR_STARTED, year: 2024, note: "DOE started reporting this measure for transfer schools in 2024–25." }
+    format: "percent", higherIsBetter: true, firstYear: 2024, note: "DOE started reporting this measure for transfer schools in 2024–25."
   },
   {
     key: "nondropout_6_all", reports: ["HST", "YABC"], card: { YABC: 2 },
@@ -156,13 +160,13 @@ export const METRICS = [
     key: "prof_nysaa_pct_ela_all", reports: ["D75"], card: { D75: 1 },
     label: "Alternate assessment, ELA",
     description: "Students with significant disabilities take the NYS Alternate Assessment (NYSAA) instead of the regular test. Share scoring Level 3 or 4 in English.",
-    format: "percent", higherIsBetter: true
+    format: "percent", higherIsBetter: true, stateTest: true
   },
   {
     key: "prof_nysaa_pct_mth_all", reports: ["D75"], card: { D75: 2 },
     label: "Alternate assessment, math",
     description: "Share of students taking the NYS Alternate Assessment who scored Level 3 or 4 in math.",
-    format: "percent", higherIsBetter: true
+    format: "percent", higherIsBetter: true, stateTest: true
   },
   {
     key: "move_to_lre_pct_all", reports: ["D75"],

@@ -175,10 +175,11 @@ function sortMetrics(school, sortKey) {
 }
 
 // The metric a school is sorted by: { metric, v } for the first of the sort's metrics it has, or null.
+// A value from before the measure changed (ELA and math before the 2023 tests) can't be ranked with newer ones.
 export function sortMetric(school, sortKey) {
   for (const m of sortMetrics(school, sortKey)) {
-    const v = school.values?.[m.id]?.v;
-    if (v != null) return { metric: m, v };
+    const value = school.values?.[m.id];
+    if (value?.v != null && !(value.y < m.seriesBreak?.year)) return { metric: m, v: value.v };
   }
   return null;
 }

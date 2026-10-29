@@ -179,9 +179,10 @@ export async function loadSearch(query, { view = "list" } = {}, requestUrl, ctx,
   }, ctx);
 }
 
+// "02M475", "2m475" → "02M475"; null if it isn't a full DBN.
 export const normalizeDbn = (value) => {
-  const dbn = String(value ?? "").trim().toUpperCase();
-  return /^\d{2}[MXKQR]\d{3}$/.test(dbn) ? dbn : null;
+  const m = /^(\d{1,2})([MXKQR])(\d{1,3})$/.exec(String(value ?? "").trim().toUpperCase());
+  return m ? `${m[1].padStart(2, "0")}${m[2]}${m[3].padStart(3, "0")}` : null;
 };
 
 /*
@@ -208,7 +209,7 @@ export async function schoolDetail(dbn, index) {
     for (const m of metricsFor(r.report)) {
       const points = {};
       for (const row of reportRows) {
-        if (row.metric_variable_name === m.key) points[row.school_year] = pointFromRow(m, row);
+        if (row.metric_variable_name === m.key && !(Number(row.school_year) < m.firstYear)) points[row.school_year] = pointFromRow(m, row);
       }
       if (!Object.values(points).some((p) => p.v != null)) continue;
       metrics.push({ id: m.id, points, city: m.field ? {} : index.cityAvg?.[r.report]?.[m.id] ?? {}, trend: trend(m, points) });

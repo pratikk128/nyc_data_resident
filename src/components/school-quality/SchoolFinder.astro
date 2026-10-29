@@ -19,9 +19,10 @@ interface Props {
   query: any;          // normalizeQuery() result
   initial: any;        // searchSchools() result, or null if the data couldn't load
   inputError: string | null;
+  loadError: string | null; // why the first results didn't load (rate limited), else the generic message
   view: 'list' | 'map';
 }
-const { query, initial, inputError, view } = Astro.props;
+const { query, initial, inputError, loadError, view } = Astro.props;
 
 const base = '/school-quality/';
 const pageHref = (page: number) => {
@@ -29,11 +30,13 @@ const pageHref = (page: number) => {
   if (view === 'map') p.set('view', 'map');
   return p.toString() ? `${base}?${p}` : base;
 };
+const listParams = queryToParams(query);
+const listHref = listParams.toString() ? `${base}?${listParams}` : base;
 const facets = initial?.facets;
-const status = inputError ?? (initial ? statusText(initial, view) : UPSTREAM_TEXT);
+const status = inputError ?? (initial ? statusText(initial, view) : loadError ?? UPSTREAM_TEXT);
 const latestYear = initial?.latestYear;
 // Safe inside <script type="application/json">
-const initialJson = JSON.stringify({ query, loaded: Boolean(initial), latestYear, view }).replace(/</g, '\\u003c');
+const initialJson = JSON.stringify({ query, loaded: Boolean(initial), inputError, latestYear, view }).replace(/</g, '\\u003c');
 ---
 
 <section class="dash-section sq-finder" aria-labelledby="sq-find-title">
@@ -95,6 +98,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), latestYear
   <div class="sq-map-wrap" data-map-wrap hidden={view !== 'map'}>
     <div class="sq-map" data-map role="region" aria-label="Map of matching schools"></div>
     <p class="chart-hint" data-map-note></p>
+    <noscript><p class="chart-fallback">The map needs JavaScript. <a href={listHref}>Show the list instead</a>.</p></noscript>
   </div>
 
   <div data-list-wrap hidden={view === 'map'}>
@@ -132,6 +136,8 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), latestYear
   const DEBOUNCE_MS = 300;
   // Only a slow search says "Finding schools…", so screen readers hear the count, not a message per keystroke.
   const LOADING_DELAY_MS = 1000;
+  // Placeholder cards only for a search that isn't back by then, so quick ones don't flash.
+  const SKELETON_DELAY_MS = 300;
 
   const $ = <T extends Element = HTMLElement>(sel: string, root: ParentNode = document) => root.querySelector<T>(sel)!;
   const form = $<HTMLFormElement>('[data-filters]');
@@ -161,6 +167,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), latestYear
   let abort: AbortController | null = null;
   let typingTimer = 0;
   let loadingTimer = 0;
+  let skeletonTimer = 0;
   let schoolsMap: ReturnType<typeof mountSchoolsMap> | null = null;
   const coarsePointer = matchMedia('(pointer: coarse)');
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
@@ -204,7 +211,10 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), latestYear
   }
 
   function showError(message: string) {
+    clearTimeout(skeletonTimer);
     list.replaceChildren();
+    schoolsMap?.update({ points: [] });
+    mapNote.textContent = '';
     pager.replaceChildren();
     empty.hidden = true;
     status.textContent = message;
@@ -215,6 +225,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), latestYear
     clearTimeout(typingTimer);
     abort?.abort();
     abort = new AbortController();
+    const { signal } = abort;
     syncViewControls();
     const url = pageUrl(query);
     if (url !== location.pathname + location.search) {
@@ -222,16 +233,20 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), latestYear
     }
     clearTimeout(loadingTimer);
     loadingTimer = window.setTimeout(() => { status.textContent = LOADING_TEXT; }, LOADING_DELAY_MS);
+    clearTimeout(skeletonTimer);
     if (view === 'list') {
       list.setAttribute('aria-busy', 'true');
-      list.innerHTML = skeletonCards();
-      empty.hidden = true;
+      skeletonTimer = window.setTimeout(() => {
+        list.innerHTML = skeletonCards();
+        pager.replaceChildren();
+        empty.hidden = true;
+      }, SKELETON_DELAY_MS);
     }
     const params = queryToParams(query);
     try {
       const [res, mapRes] = await Promise.all([
-        fetch(`/api/schools/search?${params}`, { signal: abort.signal }),
-        view === 'map' ? fetch(`/api/schools/search?${params}&view=map`, { signal: abort.signal }) : null
+        fetch(`/api/schools/search?${params}`, { signal }),
+        view === 'map' ? fetch(`/api/schools/search?${params}&view=map`, { signal }) : null
       ]);
       const data = await res.json().catch(() => null);
       clearTimeout(loadingTimer);
@@ -257,14 +272,20 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), latestYear
       clearTimeout(loadingTimer);
       showError(UPSTREAM_TEXT);
     } finally {
-      list.removeAttribute('aria-busy');
+      if (!signal.aborted) {
+        clearTimeout(skeletonTimer);
+        list.removeAttribute('aria-busy');
+      }
     }
   }
 
   async function drawMap(res: Response) {
     const data = await res.json().catch(() => null);
     if (!res.ok || !Array.isArray(data?.points)) {
-      mapNote.textContent = 'The map couldn’t load. Switch to the list instead.';
+      await schoolsMap?.update({ points: [] }); // not the last search's dots
+      mapNote.textContent = res.status === 429 && typeof data?.error === 'string'
+        ? data.error
+        : 'The map couldn’t load. Switch to the list instead.';
       return;
     }
     schoolsMap ??= mountSchoolsMap($('[data-map]'));
@@ -338,7 +359,8 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), latestYear
   viewToggle.hidden = false;
   // The browser may have kept edited fields (back/forward cache, autofill).
   const fromForm = readForm().query;
-  if (!initial.loaded || view === 'map' || (fromForm && pageUrl({ ...fromForm, page: query.page }) !== pageUrl(query))) {
+  // A too-long search from the URL keeps its message and shows nothing until the fields change.
+  if (!initial.inputError && (!initial.loaded || view === 'map' || (fromForm && pageUrl({ ...fromForm, page: query.page }) !== pageUrl(query)))) {
     if (fromForm) query = { ...fromForm, page: query.page };
     search();
   }
