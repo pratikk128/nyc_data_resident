@@ -39,7 +39,7 @@ const { windows, defaultWindow, reinspectionScore, lowScoreMax, includeNonCritic
 
   <div class="leads-groups" role="group" aria-label="Service type">
     {BUSINESS_GROUPS.map((g) => (
-      <button type="button" class="leads-group" data-tone={g.tone} data-group={g.id} aria-pressed={String(g.id === first.id)}>
+      <button type="button" class="leads-group" data-tone={g.tone} data-group={g.id} aria-pressed={g.id === first.id ? 'true' : 'false'}>
         <svg class="leads-group-icon" aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
           stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" set:html={g.icon} />
         <span class="leads-group-label">{g.label}</span>
@@ -54,7 +54,7 @@ const { windows, defaultWindow, reinspectionScore, lowScoreMax, includeNonCritic
       <span class="filter-label" id="leads-days-label">Inspected in the</span>
       <div class="toggle" role="group" aria-labelledby="leads-days-label">
         {windows.map((d) => (
-          <button type="button" class="toggle-btn" data-days={d} aria-pressed={String(d === defaultWindow)}>Last {d} days</button>
+          <button type="button" class="toggle-btn" data-days={d} aria-pressed={d === defaultWindow ? 'true' : 'false'}>Last {d} days</button>
         ))}
       </div>
     </div>
