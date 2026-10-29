@@ -15,9 +15,9 @@ import {
   POINTS, certStatus, yearsInBusiness, haystack, keywordMatch, scoreBusiness, tieBreak, rankBusinesses
 } from "../src/lib/shop-diverse/ranking.js";
 import { normalizeQuery, queryToParams, searchBusinesses, outsideShare } from "../src/lib/shop-diverse/filter.js";
-import { contactText, mapsUrl, detailHtml, kpisHtml } from "../src/lib/shop-diverse/render.js";
+import { contactText, mapsUrl, detailHtml, kpisHtml, activeFiltersHtml } from "../src/lib/shop-diverse/render.js";
 import {
-  pageUrl, formQuery, startQuery, popstateAction, closeAction, activeFilterCount, plainClick
+  pageUrl, formQuery, startQuery, popstateAction, closeAction, activeFilters, plainClick
 } from "../src/lib/shop-diverse/page-state.js";
 
 const TODAY = "2026-10-28";
@@ -446,10 +446,31 @@ test("closing the panel: Back when a card opened it, replace for a shared link, 
   assert.equal(closeAction("?who=wbe", { fromList: true }), null);
 });
 
-test("phone drawer button: counts each active filter", () => {
-  assert.equal(activeFilterCount(q("")), 0);
-  assert.equal(activeFilterCount(q("who=wbe,mbe&eth=black&cat=Construction&q=tile&zip=11216&lapsed=1")), 7);
-  assert.equal(activeFilterCount(q("zip=11216&sort=az")), 0, "an ignored ZIP isn't counted");
+test("active filters: one chip each, counted on the phones' Filters button", () => {
+  assert.equal(activeFilters(q("")).length, 0);
+  assert.equal(activeFilters(q("who=wbe,mbe&eth=black&cat=Construction&q=tile&zip=11216&lapsed=1")).length, 7);
+  assert.equal(activeFilters(q("zip=11216&sort=az")).length, 0, "an ignored ZIP isn't counted");
+  assert.deepEqual(activeFilters(q("who=wbe,mbe&match=all&boro=outside&q=tile")).map((f) => f.label),
+    ["Women-owned", "Minority-owned", "Both women- and minority-owned", "Keyword: “tile”", "Outside NYC"]);
+});
+
+test("active filters: removing a chip drops that filter and what depends on it, back to page 1", () => {
+  const url = (s, label) => pageUrl(activeFilters(q(s)).find((f) => f.label === label).query);
+  assert.equal(url("who=wbe,mbe&match=all&eth=black&page=3&sort=az", "Minority-owned"), "/shop-diverse/?who=wbe&sort=az");
+  assert.equal(url("who=wbe,mbe&match=all", "Both women- and minority-owned"), "/shop-diverse/?who=wbe%2Cmbe");
+  assert.equal(url("who=mbe&eth=black,asian", "Owner: Black"), "/shop-diverse/?who=mbe&eth=asian");
+  assert.equal(url("cat=Construction&sub=Specialty+Trade+Contractors&q=tile", "Construction"), "/shop-diverse/?q=tile");
+  assert.equal(url("cat=Construction&sub=Specialty+Trade+Contractors", "Specialty Trade Contractors"), "/shop-diverse/?cat=Construction");
+  assert.equal(url("zip=11216&lapsed=1", "Near 11216"), "/shop-diverse/?lapsed=1");
+  assert.equal(url("zip=11216&lapsed=1", "Including lapsed"), "/shop-diverse/?zip=11216");
+});
+
+test("active filter chips: links that say what they remove; Clear all only for two or more", () => {
+  assert.equal(activeFiltersHtml([], pageUrl, "/shop-diverse/"), "");
+  const one = activeFiltersHtml(activeFilters(q("q=<b>")), pageUrl, "/shop-diverse/");
+  assert.match(one, /<a class="sd-active-chip" href="\/shop-diverse\/" data-remove="0"><span class="sr-only">Remove filter: <\/span>Keyword: “&#60;b&#62;”/);
+  assert.doesNotMatch(one, /Clear all/);
+  assert.match(activeFiltersHtml(activeFilters(q("who=wbe&q=tile")), pageUrl, "/shop-diverse/"), /data-clear>Clear all</);
 });
 
 test("cards and pager: only a plain left click is handled; modifier clicks open a tab", () => {

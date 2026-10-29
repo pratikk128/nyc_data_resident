@@ -15,10 +15,11 @@
  */
 import { CERTS, SORTS, MAX_KEYWORD_LENGTH } from '../../lib/shop-diverse/config.js';
 import { queryToParams } from '../../lib/shop-diverse/filter.js';
+import { pageUrl, activeFilters } from '../../lib/shop-diverse/page-state.js';
 import { POINTS } from '../../lib/shop-diverse/ranking.js';
 import {
   kpisHtml, cardsHtml, pagerHtml, statusText, categoryOptionsHtml, boroughOptionsHtml,
-  ethnicityChipsHtml, detailHtml, zipHint, showResultsLabel, UPSTREAM_TEXT, ZIP_ERROR, NOT_FOUND_TEXT, DETAIL_LABEL
+  ethnicityChipsHtml, activeFiltersHtml, detailHtml, zipHint, showResultsLabel, UPSTREAM_TEXT, ZIP_ERROR, NOT_FOUND_TEXT, DETAIL_LABEL
 } from '../../lib/shop-diverse/render.js';
 import { count } from '../../lib/format.js';
 
@@ -50,6 +51,7 @@ const zipInvalid = Boolean(rawZip) && !/^\d{5}$/.test(rawZip);
 const listHref = pageHref(query.page);
 const showResultsText = initial ? showResultsLabel(initial.total) : 'Show results';
 const detail = business && !business.missing ? business : null;
+const chips = activeFilters(query);
 // Safe inside <script type="application/json">
 const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: detail }).replace(/</g, '\\u003c');
 ---
@@ -150,6 +152,8 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
     </div>
 
     <div class="sd-results-col">
+      <div class="sd-active" hidden={!chips.length} data-active set:html={activeFiltersHtml(chips, pageUrl, base)}></div>
+
       <ul class="sd-kpis" aria-label="Matching businesses" data-kpis set:html={initial ? kpisHtml(initial.kpis, query) : ''}></ul>
 
       <div class="sd-results-head">
@@ -210,11 +214,11 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
 <script>
   import { normalizeQuery, queryToParams } from '../../lib/shop-diverse/filter.js';
   import {
-    pageUrl, formQuery, startQuery, popstateAction, closeAction, activeFilterCount, plainClick
+    BASE, pageUrl, formQuery, startQuery, popstateAction, closeAction, activeFilters, plainClick
   } from '../../lib/shop-diverse/page-state.js';
   import {
     kpisHtml, cardsHtml, skeletonCards, pagerHtml, statusText, categoryOptionsHtml,
-    boroughOptionsHtml, ethnicityChipsHtml, detailHtml, contactText, zipHint, showResultsLabel, UPSTREAM_TEXT, LOADING_TEXT,
+    boroughOptionsHtml, ethnicityChipsHtml, activeFiltersHtml, detailHtml, contactText, zipHint, showResultsLabel, UPSTREAM_TEXT, LOADING_TEXT,
     NOT_FOUND_TEXT, DETAIL_LABEL
   } from '../../lib/shop-diverse/render.js';
   import { count } from '../../lib/format.js';
@@ -247,6 +251,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
   const kpis = $('[data-kpis]');
   const filterToggle = $<HTMLButtonElement>('[data-filter-toggle]');
   const filterCount = $('[data-filter-count]');
+  const active = $('[data-active]');
   const showResults = $<HTMLButtonElement>('[data-show-results]');
   const dialog = $<HTMLDialogElement>('[data-detail]');
   const detailBody = $('[data-detail-body]');
@@ -257,7 +262,8 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
   let detailAbort: AbortController | null = null;
   let current: any = null; // the business in the panel
   let openedId: string | null = null; // the business the panel was opened for, loaded or not
-  let typingTimer = 0;
+  let typingTimer = 0; // 0 when no keyword or ZIP search is pending
+  let copyTimer = 0;
   let loadingTimer = 0;
   const coarsePointer = matchMedia('(pointer: coarse)');
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
@@ -313,9 +319,16 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
     empty.hidden = data.total > 0;
     pager.innerHTML = pagerHtml(data, (page: number) => pageUrl({ ...query, page }));
     status.textContent = statusText(data);
-    const n = activeFilterCount(query);
-    filterCount.textContent = n ? `(${n})` : '';
     showResults.textContent = showResultsLabel(data.total);
+  }
+
+  // The active-filter chips and the phones' count follow the query, not the results.
+  let chips: any[] = [];
+  function renderActive() {
+    chips = activeFilters(query);
+    active.innerHTML = activeFiltersHtml(chips, pageUrl, BASE);
+    active.hidden = !chips.length;
+    filterCount.textContent = chips.length ? `(${chips.length})` : '';
   }
 
   // An error leaves nothing from the last view: no cards, pager, summary or counts.
@@ -329,15 +342,19 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
     showResults.textContent = 'Show results';
   }
 
-  async function search({ push = false, scroll = false } = {}) {
+  // push adds a history entry (with state) so Back undoes this step;
+  // otherwise the current entry is updated in place.
+  async function search({ push = false, scroll = false, state = null as any } = {}) {
     clearTimeout(typingTimer);
+    typingTimer = 0;
     searchAbort?.abort();
     searchAbort = new AbortController();
     syncVisibility(query);
+    renderActive();
     const biz = bizParam();
     const url = pageUrl(query, biz ? { biz } : {});
     if (url !== location.pathname + location.search) {
-      if (push) history.pushState(null, '', url); else history.replaceState(history.state, '', url);
+      if (push) history.pushState(state, '', url); else history.replaceState(history.state, '', url);
     }
 
     clearTimeout(loadingTimer);
@@ -372,22 +389,31 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
     }
   }
 
-  // A filter changed: back to page 1.
-  function applyForm() {
+  // A filter changed: back to page 1, as a new history entry so Back undoes
+  // it. A run of typing in the keyword or ZIP box is one entry ({ typing }),
+  // updated as the search follows the typing.
+  function applyForm({ typing = false } = {}) {
     const { query: q, error } = readForm();
     if (error) { status.textContent = error; return; }
     query = { ...q, page: 1 };
-    search();
+    search({ push: !(typing && history.state?.typing), state: typing ? { typing: true } : null });
+  }
+
+  // Leaving the keyword or ZIP box ends its run of typing: a search still
+  // waiting goes now, and the next one gets its own entry.
+  function endTyping() {
+    if (typingTimer) applyForm({ typing: true });
+    if (history.state?.typing) history.replaceState(null, '', location.href);
   }
 
   form.addEventListener('change', (e) => {
     const target = e.target as HTMLElement;
-    if (target === zipInput) return showZipError(!zipIsValid());
-    if (target === qInput) return; // handled on input
+    if (target === zipInput) showZipError(!zipIsValid());
+    if (target === zipInput || target === qInput) return endTyping(); // searched on input
     if (target === catSelect) subSelect.value = '';
     applyForm();
   });
-  sortSelect.addEventListener('change', applyForm);
+  sortSelect.addEventListener('change', () => applyForm());
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     showZipError(!zipIsValid());
@@ -409,19 +435,39 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
         showZipError(false);
       }
       clearTimeout(typingTimer);
-      typingTimer = window.setTimeout(applyForm, DEBOUNCE_MS);
+      typingTimer = window.setTimeout(() => applyForm({ typing: true }), DEBOUNCE_MS);
     });
   }
 
-  document.querySelectorAll<HTMLAnchorElement>('[data-clear]').forEach((link) => link.addEventListener('click', (e) => {
-    e.preventDefault();
+  // On phones the keyword box is hidden while the drawer is closed
+  const focusFilters = () => (qInput.offsetParent ? qInput : filterToggle).focus();
+
+  function clearFilters() {
     query = normalizeQuery(new URLSearchParams()).query;
     form.reset();
     fillForm(query);
     search({ push: true });
-    // On phones the keyword box is hidden while the drawer is closed
-    (qInput.offsetParent ? qInput : filterToggle).focus();
+    focusFilters();
+  }
+  document.querySelectorAll<HTMLAnchorElement>('[data-clear]').forEach((link) => link.addEventListener('click', (e) => {
+    e.preventDefault();
+    clearFilters();
   }));
+
+  // Removing one chip's filter; focus stays in the chips (the next one, or
+  // the last), or goes to the filters once none are left.
+  active.addEventListener('click', (e) => {
+    const link = (e.target as HTMLElement).closest<HTMLAnchorElement>('a[data-remove], a[data-clear]');
+    if (!link || !plainClick(e)) return;
+    e.preventDefault();
+    if (link.hasAttribute('data-clear')) return clearFilters();
+    const i = Number(link.dataset.remove);
+    query = chips[i].query;
+    fillForm(query);
+    search({ push: true });
+    const left = active.querySelectorAll<HTMLElement>('a[data-remove]');
+    if (left.length) left[Math.min(i, left.length - 1)].focus(); else focusFilters();
+  });
 
   pager.addEventListener('click', (e) => {
     const link = (e.target as HTMLElement).closest<HTMLAnchorElement>('a[data-page]');
@@ -526,14 +572,18 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
   detailBody.addEventListener('click', async (e) => {
     const copy = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-copy]');
     if (!copy || !current) return;
+    // Said beside the button, which keeps its label
     const copyStatus = $('[data-copy-status]', detailBody);
+    clearTimeout(copyTimer);
+    let ok = true;
     try {
       await navigator.clipboard.writeText(contactText(current));
-      copy.textContent = copyStatus.textContent = 'Contact info copied';
+      copyStatus.textContent = 'Contact info copied';
     } catch {
-      copy.textContent = copyStatus.textContent = 'Couldn’t copy. Select the details above instead.';
+      ok = false;
+      copyStatus.textContent = 'Couldn’t copy. Select the details above instead.';
     }
-    setTimeout(() => { copy.textContent = 'Copy contact info'; copyStatus.textContent = ''; }, 2500);
+    copyTimer = window.setTimeout(() => { copyStatus.textContent = ''; }, ok ? 2500 : 8000);
   });
 
   // ---------- Back / forward ----------
@@ -552,8 +602,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
   // Phones: collapse the filters into the drawer (left open without script).
   form.classList.add('is-collapsible');
   filterToggle.hidden = false;
-  const n = activeFilterCount(query);
-  filterCount.textContent = n ? `(${n})` : '';
+  renderActive();
   // The browser may have kept edited fields (back/forward cache, autofill).
   const startWith = startQuery(initial, readForm().query ?? null);
   if (startWith) {

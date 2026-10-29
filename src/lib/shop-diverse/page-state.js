@@ -6,6 +6,7 @@
  * a browser; the script does the DOM work.
  */
 import { normalizeQuery, queryToParams } from "./filter.js";
+import { CERTS, BOROUGHS } from "./config.js";
 
 export const BASE = "/shop-diverse/";
 
@@ -66,10 +67,26 @@ export function closeAction(search, historyState) {
   return historyState?.fromList ? "back" : "replace";
 }
 
-// The number on the phones' Filters button.
-export function activeFilterCount(query) {
-  return query.who.length + query.eth.length +
-    [query.cat, query.sub, query.q, query.boro, query.zip, query.lapsed].filter(Boolean).length;
+// One chip per active filter (their number is on the phones' Filters button): { label, query } where query is this view
+// without that filter, back on page 1. normalizeQuery() drops what depends
+// on it (the subcategory with its category, ethnicities with MBE, "both"
+// with either certification).
+export function activeFilters(query) {
+  const chip = (label, change) => ({
+    label,
+    query: normalizeQuery(queryToParams({ ...query, ...change, page: 1 })).query
+  });
+  return [
+    ...query.who.map((c) => chip(CERTS[c].label, { who: query.who.filter((w) => w !== c) })),
+    query.match === "all" && chip("Both women- and minority-owned", { match: "any" }),
+    ...query.eth.map((e) => chip(`Owner: ${e}`, { eth: query.eth.filter((x) => x !== e) })),
+    query.cat && chip(query.cat, { cat: "", sub: "" }),
+    query.sub && chip(query.sub, { sub: "" }),
+    query.q && chip(`Keyword: “${query.q}”`, { q: "" }),
+    query.boro && chip(BOROUGHS.find((b) => b.slug === query.boro).label, { boro: "" }),
+    query.zip && chip(`Near ${query.zip}`, { zip: "" }),
+    query.lapsed && chip("Including lapsed", { lapsed: false })
+  ].filter(Boolean);
 }
 
 // A click the script handles; one with a modifier key or another button

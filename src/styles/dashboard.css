@@ -2085,6 +2085,29 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
 .sd-filter-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
 .sd-clear { display: inline-flex; align-items: center; min-height: 44px; font-weight: 700; }
 
+/* ---------- Active filters ---------- */
+.sd-active { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin-bottom: var(--space-3); }
+.sd-active[hidden] { display: none; }
+.sd-active-list { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.sd-active-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: 0 var(--space-3) 0 var(--space-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  background: var(--blue-tint);
+  color: var(--ink);
+  font-size: .9375rem;
+  font-weight: 600;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.sd-active-chip:hover { border-color: var(--ink); }
+.sd-active-chip:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
+.sd-active-chip svg { flex: none; }
+
 /* ---------- Summary ---------- */
 .sd-kpis { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .sd-kpi {
@@ -2278,7 +2301,8 @@ a.sd-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
 @media (max-width: 479px) {
   .sd-dl-row { grid-template-columns: minmax(0, 1fr); gap: 0; }
 }
-.sd-copy { margin-top: var(--space-4); }
+.sd-copy-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin-top: var(--space-4); }
+.sd-copy-status { font-size: .9375rem; font-weight: 600; color: var(--ink-soft); }
 .sd-jobs { display: grid; gap: var(--space-2); font-size: .9375rem; }
 .sd-detail-verify { margin-top: var(--space-6); padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); background: var(--blue-tint); font-size: .875rem; }
 .sd-detail-error { padding: var(--space-4); border-radius: var(--radius-md); background: var(--callout-heads-up); }

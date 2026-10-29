@@ -70,6 +70,17 @@ export function ethnicityChipsHtml(rows, selected) {
     </label>`).join("");
 }
 
+// Removable chips for activeFilters() (page-state.js), as links so they work
+// without script. hrefFor(query) → URL. Empty when no filter is on.
+export function activeFiltersHtml(filters, hrefFor, clearHref) {
+  if (!filters.length) return "";
+  const x = `<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>`;
+  const chips = filters.map((f, i) =>
+    `<li><a class="sd-active-chip" href="${escape(hrefFor(f.query))}" data-remove="${i}"><span class="sr-only">Remove filter: </span>${escape(f.label)}${x}</a></li>`).join("");
+  return `<ul class="sd-active-list" aria-label="Active filters">${chips}</ul>` +
+    (filters.length > 1 ? `<a class="sd-clear" href="${escape(clearHref)}" data-clear>Clear all</a>` : "");
+}
+
 // ---------- Summary ----------
 
 // The chips that say something the filters don't: "both" only when neither
@@ -248,7 +259,7 @@ export function detailHtml(v) {
       ${v.title || v.sector ? `<p class="sd-detail-category">${escape(v.title || v.sector)}</p>` : ""}
     </header>
     ${block("About", paragraphs(v.description))}
-    ${block("Get in touch", contact + (contact ? `<button type="button" class="near-btn sd-copy" data-copy>Copy contact info</button><span class="sr-only" role="status" data-copy-status></span>` : ""))}
+    ${block("Get in touch", contact + (contact ? `<div class="sd-copy-row"><button type="button" class="near-btn" data-copy>Copy contact info</button><span class="sd-copy-status" role="status" data-copy-status></span></div>` : ""))}
     ${block("Certification", certificationBlock(v))}
     ${block("Experience", est)}
     ${block("What they’re listed under", industryBlock(v))}
