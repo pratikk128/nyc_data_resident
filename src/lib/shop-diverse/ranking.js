@@ -17,6 +17,13 @@
  * no renewal date, so treating "no date" as worse would bury women-owned
  * businesses.
  *
+ * A business in one of the five boroughs gets a bonus, so with no keyword
+ * (when most firms tie on the other points) New York City firms come first,
+ * not the third of the list based elsewhere. It's smaller than the gap
+ * between a keyword in the industry and one only in the description, so a
+ * firm outside NYC that does what was asked still beats one that only
+ * mentions it.
+ *
  * Ties are broken by a hash of the vendor's id and today's date, so the order
  * is stable all day and the same firms don't win every tie forever.
  */
@@ -38,6 +45,7 @@ export const POINTS = {
   bothMbeWbe: 3,
   perYearInBusiness: 0.5,
   maxYearsCounted: 10,
+  inNyc: 10,
   sameZip: 12,
   sameBorough: 6
 };
@@ -68,18 +76,22 @@ export function haystack(record) {
   };
 }
 
+// Words of one or two letters ("IT", "AV") have to be whole words, or they'd
+// match the start of nearly everything ("ITEMS", "AVENUE").
+const found = (text, word) => text.includes(word.length <= 2 ? ` ${word} ` : ` ${word}`);
+
 // Each word must start a word somewhere ("plumb" finds "PLUMBING"). Returns
 // the best single place that holds every word — "industry", "name",
 // "description" — "mixed" when the words are spread across places, or null
 // when some word isn't found at all.
 export function keywordMatch(words, hay) {
   if (!words.length) return null;
-  const has = (field) => words.every((w) => hay[field].includes(` ${w}`));
+  const has = (field) => words.every((w) => found(hay[field], w));
   if (has("industry")) return "industry";
   if (has("name")) return "name";
   if (has("description")) return "description";
   const all = `${hay.name}${hay.industry}${hay.description}`;
-  return words.every((w) => all.includes(` ${w}`)) ? "mixed" : null;
+  return words.every((w) => found(all, w)) ? "mixed" : null;
 }
 
 const KEYWORD_POINTS = {
@@ -111,6 +123,7 @@ export function scoreBusiness(record, { today, query = {}, zipBorough = null, ma
   if (wantsBoth && certs.includes("MBE") && certs.includes("WBE")) parts.bothMbeWbe = POINTS.bothMbeWbe;
   const years = yearsInBusiness(record.established, today);
   if (years > 0) parts.experience = Math.min(years, POINTS.maxYearsCounted) * POINTS.perYearInBusiness;
+  if (record.borough) parts.inNyc = POINTS.inNyc;
   if (query.zip && record.zip === query.zip) parts.sameZip = POINTS.sameZip;
   else if (zipBorough && record.borough === zipBorough) parts.sameBorough = POINTS.sameBorough;
   const score = Object.values(parts).reduce((a, b) => a + b, 0);

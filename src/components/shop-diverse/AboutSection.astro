@@ -56,6 +56,7 @@ const { meta, outsideShare } = Astro.props;
         <li><strong>How well it matches:</strong> your keyword in the industry name +{POINTS.keywordIndustry}, in the business name +{POINTS.keywordName}, only in the description +{POINTS.keywordDescription}. Picking a category or subcategory adds the same points to every result.</li>
         <li><strong>Easy to reach:</strong> a website +{POINTS.website}, a description of {POINTS.minDescriptionLength}+ characters +{POINTS.description}, a phone number +{POINTS.phone}.</li>
         <li><strong>Experience:</strong> +{POINTS.perYearInBusiness} per year in business, up to {POINTS.maxYearsCounted} years, so newer businesses aren't buried.</li>
+        <li><strong>In New York City:</strong> +{POINTS.inNyc} for a business in one of the five boroughs, so local firms come first when nothing else separates them. A business elsewhere that matches your keyword in its industry still beats a local one that only mentions it.</li>
         <li><strong>Near your ZIP:</strong> if you enter one, the same ZIP +{POINTS.sameZip}, otherwise the same borough +{POINTS.sameBorough}.</li>
         <li><strong>Ties</strong> are broken by a shuffle that changes once a day, so the same businesses don't always come first.</li>
       </ul>

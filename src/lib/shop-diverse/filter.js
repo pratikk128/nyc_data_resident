@@ -128,7 +128,7 @@ export function cardSummary(record, today) {
  * → {
  *   total, page, pages, results: [cardSummary],
  *   facets: { who: {WBE, MBE}, eth: [{label,count}], categories, subcategories, boroughs, lapsed },
- *   kpis: { total, wbe, mbe, both, boroughs, outside }
+ *   kpis: { total, wbe, mbe, both, outside }
  * }
  * Facet counts follow every other filter, so "Construction (412)" is how many
  * results picking Construction would give.
@@ -183,17 +183,15 @@ export function searchBusinesses(vendors, query, { today, seed = today, pageSize
   const pages = Math.max(1, Math.ceil(ranked.length / pageSize));
   const page = Math.min(query.page ?? 1, pages);
 
-  const kpis = { total: matches.length, wbe: 0, mbe: 0, both: 0, boroughs: 0, outside: 0 };
-  const inBoroughs = new Set();
+  const kpis = { total: matches.length, wbe: 0, mbe: 0, both: 0, outside: 0 };
   for (const { record: r } of matches) {
     const certs = r.certs ?? [];
     const w = certs.includes("WBE"), m = certs.includes("MBE");
     if (w) kpis.wbe++;
     if (m) kpis.mbe++;
     if (w && m) kpis.both++;
-    if (r.borough) inBoroughs.add(r.borough); else kpis.outside++;
+    if (!r.borough) kpis.outside++;
   }
-  kpis.boroughs = inBoroughs.size;
 
   return {
     total: matches.length,

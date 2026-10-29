@@ -15,7 +15,7 @@ import {
   POINTS, certStatus, yearsInBusiness, haystack, keywordMatch, scoreBusiness, tieBreak, rankBusinesses
 } from "../src/lib/shop-diverse/ranking.js";
 import { normalizeQuery, queryToParams, searchBusinesses, outsideShare } from "../src/lib/shop-diverse/filter.js";
-import { contactText, mapsUrl, detailHtml } from "../src/lib/shop-diverse/render.js";
+import { contactText, mapsUrl, detailHtml, kpisHtml } from "../src/lib/shop-diverse/render.js";
 
 const TODAY = "2026-10-28";
 const q = (s = "") => normalizeQuery(new URLSearchParams(s)).query;
@@ -218,6 +218,22 @@ test("ethnicity never changes the score", () => {
   assert.equal(s("Hispanic"), s("Native American"));
 });
 
+test("a business in the five boroughs scores above one elsewhere, but not above a better keyword match", () => {
+  const s = (r, match = null) => scoreBusiness(r, { today: TODAY, match }).score;
+  const local = biz({ borough: "Queens" });
+  const away = biz({ city: "Newark", state: "NJ" });
+  assert.equal(s(local) - s(away), POINTS.inNyc);
+  assert.ok(s(away, "industry") > s(local, "description"));
+});
+
+test("keywords of one or two letters match whole words only", () => {
+  const hay = (name) => haystack(biz({ name, title: "Painting", subsector: "", sector: "" }));
+  assert.equal(keywordMatch(keywordWords("it"), hay("ProTech IT Group")), "name");
+  assert.equal(keywordMatch(keywordWords("it"), hay("Items Galore")), null);
+  assert.equal(keywordMatch(keywordWords("3d"), hay("3D Printing Co")), "name");
+  assert.equal(keywordMatch(keywordWords("it support"), hay("Supporting IT")), "name");
+});
+
 test("ZIP anchor: same ZIP, then same borough", () => {
   const s = (r) => scoreBusiness(r, { today: TODAY, query: { zip: "11216" }, zipBorough: "Brooklyn" }).score;
   const base = s(biz({ zip: "10009", borough: "Manhattan" }));
@@ -302,7 +318,16 @@ test("keyword, borough and outside NYC", () => {
 
 test("summary numbers", () => {
   const data = searchBusinesses(VENDORS, q(""), { today: TODAY });
-  assert.deepEqual(data.kpis, { total: 4, wbe: 2, mbe: 2, both: 1, boroughs: 3, outside: 1 });
+  assert.deepEqual(data.kpis, { total: 4, wbe: 2, mbe: 2, both: 1, outside: 1 });
+});
+
+test("summary chips: \"both\" only without a single certification, \"outside NYC\" only without a borough", () => {
+  const k = { total: 4, wbe: 2, mbe: 2, both: 1, outside: 1 };
+  assert.match(kpisHtml(k, q("")), /both<\/span>.*outside NYC/);
+  assert.match(kpisHtml(k, q("who=wbe,mbe")), /both/);
+  assert.doesNotMatch(kpisHtml(k, q("who=wbe")), /both/);
+  assert.doesNotMatch(kpisHtml(k, q("boro=outside")), /outside NYC/);
+  assert.doesNotMatch(kpisHtml(k, q("")), /borough/);
 });
 
 test("paging: pages of the given size, and a page past the end is clamped", () => {
@@ -340,6 +365,12 @@ test("detail: contact text, maps link, and no empty rows", () => {
   assert.match(html, /href="tel:\+12012561092"/);
   assert.doesNotMatch(html, /Website|Bonding|null|undefined|N\/A/);
   assert.match(html, /3 years in business/);
+});
+
+test("detail: a certification with no renewal date says so", () => {
+  const v = { ...cleanVendor(ROW, TODAY), certs: ["WBE"], renewals: undefined, status: "undated" };
+  assert.match(detailHtml(v), /No renewal date on file/);
+  assert.doesNotMatch(detailHtml({ ...v, renewals: ["2030-01-31"], status: "current" }), /No renewal date/);
 });
 
 test("outsideShare counts businesses with no borough", () => {

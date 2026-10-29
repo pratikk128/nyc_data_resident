@@ -72,16 +72,18 @@ export function ethnicityChipsHtml(rows, selected) {
 
 // ---------- Summary ----------
 
-export function kpisHtml(k) {
+// The chips that say something the filters don't: "both" only when neither
+// or both certifications are picked (with one, it repeats the other chip),
+// and "outside NYC" only when no borough is picked.
+export function kpisHtml(k, query) {
   const chip = (value, label, tone) =>
     `<li class="sd-kpi"${tone ? ` data-tone="${tone}"` : ""}><span class="sd-kpi-value">${value}</span> <span class="sd-kpi-label">${label}</span></li>`;
   return [
     chip(count(k.total), k.total === 1 ? "business" : "businesses"),
     chip(count(k.wbe), "women-owned", CERTS.WBE.tone),
     chip(count(k.mbe), "minority-owned", CERTS.MBE.tone),
-    chip(count(k.both), "both"),
-    chip(count(k.boroughs), k.boroughs === 1 ? "borough" : "boroughs"),
-    k.outside ? chip(count(k.outside), "outside NYC") : ""
+    query.who.length !== 1 ? chip(count(k.both), "both") : "",
+    k.outside && !query.boro ? chip(count(k.outside), "outside NYC") : ""
   ].join("");
 }
 
@@ -91,6 +93,9 @@ export function statusText(data) {
   const pages = data.pages > 1 ? ` · page ${count(data.page)} of ${count(data.pages)}` : "";
   return `${plural(data.total, "business", "businesses")}${pages}`;
 }
+
+// The button that closes the filter drawer on phones
+export const showResultsLabel = (total) => (total ? `Show ${plural(total, "business", "businesses")}` : "Close filters");
 
 // ---------- Results ----------
 
@@ -168,6 +173,9 @@ function certificationBlock(v) {
     renewal = `<p class="callout callout-heads-up"><strong>Heads up:</strong> the renewal date on file (${date(dates[dates.length - 1])}) has passed. Check the SBS directory below to see whether this business is still certified.</p>`;
   } else if (dates.length) {
     renewal = `<p class="sd-muted">Renewal date on file: ${dates.map(date).join(", ")}</p>`;
+  } else {
+    // Every women-owned-only firm, and a handful of others
+    renewal = `<p class="sd-muted">No renewal date on file. SBS doesn’t publish one for women-owned-only certifications, so check the SBS directory below to confirm this one is current.</p>`;
   }
   const ethnicity = v.certs?.includes("MBE") && v.ethnicity && v.ethnicity !== "Non-minority"
     ? `<p class="sd-muted">Owner ethnicity (as listed by SBS): ${escape(v.ethnicity)}</p>` : "";

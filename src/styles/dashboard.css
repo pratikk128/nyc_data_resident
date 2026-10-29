@@ -2006,7 +2006,20 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
   .sd-filter-panel { padding: 0; border: 0; background: none; }
   .sd-filters.is-collapsible:not(.is-open) { display: none; }
   .sd-filters { margin-top: var(--space-4); }
+  .sd-filters.is-open .sd-show-results {
+    display: flex;
+    position: sticky;
+    bottom: var(--space-3);
+    z-index: 1;
+    width: 100%;
+    justify-content: center;
+    border-color: var(--ink);
+    background: var(--accent);
+    color: var(--ink);
+    box-shadow: 0 4px 12px rgba(28, 42, 68, .18);
+  }
 }
+.sd-show-results { display: none; }
 
 .sd-step { margin: 0; padding: 0; border: 0; min-width: 0; display: flex; flex-direction: column; gap: var(--space-3); }
 /* A short bar in the step's tone marks each group */

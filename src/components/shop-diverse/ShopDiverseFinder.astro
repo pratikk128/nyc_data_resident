@@ -18,7 +18,7 @@ import { queryToParams } from '../../lib/shop-diverse/filter.js';
 import { POINTS } from '../../lib/shop-diverse/ranking.js';
 import {
   kpisHtml, cardsHtml, pagerHtml, statusText, categoryOptionsHtml, boroughOptionsHtml,
-  ethnicityChipsHtml, detailHtml, zipHint, UPSTREAM_TEXT, ZIP_ERROR, NOT_FOUND_TEXT, DETAIL_LABEL
+  ethnicityChipsHtml, detailHtml, zipHint, showResultsLabel, UPSTREAM_TEXT, ZIP_ERROR, NOT_FOUND_TEXT, DETAIL_LABEL
 } from '../../lib/shop-diverse/render.js';
 import { count } from '../../lib/format.js';
 
@@ -47,6 +47,7 @@ const status = inputError ?? (initial ? statusText(initial) : UPSTREAM_TEXT);
 const rawZip = Astro.url.searchParams.get('zip')?.trim() ?? '';
 const zipInvalid = Boolean(rawZip) && !query.zip;
 const listHref = pageHref(query.page);
+const showResultsText = initial ? showResultsLabel(initial.total) : 'Show results';
 const detail = business && !business.missing ? business : null;
 // Safe inside <script type="application/json">
 const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: detail }).replace(/</g, '\\u003c');
@@ -141,11 +142,14 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
             <a class="sd-clear" href={base} data-clear>Clear filters</a>
           </div>
         </div>
+
+        {/* Phones: closes the drawer and goes to the results (shown only when the script opens the drawer) */}
+        <button type="button" class="near-btn sd-show-results" data-show-results>{showResultsText}</button>
       </form>
     </div>
 
     <div class="sd-results-col">
-      <ul class="sd-kpis" aria-label="Matching businesses" data-kpis set:html={initial ? kpisHtml(initial.kpis) : ''}></ul>
+      <ul class="sd-kpis" aria-label="Matching businesses" data-kpis set:html={initial ? kpisHtml(initial.kpis, query) : ''}></ul>
 
       <div class="sd-results-head">
         <p class="sd-status" role="status" aria-live="polite" data-status>{status}</p>
@@ -158,8 +162,9 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
             <summary>Why this order?</summary>
             <div class="sd-why-body">
               <p>
-                <strong>Recommended</strong> puts first the businesses that best match your keyword and category, are easiest to
-                reach (website, phone, a real description) and have more years in business (up to {POINTS.maxYearsCounted}).
+                <strong>Recommended</strong> puts first the businesses that best match your keyword and category, are based in
+                the five boroughs, are easiest to reach (website, phone, a real description) and have more years in business
+                (up to {POINTS.maxYearsCounted}).
                 Lapsed certifications go last.
               </p>
               <p>
@@ -205,7 +210,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
   import { normalizeQuery, queryToParams } from '../../lib/shop-diverse/filter.js';
   import {
     kpisHtml, cardsHtml, skeletonCards, pagerHtml, statusText, categoryOptionsHtml,
-    boroughOptionsHtml, ethnicityChipsHtml, detailHtml, contactText, zipHint, UPSTREAM_TEXT, LOADING_TEXT,
+    boroughOptionsHtml, ethnicityChipsHtml, detailHtml, contactText, zipHint, showResultsLabel, UPSTREAM_TEXT, LOADING_TEXT,
     NOT_FOUND_TEXT, DETAIL_LABEL
   } from '../../lib/shop-diverse/render.js';
   import { count } from '../../lib/format.js';
@@ -239,6 +244,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
   const kpis = $('[data-kpis]');
   const filterToggle = $<HTMLButtonElement>('[data-filter-toggle]');
   const filterCount = $('[data-filter-count]');
+  const showResults = $<HTMLButtonElement>('[data-show-results]');
   const dialog = $<HTMLDialogElement>('[data-detail]');
   const detailBody = $('[data-detail-body]');
 
@@ -315,7 +321,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
     lapsedWrap.hidden = !query.lapsed && !f.lapsed;
     $('[data-lapsed-count]').textContent = count(f.lapsed);
 
-    kpis.innerHTML = kpisHtml(data.kpis);
+    kpis.innerHTML = kpisHtml(data.kpis, query);
 
     list.innerHTML = cardsHtml(data.results, (id: string) => pageUrl(query, { biz: id }));
     empty.hidden = data.total > 0;
@@ -323,6 +329,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
     status.textContent = statusText(data);
     const n = activeFilterCount(query);
     filterCount.textContent = n ? `(${n})` : '';
+    showResults.textContent = showResultsLabel(data.total);
   }
 
   // An error leaves nothing from the last view: no cards, pager, summary or counts.
@@ -333,6 +340,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
     form.querySelectorAll('.sd-count').forEach((el) => { el.textContent = ''; });
     form.querySelectorAll<HTMLInputElement>('input[name="eth"]').forEach((b) => { b.disabled = false; });
     form.querySelectorAll('select option').forEach((o) => { o.textContent = o.textContent!.replace(/ \([\d,]+\)$/, ''); });
+    showResults.textContent = 'Show results';
   }
 
   async function search({ push = false, scroll = false } = {}) {
@@ -425,7 +433,8 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
     form.reset();
     fillForm(query);
     search({ push: true });
-    qInput.focus();
+    // On phones the keyword box is hidden while the drawer is closed
+    (qInput.offsetParent ? qInput : filterToggle).focus();
   }));
 
   pager.addEventListener('click', (e) => {
@@ -443,10 +452,16 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
   });
 
   // Phones: the filter panel collapses into a drawer.
-  filterToggle.addEventListener('click', () => {
-    const open = filterToggle.getAttribute('aria-expanded') !== 'true';
+  function setDrawer(open: boolean) {
     filterToggle.setAttribute('aria-expanded', String(open));
     form.classList.toggle('is-open', open);
+  }
+  filterToggle.addEventListener('click', () => setDrawer(filterToggle.getAttribute('aria-expanded') !== 'true'));
+  // Results update under the open drawer, out of sight; this closes it and goes to them.
+  showResults.addEventListener('click', () => {
+    setDrawer(false);
+    filterToggle.focus({ preventScroll: true });
+    $('.sd-results-head').scrollIntoView({ block: 'start', behavior: reducedMotion.matches ? 'auto' : 'smooth' });
   });
 
   // ---------- Detail ----------
