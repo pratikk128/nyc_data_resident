@@ -18,11 +18,14 @@ src/pages/311-complaints/  311 Complaints in My Neighborhood (rendered on demand
 src/pages/drinking-water/  NYC Drinking Water Quality, one page per section (rendered on demand)
 src/components/drinking-water/  WaterPage.astro (heading, section nav, context box, method notes) and the sections
 src/pages/shop-diverse/    Shop Diverse NYC (rendered on demand)
+src/pages/school-quality/  NYC School Quality Explorer: browse page and /school-quality/<DBN>/ (rendered on demand)
+src/components/school-quality/  Finder, the school page's "now" and "over time" sections, method notes
 src/components/shop-diverse/  The finder (filters, results, detail panel) and method notes
-src/pages/api/            API routes (Worker): /api/restaurants/search, /api/restaurants/:camis, /api/311/*, /api/water/stations, /api/shop-diverse/*
+src/pages/api/            API routes (Worker): /api/restaurants/search, /api/restaurants/:camis, /api/311/*, /api/water/stations, /api/shop-diverse/*, /api/schools/search
 src/lib/restaurants/      Restaurant logic: SoQL builders, inspection rules, violation categories, rendering
 src/lib/complaints311/    311 logic: config, SoQL, share math, labels, input parsing, geocoding, rendering
 src/lib/shop-diverse/     Shop Diverse NYC logic: cleaning, ranking, filters, rendering
+src/lib/schools/          School Quality Explorer logic: curated metrics (metrics.js), values, search, charts, maps
 src/lib/water/            Drinking water logic: reference values (config.js), lab value parser, SoQL, stats, charts, map
 src/lib/server/           Server-only: Socrata client (holds the token), caches, daily jobs
 src/worker.js             Worker entry: Astro for requests, cron for daily jobs
@@ -49,7 +52,7 @@ Production build: `npm run build` (output in `dist/`), preview with `npm run pre
 Live data needs no setup locally (Socrata allows anonymous requests at low volume). To use a token, copy `.dev.vars.example` to `.dev.vars` and fill in `SOCRATA_APP_TOKEN`.
 
 ```sh
-npm test             # restaurant, 311, drinking water and Shop Diverse NYC logic tests
+npm test             # restaurant, 311, drinking water, Shop Diverse NYC and school quality logic tests
 ```
 
 ## Deploy (Cloudflare Workers)
@@ -292,6 +295,32 @@ A firm whose renewal dates have all passed is hidden unless `lapsed=1`, and then
 Ethnicity and gender never score. **No renewal date scores the same as a current one**, because every WBE-only firm has no renewal date; penalizing that would bury women-owned businesses. The MBE+WBE bonus is limited to visitors who asked for both because most firms max out the other points, so an always-on bonus decided nearly every tie.
 
 **Data quirks found (Oct 2026).** One row per vendor, so no dedupe was needed, and each vendor has exactly one NAICS code. There's **no email column**. `cert_renewal_date` is text (`M/D/YYYY`), sometimes doubled (`11/30/2026;11/30/2026`), and blank for all WBE-only firms. ZIPs are numeric, so NJ/New England ZIPs lose their leading zero. Names have junk prefixes (`=---`) and ~700 are all caps. Websites include `N/A`, `http://Under Construction` and company names. Phones come in mixed formats. Some establishment dates are in the future (up to 2996). `borough` is blank for ~4,700 rows: mostly outside NYC (NJ alone is ~1,000), but some NYC addresses failed to geocode and get a borough from their ZIP. `types_of_construction_projects_performed` and `capacity_building_programs` are always empty.
+
+## NYC School Quality Explorer
+
+`/school-quality/` helps parents find any NYC public school and see how it's doing now and over time, from NYC DOE's [School Quality Reports Data](https://data.cityofnewyork.us/d/dnpx-dfnc) (`dnpx-dfnc`, ~1.5 million rows, school years 2015–16 to 2024–25, updated about once a year).
+
+**Data shape.** Long format: one row per `dbn` × `school_year` × `metric_variable_name`, with `metric_value`, `comparison_group_average` (DOE's similar-schools average), `metric_score` (DOE's 1.00–4.99 rating against targets) and `number_of_students`. `school_year` is the fall year (2024 = 2024–25). A school has one report per `report_type` (EMS, HS, HST, EC, D75, YABC); 6–12 schools have two. There's no value-type column and no citywide value.
+
+**Architecture.** A daily job (`schools:index:v2` in `src/lib/server/schools.js`) keeps an index in KV: each school's name (its newest), report types, location, card and sort values for its newest year, and the NYC average of every curated metric for every year, `sum(metric_value * number_of_students) / sum(number_of_students)` per report type, computed by Socrata. `/api/schools/search` filters, sorts and pages it in the Worker (edge-cached 1 h; `view=map` returns every match as points). `/school-quality/<DBN>/` reads that school's curated metrics for every year live (one query by DBN, edge-cached 6 h, `DETAIL_RATE_LIMITER` on misses); lower-case DBNs redirect, unknown ones 404.
+
+**Curated metrics** are all in `src/lib/schools/metrics.js` (label, description, format, scale/invert, report types, higher-is-better, card order, sort key, series break, trend threshold). Pages and cards read only that file.
+
+| Report | Metrics |
+|---|---|
+| Elementary/middle (EMS) | ELA and math proficiency, chronic absenteeism (cards), attendance, former 5th graders' middle school pass rate, former 8th graders on track in 9th grade, 8th graders earning HS credit, students (context) |
+| High school (HS) | 4-year graduation, college and career readiness, college/training enrollment within 18 months (cards), 6-year graduation, college prep course index, 9th graders on track, chronic absenteeism, attendance, students (context) |
+| Transfer (HST) / YABC | Graduation rate, college/training within 6 months / stayed in school (cards), college prep course index, college and career readiness (HST, 2024–25 only), Regents completion, change in attendance |
+| Early childhood (EC) | Chronic absenteeism, attendance (cards), ELA and math proficiency where tested, students (context) |
+| District 75 | NYSAA ELA and math Level 3–4 (cards), moved to less restrictive settings, moved to a non-D75 school, change in attendance |
+
+**Rules** (`src/lib/schools/values.js`, tested in `tests/schools.test.js`): blanks are "Not reported", never 0. Trend = least-squares change over the last 3 years with a value (from the metric's series break on), improving/declining at ±3 points by default. DOE bands: 4+ Exceeding, 3+ Meeting, 2+ Approaching, else Not meeting target. Years missing inside a series are shaded on the chart, with the COVID-19 reason for 2019–20 and 2020–21.
+
+**URL state** (`src/lib/schools/filter.js`): `q` (name, typo-tolerant, or DBN like `02M475`/`M475`), `type` (`elementary`, `k-8`, `middle`, `high-school`, `transfer`, `early-childhood`, `d75`, `yabc`), `boro`, `where` (street, ZIP, neighborhood), `all=1` (include schools with no report for the newest year), `sort` (`district`, `ela`, `math`, `grad`, `absent`), `page`, `view=map`.
+
+**Locations.** The reports have no address. `npm run data:school-locations` rebuilds `src/data/school-locations.json` by DBN from DOE's [2019 - 2020 School Locations](https://data.cityofnewyork.us/d/wg9x-4ke6) (newest file keyed by DBN, no ZIP), with ZIPs from DCP's [Facilities Database](https://data.cityofnewyork.us/d/ji82-xba5) by BBL, then address. Schools opened since 2019–20 are matched to the Facilities Database by name within the borough, only when one facility has that name. Oct 2026: 1,978 of 2,006 schools located (all but 5 of the 1,874 with a 2024–25 report); the rest are YABCs (evening programs in host buildings) and a few new schools. 70 located schools have no ZIP.
+
+**Data quirks found (Oct 2026).** `chronic_absent_*` is the share of students with **90%+ attendance**, despite the name; we show 1 − value. `ccr_*` is 0–100 while every other percent is 0–1. State tests are missing for 2019–20 and 2020–21, and new tests started in 2022–23 (trends start there). College and career readiness exists only from 2023–24 (HS) and 2024–25 (HST). YABC reports stop after 2018–19. EC and D75 have no similar-schools averages. 315 DBNs changed names over the years. The dataset has no framework ratings, Quality Review ratings, enrollment or Economic Need Index; NYC Open Data has those only in single-year files through 2019–20, so they're left out (the page says so).
 
 ## Theme
 

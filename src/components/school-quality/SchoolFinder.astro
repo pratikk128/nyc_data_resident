@@ -1,0 +1,341 @@
+---
+/*
+ * The browse page's finder: filters (name or DBN, type, borough, address),
+ * a list / map switch, sort, result cards and pages.
+ *
+ * The first view is rendered here on the server from the URL (see
+ * src/lib/schools/filter.js for the parameters), so shared links and the form
+ * work without script. The script then fetches /api/schools/search on every
+ * change (as you type, after a short pause) and keeps the URL in step.
+ * ?view=map shows the map (every match, from the same endpoint with view=map).
+ */
+import { MAX_QUERY_LENGTH, yearLabel } from '../../lib/schools/config.js';
+import { SORTS, queryToParams } from '../../lib/schools/filter.js';
+import {
+  cardsHtml, pagerHtml, statusText, typeOptionsHtml, boroughOptionsHtml, olderLabel, UPSTREAM_TEXT
+} from '../../lib/schools/render.js';
+
+interface Props {
+  query: any;          // normalizeQuery() result
+  initial: any;        // searchSchools() result, or null if the data couldn't load
+  inputError: string | null;
+  view: 'list' | 'map';
+}
+const { query, initial, inputError, view } = Astro.props;
+
+const base = '/school-quality/';
+const pageHref = (page: number) => {
+  const p = queryToParams({ ...query, page });
+  if (view === 'map') p.set('view', 'map');
+  return p.toString() ? `${base}?${p}` : base;
+};
+const facets = initial?.facets;
+const status = inputError ?? (initial ? statusText(initial, view) : UPSTREAM_TEXT);
+const latestYear = initial?.latestYear;
+// Safe inside <script type="application/json">
+const initialJson = JSON.stringify({ query, loaded: Boolean(initial), latestYear, view }).replace(/</g, '\\u003c');
+---
+
+<section class="dash-section sq-finder" aria-labelledby="sq-find-title">
+  <h2 class="sr-only" id="sq-find-title">Find a school</h2>
+
+  <form class="sq-filters" id="sq-filters" action={base} method="get" novalidate role="search" data-filters>
+    <div class="field sq-field-name">
+      <label class="filter-label" for="sq-q">School name or DBN</label>
+      <input class="search-input" id="sq-q" name="q" type="search" maxlength={MAX_QUERY_LENGTH} value={query.q}
+        autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search"
+        placeholder="Try “PS 321” or “02M475”" aria-describedby="sq-q-hint" data-q />
+      <p class="field-hint" id="sq-q-hint">Small typos are OK. A DBN is the school’s ID, like 02M475.</p>
+    </div>
+    <div class="field">
+      <label class="filter-label" for="sq-type">School type</label>
+      <select class="filter-select" id="sq-type" name="type" data-type set:html={typeOptionsHtml(facets?.types, query.type)}></select>
+    </div>
+    <div class="field">
+      <label class="filter-label" for="sq-boro">Borough</label>
+      <select class="filter-select" id="sq-boro" name="boro" data-boro set:html={boroughOptionsHtml(facets?.boros, query.boro)}></select>
+    </div>
+    <div class="field sq-field-where">
+      <label class="filter-label" for="sq-where">Street, ZIP or neighborhood</label>
+      <input class="search-input" id="sq-where" name="where" type="search" maxlength={MAX_QUERY_LENGTH} value={query.where}
+        autocomplete="off" enterkeyhint="search" placeholder="e.g. 11215, Park Slope, 7th Ave" data-where />
+    </div>
+
+    <div class="sq-filter-foot">
+      <label class="sq-older" data-older-wrap hidden={!query.all && !facets?.older}>
+        <input type="checkbox" name="all" value="1" checked={query.all} data-older />
+        <span data-older-label>{latestYear ? olderLabel(facets?.older ?? 0, latestYear) : 'Include schools without a current report'}</span>
+      </label>
+      <div class="sq-filter-actions">
+        <noscript><button type="submit" class="near-btn">Show schools</button></noscript>
+        <a class="sq-clear" href={base} data-clear>Clear filters</a>
+      </div>
+    </div>
+  </form>
+
+  <div class="sq-results-head">
+    <p class="sq-status" role="status" aria-live="polite" data-status>{status}</p>
+    <div class="sq-controls">
+      <div class="toggle" role="group" aria-label="Show results as" data-view-toggle hidden>
+        <button type="button" class="toggle-btn" aria-pressed={view === 'list' ? 'true' : 'false'} data-view="list">List</button>
+        <button type="button" class="toggle-btn" aria-pressed={view === 'map' ? 'true' : 'false'} data-view="map">Map</button>
+      </div>
+      <div class="sq-sort" data-sort-wrap hidden={view === 'map'}>
+        <label class="filter-label" for="sq-sort">Sort by</label>
+        <select class="filter-select" id="sq-sort" name="sort" form="sq-filters" data-sort>
+          {SORTS.map((s) => <option value={s.value} selected={s.value === query.sort}>{s.label}</option>)}
+        </select>
+      </div>
+    </div>
+  </div>
+  <p class="sq-sort-note" data-sort-note hidden={!query.sort || query.sort === 'district' || view === 'map'}>
+    Schools without this measure are listed last.
+  </p>
+
+  <div class="sq-map-wrap" data-map-wrap hidden={view !== 'map'}>
+    <div class="sq-map" data-map role="region" aria-label="Map of matching schools"></div>
+    <p class="chart-hint" data-map-note></p>
+  </div>
+
+  <div data-list-wrap hidden={view === 'map'}>
+    <ul class="sq-results" aria-label="Schools" data-results
+      set:html={initial ? cardsHtml(initial.results, latestYear) : ''}></ul>
+
+    <div class="sq-empty" data-empty hidden={!initial || initial.total > 0}>
+      <p class="sq-empty-title">No schools match.</p>
+      <p>Try fewer words, another spelling, or a nearby ZIP code.</p>
+      <a class="near-btn" href={base} data-clear>Clear filters</a>
+    </div>
+
+    <nav class="pager sq-pager" aria-label="Result pages" data-pager set:html={initial ? pagerHtml(initial, pageHref) : ''}></nav>
+  </div>
+  {latestYear && (
+    <p class="chart-hint sq-cards-note">
+      Cards show each school’s {yearLabel(latestYear)} report and the NYC average for its school type. Open a school for
+      every measure and how it changed over time.
+    </p>
+  )}
+</section>
+
+<script type="application/json" id="sq-initial" set:html={initialJson}></script>
+
+<script>
+  import { normalizeQuery, queryToParams } from '../../lib/schools/filter.js';
+  import {
+    cardsHtml, skeletonCards, pagerHtml, statusText, typeOptionsHtml, boroughOptionsHtml, olderLabel,
+    UPSTREAM_TEXT, LOADING_TEXT
+  } from '../../lib/schools/render.js';
+  import { mountSchoolsMap } from '../../lib/schools/school-map.js';
+  import { count } from '../../lib/format.js';
+
+  const BASE = '/school-quality/';
+  const DEBOUNCE_MS = 300;
+  // Only a slow search says "Finding schools…", so screen readers hear the count, not a message per keystroke.
+  const LOADING_DELAY_MS = 1000;
+
+  const $ = <T extends Element = HTMLElement>(sel: string, root: ParentNode = document) => root.querySelector<T>(sel)!;
+  const form = $<HTMLFormElement>('[data-filters]');
+  const qInput = $<HTMLInputElement>('[data-q]');
+  const whereInput = $<HTMLInputElement>('[data-where]');
+  const typeSelect = $<HTMLSelectElement>('[data-type]');
+  const boroSelect = $<HTMLSelectElement>('[data-boro]');
+  const olderWrap = $('[data-older-wrap]');
+  const olderBox = $<HTMLInputElement>('[data-older]');
+  const olderText = $('[data-older-label]');
+  const sortSelect = $<HTMLSelectElement>('[data-sort]');
+  const sortWrap = $('[data-sort-wrap]');
+  const sortNote = $('[data-sort-note]');
+  const status = $('[data-status]');
+  const list = $<HTMLUListElement>('[data-results]');
+  const listWrap = $('[data-list-wrap]');
+  const empty = $('[data-empty]');
+  const pager = $('[data-pager]');
+  const viewToggle = $('[data-view-toggle]');
+  const mapWrap = $('[data-map-wrap]');
+  const mapNote = $('[data-map-note]');
+
+  const initial = JSON.parse(document.getElementById('sq-initial')!.textContent || '{}');
+  let query: any = initial.query;
+  let view: 'list' | 'map' = initial.view;
+  let latestYear: number | undefined = initial.latestYear;
+  let abort: AbortController | null = null;
+  let typingTimer = 0;
+  let loadingTimer = 0;
+  let schoolsMap: ReturnType<typeof mountSchoolsMap> | null = null;
+  const coarsePointer = matchMedia('(pointer: coarse)');
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+
+  const pageUrl = (q: any) => {
+    const p = queryToParams(q);
+    if (view === 'map') p.set('view', 'map');
+    const s = p.toString();
+    return s ? `${BASE}?${s}` : BASE;
+  };
+
+  function readForm() {
+    const p = new URLSearchParams();
+    for (const [k, v] of new FormData(form)) if (typeof v === 'string' && v) p.append(k, v);
+    p.set('sort', sortSelect.value);
+    return normalizeQuery(p);
+  }
+
+  function fillForm(q: any) {
+    qInput.value = q.q;
+    whereInput.value = q.where;
+    typeSelect.value = q.type;
+    boroSelect.value = q.boro;
+    olderBox.checked = q.all;
+    sortSelect.value = q.sort;
+  }
+
+  function syncViewControls() {
+    viewToggle.querySelectorAll<HTMLButtonElement>('[data-view]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === view)));
+    mapWrap.hidden = view !== 'map';
+    listWrap.hidden = view === 'map';
+    sortWrap.hidden = view === 'map';
+    sortNote.hidden = view === 'map' || !query.sort || query.sort === 'district';
+  }
+
+  function renderFacets(data: any) {
+    typeSelect.innerHTML = typeOptionsHtml(data.facets.types, query.type);
+    boroSelect.innerHTML = boroughOptionsHtml(data.facets.boros, query.boro);
+    olderWrap.hidden = !query.all && !data.facets.older;
+    if (data.latestYear) olderText.textContent = olderLabel(data.facets.older, data.latestYear);
+  }
+
+  function showError(message: string) {
+    list.replaceChildren();
+    pager.replaceChildren();
+    empty.hidden = true;
+    status.textContent = message;
+  }
+
+  async function search({ push = false, scroll = false } = {}) {
+    clearTimeout(typingTimer);
+    abort?.abort();
+    abort = new AbortController();
+    syncViewControls();
+    const url = pageUrl(query);
+    if (url !== location.pathname + location.search) {
+      if (push) history.pushState(null, '', url); else history.replaceState(history.state, '', url);
+    }
+    clearTimeout(loadingTimer);
+    loadingTimer = window.setTimeout(() => { status.textContent = LOADING_TEXT; }, LOADING_DELAY_MS);
+    if (view === 'list') {
+      list.setAttribute('aria-busy', 'true');
+      list.innerHTML = skeletonCards();
+      empty.hidden = true;
+    }
+    const params = queryToParams(query);
+    try {
+      const [res, mapRes] = await Promise.all([
+        fetch(`/api/schools/search?${params}`, { signal: abort.signal }),
+        view === 'map' ? fetch(`/api/schools/search?${params}&view=map`, { signal: abort.signal }) : null
+      ]);
+      const data = await res.json().catch(() => null);
+      clearTimeout(loadingTimer);
+      if ((res.status === 400 || res.status === 429) && typeof data?.error === 'string') return showError(data.error);
+      if (!res.ok || !Array.isArray(data?.results)) throw new Error('upstream');
+      if (data.page !== query.page) {
+        query = { ...query, page: data.page };
+        history.replaceState(history.state, '', pageUrl(query));
+      }
+      latestYear = data.latestYear;
+      renderFacets(data);
+      list.innerHTML = cardsHtml(data.results, latestYear);
+      empty.hidden = data.total > 0;
+      pager.innerHTML = pagerHtml(data, (page: number) => pageUrl({ ...query, page }));
+      status.textContent = statusText(data, view);
+      if (mapRes) await drawMap(mapRes);
+      if (scroll) $('.sq-results-head').scrollIntoView({ block: 'start', behavior: reducedMotion.matches ? 'auto' : 'smooth' });
+    } catch (err: any) {
+      if (err.name === 'AbortError') return;
+      clearTimeout(loadingTimer);
+      showError(UPSTREAM_TEXT);
+    } finally {
+      list.removeAttribute('aria-busy');
+    }
+  }
+
+  async function drawMap(res: Response) {
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !Array.isArray(data?.points)) {
+      mapNote.textContent = 'The map couldn’t load. Switch to the list instead.';
+      return;
+    }
+    schoolsMap ??= mountSchoolsMap($('[data-map]'));
+    await schoolsMap.update({ points: data.points });
+    mapNote.textContent = data.missing
+      ? `${count(data.points.length)} schools on the map. ${count(data.missing)} more have no location on file; switch to the list to see them.`
+      : `${count(data.points.length)} schools on the map. Tap a dot for the school’s name and link.`;
+  }
+
+  // A filter changed: back to page 1.
+  function applyForm() {
+    const { query: q, error } = readForm();
+    if (error) { showError(error); return; }
+    query = { ...q, page: 1 };
+    search();
+  }
+
+  form.addEventListener('change', (e) => {
+    if (e.target === qInput || e.target === whereInput) return; // handled on input
+    applyForm();
+  });
+  sortSelect.addEventListener('change', applyForm);
+  form.addEventListener('submit', (e) => { e.preventDefault(); applyForm(); });
+  for (const input of [qInput, whereInput]) {
+    // Two text fields and no submit button: the browser won't submit on Enter, so do it here.
+    input.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' || e.isComposing) return;
+      e.preventDefault();
+      applyForm();
+      if (coarsePointer.matches) input.blur();
+    });
+    input.addEventListener('input', () => {
+      clearTimeout(typingTimer);
+      typingTimer = window.setTimeout(applyForm, DEBOUNCE_MS);
+    });
+  }
+
+  document.querySelectorAll<HTMLAnchorElement>('[data-clear]').forEach((link) => link.addEventListener('click', (e) => {
+    e.preventDefault();
+    query = normalizeQuery(new URLSearchParams()).query;
+    form.reset();
+    fillForm(query);
+    search({ push: true });
+    qInput.focus();
+  }));
+
+  pager.addEventListener('click', (e) => {
+    const link = (e.target as HTMLElement).closest<HTMLAnchorElement>('a[data-page]');
+    if (!link || e.metaKey || e.ctrlKey || e.shiftKey) return;
+    e.preventDefault();
+    query = { ...query, page: Number(link.dataset.page) };
+    search({ push: true, scroll: true });
+  });
+
+  viewToggle.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-view]');
+    if (!btn || btn.dataset.view === view) return;
+    view = btn.dataset.view as 'list' | 'map';
+    search({ push: true });
+  });
+
+  window.addEventListener('popstate', () => {
+    const params = new URL(location.href).searchParams;
+    query = normalizeQuery(params).query ?? normalizeQuery(new URLSearchParams()).query;
+    view = params.get('view') === 'map' ? 'map' : 'list';
+    fillForm(query);
+    search();
+  });
+
+  // ---------- Start ----------
+  viewToggle.hidden = false;
+  // The browser may have kept edited fields (back/forward cache, autofill).
+  const fromForm = readForm().query;
+  if (!initial.loaded || view === 'map' || (fromForm && pageUrl({ ...fromForm, page: query.page }) !== pageUrl(query))) {
+    if (fromForm) query = { ...fromForm, page: query.page };
+    search();
+  }
+</script>

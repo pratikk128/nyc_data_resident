@@ -53,6 +53,13 @@ export const dashboards = [
     description: "Find and support women- and minority-owned businesses certified by the city, by what you need and where.",
     category: "Business",
     url: "/shop-diverse/"
+  },
+  {
+    id: "school-quality",
+    title: "NYC School Quality Explorer",
+    description: "Find any NYC public school and see how it’s doing now and whether it’s getting better or worse.",
+    category: "Education",
+    url: "/school-quality/"
   }
 ];
 

@@ -1,0 +1,198 @@
+---
+/*
+ * NYC School Quality Explorer, one school: /school-quality/<DBN>/ (e.g.
+ * /school-quality/02M475/). Rendered on demand from the school's curated
+ * metrics for every year (src/lib/server/schools.js, edge-cached), so a
+ * shared link shows everything on first paint. The charts are drawn from the
+ * JSON at the bottom; their numbers are also in tables that need no script.
+ */
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+import SchoolNow from '../../components/school-quality/SchoolNow.astro';
+import SchoolTrends from '../../components/school-quality/SchoolTrends.astro';
+import AboutSection from '../../components/school-quality/AboutSection.astro';
+import { getMetadata, loadSchool, normalizeDbn } from '../../lib/server/schools.js';
+import { RateLimited, RATE_LIMITED_TEXT } from '../../lib/server/rate-limit.js';
+import { REPORTS, BASE_PATH, schoolPath, yearLabel } from '../../lib/schools/config.js';
+import { typeBadges, boroughHtml, NO_ADDRESS, UPSTREAM_TEXT } from '../../lib/schools/render.js';
+import { gapYears } from '../../lib/schools/values.js';
+import { date } from '../../lib/format.js';
+
+export const prerender = false;
+
+const dbn = normalizeDbn(Astro.params.dbn);
+// Lower-case or padded links go to the canonical URL.
+if (dbn && Astro.params.dbn !== dbn) return Astro.redirect(schoolPath(dbn), 301);
+
+const [meta, loaded] = await Promise.allSettled([
+  getMetadata(),
+  dbn ? loadSchool(dbn, Astro.url, Astro.locals.cfContext, Astro.clientAddress) : Promise.resolve(null)
+]);
+if (meta.status === 'rejected') console.error(meta.reason);
+if (loaded.status === 'rejected' && !(loaded.reason instanceof RateLimited)) console.error(loaded.reason);
+const metaValue = meta.status === 'fulfilled' ? meta.value : null;
+const school = loaded.status === 'fulfilled' ? loaded.value : null;
+const failed = loaded.status === 'rejected';
+if (!school) Astro.response.status = failed ? (loaded.reason instanceof RateLimited ? 429 : 502) : 404;
+else if (import.meta.env.PROD) Astro.response.headers.set('Cache-Control', 'public, max-age=3600');
+
+const reports = school?.reports.filter((r: any) => r.years.length) ?? [];
+const multiple = reports.length > 1;
+const types = school?.types ?? [];
+const loc = school?.loc;
+const mapsUrl = loc?.address
+  ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([loc.address, school.boro, 'NY', loc.zip].filter(Boolean).join(', '))}`
+  : null;
+const latestReport = school ? Math.max(...school.reports.map((r: any) => r.year)) : null;
+const title = school?.name ?? (failed ? 'School' : 'School not found');
+const description = school
+  ? `${school.name} (${school.dbn}), ${school.boro}: test scores, graduation, attendance and trends from NYC DOE School Quality Reports, next to the NYC average.`
+  : 'NYC School Quality Explorer';
+
+// For the charts: per report, per metric, values by year.
+const chartData = reports.map((r: any) => ({
+  report: r.report,
+  years: r.years,
+  metrics: r.metrics.map((e: any) => ({
+    id: e.id,
+    values: Object.fromEntries(r.years.map((y: number) => [y, e.points[y]?.v ?? null])),
+    cmp: Object.fromEntries(r.years.map((y: number) => [y, e.points[y]?.cmp ?? null])),
+    scores: Object.fromEntries(r.years.map((y: number) => [y, e.points[y]?.score ?? null])),
+    city: e.city ?? {},
+    gaps: gapYears(e.points, r.years)
+  }))
+}));
+const json = JSON.stringify({ name: school?.name, loc: loc?.lat != null ? { lat: loc.lat, lon: loc.lon } : null, reports: chartData })
+  .replace(/</g, '\\u003c');
+---
+
+<DashboardLayout
+  title={`${title} | NYC School Quality Explorer`}
+  description={description}
+  path={dbn ? schoolPath(dbn) : BASE_PATH}
+  category="Education"
+  lastRefreshed={metaValue?.rowsUpdatedAt ? date(metaValue.rowsUpdatedAt) : undefined}
+  dataUpdated={metaValue?.rowsUpdatedAt ?? undefined}
+>
+  <p class="sq-back"><a href={BASE_PATH}>← All schools</a></p>
+
+  {!school && (
+    <header class="page-head">
+      <h1>{failed ? 'This school didn’t load' : 'School not found'}</h1>
+      <p>
+        {failed
+          ? (loaded.reason instanceof RateLimited ? RATE_LIMITED_TEXT : UPSTREAM_TEXT)
+          : <>There’s no School Quality Report for {dbn ? <strong>{dbn}</strong> : 'that address'}. Check the DBN, or <a href={BASE_PATH}>search all schools</a>.</>}
+      </p>
+    </header>
+  )}
+
+  {school && (
+    <>
+      <header class="page-head sq-school-head">
+        <div class="sq-school-intro">
+          <p class="sq-card-badges" set:html={typeBadges(types)}></p>
+          <h1>{school.name}</h1>
+          <dl class="sq-facts">
+            <div><dt>DBN</dt><dd>{school.dbn}</dd></div>
+            {school.district && <div><dt>District</dt><dd>{school.district}</dd></div>}
+            <div><dt>Borough</dt><dd set:html={boroughHtml(school.boro)}></dd></div>
+            <div>
+              <dt>Address</dt>
+              <dd>
+                {loc?.address
+                  ? <>{loc.address}{loc.zip && <>, {loc.zip}</>}{loc.neighborhood && <span class="sq-muted"> · {loc.neighborhood}</span>}
+                      {mapsUrl && <><br /><a href={mapsUrl} target="_blank" rel="noopener noreferrer">Open in Google Maps</a></>}</>
+                  : <span class="sq-muted">{NO_ADDRESS}</span>}
+              </dd>
+            </div>
+          </dl>
+          {multiple && (
+            <nav class="sq-jump" aria-label="This school's reports">
+              <p>This school has {reports.length} reports:</p>
+              <ul>
+                {reports.map((r: any) => <li><a href={`#now-${r.report.toLowerCase()}`}>{REPORTS[r.report].label} grades</a></li>)}
+              </ul>
+            </nav>
+          )}
+        </div>
+        {loc?.lat != null && (
+          <div class="sq-mini-map" data-mini-map role="img" aria-label={`Map showing ${school.name} at ${loc.address ?? 'its location'}`}></div>
+        )}
+      </header>
+
+      {!school.current && latestReport != null && (
+        <p class="callout callout-heads-up">
+          <strong>Heads up:</strong> this school has no report for {yearLabel(school.latestYear)}. Its latest is
+          {' '}{yearLabel(latestReport)}. It may have closed, merged or changed its school code.
+        </p>
+      )}
+
+      {reports.map((r: any) => (
+        <>
+          <SchoolNow report={r} multiple={multiple} newest={latestReport} current={school.current} />
+          <SchoolTrends report={r} multiple={multiple} />
+        </>
+      ))}
+    </>
+  )}
+
+  <AboutSection meta={metaValue} latestYear={school?.latestYear} />
+</DashboardLayout>
+
+<script type="application/json" id="sq-school" set:html={json}></script>
+
+<script>
+  import { METRICS } from '../../lib/schools/metrics.js';
+  import { mountYearChart } from '../../lib/schools/charts.js';
+  import { mountMiniMap } from '../../lib/schools/school-map.js';
+  import { formatValue, targetBand } from '../../lib/schools/values.js';
+  import { yearLabel } from '../../lib/schools/config.js';
+
+  const data = JSON.parse(document.getElementById('sq-school')!.textContent || '{}');
+  const byId = Object.fromEntries(METRICS.map((m) => [m.id, m]));
+  const esc = (s: string) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+  for (const report of data.reports ?? []) {
+    for (const entry of report.metrics) {
+      const metric = byId[entry.id];
+      const frame = document.querySelector<HTMLElement>(`[data-chart="${entry.id}"][data-report="${report.report}"]`);
+      if (!metric || !frame) continue;
+      const gapsByYear = new Map(entry.gaps.map((g: any) => [g.year, g.reason]));
+      const row = (label: string, v: number | null) =>
+        v == null ? '' : `<tr><th>${label}</th><td>${esc(formatValue(metric, v))}</td></tr>`;
+      const latest = report.years.filter((y: number) => entry.values[y] != null).pop();
+      mountYearChart(frame, {
+        metric,
+        years: report.years,
+        values: entry.values,
+        city: entry.city,
+        gaps: entry.gaps,
+        seriesBreak: metric.seriesBreak,
+        summary: `${metric.label} at ${data.name}, ${yearLabel(report.years[0])} to ${yearLabel(report.years[report.years.length - 1])}` +
+          (latest != null ? `. ${yearLabel(latest)}: ${formatValue(metric, entry.values[latest])}.` : '.') +
+          ' Use the left and right arrow keys to read each year.',
+        tooltip: (y: number) => {
+          const band = targetBand(entry.scores[y]);
+          const v = entry.values[y];
+          const rows = [
+            v == null ? `<tr><th>This school</th><td>Not reported</td></tr>` : row('This school', v),
+            row('NYC average', entry.city[y] ?? null),
+            row('Similar schools', entry.cmp[y])
+          ].join('');
+          const note = gapsByYear.get(y) ?? (band ? `DOE rating: ${band.label}` : '');
+          return `<p class="tt-title">${yearLabel(y)}</p><table class="tt-table">${rows}</table>${note ? `<p class="tt-note">${esc(note)}</p>` : ''}`;
+        }
+      });
+    }
+  }
+
+  const mapEl = document.querySelector<HTMLElement>('[data-mini-map]');
+  if (mapEl && data.loc) {
+    // Leaflet loads once the map is near the screen.
+    new IntersectionObserver((entries, observer) => {
+      if (!entries.some((e) => e.isIntersecting)) return;
+      observer.disconnect();
+      mountMiniMap(mapEl, { ...data.loc, label: data.name });
+    }, { rootMargin: '200px' }).observe(mapEl);
+  }
+</script>

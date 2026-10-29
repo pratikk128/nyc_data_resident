@@ -1,0 +1,92 @@
+---
+/*
+ * Section A, "How is this school doing now?": one tile per curated metric for
+ * one report, from the report's latest year: the value, DOE's target band,
+ * the NYC average and similar schools, a one-line explanation and the trend.
+ * Context metrics (student count) sit apart, labeled as context.
+ */
+import { REPORTS, yearLabel } from '../../lib/schools/config.js';
+import { METRICS } from '../../lib/schools/metrics.js';
+import { formatValue, compare, trendSentence, latestYearWithValue } from '../../lib/schools/values.js';
+import { bandBadge, trendChip, vsCityText } from '../../lib/schools/render.js';
+
+interface Props {
+  report: any;      // one of schoolDetail().reports
+  multiple: boolean; // the school has more than one report
+  newest: number;    // the school's newest report year; an older report is labeled as past
+  current: boolean;  // the school has a report for the newest year in the dataset
+}
+const { report, multiple, newest, current } = Astro.props;
+const past = report.year < newest;
+const heading = past ? `Its last ${REPORTS[report.report].noun} report`
+  : current ? 'How is this school doing now?' : 'How was this school doing in its last report?';
+const byId = Object.fromEntries(METRICS.map((m) => [m.id, m]));
+const year = report.year;
+const tiles = report.metrics.map((entry: any) => {
+  const metric = byId[entry.id];
+  const point = entry.points[year] ?? null;
+  const v = point?.v ?? null;
+  const lastYear = v == null ? latestYearWithValue(entry.points) : null;
+  const similar = point?.cmp != null ? compare(metric, v, point.cmp) : null;
+  return {
+    metric, v, point, entry,
+    last: lastYear != null ? { year: lastYear, text: formatValue(metric, entry.points[lastYear].v) } : null,
+    vsCity: v == null ? '' : vsCityText(metric, v, entry.city?.[year]),
+    vsSimilar: similar ? (similar.dir === 'same' ? `Same as similar schools (${formatValue(metric, point.cmp)})` : `${similar.text} similar schools (${formatValue(metric, point.cmp)})`) : '',
+    cityGood: v == null ? null : compare(metric, v, entry.city?.[year])?.good ?? null
+  };
+});
+const quality = tiles.filter((t: any) => !t.metric.context);
+const context = tiles.filter((t: any) => t.metric.context);
+const id = `now-${report.report.toLowerCase()}`;
+---
+
+<section class="dash-section sq-now" aria-labelledby={`${id}-title`} id={id}>
+  <div class="section-head">
+    <h2 id={`${id}-title`}>
+      {heading}
+      {multiple && !past && <span class="sq-head-report"> {REPORTS[report.report].label} grades</span>}
+    </h2>
+    <p class="section-intro">
+      From the school’s {yearLabel(year)} School Quality Report for {REPORTS[report.report].plural}{past && <>, its last
+      one of this kind</>}. Each number is next to the NYC average for {REPORTS[report.report].plural}.
+    </p>
+  </div>
+
+  {quality.length ? (
+    <ul class="sq-tiles">
+      {quality.map((t: any) => (
+        <li class="sq-tile">
+          <p class="sq-tile-label">{t.metric.label}</p>
+          <p class={`sq-tile-value${t.v == null ? ' is-missing' : ''}`}>{formatValue(t.metric, t.v)}</p>
+          {t.point?.score != null && <p class="sq-tile-band" set:html={bandBadge(t.point.score)} />}
+          {t.vsCity && <p class="sq-tile-vs" data-good={t.cityGood == null ? undefined : String(t.cityGood)}>{t.vsCity}</p>}
+          {t.vsSimilar && <p class="sq-tile-vs sq-tile-similar">{t.vsSimilar}</p>}
+          {t.last && <p class="sq-tile-vs">Last reported: {t.last.text} in {yearLabel(t.last.year)}</p>}
+          <p class="sq-tile-desc">{t.metric.description}</p>
+          <p class="sq-tile-trend">
+            <Fragment set:html={trendChip(t.metric, t.entry.trend)} />
+            {t.entry.trend?.dir && <span class="sr-only"> {trendSentence(t.metric, t.entry.trend)}</span>}
+          </p>
+        </li>
+      ))}
+    </ul>
+  ) : (
+    <p class="sq-none">This report has none of the measures we track for {REPORTS[report.report].plural}.</p>
+  )}
+
+  {context.length > 0 && (
+    <div class="sq-context">
+      <h3 class="sq-context-title">Context, not quality</h3>
+      <ul class="sq-tiles sq-tiles-context">
+        {context.map((t: any) => (
+          <li class="sq-tile">
+            <p class="sq-tile-label">{t.metric.label}</p>
+            <p class={`sq-tile-value${t.v == null ? ' is-missing' : ''}`}>{formatValue(t.metric, t.v)}</p>
+            <p class="sq-tile-desc">{t.metric.description}</p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )}
+</section>

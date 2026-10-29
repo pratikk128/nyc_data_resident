@@ -10,8 +10,9 @@ import { restaurantDailyJobs } from "./restaurants.js";
 import { complaints311DailyJobs } from "./complaints311.js";
 import { waterDailyJobs } from "./water.js";
 import { shopDiverseDailyJobs } from "./shop-diverse.js";
+import { schoolsDailyJobs } from "./schools.js";
 
-export const DAILY_JOBS = [...restaurantDailyJobs, ...complaints311DailyJobs, ...waterDailyJobs, ...shopDiverseDailyJobs];
+export const DAILY_JOBS = [...restaurantDailyJobs, ...complaints311DailyJobs, ...waterDailyJobs, ...shopDiverseDailyJobs, ...schoolsDailyJobs];
 
 export async function runDailyJobs() {
   const results = await Promise.allSettled(DAILY_JOBS.map(async (job) => {

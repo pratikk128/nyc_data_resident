@@ -1,0 +1,116 @@
+---
+/*
+ * "How to read this data": what the measures mean, how the comparisons and
+ * trends are worked out, what the dataset leaves out, and the sources. Same
+ * on the browse page and every school page.
+ */
+import { DATASET_URL, DATASET_NAME, DATASET_ID, LOCATION_SOURCES, LINKS, TARGET_BANDS, yearLabel } from '../../lib/schools/config.js';
+import { date } from '../../lib/format.js';
+
+interface Props {
+  meta: { rowsUpdatedAt: string | null } | null;
+  latestYear?: number | null;
+}
+const { meta, latestYear } = Astro.props;
+const locations = Object.entries(LOCATION_SOURCES);
+---
+
+<section class="dash-section sq-about" id="about-this-data" aria-labelledby="sq-about-title">
+  <h2 class="chart-title" id="sq-about-title">How to read this data</h2>
+
+  <details class="about-data">
+    <summary>What the numbers mean</summary>
+    <div class="about-body">
+      <p>
+        <strong>School types.</strong> Each school gets a School Quality Report from the NYC Department of Education
+        (DOE) for each kind of school it is: elementary and middle (including K–8), high school, transfer high school,
+        early childhood (K–3), District 75 (citywide special education) or Young Adult Borough Center (evening
+        programs, which stopped getting reports after 2018–19). A 6–12 school has two reports, and its page shows both.
+      </p>
+      <p>
+        <strong>Which measures.</strong> The reports have over 100 measures per school type, many of them broken out
+        by student group. We show 6 to 10 per type: test results or graduation and college outcomes, attendance, and
+        how former students did at their next school. Everything else is in the dataset.
+      </p>
+      <p>
+        <strong>DOE target ratings.</strong> For many measures DOE scores the school from 1.00 to 4.99 against targets
+        set from similar schools, and we show the band:
+        {TARGET_BANDS.map((b, i) => <>{i ? ', ' : ' '}<span class="sq-band" data-band={b.tone}>{b.label}</span> ({b.min.toFixed(2)}{i ? `–${(b.min + 0.99).toFixed(2)}` : '+'})</>)}.
+        A measure without a band isn’t one DOE scores, or wasn’t scored that year.
+      </p>
+      <p>
+        <strong>“Not reported”</strong> means the dataset has no value: too few students were counted for DOE to
+        publish it, or the measure didn’t apply that year. We never treat it as zero.
+      </p>
+      <p>
+        <strong>Students</strong> is the number of students with attendance records, a close stand-in for enrollment.
+        It’s context, not a sign of quality.
+      </p>
+    </div>
+  </details>
+
+  <details class="about-data">
+    <summary>How we compare and spot trends</summary>
+    <div class="about-body">
+      <p>
+        <strong>NYC average</strong> is our calculation: the average of every school with the same report type that
+        year, weighted by how many students each counted. For a rate like graduation, that’s the citywide rate for that
+        kind of school. <strong>Similar schools</strong> is DOE’s comparison group average for this school, from the
+        dataset; DOE didn’t publish it every year.
+      </p>
+      <p>
+        <strong>Trend</strong> uses the last 3 school years with a value. We fit a straight line through them and call it
+        improving or declining when it moved at least 3 percentage points over those years (1 point for average
+        attendance, 2 for changes in attendance and moves to less restrictive settings), and steady otherwise.
+        “Improving” means better for students: for chronic absenteeism, that’s going down.
+      </p>
+      <p>
+        <strong>Gaps.</strong> New York cancelled state tests in spring 2020 (COVID-19) and made them optional in spring
+        2021, so test results for 2019–20 and 2020–21 are blank. Charts shade missing years instead of drawing a line
+        across them.
+      </p>
+      <p>
+        <strong>New tests.</strong> New York gave new grades 3–8 ELA and math tests, with new score cutoffs, starting in
+        spring 2023. Proficiency from 2022–23 on can’t be compared with earlier years, so trends start there and the
+        charts mark the change. College and career readiness has been reported in its current form only since 2023–24.
+      </p>
+    </div>
+  </details>
+
+  <details class="about-data">
+    <summary>What isn’t here</summary>
+    <div class="about-body">
+      <p>
+        This dataset has the report’s measures but not DOE’s <strong>framework ratings</strong> (Rigorous Instruction,
+        Collaborative Teachers, Supportive Environment, Effective School Leadership, Strong Family-Community Ties,
+        Trust, Student Achievement), <strong>Quality Review</strong> ratings, enrollment or the <strong>Economic Need
+        Index</strong>. NYC Open Data has those only as single-year files from 2019–20 and earlier, so we leave them
+        out rather than show old ratings as current. Each school’s full report, with those ratings, is on
+        <a href={LINKS.sqrHome}>DOE’s School Quality Reports page</a>.
+      </p>
+      <p>
+        <strong>Addresses</strong> come from DOE’s 2019–20 school locations, with ZIP codes from the city’s Facilities
+        Database. Schools that opened since are matched by name; a few still have no address and show “Address not
+        available.” A school may have moved since 2019–20.
+      </p>
+    </div>
+  </details>
+
+  <footer class="section-sources">
+    <h3 class="sources-title">Where this comes from</h3>
+    <p>
+      <a href={DATASET_URL}>{DATASET_NAME}</a> on NYC Open Data (dataset {DATASET_ID}), published by the NYC Department of
+      Education.{meta?.rowsUpdatedAt && <> Last updated {date(meta.rowsUpdatedAt)}.</>}
+      {latestYear && <> The newest school year in it is {yearLabel(latestYear)}.</>} We check for new data daily.
+    </p>
+    <p>
+      Measures, target ratings and similar-school averages come from NYC DOE School Quality Reports. NYC averages and
+      trends are our calculations. Addresses: {locations.map(([id, s], i) => <>{i ? ' and ' : ''}<a href={s.url}>{s.name}</a> ({id})</>)}.
+    </p>
+    <ul class="caveats">
+      <li>One year’s numbers describe one group of students. Small schools can swing a lot from year to year.</li>
+      <li>Test scores and graduation rates reflect who a school serves as well as how well it teaches. Compare with similar schools, and visit.</li>
+    </ul>
+    <p><a href={DATASET_URL}>Report a data problem</a> to NYC Open Data.</p>
+  </footer>
+</section>

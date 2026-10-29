@@ -1,0 +1,55 @@
+---
+/*
+ * NYC School Quality Explorer, browse page: every NYC public school with its
+ * latest School Quality Report, searchable by name, DBN, type and address.
+ * Rendered on demand so a shared link (?type=middle&boro=queens) shows its
+ * results on first paint, from the daily school index in KV
+ * (src/lib/server/schools.js). Each school's page is /school-quality/<DBN>/.
+ */
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+import SchoolFinder from '../../components/school-quality/SchoolFinder.astro';
+import AboutSection from '../../components/school-quality/AboutSection.astro';
+import { getMetadata, loadSearch } from '../../lib/server/schools.js';
+import { RateLimited } from '../../lib/server/rate-limit.js';
+import { normalizeQuery } from '../../lib/schools/filter.js';
+import { date } from '../../lib/format.js';
+
+export const prerender = false;
+
+const normalized = normalizeQuery(Astro.url.searchParams);
+const query = normalized.query ?? normalizeQuery(new URLSearchParams()).query!;
+const view = Astro.url.searchParams.get('view') === 'map' ? 'map' : 'list';
+const [meta, initial] = await Promise.allSettled([
+  getMetadata(), loadSearch(query, { view: 'list' }, Astro.url, Astro.locals.cfContext, Astro.clientAddress)
+]);
+if (meta.status === 'rejected') console.error(meta.reason);
+if (initial.status === 'rejected' && !(initial.reason instanceof RateLimited)) console.error(initial.reason);
+const metaValue = meta.status === 'fulfilled' ? meta.value : null;
+const initialValue = initial.status === 'fulfilled' ? initial.value : null;
+const pageTitle = 'NYC School Quality Explorer';
+// Production only: in dev a cached page hides edits for an hour. A page
+// whose results failed to load isn't cached.
+if (import.meta.env.PROD && initialValue) Astro.response.headers.set('Cache-Control', 'public, max-age=3600');
+---
+
+<DashboardLayout
+  title={pageTitle}
+  description="Find any NYC public school and see how it’s doing now and over time: test scores, graduation, attendance and more, from DOE School Quality Reports."
+  path="/school-quality/"
+  category="Education"
+  lastRefreshed={metaValue?.rowsUpdatedAt ? date(metaValue.rowsUpdatedAt) : undefined}
+  dataUpdated={metaValue?.rowsUpdatedAt ?? undefined}
+>
+  <header class="page-head">
+    <p class="sq-eyebrow">From NYC DOE School Quality Reports</p>
+    <h1>{pageTitle}</h1>
+    <p>
+      Look up any NYC public school to see how it’s doing this year and whether it’s getting better or worse. Search by
+      name, type, street or ZIP code, then open a school for its numbers next to the city’s.
+    </p>
+  </header>
+
+  <SchoolFinder query={query} initial={initialValue} inputError={normalized.error ?? null} view={view} />
+
+  <AboutSection meta={metaValue} latestYear={initialValue?.latestYear} />
+</DashboardLayout>
