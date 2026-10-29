@@ -10,8 +10,10 @@ import assert from "node:assert/strict";
 import { parseMeasurement, isDetected, measurementText } from "../src/lib/water/parse.js";
 import {
   normalizeMonth, latestCompleteMonth, missingMonths, reportCard, verdict, historyTakeaway, summerShare, sharePct, tileStatus,
-  nearestSites, addMonths, monthLabel, normalizeDetection, hasEcoli, plainDescription
+  nearestSites, addMonths, monthLabel, normalizeDetection, hasEcoli, plainDescription, completeMonths
 } from "../src/lib/water/stats.js";
+import { historySeries } from "../src/lib/water/history.js";
+import { bacteriaHtml } from "../src/lib/water/near-me.js";
 import { monthlyParams, siteMonthlyParams, detectionParams } from "../src/lib/water/soql.js";
 import { statePlaneToLatLon } from "../src/lib/water/state-plane.js";
 
@@ -147,6 +149,16 @@ test("report card: five tiles; E. coli amber on any detection", () => {
   assert.equal(tiles[2].status, "green");
 });
 
+test("report card: a resample with E. coli turns the tile amber even with no routine detection", () => {
+  const only = reportCard(row("2026-09", 1124), { resampleEcoli: 1 })[0];
+  assert.equal(only.status, "amber");
+  assert.equal(only.sentence, "A sign of sewage. Found in none of 1,124 routine samples, but in 1 resample; details below.");
+  assert.equal(only.valueLabel, "of routine samples clear");
+  const both = reportCard(row("2026-09", 1124, { ecoli_pos: "2" }), { resampleEcoli: 3 })[0];
+  assert.match(both.sentence, /Found in 2 of 1,124 routine samples and in 3 resamples; details below\./);
+  assert.equal(verdict(reportCard(row("2026-09", 1124), { resampleEcoli: 1 })).title, "Mostly clear");
+});
+
 test("report card leaves fluoride out when no samples were tested for it", () => {
   const tiles = reportCard(row("2026-09", 1000, { fl_n: "0", fl_ok: "0", fl_med: null }));
   assert.equal(tiles.length, 4);
@@ -176,6 +188,29 @@ test("history takeaway summarizes bacteria-free samples over the period", () => 
   assert.equal(historyTakeaway(months),
     "Over 5 years (since January 2015), 99.8% of 60,000 routine samples were free of coliform bacteria, and E. coli turned up in 1 (<0.1%).");
   assert.equal(historyTakeaway([]), "");
+  assert.match(historyTakeaway(months, 2), /E\. coli turned up in 1 \(<0\.1%\), plus 2 resamples\.$/);
+  assert.match(historyTakeaway([...year("2015-01", 12, 1000)], 1), /none had E\. coli \(it turned up in 1 resample\)\.$/);
+});
+
+test("history leaves out months after the latest complete one", () => {
+  const months = [...year("2026-07", 4, 1000)];   // Jul–Oct
+  months[3] = row("2026-10", 200, { coli_pos: "40", ecoli_pos: "1" });  // October, still loading
+  const monthly = { completeMonth: "2026-09", months };
+  assert.deepEqual(completeMonths(monthly).map((m) => m.month), ["2026-07", "2026-08", "2026-09"]);
+  assert.deepEqual(completeMonths({ completeMonth: null, months }), []);
+  const det = (date, sampleClass) => ({ date, site: "1", sampleClass, ecoli: parseMeasurement("2", "bacteria") });
+  const s = historySeries(monthly, [det("2026-10-02", "Compliance"), det("2026-08-04", "Resample_Compliance")]);
+  assert.deepEqual(s.months, ["2026-07", "2026-08", "2026-09"]);
+  assert.deepEqual(Object.keys(s.ecoli), ["2026-08"]);
+  assert.equal(s.rows[1].ecoliPositive, 0);   // routine, from the monthly counts
+  assert.equal(s.rows[1].ecoliResample, 1);
+});
+
+test("station card counts resample detections next to the routine ones", () => {
+  const found = [{ date: "2026-08-04", sampleClass: "Resample_Compliance",
+    ecoli: parseMeasurement("1", "bacteria"), coliform: parseMeasurement("3", "bacteria") }];
+  const html = bacteriaHtml({ totals: { coliN: 40, coliPos: 0 }, detections: found }, "Oct 2025–Sep 2026");
+  assert.match(html, /Found in none of 40 routine samples, but in 1 resample \(Oct 2025–Sep 2026\)/);
 });
 
 test("detections parse coliform and E. coli values", () => {

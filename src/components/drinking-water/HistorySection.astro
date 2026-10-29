@@ -3,12 +3,13 @@
  * "Has it always been this good?": a quieter subsection at the end of the
  * report card (ReportCardSection). One takeaway line shows; the coliform share
  * for every month back to 2015, with E. coli detections marked, opens on
- * request (opened for #history links). Errors and empty data are reported by the report card. Data comes from
+ * request (opened for #history links). Only complete months count: the one
+ * still loading is left out (the report card notes it). Errors and empty data are reported by the report card. Data comes from
  * the daily jobs on the server and is inlined for the chart script (about 140
  * months, no API call from the page). Tables and CSVs are rendered here.
  */
 import { historySeries, historyCsvHref } from '../../lib/water/history.js';
-import { historyTakeaway, summerShare, monthLabel, plainDescription, followUpText, isResample, sharePct } from '../../lib/water/stats.js';
+import { historyTakeaway, summerShare, completeMonths, monthLabel, plainDescription, followUpText, isResample, sharePct } from '../../lib/water/stats.js';
 import { measurementText } from '../../lib/water/parse.js';
 import { REFERENCES } from '../../lib/water/config.js';
 import { count, date } from '../../lib/format.js';
@@ -21,11 +22,17 @@ interface Props {
 }
 const { monthly, detections, detectionsError } = Astro.props;
 
-const series = monthly?.months.length ? historySeries(monthly, detections?.detections ?? []) : null;
-const takeaway = monthly ? historyTakeaway(monthly.months) : '';
+const have = completeMonths(monthly);
+const series = have.length ? historySeries(monthly, detections?.detections ?? []) : null;
+// Routine counts come from the monthly job; resample positives only from the detections.
+const resampleCount = series ? series.rows.reduce((a, r) => a + r.ecoliResample, 0) : 0;
+const takeaway = historyTakeaway(have, detectionsError ? 0 : resampleCount);
 const range = series ? `${monthLabel(series.months[0], 'short')}–${monthLabel(series.months[series.months.length - 1], 'short')}` : '';
-const gaps: string[] = monthly?.gaps ?? [];
+const gaps: string[] = (monthly?.gaps ?? []).filter((g: string) => g <= monthly.completeMonth);
 const ecoliList = Object.values(series?.ecoli ?? {}).flat().sort((a: any, b: any) => b.date.localeCompare(a.date));
+const ecoliListCount = resampleCount
+  ? `${ecoliList.length - resampleCount} routine, ${resampleCount} ${resampleCount === 1 ? 'resample' : 'resamples'}`
+  : `${ecoliList.length}`;
 const sites = new Map(sitesFile.sites.map((s) => [s.site, s]));
 const where = (code: string) => (sites.has(code) ? plainDescription(sites.get(code)!.description) : 'Location not in DEP’s site list');
 
@@ -36,16 +43,16 @@ const coliformTitle = peakShare < REFERENCES.coliform.maxPositiveShare
   ? 'Coliform has stayed under the 5% review level every month'
   : 'Share of samples with coliform, by month';
 // Said only when it's a clear pattern: June–September is a third of the year.
-const summer = monthly ? summerShare(monthly.months) : null;
+const summer = have.length ? summerShare(have) : null;
 const summerText = summer && summer.share >= 0.6
-  ? `Most of it turns up in summer: ${Math.round(summer.share * 100)}% of coliform detections since ${monthLabel(monthly.months[0].month, 'short')} came in June through September.`
+  ? `Most of it turns up in summer: ${Math.round(summer.share * 100)}% of coliform detections since ${monthLabel(have[0].month, 'short')} came in June through September.`
   : '';
 const gapText = gaps.length ? `No samples in the data for ${new Intl.ListFormat('en', { type: 'conjunction' }).format(gaps.map((g) => monthLabel(g, 'short')))}; the line breaks there.` : '';
 
-// Rows as arrays to keep the inlined JSON small: [month, samples, coliTested, coliPositive, chlorineMedian].
+// Rows as arrays to keep the inlined JSON small:
+// [month, samples, coliTested, coliPositive, chlorineMedian, ecoliRoutine, ecoliResample (null if not loaded)].
 const chartData = series && {
-  rows: series.rows.map((r) => [r.month, r.samples, r.coliTested, r.coliPositive, r.chlorineMedian]),
-  ecoli: Object.fromEntries(Object.entries(series.ecoli).map(([k, list]: [string, any]) => [k, list.length])),
+  rows: series.rows.map((r) => [r.month, r.samples, r.coliTested, r.coliPositive, r.chlorineMedian, r.ecoliPositive, detectionsError ? null : r.ecoliResample]),
   coliformRef: REFERENCES.coliform.maxPositiveShare
 };
 ---
@@ -71,7 +78,7 @@ const chartData = series && {
         </div>
         <ul class="legend" aria-label="Legend">
           <li><span class="swatch water-swatch-line" aria-hidden="true"></span>Coliform, % of samples</li>
-          {!detectionsError && <li><span class="swatch water-swatch-marker" aria-hidden="true"></span>Month with E. coli found</li>}
+          <li><span class="swatch water-swatch-marker" aria-hidden="true"></span>Month with E. coli found</li>
           <li><span class="swatch water-swatch-ref" aria-hidden="true"></span>5% level that triggers a federal review</li>
         </ul>
         <div class="chart">
@@ -80,7 +87,7 @@ const chartData = series && {
         </div>
         <p class="chart-hint">Hover, tap or use the arrow keys for a month's numbers.</p>
         {gapText && <p class="chart-hint">{gapText}</p>}
-        {detectionsError && <p class="chart-hint">E. coli detections didn't load, so months with E. coli aren't marked in the chart or counted in the table.</p>}
+        {detectionsError && <p class="chart-hint">E. coli detections didn't load, so only routine samples with E. coli are marked and counted; resamples aren't.</p>}
         <div class="chart-actions">
           <details class="data-table">
             <summary>See the numbers as a table</summary>
@@ -105,7 +112,7 @@ const chartData = series && {
                           <td>{count(r.samples)}</td>
                           <td>{count(r.coliPositive)}</td>
                           <td>{sharePct(r.coliPositive, r.coliTested)}</td>
-                          <td>{detectionsError ? '–' : r.ecoliPositive}</td>
+                          <td>{r.ecoliPositive}{!detectionsError && r.ecoliResample > 0 && <span class="water-cell-sub">+{r.ecoliResample} {r.ecoliResample === 1 ? 'resample' : 'resamples'}</span>}</td>
                           <td>{r.chlorineMedian ?? '–'}</td>
                         </>
                       ) : <td colspan="5" class="water-cell-gap">No samples in the data</td>}
@@ -115,12 +122,12 @@ const chartData = series && {
               </table>
             </div>
           </details>
-          <a class="download-link" href={historyCsvHref(detectionsError ? series.rows.map((r) => ({ ...r, ecoliPositive: null })) : series.rows)} download="nyc-drinking-water-by-month.csv">Download CSV</a>
+          <a class="download-link" href={historyCsvHref(detectionsError ? series.rows.map((r) => ({ ...r, ecoliResample: null })) : series.rows)} download="nyc-drinking-water-by-month.csv">Download CSV</a>
         </div>
       </figure>
 
       <details class="data-table water-ecoli-history">
-        <summary>Every E. coli detection since {monthLabel(series.months[0], 'short')} {detectionsError ? '(didn’t load)' : `(${ecoliList.length})`}</summary>
+        <summary>Every E. coli detection since {monthLabel(series.months[0], 'short')} {detectionsError ? '(didn’t load)' : `(${ecoliListCount})`}</summary>
         <p class="water-note">
           One positive sample isn't a violation by itself. DEP takes repeat samples at the same station and nearby
           within 24 hours.
@@ -164,16 +171,24 @@ const chartData = series && {
 
   if (coliformFrame) {
     const raw = JSON.parse(coliformFrame.dataset.chart!);
-    const rows: Record<string, { samples: number; coliTested: number; coliPositive: number; chlorineMedian: number | null }> = {};
-    for (const [month, samples, coliTested, coliPositive, chlorineMedian] of raw.rows) {
-      rows[month] = { samples, coliTested, coliPositive, chlorineMedian };
+    type Row = { samples: number; coliTested: number; coliPositive: number; chlorineMedian: number | null; ecoli: number; ecoliResample: number | null };
+    const rows: Record<string, Row> = {};
+    for (const [month, samples, coliTested, coliPositive, chlorineMedian, ecoli, ecoliResample] of raw.rows) {
+      rows[month] = { samples, coliTested, coliPositive, chlorineMedian, ecoli, ecoliResample };
     }
     const months: string[] = raw.rows.map((r: any[]) => r[0]);
     const d = {
       ...raw,
       months,
       rows,
-      coliform: Object.fromEntries(months.map((k) => [k, rows[k].coliTested ? rows[k].coliPositive / rows[k].coliTested : null]))
+      coliform: Object.fromEntries(months.map((k) => [k, rows[k].coliTested ? rows[k].coliPositive / rows[k].coliTested : null])),
+      // Marked when E. coli turned up in a routine sample or a resample.
+      ecoli: Object.fromEntries(months.filter((k) => rows[k].ecoli + (rows[k].ecoliResample ?? 0) > 0).map((k) => [k, true]))
+    };
+    const ecoliText = (r: Row) => {
+      const re = r.ecoliResample ? `${r.ecoliResample} ${r.ecoliResample === 1 ? 'resample' : 'resamples'}` : '';
+      if (!r.ecoli) return re ? `No routine samples; ${re}` : 'None';
+      return `${count(r.ecoli)} ${r.ecoli === 1 ? 'sample' : 'samples'}${re ? `, plus ${re}` : ''}`;
     };
     const values = Object.values(d.coliform).filter((v) => v != null) as number[];
     const peak = Math.max(...values, d.coliformRef);
@@ -196,10 +211,9 @@ const chartData = series && {
       tooltip: (k: string) => {
         const r = d.rows[k];
         if (!r?.samples) return noData(k);
-        const e = d.ecoli[k];
         return `<p class="tt-title">${monthLabel(k)}</p><table class="tt-table"><tbody>` +
           `<tr><th>With coliform</th><td>${count(r.coliPositive)} of ${count(r.coliTested)} (${sharePct(r.coliPositive, r.coliTested)})</td></tr>` +
-          `<tr><th>With E. coli</th><td>${e ? e : 'None'}</td></tr></tbody></table>`;
+          `<tr><th>With E. coli</th><td>${ecoliText(r)}</td></tr></tbody></table>`;
       }
     });
   }

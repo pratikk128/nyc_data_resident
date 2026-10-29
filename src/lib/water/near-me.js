@@ -38,8 +38,10 @@ export function bacteriaHtml(details, range) {
     if (isDetected(d.coliform)) parts.push(`coliform ${escape(measurementText(d.coliform))}`);
     return `<li>${escape(date(d.date))}: ${parts.join(", ")} MPN/100 mL${isResample(d.sampleClass) ? " (resample)" : ""}</li>`;
   }).join("");
-  const routine = t.coliPos;
-  return `<p>Found in ${count(routine)} of ${count(t.coliN)} routine samples (${escape(range)}). ` +
+  // t counts routine samples; the list also has resamples, so they're counted alongside.
+  const resamples = found.filter((d) => isResample(d.sampleClass)).length;
+  const inResamples = resamples ? `${t.coliPos ? " and" : ", but"} in ${count(resamples)} ${resamples === 1 ? "resample" : "resamples"}` : "";
+  return `<p>Found in ${t.coliPos ? count(t.coliPos) : "none"} of ${count(t.coliN)} routine samples${inResamples} (${escape(range)}). ` +
     `Each positive sample is followed up with repeat samples.</p><ul class="water-detections">${items}</ul>`;
 }
 

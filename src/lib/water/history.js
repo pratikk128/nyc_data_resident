@@ -1,17 +1,19 @@
 /*
- * The history page's data: every month from the first to the last (gaps
- * included, as null), the two charted series, the E. coli months, and the
- * table/CSV rows. Built on the server from the monthly and detections jobs and
+ * The history subsection's data: every complete month from the first to the
+ * latest complete one (gaps included, as null), the two charted series, the
+ * E. coli detections by month, and the table/CSV rows. A month still loading
+ * is left out. Built on the server from the monthly and detections jobs and
  * handed to the chart script as JSON.
  */
-import { nextMonth, hasEcoli } from "./stats.js";
+import { nextMonth, hasEcoli, isResample, completeMonths } from "./stats.js";
 
 export function historySeries(monthly, detections = []) {
-  const byMonth = new Map(monthly.months.map((m) => [m.month, m]));
+  const have = completeMonths(monthly);
+  const byMonth = new Map(have.map((m) => [m.month, m]));
   const months = [];
-  if (monthly.months.length) {
-    const last = monthly.months[monthly.months.length - 1].month;
-    for (let k = monthly.months[0].month; k <= last; k = nextMonth(k)) months.push(k);
+  if (have.length) {
+    const last = have[have.length - 1].month;
+    for (let k = have[0].month; k <= last; k = nextMonth(k)) months.push(k);
   }
   const coliform = {}, chlorine = {};
   for (const k of months) {
@@ -19,12 +21,14 @@ export function historySeries(monthly, detections = []) {
     coliform[k] = m?.coli.n ? m.coli.pos / m.coli.n : null;
     chlorine[k] = m?.cl.med ?? null;
   }
-  // E. coli markers come from every sample class, so a resample positive shows too.
+  // Every E. coli detection in those months, any sample class, for the list.
   const ecoli = {};
   for (const d of detections.filter(hasEcoli)) {
     const k = d.date.slice(0, 7);
-    (ecoli[k] ??= []).push(d);
+    if (k >= months[0] && k <= months[months.length - 1]) (ecoli[k] ??= []).push(d);
   }
+  // Routine E. coli counts come from the monthly job, like the samples they're
+  // out of; resample positives are counted separately.
   const rows = months.map((k) => {
     const m = byMonth.get(k);
     return {
@@ -32,7 +36,8 @@ export function historySeries(monthly, detections = []) {
       samples: m?.n ?? 0,
       coliTested: m?.coli.n ?? 0,
       coliPositive: m?.coli.pos ?? 0,
-      ecoliPositive: ecoli[k]?.length ?? 0,
+      ecoliPositive: m?.ecoli.pos ?? 0,
+      ecoliResample: (ecoli[k] ?? []).filter((d) => isResample(d.sampleClass)).length,
       chlorineMedian: m?.cl.med ?? null
     };
   });
@@ -41,12 +46,13 @@ export function historySeries(monthly, detections = []) {
 
 const pctText = (share) => (share == null ? "" : (share * 100).toFixed(2));
 
+// rows: from historySeries; ecoliResample null when the detections didn't load.
 export function historyCsvHref(rows) {
   const csv = [
-    "month,routine_samples,coliform_tested,coliform_positive,coliform_positive_pct,ecoli_positive_all_classes,median_free_chlorine_mg_l",
+    "month,routine_samples,coliform_tested,coliform_positive,coliform_positive_pct,ecoli_positive,ecoli_positive_resamples,median_free_chlorine_mg_l",
     ...rows.map((r) => [
       r.month, r.samples, r.coliTested, r.coliPositive,
-      pctText(r.coliTested ? r.coliPositive / r.coliTested : null), r.ecoliPositive, r.chlorineMedian ?? ""
+      pctText(r.coliTested ? r.coliPositive / r.coliTested : null), r.ecoliPositive, r.ecoliResample ?? "", r.chlorineMedian ?? ""
     ].join(","))
   ].join("\n");
   return `data:text/csv;charset=utf-8,${encodeURIComponent(csv + "\n")}`;

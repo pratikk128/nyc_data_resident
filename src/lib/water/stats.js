@@ -123,23 +123,31 @@ export const STATUS_TEXT = {
 const fmt = (v, digits = 2) => (v == null ? "–" : String(Number(v.toFixed(digits))));
 const samples = (k) => `${count(k)} ${k === 1 ? "sample" : "samples"}`;
 
+const resamples = (k) => `${count(k)} ${k === 1 ? "resample" : "resamples"}`;
+
 /*
  * The four or five report card tiles for one month (normalized).
- * Each: { key, label, status, value, valueLabel, sentence }
+ * resampleEcoli: E. coli detections in that month's resamples, which the
+ * month's routine counts leave out. Each: { key, label, status, value, valueLabel, sentence }
  */
-export function reportCard(m) {
+export function reportCard(m, { resampleEcoli = 0 } = {}) {
   const tiles = [];
 
   const ecoliClean = m.ecoli.n - m.ecoli.pos;
+  // With resample detections too, say which samples each count is out of.
+  const tested = resampleEcoli ? `${count(m.ecoli.n)} routine ${m.ecoli.n === 1 ? "sample" : "samples"}` : samples(m.ecoli.n);
+  const inResamples = resampleEcoli ? `${m.ecoli.pos ? " and" : ", but"} in ${resamples(resampleEcoli)}` : "";
   tiles.push({
     key: "ecoli",
     label: "E. coli",
-    status: m.ecoli.n ? (m.ecoli.pos ? "amber" : "green") : "none",
+    status: m.ecoli.pos || resampleEcoli ? "amber" : m.ecoli.n ? "green" : "none",
     value: sharePct(ecoliClean, m.ecoli.n),
-    valueLabel: "of samples clear",
-    sentence: !m.ecoli.n ? "No E. coli results this month."
-      : `A sign of sewage. ${m.ecoli.pos ? `Found in ${m.ecoli.pos} of ${samples(m.ecoli.n)}; details below.`
-        : `Found in none of ${samples(m.ecoli.n)}.`}`
+    valueLabel: resampleEcoli ? "of routine samples clear" : "of samples clear",
+    sentence: !m.ecoli.n
+      ? `No routine E. coli results this month${resampleEcoli ? `, but it was found in ${resamples(resampleEcoli)}; details below` : ""}.`
+      : `A sign of sewage. ${m.ecoli.pos || resampleEcoli
+        ? `Found in ${m.ecoli.pos ? count(m.ecoli.pos) : "none"} of ${tested}${inResamples}; details below.`
+        : `Found in none of ${tested}.`}`
   });
 
   const coliClean = m.coli.n - m.coli.pos;
@@ -208,10 +216,11 @@ export function verdict(tiles) {
 }
 
 /*
- * One sentence for the history subsection:
+ * One sentence for the history subsection, over complete months only:
  * "Since January 2015, 99.6% of 160,312 routine samples had no coliform bacteria, and E. coli turned up in 6."
+ * resampleEcoli: E. coli detections in resamples over the same months.
  */
-export function historyTakeaway(months) {
+export function historyTakeaway(months, resampleEcoli = 0) {
   if (!months.length) return "";
   let tested = 0, pos = 0, ecoli = 0;
   for (const m of months) { tested += m.coli.n; pos += m.coli.pos; ecoli += m.ecoli.pos; }
@@ -219,9 +228,17 @@ export function historyTakeaway(months) {
   const first = monthLabel(months[0].month);
   const years = Math.round((months.length + missingMonths(months).length) / 12);
   const span = years >= 2 ? `Over ${years} years (since ${first})` : `Since ${first}`;
-  const e = ecoli === 0 ? "and none had E. coli"
-    : `and E. coli turned up in ${count(ecoli)} (${sharePct(ecoli, tested)})`;
+  const e = ecoli === 0
+    ? `and none had E. coli${resampleEcoli ? ` (it turned up in ${resamples(resampleEcoli)})` : ""}`
+    : `and E. coli turned up in ${count(ecoli)} (${sharePct(ecoli, tested)})${resampleEcoli ? `, plus ${resamples(resampleEcoli)}` : ""}`;
   return `${span}, ${sharePct(tested - pos, tested)} of ${count(tested)} routine samples were free of coliform bacteria, ${e}.`;
+}
+
+// The months the history covers: through the latest complete one, so a month
+// still loading can't spike the line or flip a title. monthly: the monthly job.
+export function completeMonths(monthly) {
+  const last = monthly?.completeMonth;
+  return last ? monthly.months.filter((m) => m.month <= last) : [];
 }
 
 /*
@@ -254,6 +271,9 @@ export function normalizeDetection(row) {
 export const hasEcoli = (d) => isDetected(d.ecoli);
 
 export const isResample = (sampleClass) => /resample/i.test(sampleClass ?? "");
+
+// E. coli detections in resamples: listed with the rest, but not in the routine counts.
+export const resampleEcoli = (detections) => detections.filter((d) => hasEcoli(d) && isResample(d.sampleClass));
 
 // ---------- Places ----------
 

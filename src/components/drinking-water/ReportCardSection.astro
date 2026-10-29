@@ -5,7 +5,7 @@
  * from the daily monthly and detections jobs (src/lib/server/water.js).
  */
 import HistorySection from './HistorySection.astro';
-import { reportCard, verdict, monthLabel, hasEcoli, isResample, plainDescription, followUpText, STATUS_TEXT } from '../../lib/water/stats.js';
+import { reportCard, verdict, monthLabel, hasEcoli, isResample, resampleEcoli, plainDescription, followUpText, STATUS_TEXT } from '../../lib/water/stats.js';
 import { boroughLabel } from '../../lib/water/config.js';
 import { measurementText } from '../../lib/water/parse.js';
 import { count, date } from '../../lib/format.js';
@@ -27,11 +27,15 @@ const where = (code: string) => {
 };
 
 const month = monthly?.completeMonth ? monthly.months.find((m: any) => m.month === monthly.completeMonth) : null;
-const tiles = month ? reportCard(month) : [];
-const headline = month ? verdict(tiles) : null;
 const ecoliAll = (detections?.detections ?? []).filter(hasEcoli);
 const ecoliThisMonth = month ? ecoliAll.filter((d: any) => d.date.startsWith(month.month)) : [];
+// The tiles count routine samples; resample positives are listed below, so the E. coli tile counts them too.
+const tiles = month ? reportCard(month, { resampleEcoli: resampleEcoli(ecoliThisMonth).length }) : [];
+const headline = month ? verdict(tiles) : null;
 const lastEcoli = ecoliAll[0] ?? null; // newest first
+// Months after the report card's that are still loading, left out of the history.
+const loading: string[] = month ? monthly.months.map((m: any) => m.month).filter((k: string) => k > month.month) : [];
+const ecoliLoading = ecoliAll.filter((d: any) => d.date.slice(0, 7) > (month?.month ?? '9999'));
 const lastEcoliBorough = lastEcoli ? sites.get(lastEcoli.site)?.borough : null;
 const ICON = { green: '✓', amber: '!', red: '✕', none: '–' };
 ---
@@ -120,9 +124,12 @@ const ICON = { green: '✓', amber: '!', red: '✕', none: '–' };
         )
       )}
 
-      {monthly.completeMonth !== monthly.months[monthly.months.length - 1]?.month && (
+      {loading.length > 0 && (
         <p class="water-note">
-          {monthLabel(monthly.months[monthly.months.length - 1].month)} samples are still coming in.
+          {new Intl.ListFormat('en', { type: 'conjunction' }).format(loading.map((k) => monthLabel(k)))} samples are
+          still coming in, so {loading.length === 1 ? "it's" : "they're"} not in the report card or the history yet.
+          {ecoliLoading.length > 0 && <> E. coli has turned up in {ecoliLoading.length} {ecoliLoading.length === 1 ? 'sample' : 'samples'} so far
+            (latest {date(ecoliLoading[0].date)}).</>}
         </p>
       )}
 
