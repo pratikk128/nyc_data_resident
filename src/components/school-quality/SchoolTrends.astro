@@ -6,7 +6,7 @@
  * average, similar schools and DOE rating as a table (rendered here, so they
  * read without script).
  */
-import { REPORTS, yearLabel } from '../../lib/schools/config.js';
+import { REPORTS, TYPE_BY_SLUG, yearLabel } from '../../lib/schools/config.js';
 import { METRICS } from '../../lib/schools/metrics.js';
 import { formatValue, gapYears, trendSentence, targetBand } from '../../lib/schools/values.js';
 import { trendChip } from '../../lib/schools/render.js';
@@ -17,6 +17,8 @@ interface Props {
 }
 const { report, multiple } = Astro.props;
 type ReportKey = keyof typeof REPORTS; // report is untyped, so its report code needs this to index REPORTS
+// The NYC average is per school type: "middle schools", not "elementary and middle schools".
+const peers = TYPE_BY_SLUG[report.type]?.plural ?? REPORTS[report.report as ReportKey].plural;
 const byId = Object.fromEntries(METRICS.map((m) => [m.id, m]));
 const years: number[] = report.years;
 const charts = report.metrics.map((entry: any) => {
@@ -45,7 +47,7 @@ const hasSimilar = (entry: any, years: number[]) => years.some((y) => entry.poin
     </p>
     <ul class="legend sq-legend" aria-hidden="true">
       <li><span class="swatch sq-swatch-school"></span>This school</li>
-      <li><span class="swatch sq-swatch-city"></span>NYC average for {REPORTS[report.report as ReportKey].plural}</li>
+      <li><span class="swatch sq-swatch-city"></span>NYC average for {peers}</li>
     </ul>
   </div>
 

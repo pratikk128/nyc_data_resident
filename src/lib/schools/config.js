@@ -49,14 +49,14 @@ export const REPORT_ORDER = ["HS", "EMS", "HST", "EC", "D75", "YABC"];
 // elementary/middle report (its school_type is Elementary, Middle or K-8).
 // Early childhood school_type is the grade span (K-1, K-2, K-3).
 export const TYPES = [
-  { slug: "elementary", label: "Elementary", report: "EMS", schoolType: "Elementary", tone: "yellow" },
-  { slug: "k-8", label: "K–8", report: "EMS", schoolType: "K-8", tone: "lime" },
-  { slug: "middle", label: "Middle", report: "EMS", schoolType: "Middle", tone: "green" },
-  { slug: "high-school", label: "High school", report: "HS", tone: "blue" },
-  { slug: "transfer", label: "Transfer high school", report: "HST", tone: "teal" },
-  { slug: "early-childhood", label: "Early childhood (K–3)", report: "EC", tone: "pink" },
-  { slug: "d75", label: "District 75 (special education)", report: "D75", tone: "purple" },
-  { slug: "yabc", label: "Young Adult Borough Center", report: "YABC", tone: "orange" }
+  { slug: "elementary", label: "Elementary", plural: "elementary schools", report: "EMS", schoolType: "Elementary", tone: "yellow" },
+  { slug: "k-8", label: "K–8", plural: "K–8 schools", report: "EMS", schoolType: "K-8", tone: "lime" },
+  { slug: "middle", label: "Middle", plural: "middle schools", report: "EMS", schoolType: "Middle", tone: "green" },
+  { slug: "high-school", label: "High school", plural: "high schools", report: "HS", tone: "blue" },
+  { slug: "transfer", label: "Transfer high school", plural: "transfer high schools", report: "HST", tone: "teal" },
+  { slug: "early-childhood", label: "Early childhood (K–3)", plural: "early childhood schools", report: "EC", tone: "pink" },
+  { slug: "d75", label: "District 75 (special education)", plural: "District 75 schools", report: "D75", tone: "purple" },
+  { slug: "yabc", label: "Young Adult Borough Center", plural: "Young Adult Borough Centers", report: "YABC", tone: "orange" }
 ];
 export const TYPE_BY_SLUG = Object.fromEntries(TYPES.map((t) => [t.slug, t]));
 
@@ -64,6 +64,12 @@ export function typeSlug(report, schoolType) {
   if (report === "EMS") return TYPES.find((t) => t.report === "EMS" && t.schoolType === schoolType)?.slug ?? "elementary";
   return TYPES.find((t) => t.report === report)?.slug ?? null;
 }
+
+// "02M475", "2m475", "2M5" → "02M475", "02M475", "02M005"; null if it isn't a full DBN.
+export const normalizeDbn = (value) => {
+  const m = /^(\d{1,2})([MXKQR])(\d{1,3})$/.exec(String(value ?? "").trim().toUpperCase());
+  return m ? `${m[1].padStart(2, "0")}${m[2]}${m[3].padStart(3, "0")}` : null;
+};
 
 // The DBN's third character is the borough: 02M475 → Manhattan.
 const BOROUGH_LETTERS = { M: "Manhattan", X: "Bronx", K: "Brooklyn", Q: "Queens", R: "Staten Island" };

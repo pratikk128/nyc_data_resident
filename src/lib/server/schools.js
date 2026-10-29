@@ -7,8 +7,10 @@
  * once a year, so a daily job keeps a small index in KV for the browse page:
  * every school's latest report types, name, location (joined from
  * src/data/school-locations.json by DBN), the card and sort metrics for its
- * latest year, and the NYC average of every curated metric for every year,
- * weighted by number_of_students (computed by Socrata). Browse searches
+ * latest year, and the NYC average of every curated metric for every year
+ * and school type, weighted by number_of_students (computed by Socrata).
+ * Elementary, middle and K-8 schools share one report but get their own
+ * averages, so a middle school isn't compared with elementary grades. Browse searches
  * filter that index in the Worker.
  *
  * A school page reads that school's curated metrics for every year live, by
@@ -46,11 +48,11 @@ export const metadataJob = {
  *               types: [type slug] from its newest year's reports,
  *               reports: [{ report, schoolType, type, year }],   newest year first, card report first
  *               values: { [metric id]: { v, s, y } } }],
- *   cityAvg: { [report]: { [metric id]: { [year]: value } } }
+ *   cityAvg: { [type slug]: { [metric id]: { [year]: value } } }
  * }
  */
 export const indexJob = {
-  key: "schools:index:v2", // v2: types from the newest year only
+  key: "schools:index:v3", // v2: types from the newest year only; v3: NYC averages per school type
   maxAgeHours: MAX_AGE_HOURS,
   async run() {
     const [reportRows, nameRows, cityRows] = await Promise.all([
@@ -65,10 +67,10 @@ export const indexJob = {
         $limit: String(ROW_LIMIT)
       }, { timeoutMs: QUERY_TIMEOUT_MS }),
       soql(DATASET_ID, {
-        $select: "report_type, school_year, metric_variable_name, " +
+        $select: "report_type, school_type, school_year, metric_variable_name, " +
           "sum(metric_value * number_of_students) AS weighted, sum(number_of_students) AS students",
         $where: `metric_variable_name in (${inList(METRIC_KEYS)}) AND metric_value IS NOT NULL AND number_of_students > 0`,
-        $group: "report_type, school_year, metric_variable_name",
+        $group: "report_type, school_type, school_year, metric_variable_name",
         $limit: String(ROW_LIMIT)
       }, { timeoutMs: QUERY_TIMEOUT_MS })
     ]);
@@ -129,14 +131,25 @@ export const indexJob = {
       }
     }
 
-    const cityAvg = {};
+    // Summed per type slug before dividing: early childhood's K-1, K-2 and K-3 are one type.
+    const sums = {};
     for (const r of cityRows) {
       const students = toNumber(r.students), weighted = toNumber(r.weighted);
-      if (!students || weighted == null) continue;
+      const type = typeSlug(r.report_type, r.school_type);
+      if (!students || weighted == null || !type) continue;
       for (const m of METRICS) {
         if (m.key !== r.metric_variable_name || !m.reports.includes(r.report_type) || m.field) continue;
-        const byMetric = (cityAvg[r.report_type] ??= {})[m.id] ??= {};
-        byMetric[r.school_year] = normalize(m, weighted / students);
+        const sum = ((sums[type] ??= {})[m.id] ??= {})[r.school_year] ??= { m, weighted: 0, students: 0 };
+        sum.weighted += weighted;
+        sum.students += students;
+      }
+    }
+    const cityAvg = {};
+    for (const [type, byMetric] of Object.entries(sums)) {
+      for (const [id, byYear] of Object.entries(byMetric)) {
+        for (const [year, { m, weighted, students }] of Object.entries(byYear)) {
+          ((cityAvg[type] ??= {})[id] ??= {})[year] = normalize(m, weighted / students);
+        }
       }
     }
 
@@ -179,12 +192,6 @@ export async function loadSearch(query, { view = "list" } = {}, requestUrl, ctx,
   }, ctx);
 }
 
-// "02M475", "2m475" → "02M475"; null if it isn't a full DBN.
-export const normalizeDbn = (value) => {
-  const m = /^(\d{1,2})([MXKQR])(\d{1,3})$/.exec(String(value ?? "").trim().toUpperCase());
-  return m ? `${m[1].padStart(2, "0")}${m[2]}${m[3].padStart(3, "0")}` : null;
-};
-
 /*
  * Everything a school page shows: the index record plus, per report, each
  * curated metric with a value in any year: { id, points: { [year]:
@@ -212,7 +219,7 @@ export async function schoolDetail(dbn, index) {
         if (row.metric_variable_name === m.key && !(Number(row.school_year) < m.firstYear)) points[row.school_year] = pointFromRow(m, row);
       }
       if (!Object.values(points).some((p) => p.v != null)) continue;
-      metrics.push({ id: m.id, points, city: m.field ? {} : index.cityAvg?.[r.report]?.[m.id] ?? {}, trend: trend(m, points) });
+      metrics.push({ id: m.id, points, city: m.field ? {} : index.cityAvg?.[r.type]?.[m.id] ?? {}, trend: trend(m, points) });
     }
     return { ...r, years, metrics };
   });

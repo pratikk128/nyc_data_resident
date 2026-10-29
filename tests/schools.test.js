@@ -8,7 +8,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { typeSlug, boroughFromDbn, districtFromDbn, yearLabel, REPORTS, TYPES } from "../src/lib/schools/config.js";
+import { typeSlug, boroughFromDbn, districtFromDbn, yearLabel, normalizeDbn, REPORTS, TYPES } from "../src/lib/schools/config.js";
 import { METRICS, METRIC_KEYS, metricsFor, cardMetrics } from "../src/lib/schools/metrics.js";
 import {
   toNumber, normalize, pointFromRow, formatValue, targetBand, compare, verdict, trend, gapYears, latestYearWithValue
@@ -209,6 +209,15 @@ test("addresses: abbreviations, ZIPs and numbers match whole words", () => {
   assert.ok(addressMatches(words("e 4 st"), words("333 East 4 Street")));
 });
 
+test("DBNs: short or lower-case links normalize to the full DBN", () => {
+  assert.equal(normalizeDbn("02M475"), "02M475");
+  assert.equal(normalizeDbn("2M475"), "02M475");
+  assert.equal(normalizeDbn(" 2m475 "), "02M475");
+  assert.equal(normalizeDbn("2M5"), "02M005");
+  assert.equal(normalizeDbn("15k321"), "15K321");
+  for (const bad of ["M475", "02Z475", "02M4750", "123M475", "", null, undefined]) assert.equal(normalizeDbn(bad), null);
+});
+
 // ---------- Search ----------
 
 const school = (dbn, name, types, extra = {}) => ({
@@ -219,7 +228,7 @@ const school = (dbn, name, types, extra = {}) => ({
 });
 const INDEX = {
   latestYear: 2024,
-  cityAvg: { EMS: { prof_pct_ela_all: { 2024: 0.59 } } },
+  cityAvg: { elementary: { prof_pct_ela_all: { 2024: 0.59 } }, middle: { prof_pct_ela_all: { 2024: 0.45 } } },
   schools: [
     school("15K321", "P.S. 321 William Penn", ["elementary"], {
       loc: { address: "180 7 Avenue", zip: "11215", neighborhood: "Park Slope-Gowanus", lat: 40.67, lon: -73.98 },
@@ -273,7 +282,7 @@ test("search: a metric sort uses the card report's measure, and cards show it wh
   });
   const index = {
     ...INDEX,
-    cityAvg: { ...INDEX.cityAvg, HS: { chronic_absent_hs_all: { 2024: 0.35 } }, EMS: { ...INDEX.cityAvg.EMS, chronic_absent_ems_all: { 2024: 0.3 } } },
+    cityAvg: { ...INDEX.cityAvg, "high-school": { chronic_absent_hs_all: { 2024: 0.35 } }, middle: { ...INDEX.cityAvg.middle, chronic_absent_ems_all: { 2024: 0.3 } } },
     schools: [...INDEX.schools, sixTwelve]
   };
   assert.deepEqual(sortValue(sixTwelve, "absent"), { v: 0.4, higherIsBetter: false });
@@ -290,6 +299,18 @@ test("search: a metric sort uses the card report's measure, and cards show it wh
   // Elementary cards already show absenteeism: no second row.
   const ps321 = cardsHtml(r.results.filter((x) => x.dbn === "15K321"), 2024);
   assert.equal(ps321.match(/Chronic absenteeism/g).length, 1);
+});
+
+test("search: elementary, middle and K-8 cards each get their own type's NYC average", () => {
+  const middle = school("13K113", "M.S. 113 Ronald Edmonds", ["middle"], { values: { prof_pct_ela_all: { v: 0.5, s: null, y: 2024 } } });
+  const k8 = school("15K130", "P.S. 130 The Parkside", ["k-8"], { values: { prof_pct_ela_all: { v: 0.7, s: null, y: 2024 } } });
+  const index = { ...INDEX, schools: [...INDEX.schools, middle, k8] };
+  const card = (dbn) => searchSchools(index, q("all=1")).results.find((r) => r.dbn === dbn);
+  assert.deepEqual(card("15K321").city, { prof_pct_ela_all: 0.59 });
+  assert.deepEqual(card("13K113").city, { prof_pct_ela_all: 0.45 });
+  assert.deepEqual(card("15K130").city, {}); // no K-8 average: nothing to compare, not the elementary one
+  assert.match(cardsHtml([card("13K113")], 2024), /5 pts above NYC avg \(45%\)/);
+  assert.equal(searchSchools(index, q("type=middle&sort=ela")).results.find((r) => r.dbn === "13K113").sorted.city, 0.45);
 });
 
 test("search: pages clamp, map points skip schools without a location", () => {

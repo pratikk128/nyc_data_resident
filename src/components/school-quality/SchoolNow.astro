@@ -7,7 +7,7 @@
  * schools and DOE's target rating sit behind "More about this measure".
  * Context metrics (student count) are a line of text, not a tile.
  */
-import { REPORTS, yearLabel } from '../../lib/schools/config.js';
+import { REPORTS, TYPE_BY_SLUG, yearLabel } from '../../lib/schools/config.js';
 import { METRICS } from '../../lib/schools/metrics.js';
 import { formatValue, compare, verdict, trendSentence, latestYearWithValue } from '../../lib/schools/values.js';
 import { bandBadge, trendChip, vsCityText, verdictPill, VERDICTS } from '../../lib/schools/render.js';
@@ -20,6 +20,8 @@ interface Props {
 }
 const { report, multiple, newest, current } = Astro.props;
 type ReportKey = keyof typeof REPORTS; // report is untyped, so its report code needs this to index REPORTS
+// The NYC average is per school type: "middle schools", not "elementary and middle schools".
+const peers = TYPE_BY_SLUG[report.type]?.plural ?? REPORTS[report.report as ReportKey].plural;
 const past = report.year < newest;
 const heading = past ? `Its last ${REPORTS[report.report as ReportKey].noun} report`
   : current ? 'How is this school doing now?' : 'How was this school doing in its last report?';
@@ -64,14 +66,14 @@ const judged = groups.reduce((n, g) => n + g.tiles.length, 0);
     </h2>
     <p class="section-intro">
       Each measure from the school’s {yearLabel(year)} report{past && <>, its last one of this kind</>}, next to the
-      average for NYC {REPORTS[report.report as ReportKey].plural}.
+      average for NYC {peers}.
     </p>
   </div>
 
   {judged > 0 && (
     <div class="sq-summary-wrap">
       <h3 class="sq-summary-title" id={`${id}-glance`}>
-      Where this school is better or worse than the average for NYC {REPORTS[report.report as ReportKey].plural}
+      Where this school is better or worse than the average for NYC {peers}
     </h3>
     <ul class="sq-summary" aria-labelledby={`${id}-glance`}>
       {groups.map((g) => (
@@ -115,7 +117,7 @@ const judged = groups.reduce((n, g) => n + g.tiles.length, 0);
       ))}
     </ul>
   ) : (
-    <p class="sq-none">This report has none of the measures we track for {REPORTS[report.report as ReportKey].plural}.</p>
+    <p class="sq-none">This report has none of the measures we track for {peers}.</p>
   )}
 
   {context.map((t: any) => (

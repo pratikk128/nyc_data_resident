@@ -287,7 +287,7 @@ export function searchPoints(index, query) {
 
 /*
  * What a result card needs: identity, place, the card report's values and NYC
- * averages, and under a metric sort, the measure the school was sorted by
+ * averages for its school type, and under a metric sort, the measure the school was sorted by
  * (sorted: { id, city }), so the card can show it when it isn't a card measure.
  */
 export function resultRecord(s, index, sortKey = "") {
@@ -308,15 +308,15 @@ export function resultRecord(s, index, sortKey = "") {
     report: report?.report ?? null,
     year: report?.year ?? null,
     values: s.values,
-    city: index.cityAvg?.[report?.report] ? cityFor(index, report.report, report.year) : {},
-    sorted: sortedBy ? { id: sortedBy.id, city: index.cityAvg?.[sortedReport?.report]?.[sortedBy.id]?.[sortedYear] ?? null } : null
+    city: index.cityAvg?.[report?.type] ? cityFor(index, report.type, report.year) : {},
+    sorted: sortedBy ? { id: sortedBy.id, city: index.cityAvg?.[sortedReport?.type]?.[sortedBy.id]?.[sortedYear] ?? null } : null
   };
 }
 
-// { [metric id]: NYC average } for one report type and year.
-export function cityFor(index, report, year) {
+// { [metric id]: NYC average } for one school type (slug) and year.
+export function cityFor(index, type, year) {
   const out = {};
-  for (const [id, years] of Object.entries(index.cityAvg?.[report] ?? {})) {
+  for (const [id, years] of Object.entries(index.cityAvg?.[type] ?? {})) {
     if (years[year] != null) out[id] = years[year];
   }
   return out;
