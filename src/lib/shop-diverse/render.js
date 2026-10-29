@@ -10,8 +10,8 @@ import { count, money, date } from "../format.js";
 
 export const escape = (str) => String(str ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
-export const UPSTREAM_TEXT = "Couldn’t reach NYC Open Data. Their servers might be stuck behind a double-parked truck. Try again in a minute.";
-export const LOADING_TEXT = "Rounding up the shops…";
+export const UPSTREAM_TEXT = "We couldn’t reach NYC Open Data just now. Please try again in a minute.";
+export const LOADING_TEXT = "Loading businesses…";
 
 const plural = (n, one, many = `${one}s`) => `${count(n)} ${n === 1 ? one : many}`;
 

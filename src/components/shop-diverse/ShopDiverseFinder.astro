@@ -1,7 +1,8 @@
 ---
 /*
- * The Shop Diverse NYC finder: filters (who, what, where), summary chips,
- * ranked result cards and the business detail panel.
+ * The Shop Diverse NYC finder: a filter panel above the results (ownership,
+ * products and services, location), summary chips, ranked result cards and
+ * the business detail panel.
  *
  * The first view is rendered here on the server from the URL's query (see
  * src/lib/shop-diverse/filter.js for the parameters), so shared links and the
@@ -47,84 +48,88 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial) }).replace(
   <h2 class="sr-only" id="sd-find-title">Find a business</h2>
 
   <div class="sd-layout">
-    <div class="sd-filter-col">
+    <div class="sd-filter-panel">
       <button type="button" class="near-btn sd-filter-toggle" aria-expanded="false" aria-controls="sd-filters" hidden data-filter-toggle>
         <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
         Filters <span class="sd-filter-count" data-filter-count></span>
       </button>
 
       <form class="sd-filters" id="sd-filters" action={base} method="get" novalidate data-filters>
-        <fieldset class="sd-step">
-          <legend class="sd-step-title"><span class="sd-step-bullet" data-tone="pink" aria-hidden="true">1</span> Who do you want to support?</legend>
-          <div class="sd-who">
-            {(['WBE', 'MBE'] as const).map((c) => (
-              <label class="sd-who-chip" data-tone={CERTS[c].tone}>
-                <input type="checkbox" name="who" value={c.toLowerCase()} checked={who(c)} />
-                <span class="sd-who-text">
-                  <span class="sd-who-label">{CERTS[c].label} <span class="sd-who-code">({c})</span></span>
-                  <span class="sd-count" data-who-count={c}>{facets ? count(facets.who[c]) : ''}</span>
-                </span>
-              </label>
-            ))}
-          </div>
+        <div class="sd-filter-grid">
+          <fieldset class="sd-step" data-tone="pink">
+            <legend class="sd-step-title">Ownership</legend>
+            <div class="sd-who">
+              {(['WBE', 'MBE'] as const).map((c) => (
+                <label class="sd-who-chip" data-tone={CERTS[c].tone}>
+                  <input type="checkbox" name="who" value={c.toLowerCase()} checked={who(c)} />
+                  <span class="sd-who-text">
+                    <span class="sd-who-label">{CERTS[c].label} <span class="sd-who-code">({c})</span></span>
+                    <span class="sd-count" data-who-count={c}>{facets ? count(facets.who[c]) : ''}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
 
-          <fieldset class="sd-sub-fieldset" data-match hidden={!(who('WBE') && who('MBE'))}>
-            <legend class="filter-label">Show businesses that are</legend>
-            <div class="sd-radio-row">
-              <label class="pay-chip"><input type="radio" name="match" value="any" checked={query.match !== 'all'} /> Either</label>
-              <label class="pay-chip"><input type="radio" name="match" value="all" checked={query.match === 'all'} /> Both</label>
+            <fieldset class="sd-sub-fieldset" data-match hidden={!(who('WBE') && who('MBE'))}>
+              <legend class="filter-label">Show businesses that are</legend>
+              <div class="sd-radio-row">
+                <label class="pay-chip"><input type="radio" name="match" value="any" checked={query.match !== 'all'} /> Either</label>
+                <label class="pay-chip"><input type="radio" name="match" value="all" checked={query.match === 'all'} /> Both</label>
+              </div>
+            </fieldset>
+
+            <fieldset class="sd-sub-fieldset" data-eth hidden={!who('MBE')}>
+              <legend class="filter-label">Owner ethnicity <span class="field-optional">(optional, any of)</span></legend>
+              <div class="sd-radio-row" data-eth-chips set:html={facets ? ethnicityChipsHtml(facets.eth, query.eth) : ''}></div>
+            </fieldset>
+          </fieldset>
+
+          <fieldset class="sd-step" data-tone="purple">
+            <legend class="sd-step-title">Products and services</legend>
+            <div class="field">
+              <label class="filter-label" for="sd-cat">Category</label>
+              <select class="filter-select" id="sd-cat" name="cat" data-cat
+                set:html={facets ? categoryOptionsHtml(facets.categories, query.cat, 'All categories') : '<option value="">All categories</option>'}></select>
+            </div>
+            <div class="field" data-sub-field hidden={!query.cat || !facets?.subcategories.length}>
+              <label class="filter-label" for="sd-sub">Subcategory</label>
+              <select class="filter-select" id="sd-sub" name="sub" data-sub
+                set:html={facets ? categoryOptionsHtml(facets.subcategories, query.sub, 'All subcategories') : ''}></select>
+            </div>
+            <div class="field">
+              <label class="filter-label" for="sd-q">Keyword</label>
+              <input class="search-input" id="sd-q" name="q" type="search" maxlength={MAX_KEYWORD_LENGTH} value={query.q}
+                autocomplete="off" placeholder="Try “catering” or “bakery”" aria-describedby="sd-q-hint" data-q />
+              <p class="field-hint" id="sd-q-hint">Searches names, descriptions and industries.</p>
             </div>
           </fieldset>
 
-          <fieldset class="sd-sub-fieldset" data-eth hidden={!who('MBE')}>
-            <legend class="filter-label">Owner ethnicity <span class="field-optional">(optional, any of)</span></legend>
-            <div class="sd-radio-row" data-eth-chips set:html={facets ? ethnicityChipsHtml(facets.eth, query.eth) : ''}></div>
+          <fieldset class="sd-step" data-tone="green">
+            <legend class="sd-step-title">Location</legend>
+            <div class="field">
+              <label class="filter-label" for="sd-boro">Borough</label>
+              <select class="filter-select" id="sd-boro" name="boro" data-boro
+                set:html={facets ? boroughOptionsHtml(facets.boroughs, query.boro) : '<option value="">Anywhere</option>'}></select>
+            </div>
+            <div class="field">
+              <label class="filter-label" for="sd-zip">Near ZIP code <span class="field-optional">(optional)</span></label>
+              <input class="search-input" id="sd-zip" name="zip" type="text" inputmode="numeric" maxlength="5" pattern="[0-9]{5}"
+                value={query.zip} autocomplete="postal-code" placeholder="e.g. 11216" aria-describedby="sd-zip-hint" data-zip />
+              <p class="field-hint" id="sd-zip-hint">Businesses in this ZIP, then its borough, come first.</p>
+            </div>
           </fieldset>
-        </fieldset>
+        </div>
 
-        <fieldset class="sd-step">
-          <legend class="sd-step-title"><span class="sd-step-bullet" data-tone="purple" aria-hidden="true">2</span> What do you need?</legend>
-          <div class="field">
-            <label class="filter-label" for="sd-cat">Category</label>
-            <select class="filter-select" id="sd-cat" name="cat" data-cat
-              set:html={facets ? categoryOptionsHtml(facets.categories, query.cat, 'All categories') : '<option value="">All categories</option>'}></select>
-          </div>
-          <div class="field" data-sub-field hidden={!query.cat || !facets?.subcategories.length}>
-            <label class="filter-label" for="sd-sub">Subcategory</label>
-            <select class="filter-select" id="sd-sub" name="sub" data-sub
-              set:html={facets ? categoryOptionsHtml(facets.subcategories, query.sub, 'All subcategories') : ''}></select>
-          </div>
-          <div class="field">
-            <label class="filter-label" for="sd-q">Keyword</label>
-            <input class="search-input" id="sd-q" name="q" type="search" maxlength={MAX_KEYWORD_LENGTH} value={query.q}
-              autocomplete="off" placeholder="Try “catering” or “bakery”" aria-describedby="sd-q-hint" data-q />
-            <p class="field-hint" id="sd-q-hint">Searches names, descriptions and industries.</p>
-          </div>
-        </fieldset>
+        <div class="sd-filter-foot">
+          <label class="sd-lapsed" data-lapsed-wrap hidden={!query.lapsed && !facets?.lapsed}>
+            <input type="checkbox" name="lapsed" value="1" checked={query.lapsed} data-lapsed />
+            Include lapsed certifications <span class="sd-count" data-lapsed-count>{facets ? count(facets.lapsed) : ''}</span>
+          </label>
 
-        <fieldset class="sd-step">
-          <legend class="sd-step-title"><span class="sd-step-bullet" data-tone="green" aria-hidden="true">3</span> Where?</legend>
-          <div class="field">
-            <label class="filter-label" for="sd-boro">Borough</label>
-            <select class="filter-select" id="sd-boro" name="boro" data-boro
-              set:html={facets ? boroughOptionsHtml(facets.boroughs, query.boro) : '<option value="">Anywhere</option>'}></select>
+          <div class="sd-filter-actions">
+            <noscript><button type="submit" class="near-btn">Show businesses</button></noscript>
+            <a class="sd-clear" href={base} data-clear>Clear filters</a>
           </div>
-          <div class="field">
-            <label class="filter-label" for="sd-zip">Near ZIP code <span class="field-optional">(optional)</span></label>
-            <input class="search-input" id="sd-zip" name="zip" type="text" inputmode="numeric" maxlength="5" pattern="[0-9]{5}"
-              value={query.zip} autocomplete="postal-code" placeholder="e.g. 11216" aria-describedby="sd-zip-hint" data-zip />
-            <p class="field-hint" id="sd-zip-hint">Businesses in this ZIP, then its borough, come first.</p>
-          </div>
-        </fieldset>
-
-        <label class="sd-lapsed" data-lapsed-wrap hidden={!query.lapsed && !facets?.lapsed}>
-          <input type="checkbox" name="lapsed" value="1" checked={query.lapsed} data-lapsed />
-          Include lapsed certifications <span class="sd-count" data-lapsed-count>{facets ? count(facets.lapsed) : ''}</span>
-        </label>
-
-        <div class="sd-filter-actions">
-          <noscript><button type="submit" class="near-btn">Show businesses</button></noscript>
-          <a class="sd-clear" href={base} data-clear>Clear filters</a>
         </div>
       </form>
     </div>
@@ -160,8 +165,8 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial) }).replace(
         set:html={initial ? cardsHtml(initial.results, (id: string) => hrefWith({ biz: id })) : ''}></ul>
 
       <div class="sd-empty" data-empty hidden={!initial || initial.total > 0}>
-        <p class="sd-empty-title">No matches. Even the pigeons came up empty.</p>
-        <p>Try fewer filters or a shorter keyword.</p>
+        <p class="sd-empty-title">No businesses match these filters.</p>
+        <p>Try removing a filter or shortening your keyword.</p>
         <a class="near-btn" href={base} data-clear>Clear filters</a>
       </div>
 
@@ -192,7 +197,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial) }).replace(
 
   const BASE = '/shop-diverse/';
   const DEBOUNCE_MS = 350;
-  const NOT_FOUND_TEXT = 'We couldn’t find that business. It may have left the list since the link was shared.';
+  const NOT_FOUND_TEXT = 'This business is no longer on the list. It may have left since the link was shared.';
 
   const $ = <T extends Element = HTMLElement>(sel: string, root: ParentNode = document) => root.querySelector<T>(sel)!;
   const form = $<HTMLFormElement>('[data-filters]');
@@ -377,7 +382,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial) }).replace(
     if (rules) rules.open = true;
   });
 
-  // Phones: the filters live in a drawer.
+  // Phones: the filter panel collapses into a drawer.
   filterToggle.addEventListener('click', () => {
     const open = filterToggle.getAttribute('aria-expanded') !== 'true';
     filterToggle.setAttribute('aria-expanded', String(open));
@@ -385,27 +390,6 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial) }).replace(
   });
 
   // ---------- Detail ----------
-  function celebrate() {
-    let seen = false;
-    try { seen = sessionStorage.getItem('sd-celebrated') === '1'; sessionStorage.setItem('sd-celebrated', '1'); } catch { /* storage blocked */ }
-    if (seen || reducedMotion.matches) return;
-    const burst = document.createElement('div');
-    burst.className = 'sd-confetti';
-    burst.setAttribute('aria-hidden', 'true');
-    const tones = ['pink', 'purple', 'green', 'orange', 'yellow', 'blue'];
-    for (let i = 0; i < 18; i++) {
-      const dot = document.createElement('i');
-      dot.dataset.tone = tones[i % tones.length];
-      const angle = (i / 18) * Math.PI * 2;
-      const dist = 60 + (i % 3) * 30;
-      dot.style.setProperty('--dx', `${Math.cos(angle) * dist}px`);
-      dot.style.setProperty('--dy', `${Math.sin(angle) * dist - 20}px`);
-      burst.appendChild(dot);
-    }
-    $('.sd-detail-head', detailBody)?.appendChild(burst);
-    setTimeout(() => burst.remove(), 1200);
-  }
-
   function showDetailMessage(message: string) {
     current = null;
     detailBody.innerHTML = '<p class="sd-detail-error" role="alert"></p>';
@@ -417,7 +401,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial) }).replace(
     detailAbort = new AbortController();
     if (push) history.pushState({ fromList: true }, '', pageUrl(query, { biz: id }));
     detailBody.setAttribute('aria-busy', 'true');
-    detailBody.innerHTML = '<p class="sd-muted">Looking up their details…</p><div class="sk-block"></div><div class="sk-block"></div>';
+    detailBody.innerHTML = '<p class="sd-muted">Loading business details…</p><div class="sk-block"></div><div class="sk-block"></div>';
     if (!dialog.open) dialog.showModal();
     try {
       const res = await fetch(`/api/shop-diverse/business/${encodeURIComponent(id)}`, { signal: detailAbort.signal });
@@ -428,7 +412,6 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial) }).replace(
       current = data;
       detailBody.innerHTML = detailHtml(data);
       $('#sd-detail-title', detailBody).focus();
-      celebrate();
     } catch (err: any) {
       if (err.name !== 'AbortError') showDetailMessage(UPSTREAM_TEXT);
     } finally {
@@ -490,7 +473,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial) }).replace(
   });
 
   // ---------- Start ----------
-  // Phones and tablets: collapse the filters into the drawer (left open without script).
+  // Phones: collapse the filters into the drawer (left open without script).
   form.classList.add('is-collapsible');
   filterToggle.hidden = false;
   const n = activeFilterCount(query);
