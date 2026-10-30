@@ -174,20 +174,27 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
 
 <script>
   import { normalizeQuery, queryToParams, searchParams } from '../../lib/street-closures/filter.js';
-  import { suggestStreets, resolveStreet, streetLabel, streetKey } from '../../lib/street-closures/streets.js';
+  import { suggestStreets, streetLabel } from '../../lib/street-closures/streets.js';
   import {
     windowRange, windowCounts, blocksInView, purposeCounts, dailyCounts, topStreets, sortBlocks
   } from '../../lib/street-closures/closures.js';
   import {
-    cardHtml, purposeBarsHtml, stripHtml, stripReadout, postedNote, topStreetsHtml, placeText, blockTitle, escape
+    cardHtml, purposeBarsHtml, stripHtml, stripReadout, postedNote, topStreetsHtml, blockTitle, escape
   } from '../../lib/street-closures/render.js';
   import { groupLabel } from '../../lib/street-closures/purposes.js';
   import { mountClosureMap } from '../../lib/street-closures/closure-map.js';
-  import { WINDOWS, PAGE_SIZE, ERROR_TEXT, METERS_PER_MILE } from '../../lib/street-closures/config.js';
+  import { PAGE_SIZE, ERROR_TEXT, METERS_PER_MILE } from '../../lib/street-closures/config.js';
+  import {
+    viewMode, isPending, pendingText, streetQuery, boroughQuery, nearQuery, switchModeQuery, streetSearch, noStreetText,
+    nearSearch, addressOutcome, emptyHtml, widenQuery, needsLoad, summaryText, breakdownIntro, windowLabel, topNote,
+    stripNote as stripNoteText, moreText, shownFor, stripStep
+  } from '../../lib/street-closures/page-state.js';
   import { parseLocationInput, inNyc } from '../../lib/complaints311/location-input.js';
   import { resolveLocation } from '../../lib/complaints311/geocode.js';
-  import { count, date, nycToday } from '../../lib/format.js';
+  import { count, nycToday } from '../../lib/format.js';
   import zipFile from '../../data/zip-centroids.json';
+
+  // The decisions about modes, searches, widening and wording are in page-state.js, with tests.
 
   const root = document.querySelector<HTMLElement>('[data-closures]')!;
   const $ = <T extends HTMLElement = HTMLElement>(sel: string) => root.querySelector<T>(sel)!;
@@ -221,7 +228,7 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
   const map = mountClosureMap($('[data-map]'), { onPick: (seg: string) => select(seg, { fromMap: true }) });
 
   let query: any = normalizeQuery(new URLSearchParams(location.search));
-  let mode: string = query.mode === 'city' ? 'borough' : query.mode;
+  let mode: string = viewMode(query);
   // The spot's name: never in the URL, so a shared or reloaded link just says "the spot you picked".
   let placeLabel = '';
   let data: { today: string; postedThrough: string | null; blocks: any[] } | null = null;
@@ -246,7 +253,7 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
 
   window.addEventListener('popstate', () => {
     query = normalizeQuery(new URLSearchParams(location.search));
-    mode = query.mode === 'city' ? 'borough' : query.mode;
+    mode = viewMode(query);
     placeLabel = (query.mode === 'near' && history.state?.placeLabel) || '';
     fillForm();
     update();
@@ -257,10 +264,8 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
     mode = b.dataset.mode!;
     status.textContent = '';
     showPanel();
-    // Borough mode shows something at once; the others wait for a street or spot.
-    if (mode === 'borough' && query.mode !== 'borough' && query.mode !== 'city') {
-      go({ ...query, mode: boroSelect.value ? 'borough' : 'city', street: null, boro: boroSelect.value || null, lat: null, lon: null });
-    }
+    const next = switchModeQuery(query, mode, boroSelect.value);
+    if (next) go(next);
     (root.querySelector<HTMLElement>(`[data-panel="${mode}"] input, [data-panel="${mode}"] select`))?.focus();
   }));
 
@@ -270,23 +275,18 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
     showPending();
   }
 
-  // After switching to "By street" or "Near me", the last place's results are
-  // hidden (CSS, .is-pending) until a search in the new mode runs.
-  const isPending = () => mode !== (query.mode === 'city' ? 'borough' : query.mode);
+  // While pending (isPending()), the last place's results are hidden (CSS, .is-pending).
   function showPending() {
-    if (!isPending() && root.classList.contains('is-pending') && data && !root.hasAttribute('aria-busy')) {
+    if (!isPending(mode, query) && root.classList.contains('is-pending') && data && !root.hasAttribute('aria-busy')) {
       render({ refit: false }); // back to the mode on screen: its results and summary again
       map.invalidate();
     } else markPending();
   }
   function markPending() {
-    const pending = isPending();
+    const pending = isPending(mode, query);
     root.classList.toggle('is-pending', pending);
-    if (pending && mode !== 'borough') {
-      summary.textContent = mode === 'street'
-        ? 'Pick a street above to see its closures.'
-        : 'Type an address or ZIP code above, or use your location, to see closures near it.';
-    }
+    const prompt = pending && pendingText(mode);
+    if (prompt) summary.textContent = prompt;
   }
 
   function fillForm() {
@@ -341,32 +341,23 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
   });
   streetInput.addEventListener('blur', () => setTimeout(closeStreets, 150));
 
-  function pickStreet(s: (typeof streets)[number]) {
+  function pickStreet(s: { key: string; label: string | null }) {
     closeStreets();
-    streetInput.value = s.label;
+    if (s.label) streetInput.value = s.label;
     status.textContent = '';
-    go({ ...query, mode: 'street', street: s.key, boro: streetBoro.value || null, lat: null, lon: null });
+    go(streetQuery(query, s.key, streetBoro.value));
   }
 
   streetForm.addEventListener('submit', (e) => {
     e.preventDefault();
-    const text = streetInput.value.trim();
-    if (!text) { status.textContent = 'Type a street name first.'; streetInput.focus(); return; }
-    if (!streetsOk) {
-      const key = streetKey(text);
-      if (key) { closeStreets(); go({ ...query, mode: 'street', street: key, boro: streetBoro.value || null, lat: null, lon: null }); }
-      return;
-    }
-    const hit = resolveStreet(streets, text);
-    if (hit) { pickStreet(hit); return; }
-    const near = suggestStreets(streets, text, 6);
-    if (near.length) {
+    const found: any = streetSearch(streets, streetInput.value, streetsOk);
+    if (found.kind === 'empty') { status.textContent = 'Type a street name first.'; streetInput.focus(); }
+    else if (found.kind === 'go') pickStreet({ key: found.street, label: found.label });
+    else if (found.kind === 'choose') {
       status.textContent = 'A few streets match. Pick one:';
-      renderStreets(near);
+      renderStreets(found.options);
       streetInput.focus();
-    } else {
-      status.textContent = `No closures on a street called “${text}” right now. Check the spelling, or search near an address instead.`;
-    }
+    } else status.textContent = noStreetText(streetInput.value);
   });
   streetBoro.addEventListener('change', () => {
     if (query.mode === 'street') go({ ...query, boro: streetBoro.value || null });
@@ -374,63 +365,53 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
 
   // ---------- Borough ----------
   boroSelect.addEventListener('change', () => {
-    go({ ...query, mode: boroSelect.value ? 'borough' : 'city', street: null, boro: boroSelect.value || null, lat: null, lon: null });
+    go(boroughQuery(query, boroSelect.value));
   });
 
   // ---------- Near me ----------
-  const round3 = (n: number) => Math.round(n * 1e3) / 1e3;
   function usePoint(lat: number, lon: number, label: string) {
     addressChoices.hidden = true;
     status.textContent = '';
     placeLabel = label;
-    go({ ...query, mode: 'near', street: null, boro: null, lat: round3(lat), lon: round3(lon) });
+    go(nearQuery(query, lat, lon));
   }
 
-  // parseLocationInput() names boroughs the 311 way
-  const BOROUGH_CODES: Record<string, string> = { MANHATTAN: 'M', BRONX: 'X', BROOKLYN: 'B', QUEENS: 'Q', 'STATEN ISLAND': 'S' };
   let lookup = 0;
   nearForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     addressChoices.hidden = true;
     const parsed: any = parseLocationInput({ text: addressInput.value });
-    if (parsed.kind === 'empty') { status.textContent = 'Type an address or ZIP code, or use your location.'; addressInput.focus(); return; }
-    if (parsed.kind === 'error') { status.textContent = parsed.message; return; }
-    if (parsed.kind === 'borough') {
+    const next: any = nearSearch(parsed, zipFile.zips);
+    if (next.kind === 'message') { status.textContent = next.text; if (next.focus) addressInput.focus(); return; }
+    if (next.kind === 'borough') {
       mode = 'borough';
-      boroSelect.value = BOROUGH_CODES[parsed.borough];
+      boroSelect.value = next.boro;
       showPanel();
-      go({ ...query, mode: 'borough', street: null, boro: boroSelect.value, lat: null, lon: null });
+      go(boroughQuery(query, next.boro));
       return;
     }
-    if (parsed.kind === 'zip') {
-      const c = (zipFile.zips as Record<string, number[]>)[parsed.zip];
-      if (!c) { status.textContent = `We don’t have a location for ZIP ${parsed.zip}. Try an address in it.`; return; }
-      usePoint(c[0], c[1], `the middle of ZIP ${parsed.zip}`);
-      return;
-    }
+    if (next.kind === 'point') { usePoint(next.lat, next.lon, next.label); return; }
     status.textContent = 'Looking up that address…';
     const id = ++lookup;
     let result: any;
     try {
-      result = await resolveLocation(parsed);
+      result = addressOutcome(await resolveLocation(parsed));
     } catch {
       if (id === lookup) status.textContent = 'Couldn’t reach the address lookup. Try again in a minute, or use your location.';
       return;
     }
     if (id !== lookup) return;
-    if (result.status === 'resolved') { usePoint(result.location.lat, result.location.lon, result.location.label); return; }
-    if (result.status === 'choose') {
-      status.textContent = result.reason === 'ambiguous' ? 'That could be a few places. Which one?' : 'No exact match. Did you mean one of these?';
-      addressChoices.innerHTML = result.suggestions.map((p: any, i: number) =>
+    if (result.kind === 'point') { usePoint(result.lat, result.lon, result.label); return; }
+    status.textContent = result.text;
+    if (result.kind === 'choose') {
+      addressChoices.innerHTML = result.choices.map((p: any, i: number) =>
         `<button type="button" class="pay-chip" data-pick="${i}">${escape(p.label)}</button>`).join('');
       addressChoices.hidden = false;
       addressChoices.querySelectorAll<HTMLButtonElement>('[data-pick]').forEach((b) => b.addEventListener('click', () => {
-        const p = result.suggestions[Number(b.dataset.pick)];
+        const p = result.choices[Number(b.dataset.pick)];
         usePoint(p.lat, p.lon, p.label);
       }));
-      return;
     }
-    status.textContent = 'No matches. Try a nearby ZIP code or fewer words.';
   });
 
   locateBtn.addEventListener('click', () => {
@@ -474,18 +455,16 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
     if (!a || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || (e as MouseEvent).button !== 0) return;
     e.preventDefault();
     mode = 'street';
-    go({ ...query, mode: 'street', street: a.dataset.street, boro: a.dataset.boro || null, lat: null, lon: null });
+    go(streetQuery(query, a.dataset.street, a.dataset.boro));
     fillForm();
     document.getElementById('results')!.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
   empty.addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-widen]');
-    if (!b) return;
-    const [k, v] = b.dataset.widen!.split(':');
-    if (k === 'r') { go({ ...query, r: Number(v) }); fillForm(); }
-    else if (k === 'when') go({ ...query, when: v });
-    else if (k === 'purpose') go({ ...query, purpose: null });
-    else if (k === 'boro') { go({ ...query, boro: null }); fillForm(); }
+    const next = b && widenQuery(query, b.dataset.widen);
+    if (!next) return;
+    go(next.query);
+    if (next.refill) fillForm();
   });
 
   // ---------- Map and list in sync ----------
@@ -497,8 +476,8 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
     // Below the two-column layout the map sits above the list, out of view.
     if (!fromMap && narrow.matches && !mapWrap.hidden) mapCol.scrollIntoView({ behavior: 'smooth', block: 'start' });
     if (fromMap) {
-      const i = sorted.findIndex((b) => b.seg === seg);
-      if (i >= shown) { shown = i + 1; drawCards(); }
+      const need = shownFor(sorted, seg, shown);
+      if (need !== shown) { shown = need; drawCards(); }
     }
     const card = cards.querySelector<HTMLElement>(`[data-seg="${CSS.escape(seg)}"]`);
     card?.classList.add('is-selected');
@@ -551,7 +530,7 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
 
   async function update() {
     const params = searchParams(query).toString();
-    if (params !== loadedFor || !data || data.today !== nycToday()) {
+    if (needsLoad(query, loadedFor, data, nycToday())) {
       const id = ++request;
       summary.textContent = 'Loading closures…';
       markPending();
@@ -584,8 +563,6 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
   }
 
   // ---------- Drawing ----------
-  const plural = (n: number, one: string, many = `${one}s`) => `${count(n)} ${n === 1 ? one : many}`;
-
   function render({ refit }: { refit: boolean }) {
     const { today, blocks, postedThrough } = data!;
     const range = windowRange(query.when, today);
@@ -597,15 +574,13 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
       b.setAttribute('aria-pressed', String(b.dataset.when === query.when));
       const n = counts[b.dataset.when!];
       b.querySelector('[data-count]')!.textContent = count(n);
-      b.setAttribute('aria-label', `${b.querySelector('.scl-window-label')!.textContent}: ${plural(n, 'closed block')}`);
+      b.setAttribute('aria-label', windowLabel(b.querySelector('.scl-window-label')!.textContent!, n));
     });
 
     const view = blocksInView(blocks, range, query.purpose);
     sorted = sortBlocks(view, today);
-    const windowName = WINDOWS.find((w) => w.key === query.when)!.label.toLowerCase();
-    const where = placeText(query, placeLabel);
-    summary.textContent = `${plural(sorted.length, 'block')} closed ${query.when === 'all' ? 'now or coming up' : query.when === 'today' ? 'today' : `at some point ${windowName}`} ${where}${query.purpose ? `, for ${groupLabel(query.purpose)!.toLowerCase()}` : ''}.`;
-    $('[data-breakdown-intro]').textContent = `Closed blocks ${where}, ${query.when === 'all' ? 'now or coming up' : windowName}.`;
+    summary.textContent = summaryText(query, sorted.length, placeLabel);
+    $('[data-breakdown-intro]').textContent = breakdownIntro(query, placeLabel);
 
     purposeChip.hidden = !query.purpose;
     if (query.purpose) $('[data-purpose-name]').textContent = groupLabel(query.purpose)!.toLowerCase();
@@ -619,42 +594,22 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
     $('[data-top-streets]').innerHTML = topStreetsHtml(topStreets(view), query);
     days = dailyCounts(blocks, today, query.purpose);
     strip.innerHTML = stripHtml(days, range, postedThrough);
-    stripNote.textContent = postedThrough && days[days.length - 1].day > postedThrough
-      ? `Hatched days come after ${date(postedThrough)}, the latest start DOT has posted, so they'll fill in as permits are added.`
-      : '';
+    stripNote.textContent = stripNoteText(days, postedThrough);
     stripDay = 0;
     readout.textContent = stripReadout(days[0], postedThrough);
-    $('[data-top-note]').textContent = query.mode === 'near'
-      ? 'Streets with the most closed blocks on or crossing them within your radius. Tap one to see the whole street.'
-      : 'Streets with the most closed blocks on or crossing them.';
+    $('[data-top-note]').textContent = topNote(query);
     markPending(); // a refresh in the background keeps the prompt
   }
 
   function drawCards() {
-    const { today } = data!;
+    const { today, blocks } = data!;
     cards.innerHTML = sorted.slice(0, shown).map((b) => cardHtml(b, today)).join('');
     if (selected) cards.querySelector(`[data-seg="${CSS.escape(selected)}"]`)?.classList.add('is-selected');
     const left = sorted.length - shown;
     more.hidden = left <= 0;
-    more.textContent = `Show ${count(Math.min(left, PAGE_SIZE))} more (${count(left)} left)`;
+    more.textContent = moreText(left, PAGE_SIZE);
     empty.hidden = sorted.length > 0;
-    if (!sorted.length) empty.innerHTML = emptyHtml();
-  }
-
-  // Nothing here: suggest the next wider view that would show something.
-  function emptyHtml() {
-    const { today, blocks } = data!;
-    const ideas: string[] = [];
-    if (query.purpose) ideas.push(`<button type="button" class="copy-link" data-widen="purpose">Show all kinds of work</button>`);
-    if (query.when !== 'all') {
-      const all = windowCounts(blocks, today, query.purpose).all;
-      if (all) ideas.push(`<button type="button" class="copy-link" data-widen="when:all">See all upcoming (${count(all)})</button>`);
-    }
-    if (query.mode === 'near' && query.r < 1) ideas.push(`<button type="button" class="copy-link" data-widen="r:1">Widen to 1 mile</button>`);
-    if (query.mode === 'street' && query.boro) ideas.push(`<button type="button" class="copy-link" data-widen="boro">Look in every borough</button>`);
-    const where = placeText(query, placeLabel);
-    return `<p><strong>Nothing closed ${where} ${query.when === 'all' ? 'now or coming up' : 'in this window'}.</strong> The asphalt gets a rest.</p>` +
-      (ideas.length ? `<p>Try a wider view:</p><div class="scl-widen">${ideas.join('')}</div>` : '');
+    if (!sorted.length) empty.innerHTML = emptyHtml(query, placeLabel, windowCounts(blocks, today, query.purpose).all);
   }
 
   // A day's count: hover, tap or drag across the strip, or the arrow keys once it has focus.
@@ -678,10 +633,10 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
   // The mouse leaving goes back to today; a tapped day stays.
   strip.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') showDay(0, { mark: false }); });
   strip.addEventListener('keydown', (e) => {
-    const step: Record<string, number> = { ArrowLeft: stripDay - 1, ArrowRight: stripDay + 1, Home: 0, End: days.length - 1 };
-    if (!(e.key in step)) return;
+    const i = stripStep(e.key, stripDay, days.length);
+    if (i == null) return;
     e.preventDefault();
-    showDay(step[e.key]);
+    showDay(i);
   });
 
   // A tab left open overnight catches up when it's looked at again.

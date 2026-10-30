@@ -1,7 +1,8 @@
 /*
  * Street Closures Near You logic: street names, purposes, building the block
  * index (dedupe, grouping, dates), time windows and their edge days, status
- * chips, distances, the summary numbers and the URL round-trip.
+ * chips, distances, the summary numbers, the URL round-trip and the page
+ * script's decisions.
  *   npm test
  */
 import { test } from "node:test";
@@ -16,6 +17,12 @@ import {
 import { distanceToLine } from "../src/lib/street-closures/geo.js";
 import { normalizeQuery, queryToParams, searchParams, selection } from "../src/lib/street-closures/filter.js";
 import { rangeLabel, blockTitle, timingText, chips, cardHtml, placeText, stripHtml, postedNote } from "../src/lib/street-closures/render.js";
+import {
+  viewMode, isPending, pendingText, streetQuery, boroughQuery, nearQuery, switchModeQuery, streetSearch, noStreetText,
+  nearSearch, addressOutcome, emptyHtml, widenQuery, needsLoad, summaryText, breakdownIntro, windowLabel, topNote,
+  stripNote, moreText, shownFor, stripStep
+} from "../src/lib/street-closures/page-state.js";
+import { parseLocationInput } from "../src/lib/complaints311/location-input.js";
 
 const TODAY = "2026-10-30"; // a Friday
 
@@ -338,4 +345,112 @@ test("URL round trip, and the API gets the place only", () => {
   assert.deepEqual(selection(q("lat=40.712&lon=-74.006")), { near: { lat: 40.712, lon: -74.006, meters: 0.5 * 1609.344 } });
   assert.equal(placeText(q("street=BROADWAY&boro=M"), ""), "on or crossing Broadway in Manhattan");
   assert.equal(placeText(q("lat=40.712&lon=-74.006&r=1"), "your location"), "within 1 mile of your location");
+});
+
+// ---------- Page script (page-state.js) ----------
+
+test("modes: all five boroughs is borough mode; switching away hides the last place until a search", () => {
+  assert.equal(viewMode(q("")), "borough");
+  assert.equal(isPending("street", q("boro=Q")), true);
+  assert.equal(isPending("borough", q("")), false);
+  assert.equal(pendingText("street"), "Pick a street above to see its closures.");
+  assert.match(pendingText("near"), /address or ZIP code/);
+  assert.equal(pendingText("borough"), null);
+  const street = q("street=BROADWAY&when=week&purpose=gas");
+  assert.deepEqual(switchModeQuery(street, "borough", "Q"), { ...street, mode: "borough", street: null, boro: "Q" },
+    "borough mode shows its menu's borough at once, window and purpose kept");
+  assert.equal(switchModeQuery(street, "borough", "").mode, "city");
+  assert.equal(switchModeQuery(q("boro=Q"), "borough", "Q"), null, "already there");
+  assert.equal(switchModeQuery(street, "near", ""), null, "near me waits for a spot");
+});
+
+test("new places: a street, a borough or a spot clears the others and rounds the spot", () => {
+  const near = q("lat=40.712&lon=-74.006&r=1&when=all");
+  assert.deepEqual(streetQuery(near, "BROADWAY", ""), { ...near, mode: "street", street: "BROADWAY", boro: null, lat: null, lon: null });
+  assert.equal(boroughQuery(near, "M").mode, "borough");
+  assert.deepEqual(nearQuery(q("street=BROADWAY"), 40.71234, -74.00611),
+    { ...q("street=BROADWAY"), mode: "near", street: null, boro: null, lat: 40.712, lon: -74.006 });
+});
+
+test("street search: picks a street, asks among several, or says none; without the list, sends the spelling", () => {
+  assert.deepEqual(streetSearch(STREETS, "  ", true), { kind: "empty" });
+  assert.deepEqual(streetSearch(STREETS, "W 8th St", true), { kind: "go", street: "WEST 8 STREET", label: "West 8th Street" });
+  assert.deepEqual(streetSearch(STREETS, "8 st", true).options.map((s) => s.key), ["EAST 8 STREET", "WEST 8 STREET"]);
+  assert.deepEqual(streetSearch(STREETS, "Nowhere Lane", true), { kind: "none" });
+  assert.deepEqual(streetSearch([], "w 8th st", false), { kind: "go", street: "WEST 8 STREET", label: null });
+  assert.deepEqual(streetSearch([], "!!", false), { kind: "empty" });
+  assert.match(noStreetText(" Nowhere Lane "), /called “Nowhere Lane” right now/);
+});
+
+test("near search: ZIPs, borough names and addresses; geocoder answers", () => {
+  const zips = { "11211": [40.71, -73.95] };
+  assert.deepEqual(nearSearch(parseLocationInput({ text: "" }), zips).focus, true);
+  assert.deepEqual(nearSearch(parseLocationInput({ text: "11211" }), zips), { kind: "point", lat: 40.71, lon: -73.95, label: "the middle of ZIP 11211" });
+  assert.match(nearSearch(parseLocationInput({ text: "10001" }), zips).text, /don’t have a location for ZIP 10001/);
+  assert.deepEqual(nearSearch(parseLocationInput({ text: "Staten Island" }), zips), { kind: "borough", boro: "S" });
+  assert.deepEqual(nearSearch(parseLocationInput({ text: "350 5th Ave, Manhattan" }), zips), { kind: "lookup" });
+
+  assert.deepEqual(addressOutcome({ status: "resolved", location: { lat: 40.7, lon: -74, label: "350 5th Ave" } }),
+    { kind: "point", lat: 40.7, lon: -74, label: "350 5th Ave" });
+  const choices = [{ lat: 40.7, lon: -74, label: "A" }];
+  assert.deepEqual(addressOutcome({ status: "choose", reason: "ambiguous", suggestions: choices }),
+    { kind: "choose", text: "That could be a few places. Which one?", choices });
+  assert.match(addressOutcome({ status: "choose", reason: "fuzzy", suggestions: choices }).text, /Did you mean/);
+  assert.equal(addressOutcome({ status: "none" }).kind, "message");
+});
+
+test("nothing here: offers only wider views that exist, and each one widens", () => {
+  const widen = (html) => [...html.matchAll(/data-widen="([^"]+)"/g)].map((m) => m[1]);
+  const street = q("street=BROADWAY&boro=M&purpose=gas");
+  assert.deepEqual(widen(emptyHtml(street, "", 4)), ["purpose", "when:all", "boro"]);
+  assert.match(emptyHtml(street, "", 4), /See all upcoming \(4\)/);
+  assert.deepEqual(widen(emptyHtml(street, "", 0)), ["purpose", "boro"], "nothing upcoming either");
+  assert.deepEqual(widen(emptyHtml(q("lat=40.712&lon=-74.006&r=0.25&when=all"), "", 0)), ["r:1"]);
+  assert.ok(!emptyHtml(q("when=all"), "", 0).includes("Try a wider view"));
+  assert.match(emptyHtml(q("lat=40.712&lon=-74.006&when=all"), "your location", 0), /Nothing closed within 0\.5 mile of your location now or coming up/);
+
+  assert.deepEqual(widenQuery(street, "purpose"), { query: { ...street, purpose: null }, refill: false });
+  assert.deepEqual(widenQuery(street, "when:all"), { query: { ...street, when: "all" }, refill: false });
+  assert.deepEqual(widenQuery(street, "boro"), { query: { ...street, boro: null }, refill: true });
+  assert.equal(widenQuery(q("lat=40.712&lon=-74.006&r=0.25"), "r:1").query.r, 1);
+  assert.equal(widenQuery(street, "when:forever"), null);
+  assert.equal(widenQuery(street, "lasers"), null);
+});
+
+test("loading: again for a new place or a new day, not for a new window or purpose", () => {
+  const data = { today: TODAY };
+  const loadedFor = searchParams(q("boro=Q")).toString();
+  assert.equal(needsLoad(q("boro=Q&when=week&purpose=gas"), loadedFor, data, TODAY), false);
+  assert.equal(needsLoad(q("boro=M"), loadedFor, data, TODAY), true);
+  assert.equal(needsLoad(q("boro=Q"), loadedFor, data, "2026-10-31"), true, "after midnight");
+  assert.equal(needsLoad(q("boro=Q"), loadedFor, null, TODAY), true);
+});
+
+test("words around the results", () => {
+  assert.equal(summaryText(q("street=BROADWAY&boro=M"), 1, ""), "1 block closed today on or crossing Broadway in Manhattan.");
+  assert.equal(summaryText(q("boro=Q&when=week&purpose=gas"), 1200, ""), "1,200 blocks closed at some point this week in Queens, for gas lines.");
+  assert.equal(summaryText(q("when=all"), 0, ""), "0 blocks closed now or coming up across all five boroughs.");
+  assert.equal(breakdownIntro(q("boro=Q&when=90d"), ""), "Closed blocks in Queens, next 90 days.");
+  assert.equal(windowLabel("Today", 1), "Today: 1 closed block");
+  assert.match(topNote(q("lat=40.712&lon=-74.006")), /within your radius/);
+  assert.doesNotMatch(topNote(q("")), /radius/);
+  const days = dailyCounts(VIEW_BLOCKS, TODAY, null, 10);
+  assert.match(stripNote(days, "2026-11-06"), /after Nov 6, 2026/);
+  assert.equal(stripNote(days, "2026-12-31"), "");
+  assert.equal(stripNote(days, null), "");
+  assert.equal(moreText(30, 25), "Show 25 more (30 left)");
+  assert.equal(moreText(3, 25), "Show 3 more (3 left)");
+});
+
+test("map pick shows enough cards; strip keys stay on the strip", () => {
+  const sorted = ["a", "b", "c", "d"].map((seg) => ({ seg }));
+  assert.equal(shownFor(sorted, "d", 2), 4);
+  assert.equal(shownFor(sorted, "a", 2), 2);
+  assert.equal(shownFor(sorted, "zz", 2), 2);
+  assert.equal(stripStep("ArrowRight", 0, 60), 1);
+  assert.equal(stripStep("ArrowLeft", 0, 60), 0);
+  assert.equal(stripStep("ArrowRight", 59, 60), 59);
+  assert.equal(stripStep("End", 3, 60), 59);
+  assert.equal(stripStep("Home", 30, 60), 0);
+  assert.equal(stripStep("Enter", 3, 60), null);
 });
