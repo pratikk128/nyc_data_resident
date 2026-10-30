@@ -36,14 +36,14 @@ function tagsHtml(services) {
     (rest > 0 ? `<li class="hn-tag-more">+${rest} more</li>` : "") + `</ul>`;
 }
 
-// One result. s: a site with .miles.
+// One result. s: a site, with .miles near a spot (none for a whole borough).
 export function cardHtml(s) {
   const phone = s.phone
     ? `<a class="hn-action" href="tel:${escape(s.phone.tel)}" aria-label="Call ${escape(s.name)} at ${escape(s.phone.display)}">Call ${escape(s.phone.display)}</a>`
     : `<span class="hn-action is-missing">${PHONE_MISSING}</span>`;
   return (
     `<li class="hn-card" data-id="${escape(s.id)}" data-category="${escape(s.category)}">` +
-      `<div class="hn-card-top">${badgeHtml(s.category)}<span class="hn-dist">${milesText(s.miles)}</span></div>` +
+      `<div class="hn-card-top">${badgeHtml(s.category)}${s.miles != null ? `<span class="hn-dist">${milesText(s.miles)}</span>` : ""}</div>` +
       `<h3 class="hn-card-title"><button type="button" class="hn-locate" data-locate="${escape(s.id)}" aria-label="${escape(s.name)}: show on map">${escape(s.name)}</button></h3>` +
       (s.closed ? `<p class="hn-closed">Temporarily closed</p>` : "") +
       `<p class="hn-addr">${escape(fullAddress(s))}</p>` +

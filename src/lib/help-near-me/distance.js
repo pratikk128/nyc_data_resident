@@ -5,6 +5,7 @@
  * to send, the page script to pick what to show.
  */
 import { RADII, MAX_RADIUS, FAR_PER_CATEGORY, PER_CATEGORY, CATEGORY_KEYS } from "./config.js";
+import { boroughFromZip } from "../shop-diverse/clean.js";
 
 const EARTH_RADIUS_MILES = 3958.7613;
 const RAD = Math.PI / 180;
@@ -39,6 +40,16 @@ export function sitesNear(sites, point) {
   return [...near, ...far].sort((a, b) => a.miles - b.miles);
 }
 
+/*
+ * What the API sends for a borough: every site in it (by its borough field, or
+ * its ZIP's when that's blank), A to Z by name. label: a BOROUGHS label.
+ */
+export function sitesInBorough(sites, label) {
+  return sites
+    .filter((s) => s.lat != null && s.lon != null && (s.borough ?? boroughFromZip(s.zip)) === label)
+    .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+}
+
 // "0.4 mi", "Under 0.1 mi", "12 mi"
 export function milesText(miles) {
   if (miles < 0.1) return "Under 0.1 mi";
@@ -49,7 +60,8 @@ export function milesText(miles) {
 export const radiusText = (r) => (r === 0.5 ? "½ mi" : r === 0.25 ? "¼ mi" : `${r} mi`);
 
 /*
- * The list for the chosen categories and radius. sorted: byDistance() output.
+ * The list for the chosen categories and radius. sorted: byDistance() output,
+ * or sitesInBorough() output with radius null (no distances: every site counts, in name order).
  *   pages  how many times "Show more" was pressed, plus one
  * → {
  *     radius     the radius used: the chosen one, or the next wider one with something in it
@@ -65,17 +77,18 @@ export const radiusText = (r) => (r === 0.5 ? "½ mi" : r === 0.25 ? "¼ mi" : `
 export function selectView(sorted, { categories, radius, pages = 1, perCategory = PER_CATEGORY }) {
   const chosen = new Set(categories.length ? categories : CATEGORY_KEYS);
   const pool = sorted.filter((s) => chosen.has(s.category));
-  const within = (r) => pool.filter((s) => s.miles <= r);
+  const within = (r) => (r == null ? pool : pool.filter((s) => s.miles <= r));
+  const inside = (s, r) => r == null || s.miles <= r;
 
   let used = radius, widened = null;
-  if (!within(radius).length) {
+  if (radius != null && !within(radius).length) {
     const wider = RADII.find((r) => r > radius && within(r).length);
     if (wider) { used = wider; widened = "radius"; }
     else if (pool.length) widened = "anywhere";
   }
 
   const counts = Object.fromEntries(CATEGORY_KEYS.map((k) => [k, 0]));
-  for (const s of sorted) if (s.miles <= used && !s.closed) counts[s.category]++;
+  for (const s of sorted) if (inside(s, used) && !s.closed) counts[s.category]++;
 
   const inRadius = widened === "anywhere" ? [] : within(used);
   const take = perCategory * pages;
@@ -87,7 +100,7 @@ export function selectView(sorted, { categories, radius, pages = 1, perCategory 
     if (ofKind.length > take) moreOf.push(k);
   }
   // Temporarily closed sites after the open ones.
-  list.sort((a, b) => (a.closed ? 1 : 0) - (b.closed ? 1 : 0) || a.miles - b.miles || String(a.name).localeCompare(String(b.name)));
+  list.sort((a, b) => (a.closed ? 1 : 0) - (b.closed ? 1 : 0) || (a.miles ?? 0) - (b.miles ?? 0) || String(a.name).localeCompare(String(b.name)));
 
   const missing = [...chosen]
     .filter((k) => !list.some((s) => s.category === k))

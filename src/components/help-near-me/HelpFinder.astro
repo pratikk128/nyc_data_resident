@@ -2,21 +2,22 @@
 /*
  * The help finder: an address (with suggestions) or "Use my location", then
  * the nearest help sites: category chips with counts, a radius, a map and a
- * list kept in sync.
+ * list kept in sync. Or a whole borough: every site in it, A to Z, with no
+ * radius or distances.
  *
- * The sites near a spot come from /api/help-near-me/search, once per spot;
+ * The sites come from /api/help-near-me/search, once per spot or borough;
  * the categories, radius and "Show more" are applied here
- * (src/lib/help-near-me/distance.js), so they switch at once. The spot,
- * radius and categories are in the URL (page-state.js).
+ * (src/lib/help-near-me/distance.js), so they switch at once. The spot or
+ * borough, radius and categories are in the URL (page-state.js).
  */
-import { CATEGORIES, RADII, DEFAULT_RADIUS } from '../../lib/help-near-me/config.js';
+import { CATEGORIES, RADII, DEFAULT_RADIUS, BOROUGHS } from '../../lib/help-near-me/config.js';
 import { radiusText } from '../../lib/help-near-me/distance.js';
 import { iconSvg } from '../../lib/help-near-me/render.js';
 import { pendingText } from '../../lib/help-near-me/page-state.js';
 import { MAX_INPUT_LENGTH } from '../../lib/complaints311/location-input.js';
 
 interface Props {
-  query: { r: number; cats: string[] };
+  query: { r: number; cats: string[]; boro: string | null };
 }
 const { query } = Astro.props;
 const all = query.cats.length === 0;
@@ -43,6 +44,12 @@ const all = query.cats.length === 0;
     </form>
     <div class="scl-suggest-chips" data-address-choices hidden></div>
     <p class="rest-status" role="status" aria-live="polite" data-status></p>
+    <div class="hn-boros">
+      <span class="filter-label" id="hn-boro-label">Or see everything in a borough</span>
+      <div class="hn-chips" role="group" aria-labelledby="hn-boro-label">
+        {BOROUGHS.map((b) => <button type="button" class="hn-chip hn-boro" data-boro={b.key} aria-pressed={query.boro === b.key ? 'true' : 'false'}>{b.label}</button>)}
+      </div>
+    </div>
   </section>
 
   <section class="dash-section" id="results" aria-labelledby="hn-results-title">
@@ -65,7 +72,7 @@ const all = query.cats.length === 0;
           </button>
         ))}
       </div>
-      <div class="hn-radius">
+      <div class="hn-radius" data-radius-block hidden={!!query.boro}>
         <span class="filter-label" id="hn-radius-label">How far</span>
         <div class="toggle" role="group" aria-labelledby="hn-radius-label">
           {RADII.map((r) => <button type="button" class="toggle-btn" data-radius={r} aria-pressed={(query.r ?? DEFAULT_RADIUS) === r ? 'true' : 'false'}>{radiusText(r)}</button>)}
@@ -93,19 +100,20 @@ const all = query.cats.length === 0;
       <div class="hn-map-col">
         <div class="c311-map-frame hn-map" data-map role="region" aria-label="Map of help sites. Each pin is also in the list."></div>
         <p class="hn-picked" data-picked aria-live="polite" hidden></p>
-        <p class="hn-legend"><span class="scl-key-you"></span>Your spot and radius. Pins match the colors and icons of the kinds of help above.</p>
+        <p class="hn-legend" data-legend-spot hidden={!!query.boro}><span class="scl-key-you"></span>Your spot and radius. Pins match the colors and icons of the kinds of help above.</p>
+        <p class="hn-legend" data-legend-boro hidden={!query.boro}>Pins match the colors and icons of the kinds of help above.</p>
       </div>
     </div>
   </section>
 </div>
 
 <script>
-  import { CATEGORIES, ERROR_TEXT, METERS_PER_MILE } from '../../lib/help-near-me/config.js';
+  import { CATEGORIES, ERROR_TEXT, METERS_PER_MILE, BOROUGHS } from '../../lib/help-near-me/config.js';
   import { selectView, radiusText, milesText } from '../../lib/help-near-me/distance.js';
   import { cardHtml, skeletonHtml, escape } from '../../lib/help-near-me/render.js';
   import { mountHelpMap } from '../../lib/help-near-me/help-map.js';
   import {
-    normalizeQuery, queryToParams, pointQuery, toggleCategory, summaryText, missingNotes, radiusFor, chipLabel, moreText, radiusNote, lowerFirst, pendingText
+    normalizeQuery, queryToParams, pointQuery, boroughQuery, searchKey, toggleCategory, summaryText, missingNotes, radiusFor, chipLabel, moreText, radiusNote, lowerFirst, pendingText
   } from '../../lib/help-near-me/page-state.js';
   import { nearSearch, addressOutcome } from '../../lib/location/near-search.js';
   import { parseLocationInput, isNycZip } from '../../lib/complaints311/location-input.js';
@@ -134,6 +142,7 @@ const all = query.cats.length === 0;
   const missing = $('[data-missing]');
   const picked = $('[data-picked]');
   const radiusNoteEl = $('[data-radius-note]');
+  const radiusBlock = $('[data-radius-block]');
   const narrow = matchMedia('(max-width: 1023px)'); // matches the CSS breakpoint
 
   const map = mountHelpMap($('[data-map]'), { onPick: (id: string) => select(id, { fromMap: true }) });
@@ -170,7 +179,7 @@ const all = query.cats.length === 0;
     update();
   });
 
-  const spotKey = () => (query.lat == null ? '' : `lat=${query.lat}&lon=${query.lon}`);
+  const spotKey = () => searchKey(query);
 
   // ---------- Address box with suggestions ----------
   type Option = { label: string; hint?: string; lat: number; lon: number };
@@ -246,7 +255,7 @@ const all = query.cats.length === 0;
   }
 
   // ---------- Search ----------
-  function usePoint(lat: number, lon: number, label: string) {
+  function useQuery(next: any, label: string) {
     // A suggestion or address lookup still in flight must not reopen the list or replace this spot.
     ++lookup;
     clearTimeout(timer);
@@ -257,10 +266,17 @@ const all = query.cats.length === 0;
     placeLabel = label;
     selected = null;
     show('list');
-    go(pointQuery(query, lat, lon), { reload: true });
+    go(next, { reload: true });
     // On a phone the results are below the fold.
     if (narrow.matches) document.getElementById('results')!.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
+  const usePoint = (lat: number, lon: number, label: string) => useQuery(pointQuery(query, lat, lon), label);
+  // A borough has no spot, so the address box empties.
+  function useBorough(key: string) {
+    input.value = '';
+    useQuery(boroughQuery(query, key), '');
+  }
+  root.querySelectorAll<HTMLButtonElement>('[data-boro]').forEach((b) => b.addEventListener('click', () => useBorough(b.dataset.boro!)));
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -271,10 +287,10 @@ const all = query.cats.length === 0;
     const parsed: any = parseLocationInput({ text: input.value });
     const next: any = nearSearch(parsed, zipFile.zips);
     if (next.kind === 'message') { status.textContent = next.text; if (next.focus) input.focus(); return; }
+    // A borough name alone ("Bronx"): everything in it.
     if (next.kind === 'borough') {
-      status.textContent = `${boroughLabel(next.borough)} is a big place. Add a street address or ZIP code so we can find what’s closest.`;
-      input.focus();
-      return;
+      const b = BOROUGHS.find((x) => x.label === boroughLabel(next.borough));
+      if (b) { useBorough(b.key); return; }
     }
     if (next.kind === 'point') { usePoint(next.lat, next.lon, next.label); return; }
     status.textContent = 'Looking up that address…';
@@ -375,7 +391,7 @@ const all = query.cats.length === 0;
     const s = selected ? view?.list.find((x: any) => x.id === selected) : null;
     picked.hidden = !s;
     picked.innerHTML = s
-      ? `<strong>${escape(s.name)}</strong>, ${milesText(s.miles)} away. <button type="button" class="copy-link" data-to-list>See it in the list</button>`
+      ? `<strong>${escape(s.name)}</strong>${s.miles != null ? `, ${milesText(s.miles)} away` : ''}. <button type="button" class="copy-link" data-to-list>See it in the list</button>`
       : '';
   }
 
@@ -453,15 +469,16 @@ const all = query.cats.length === 0;
   }
 
   // Only while it's on screen: Leaflet can't size a hidden map (show() draws it when it appears).
-  function drawMap(sites: any[], { radius, refit, fitTo = null }: { radius: number; refit: boolean; fitTo?: any }) {
+  // A borough has no spot or ring: the map fits its pins.
+  function drawMap(sites: any[], { radius, refit, fitTo = null }: { radius: number | null; refit: boolean; fitTo?: any }) {
     if (!showsMap()) return null;
-    const point = { lat: query.lat, lon: query.lon };
-    return map.update({ sites, point, radiusMeters: radius * METERS_PER_MILE, refit, fitTo });
+    const point = query.boro ? null : { lat: query.lat, lon: query.lon };
+    return map.update({ sites, point, radiusMeters: point && radius ? radius * METERS_PER_MILE : null, refit, fitTo });
   }
 
   async function update() {
     fillControls();
-    if (query.lat == null) {
+    if (!spotKey()) {
       layout.hidden = true;
       missing.hidden = true;
       summary.textContent = pendingText;
@@ -472,7 +489,7 @@ const all = query.cats.length === 0;
     if (key === loadedFor && data) { render({ refit: true }); return; }
     const id = ++request;
     layout.hidden = false;
-    summary.textContent = 'Looking for help nearby…';
+    summary.textContent = query.boro ? 'Looking for help in this borough…' : 'Looking for help nearby…';
     cards.innerHTML = skeletonHtml();
     empty.hidden = true;
     more.hidden = true;
@@ -481,7 +498,7 @@ const all = query.cats.length === 0;
     selected = null;
     picked.hidden = true;
     clearCounts();
-    drawMap([], { radius: query.r, refit: true });
+    drawMap([], { radius: query.boro ? null : query.r, refit: true });
     root.setAttribute('aria-busy', 'true');
     try {
       const body = await load();
@@ -508,12 +525,18 @@ const all = query.cats.length === 0;
       b.setAttribute('aria-pressed', String(b.dataset.cat === 'all' ? all : !all && query.cats.includes(b.dataset.cat))));
     root.querySelectorAll<HTMLButtonElement>('[data-radius]').forEach((b) =>
       b.setAttribute('aria-pressed', String(Number(b.dataset.radius) === query.r)));
+    root.querySelectorAll<HTMLButtonElement>('[data-boro]').forEach((b) =>
+      b.setAttribute('aria-pressed', String(b.dataset.boro === query.boro)));
+    // A borough has no distances, so no radius.
+    radiusBlock.hidden = !!query.boro;
+    $('[data-legend-spot]').hidden = !!query.boro;
+    $('[data-legend-boro]').hidden = !query.boro;
   }
 
   // ---------- Drawing ----------
   function render({ refit }: { refit: boolean }) {
     const { sites, sources } = data!;
-    view = selectView(sites, { categories: query.cats, radius: query.r, pages });
+    view = selectView(sites, { categories: query.cats, radius: query.boro ? null : query.r, pages });
 
     // Chip counts: within the radius used (the chosen one, or the wider one we fell back to).
     let total = 0;
@@ -523,12 +546,12 @@ const all = query.cats.length === 0;
       const el = root.querySelector<HTMLElement>(`[data-count="${c.key}"]`)!;
       el.textContent = count(n);
       el.hidden = false;
-      el.closest('button')!.setAttribute('aria-label', chipLabel(c.label, n));
+      el.closest('button')!.setAttribute('aria-label', chipLabel(c.label, n, query));
     }
     const allCount = root.querySelector<HTMLElement>('[data-count="all"]')!;
     allCount.textContent = count(total);
     allCount.hidden = false;
-    allCount.closest('button')!.setAttribute('aria-label', chipLabel('All kinds of help', total));
+    allCount.closest('button')!.setAttribute('aria-label', chipLabel('All kinds of help', total, query));
 
     summary.textContent = summaryText(view, query, placeLabel);
 
@@ -544,7 +567,7 @@ const all = query.cats.length === 0;
     });
 
     // Chosen kinds with nothing close, how far the nearest is, and a button to reach it.
-    const notes = missingNotes(view);
+    const notes = missingNotes(view, query);
     const broken = sources.filter((s: any) => s.error && (!query.cats.length || query.cats.includes(s.key)));
     missing.innerHTML =
       broken.map((s: any) => `<li class="hn-missing-error">${escape(CATEGORIES.find((c) => c.key === s.key)!.label)} couldn’t load right now. Try again later.</li>`).join('') +

@@ -2929,6 +2929,7 @@ a.sd-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
 .hn-search .search-input { width: 100%; min-height: 48px; font-size: 1rem; }
 .hn-search .c311-go, .hn-search .near-btn { min-height: 48px; }
 .hn-search .c311-suggest { z-index: 30; }
+.hn-boros { display: grid; gap: var(--space-2); margin-top: var(--space-4); }
 
 .hn-filters { display: grid; gap: var(--space-4); margin-top: var(--space-5); }
 .hn-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
@@ -2951,8 +2952,8 @@ a.sd-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
 .hn-chip:hover { background: var(--tone-tint, var(--yellow-tint)); }
 .hn-chip[aria-pressed="true"] { background: var(--tone-tint, var(--accent)); box-shadow: inset 0 0 0 1.5px var(--tone-deep, var(--ink)); }
 .hn-chip[aria-pressed="false"] { opacity: .85; }
-.hn-chip-all { --tone-deep: var(--ink); }
-.hn-chip-all[aria-pressed="true"] { --ink: var(--ink-on-fill); background: var(--accent); color: var(--ink); }
+.hn-chip-all, .hn-boro { --tone-deep: var(--ink); }
+.hn-chip-all[aria-pressed="true"], .hn-boro[aria-pressed="true"] { --ink: var(--ink-on-fill); background: var(--accent); color: var(--ink); }
 .hn-chip-icon {
   flex: none;
   width: 26px;
@@ -2980,7 +2981,7 @@ a.sd-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
 /* The radius the list widened to: dashed, beside the picked one, with the note saying why */
 .hn-radius .toggle-btn.is-widened { outline: 1.5px dashed var(--ink); outline-offset: -4px; }
 .hn-radius-note { font-size: .875rem; color: var(--ink-soft); }
-.hn-radius-note[hidden] { display: none; }
+.hn-radius-note[hidden], .hn-radius[hidden] { display: none; }
 
 .hn-missing {
   display: grid;
@@ -3012,6 +3013,7 @@ a.sd-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
 .hn-map { height: min(600px, calc(100vh - var(--header-h) - 100px)); margin-top: 0; isolation: isolate; }
 .hn-legend { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2); font-size: .8125rem; color: var(--ink-soft); }
 .hn-legend .scl-key-you { flex: none; }
+.hn-legend[hidden] { display: none; }
 
 /* Pins on the map (a Leaflet divIcon) */
 .hn-pin-wrap { background: none; border: 0; }

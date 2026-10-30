@@ -14,10 +14,11 @@ import {
   normalizeSnap, normalizeHomebase, normalizeDropIn, normalizeComputers, normalizeYouth, normalizeAging, normalizeNycha,
   isNychaRowKept, NORMALIZERS
 } from "../src/lib/help-near-me/normalize.js";
-import { haversineMiles, byDistance, sitesNear, selectView, milesText } from "../src/lib/help-near-me/distance.js";
+import { haversineMiles, byDistance, sitesNear, sitesInBorough, selectView, milesText } from "../src/lib/help-near-me/distance.js";
 import { geocodeMissing, lookupText } from "../src/lib/help-near-me/geocode-sites.js";
 import {
-  normalizeQuery, queryToParams, toggleCategory, summaryText, missingNotes, radiusFor, moreText, radiusNote, lowerFirst
+  normalizeQuery, queryToParams, pointQuery, boroughQuery, searchKey, toggleCategory, summaryText, missingNotes, radiusFor, chipLabel,
+  moreText, radiusNote, lowerFirst
 } from "../src/lib/help-near-me/page-state.js";
 import { cardHtml, directionsUrl } from "../src/lib/help-near-me/render.js";
 import { inCityLimits } from "../src/lib/help-near-me/in-city.js";
@@ -321,8 +322,8 @@ test("selectView: nearest per category within the radius, capped, with Show more
   assert.equal(page2.list.length, 8);
   assert.ok(!page2.more);
 
-  const snapOnly = selectView(sorted, { categories: ["snap"], radius: 5 });
-  assert.deepEqual(snapOnly.list.map((s) => s.id), ["s1", "s-far"]);
+  const snapOnly = selectView(sorted, { categories: ["snap"], radius: 2 });
+  assert.deepEqual(snapOnly.list.map((s) => s.id), ["s1"]);
   assert.deepEqual(snapOnly.missing, []);
 });
 
@@ -345,20 +346,68 @@ test("selectView: nothing inside the radius widens to the next one with somethin
   assert.deepEqual(none.missing, [{ key: "dropin", miles: null }]);
 });
 
-test("sitesNear: everything within 5 mi, plus the nearest few of a category with none that close", () => {
+test("sitesNear: everything within 2 mi, plus the nearest few of a category with none that close", () => {
   const sites = [at("o1", "older", 0.01), at("d1", "dropin", 0.2), at("d2", "dropin", 0.3), at("d3", "dropin", 0.4), at("d4", "dropin", 0.5), at("o-far", "older", 0.3)];
   const near = sitesNear(sites, SPOT);
   assert.deepEqual(near.map((s) => s.id), ["o1", "d1", "d2", "d3"], "older has one close, so its far one stays home; three nearest drop-ins");
+  // ~3.5 mi used to be inside the widest radius; now it's only sent as a far one.
+  const mid = sitesNear([at("o1", "older", 0.01), at("o-mid", "older", 0.05)], SPOT);
+  assert.ok(!mid.some((s) => s.id === "o-mid"));
+});
+
+test("sitesInBorough: by the borough field, or the ZIP's when it's blank, A to Z, no distances", () => {
+  const sites = [
+    { ...at("b", "snap", 0), name: "Bronx Works", borough: "Bronx", zip: "10457" },
+    { ...at("a", "older", 0), name: "Aging Center", borough: null, zip: "10451" },
+    { ...at("k", "snap", 0), name: "Brooklyn Site", borough: "Brooklyn", zip: "11217" },
+    { ...at("n", "snap", 0), name: "No Point", borough: "Bronx", lat: null, lon: null }
+  ];
+  const bronx = sitesInBorough(sites, "Bronx");
+  assert.deepEqual(bronx.map((s) => s.id), ["a", "b"]);
+  assert.ok(bronx.every((s) => s.miles === undefined));
+
+  const v = selectView(bronx, { categories: [], radius: null });
+  assert.equal(v.widened, null);
+  assert.equal(v.radius, null);
+  assert.deepEqual(v.list.map((s) => s.id), ["a", "b"], "every site counts, by name");
+  assert.equal(v.counts.snap, 1);
+  assert.equal(v.inRadius.length, 2);
+  const q = { boro: "bronx", r: 2 };
+  assert.equal(summaryText(v, q, ""), "2 places in the Bronx.");
+  assert.equal(missingNotes(v, q).find((n) => n.key === "dropin").text, "No Drop-In Centers listed in the Bronx.");
+  assert.equal(radiusNote(v, q), null);
+  assert.equal(chipLabel("Older Adults", 1, q), "Older Adults: 1 place in the Bronx");
+  assert.equal(chipLabel("Older Adults", 3, {}), "Older Adults: 3 places nearby");
+  assert.doesNotMatch(cardHtml({ ...bronx[0], services: [] }), /hn-dist/, "no distance on a borough card");
+
+  const many = sitesInBorough(Array.from({ length: 7 }, (_, i) => ({ ...at(`o${i}`, "older", 0), name: `Center ${i}`, borough: "Bronx" })), "Bronx");
+  const page1 = selectView(many, { categories: [], radius: null });
+  assert.equal(page1.list.length, 5);
+  assert.equal(summaryText(page1, q, ""), "7 places in the Bronx. Showing a few of each kind first, A to Z.");
 });
 
 // ---------- Page state ----------
 
 test("URL: spot rounded and kept in NYC, radius from the list, categories validated", () => {
-  const q = normalizeQuery(new URLSearchParams("lat=40.84693&lon=-73.89509&r=5&cat=snap,older,bogus"));
-  assert.deepEqual(q, { lat: 40.847, lon: -73.895, r: 5, cats: ["snap", "older"] });
-  assert.equal(queryToParams(q).toString(), "lat=40.847&lon=-73.895&r=5&cat=snap%2Colder");
-  assert.deepEqual(normalizeQuery(new URLSearchParams("lat=34&lon=-118&r=3")), { lat: null, lon: null, r: 2, cats: [] });
+  const q = normalizeQuery(new URLSearchParams("lat=40.84693&lon=-73.89509&r=1&cat=snap,older,bogus"));
+  assert.deepEqual(q, { lat: 40.847, lon: -73.895, boro: null, r: 1, cats: ["snap", "older"] });
+  assert.equal(queryToParams(q).toString(), "lat=40.847&lon=-73.895&r=1&cat=snap%2Colder");
+  assert.deepEqual(normalizeQuery(new URLSearchParams("lat=34&lon=-118&r=3")), { lat: null, lon: null, boro: null, r: 2, cats: [] });
+  assert.equal(normalizeQuery(new URLSearchParams("lat=40.847&lon=-73.895&r=5")).r, 2, "5 mi is gone: an old link gets the default");
   assert.equal(queryToParams(normalizeQuery(new URLSearchParams(""))).toString(), "");
+});
+
+test("URL: a borough instead of a spot, never both", () => {
+  const b = normalizeQuery(new URLSearchParams("boro=staten-island&lat=40.847&lon=-73.895&r=1&cat=snap"));
+  assert.deepEqual(b, { lat: null, lon: null, boro: "staten-island", r: 1, cats: ["snap"] });
+  assert.equal(queryToParams(b).toString(), "boro=staten-island&cat=snap", "no radius for a borough");
+  assert.equal(searchKey(b), "boro=staten-island");
+  assert.equal(normalizeQuery(new URLSearchParams("boro=jersey")).boro, null);
+  const p = pointQuery(b, 40.84693, -73.89509);
+  assert.equal(p.boro, null);
+  assert.equal(searchKey(p), "lat=40.847&lon=-73.895");
+  assert.deepEqual(boroughQuery(p, "bronx"), { ...p, lat: null, lon: null, boro: "bronx" });
+  assert.equal(searchKey({ lat: null, lon: null, boro: null }), "");
 });
 
 test("in the city: the outline, not the box, so New Jersey and Nassau are out", () => {
@@ -375,7 +424,7 @@ test("in the city: the outline, not the box, so New Jersey and Nassau are out", 
   };
   for (const [name, [lat, lon]] of Object.entries(inside)) assert.ok(inCityLimits(lat, lon), name);
   for (const [name, [lat, lon]] of Object.entries(outside)) assert.ok(!inCityLimits(lat, lon), name);
-  assert.deepEqual(normalizeQuery(new URLSearchParams("lat=40.7178&lon=-74.0431")), { lat: null, lon: null, r: 2, cats: [] }, "Jersey City in the URL");
+  assert.deepEqual(normalizeQuery(new URLSearchParams("lat=40.7178&lon=-74.0431")), { lat: null, lon: null, boro: null, r: 2, cats: [] }, "Jersey City in the URL");
 });
 
 test("chips: 'All' clears; toggling every kind on, or the last one off, is 'All' again", () => {
@@ -406,7 +455,7 @@ test("words: the note by the radius buttons when the list is for another radius"
   assert.equal(radiusNote(selectView(sorted, { categories: ["dropin"], radius: 2 }), { r: 2 }), null);
   assert.equal(radiusNote(selectView(sorted, { categories: ["dropin"], radius: 0.5 }), { r: 0.5 }), "Nothing within ½ mi, so showing 2 mi");
   const far = byDistance([at("d2", "dropin", 0.2)], SPOT);
-  assert.equal(radiusNote(selectView(far, { categories: ["dropin"], radius: 1 }), { r: 1 }), "Nothing within 5 mi, so showing the nearest anywhere");
+  assert.equal(radiusNote(selectView(far, { categories: ["dropin"], radius: 1 }), { r: 1 }), "Nothing within 2 mi, so showing the nearest anywhere");
 });
 
 test("words: a short label mid-sentence keeps its acronyms", () => {

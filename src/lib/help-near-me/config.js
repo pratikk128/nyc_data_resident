@@ -68,12 +68,26 @@ export const categoryOf = (key) => CATEGORIES.find((c) => c.key === key) ?? null
 export const categoryByDataset = (id) => CATEGORIES.find((c) => c.datasetId === id) ?? null;
 
 // Radius choices in miles; the URL keeps the number (?r=2).
-export const RADII = [0.5, 1, 2, 5];
+export const RADII = [0.5, 1, 2];
 export const DEFAULT_RADIUS = 2;
-export const MAX_RADIUS = 5;            // the API sends every site within this
+export const MAX_RADIUS = 2;            // the API sends every site within this
 export const FAR_PER_CATEGORY = 3;      // and, for a category with none that close, its nearest few anywhere
 export const PER_CATEGORY = 5;          // list: nearest this many per category, then "Show more" adds as many again
 export const METERS_PER_MILE = 1609.344;
+
+/*
+ * A whole borough instead of a spot: every site in it, no distances. The URL
+ * keeps the key (?boro=bronx); label is the sites' borough field; inText goes
+ * mid-sentence ("12 places in the Bronx").
+ */
+export const BOROUGHS = [
+  { key: "manhattan", label: "Manhattan", inText: "in Manhattan" },
+  { key: "bronx", label: "Bronx", inText: "in the Bronx" },
+  { key: "brooklyn", label: "Brooklyn", inText: "in Brooklyn" },
+  { key: "queens", label: "Queens", inText: "in Queens" },
+  { key: "staten-island", label: "Staten Island", inText: "on Staten Island" }
+];
+export const boroughOf = (key) => BOROUGHS.find((b) => b.key === key) ?? null;
 
 export const HOURS_MISSING = "Call ahead / hours not listed";
 export const PHONE_MISSING = "No phone listed";

@@ -41,8 +41,9 @@ function kvWith(datasets) {
   return fakeKv(entries);
 }
 
-const search = (lat, lon, clientAddress = "203.0.113.7") =>
-  GET({ url: new URL(`https://example.test/api/help-near-me/search?lat=${lat}&lon=${lon}`), locals: { cfContext: {} }, clientAddress });
+const get = (qs, clientAddress = "203.0.113.7") =>
+  GET({ url: new URL(`https://example.test/api/help-near-me/search?${qs}`), locals: { cfContext: {} }, clientAddress });
+const search = (lat, lon, clientAddress) => get(`lat=${lat}&lon=${lon}`, clientAddress);
 
 let fetches;
 beforeEach(() => {
@@ -83,6 +84,26 @@ test("all seven built: every site near the spot, at a rounded point, cached for 
   assert.ok(body.sources.every((s) => !s.error && s.updatedAt === NOW));
   // Per-directory and ETL-only fields stay off the cards.
   assert.ok(body.sites.every((s) => !("sourceUpdatedAt" in s) && !("geocoded" in s) && typeof s.miles === "number"));
+});
+
+test("a borough: every site in it, A to Z, no distances; an unknown one is a 400", async () => {
+  env.DATA_CACHE = kvWith(helpNearMeDatasets);
+
+  const res = await get("boro=bronx");
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.deepEqual(fetches, []);
+  assert.equal(body.point, null);
+  assert.equal(body.borough, "bronx");
+  assert.equal(body.sites.length, helpNearMeDatasets.length);
+  assert.ok(body.sites.every((s) => !("miles" in s)));
+  assert.deepEqual(body.sites.map((s) => s.name), [...body.sites.map((s) => s.name)].sort());
+
+  assert.deepEqual((await (await get("boro=brooklyn")).json()).sites, []);
+
+  const bad = await get("boro=hoboken");
+  assert.equal(bad.status, 400);
+  assert.deepEqual(await bad.json(), { error: "Pick one of the five boroughs." });
 });
 
 test("a client over its limit gets a 429 with words to show", async () => {
