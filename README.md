@@ -2,7 +2,7 @@
 
 **asknycdata.com** · NYC's public data, made easy to understand.
 
-Interactive dashboards for NYC residents, built on public [NYC Open Data](https://opendata.cityofnewyork.us/): a landing page plus six dashboards (restaurant inspections, 311 complaints, city payroll, drinking water, women- and minority-owned businesses, school quality).
+Interactive dashboards for NYC residents, built on public [NYC Open Data](https://opendata.cityofnewyork.us/): a landing page plus seven dashboards (restaurant inspections, 311 complaints, city payroll, drinking water, women- and minority-owned businesses, school quality, street closures).
 
 Built with [Astro](https://docs.astro.build) and deployed to Cloudflare Workers. The page's interactivity is plain vanilla JavaScript. Most pages are prerendered; pages and API routes that read live NYC Open Data run in the Worker (`export const prerender = false`).
 
@@ -22,11 +22,14 @@ src/pages/shop-diverse/    Women- and Minority-Owned Businesses (rendered on dem
 src/pages/school-quality/  NYC School Quality Explorer: browse page and /school-quality/<DBN>/ (rendered on demand)
 src/components/school-quality/  Finder, the school page's "now" and "over time" sections, method notes
 src/components/shop-diverse/  The finder (filters, results, detail panel) and method notes
-src/pages/api/            API routes (Worker): /api/restaurants/search, /api/restaurants/:camis, /api/311/*, /api/water/stations, /api/shop-diverse/*, /api/schools/search
+src/pages/street-closures/  Street Closures Near You (rendered on demand)
+src/components/street-closures/  The finder (search, window tabs, map + cards, breakdown) and method notes
+src/pages/api/            API routes (Worker): /api/restaurants/search, /api/restaurants/:camis, /api/311/*, /api/water/stations, /api/shop-diverse/*, /api/schools/search, /api/street-closures/search
 src/lib/restaurants/      Restaurant logic: SoQL builders, inspection rules, violation categories, rendering
 src/lib/complaints311/    311 logic: config, SoQL, share math, labels, input parsing, geocoding, rendering
 src/lib/shop-diverse/     Women- and minority-owned businesses logic: cleaning, ranking, filters, rendering
 src/lib/schools/          School Quality Explorer logic: curated metrics (metrics.js), values, search, charts, maps
+src/lib/street-closures/  Street closures logic: street names, purposes, blocks, windows and status, URL state, rendering, map
 src/lib/water/            Drinking water logic: reference values (config.js), lab value parser, SoQL, stats, charts, map
 src/lib/server/           Server-only: Socrata client (holds the token), caches, the data refresh pipeline (etl.js)
 src/lib/etl/              Refresh policy: cadences and when to rebuild (cadence.js), build-time snapshots (snapshots.js)
@@ -56,7 +59,7 @@ Production build: `npm run build` (output in `dist/`), preview with `npm run pre
 Live data needs no setup locally (Socrata allows anonymous requests at low volume). To use a token, copy `.dev.vars.example` to `.dev.vars` and fill in `SOCRATA_APP_TOKEN`.
 
 ```sh
-npm test             # restaurant, 311, drinking water, women- and minority-owned businesses and school quality logic tests
+npm test             # restaurant, 311, drinking water, women- and minority-owned businesses, school quality and street closures logic tests
 ```
 
 ## Deploy (Cloudflare Workers)
@@ -101,6 +104,7 @@ Each dashboard's data reaches the site one of two ways, and both are tracked in 
 | Shop Diverse | `ci93-uc8s` | biweekly | no | 7 days |
 | School Quality | `dnpx-dfnc` (+ `school-locations.json`) | yearly | no | 30 days |
 | City Payroll | `k397-673e` | yearly | no | 30 days |
+| Street Closures | `i6b5-j7bu` | weekly | no | 7 days |
 
 Cadences are `daily`, `weekly`, `biweekly`, `monthly`, `quarterly`, `yearly` and `as-needed`. Each also sets when the source counts as **late** (`overdueDays`: 3 days for daily data, 45 for monthly, 400 for yearly, never for as-needed), which is logged and reported. Every source is checked hourly whatever its cadence, so an off-schedule or as-needed update is picked up within the hour.
 
@@ -361,6 +365,27 @@ Ethnicity and gender never score. **No renewal date scores the same as a current
 **Locations.** The reports have no address. `npm run data:school-locations` rebuilds `src/data/school-locations.json` by DBN from DOE's [2019 - 2020 School Locations](https://data.cityofnewyork.us/d/wg9x-4ke6) (newest file keyed by DBN, no ZIP), with ZIPs from DCP's [Facilities Database](https://data.cityofnewyork.us/d/ji82-xba5) by BBL, then address. Schools opened since 2019–20 are matched to the Facilities Database by name within the borough, only when one facility has that name. Oct 2026: 1,978 of 2,006 schools located (all but 5 of the 1,874 with a 2024–25 report); the rest are YABCs (evening programs in host buildings) and a few new schools. 70 located schools have no ZIP.
 
 **Data quirks found (Oct 2026).** `chronic_absent_*` is the share of students with **90%+ attendance**, despite the name; we show 1 − value. `ccr_*` is 0–100 while every other percent is 0–1. State tests are missing for 2019–20 and 2020–21, and new tests started in 2022–23 (trends start there). College and career readiness exists only from 2023–24 (HS) and 2024–25 (HST). YABC reports stop after 2018–19. EC and D75 have no similar-schools averages. 315 DBNs changed names over the years. The dataset has no framework ratings, Quality Review ratings, enrollment or Economic Need Index; NYC Open Data has those only in single-year files through 2019–20, so they're left out (the page says so).
+
+## Street Closures Near You
+
+`/street-closures/` shows blocks closed for construction from NYC DOT's [Street Closures due to Construction Activities by Block](https://data.cityofnewyork.us/d/i6b5-j7bu) (`i6b5-j7bu`, ~4,500 rows, updated about weekly).
+
+**Architecture.** The dataset is small, so a job (`street-closures:blocks:v2`, rebuilt when the source changes, in `src/lib/server/street-closures.js`) keeps every block in KV (about 1 MB). `/api/street-closures/search` filters it in the Worker by street, borough or radius, keeps permits that haven't ended, and is edge-cached for an hour (keyed by place, NYC date, data version and deploy version; `CLOSURES_RATE_LIMITER` on misses). The browser gets every upcoming permit for the place and applies the time window and purpose itself (`src/lib/street-closures/closures.js`), so the tabs and filters switch without a request. The page inlines the street list for the autocomplete.
+
+**URL state** (`src/lib/street-closures/filter.js`): `street` (the matching spelling, e.g. `WEST 8 STREET`) with optional `boro`; `boro` alone; or `lat`, `lon` (3 decimals) and `r` (`0.25`, `0.5` default, `1` mile). No place means all five boroughs. Plus `when` (`today` default, `week`, `month`, `90d`, `all`) and `purpose` (a group key from `purposes.js`). A typed address never goes in the URL.
+
+**Data rules** (tested in `tests/street-closures.test.js`):
+
+- `borough_code` is `M`, `X`, `B`, `Q`, `S`: Brooklyn is `B`, not `K`.
+- Dates are midnight floating timestamps; both ends count, so a permit is active on day D when `start <= D <= end` (New York date). Ended permits stay in the dataset a few days and are dropped.
+- About 4% of rows repeat word for word under the same `uniqueid`; they're dropped.
+- A block is street + cross streets (either order) + borough. DOT's street map splits some blocks into several `segmentid`s, each with its own copy of the permit; they're merged into one block (lines combined) and the same work (dates and purpose) counts once. Counts are blocks.
+- Windows: "This week" ends Sunday, "This month" the month's last day, "Next 90 days" today + 89. Chips: Active now; Starts soon / Ending soon within 3 days; Long-running over 90 days (back-to-back permits merged).
+- Street names are matched in one spelling (`streetKey()` in `streets.js`): padding collapsed, `W 8th St` → `WEST 8 STREET`, ordinals dropped, Saint as `ST`. A street search matches the closed street or either cross street.
+- Purposes (58 DOT permit types, some cut at 40 characters, some with a `-PROTECTED` suffix) get a plain label and one of 10 groups in `purposes.js`.
+- Radius search uses the distance from the spot to the nearest point of the block's line (`geo.js`); checked against SoQL `intersects()` with a buffer polygon.
+
+Cards link to the Film Permits dashboard for the same street once a `film-permits` entry with a real `url` is in `src/data/dashboards.js` (`FILM_PERMITS_URL` in `config.js`); until then the link is left out.
 
 ## Theme
 

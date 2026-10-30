@@ -1,0 +1,618 @@
+---
+/*
+ * The street closures finder: "Where should we look?" (a street, a borough,
+ * or near a spot), then the closures for that place (time window tabs with
+ * counts, a map and cards kept in sync), then what's behind them (kind of
+ * work, closures per day, most affected streets).
+ *
+ * The street list for the autocomplete is inlined; the closures for a place
+ * come from /api/street-closures/search, once per place. The time window and
+ * purpose are applied here (src/lib/street-closures/closures.js), so the tabs
+ * switch at once. Everything is in the URL (filter.js).
+ */
+import { BOROUGHS, RADII, WINDOWS } from '../../lib/street-closures/config.js';
+import { STATE_STYLES } from '../../lib/street-closures/closure-map.js';
+import { MAX_STREET_LENGTH } from '../../lib/street-closures/filter.js';
+import { streetLabel } from '../../lib/street-closures/streets.js';
+import { date } from '../../lib/format.js';
+
+interface Props {
+  query: { mode: string; street: string | null; boro: string | null; r: number; when: string };
+  streets: { key: string; label: string; blocks: number }[];
+  dataAsOf: string | null;
+}
+const { query, streets, dataAsOf } = Astro.props;
+const mode = query.mode === 'city' ? 'borough' : query.mode;
+const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' : '1 mi');
+---
+
+<div class="scl" data-closures data-streets={JSON.stringify(streets)}>
+  <section class="dash-section" id="find" aria-labelledby="scl-find-title">
+    <header class="section-head">
+      <h2 id="scl-find-title">Where should we look?</h2>
+      <p class="section-intro">Pick a street, a borough, or a spot. We'll show every block closed for construction there.</p>
+    </header>
+
+    <div class="scl-modes">
+      <span class="filter-label" id="scl-mode-label">Find closures</span>
+      <div class="toggle" role="group" aria-labelledby="scl-mode-label">
+        <button type="button" class="toggle-btn" data-mode="street" aria-pressed={mode === 'street' ? 'true' : 'false'}>By street</button>
+        <button type="button" class="toggle-btn" data-mode="borough" aria-pressed={mode === 'borough' ? 'true' : 'false'}>By borough</button>
+        <button type="button" class="toggle-btn" data-mode="near" aria-pressed={mode === 'near' ? 'true' : 'false'}>Near me</button>
+      </div>
+    </div>
+
+    <form class="scl-form" data-panel="street" hidden={mode !== 'street'} novalidate role="search" aria-label="Find closures on a street">
+      <div class="field scl-field-main">
+        <label class="filter-label" for="scl-street">Street name</label>
+        <div class="c311-combo">
+          <input class="search-input" id="scl-street" type="text" role="combobox" aria-autocomplete="list"
+            aria-expanded="false" aria-controls="scl-street-list" aria-describedby="scl-street-hint"
+            autocomplete="off" spellcheck="false" maxlength={MAX_STREET_LENGTH}
+            placeholder="Try “Broadway” or “W 8th St”" value={query.street ? streetLabel(query.street) : ''} data-street />
+          <ul class="c311-suggest" id="scl-street-list" role="listbox" aria-label="Streets with closures" hidden data-street-list></ul>
+        </div>
+        <p class="field-hint" id="scl-street-hint">Finds blocks on the street and blocks it crosses. Only streets with a closure are suggested.</p>
+      </div>
+      <div class="field">
+        <label class="filter-label" for="scl-street-boro">Borough <span class="field-optional">(optional)</span></label>
+        <select class="filter-select" id="scl-street-boro" data-street-boro>
+          <option value="">Any borough</option>
+          {BOROUGHS.map((b) => <option value={b.value} selected={query.mode === 'street' && query.boro === b.value}>{b.label}</option>)}
+        </select>
+      </div>
+      <div class="field scl-field-go">
+        <button type="submit" class="c311-go">Show closures</button>
+      </div>
+    </form>
+
+    <div class="scl-form" data-panel="borough" hidden={mode !== 'borough'}>
+      <div class="field">
+        <label class="filter-label" for="scl-boro">Borough</label>
+        <select class="filter-select" id="scl-boro" data-boro>
+          <option value="">All five boroughs</option>
+          {BOROUGHS.map((b) => <option value={b.value} selected={query.mode === 'borough' && query.boro === b.value}>{b.label}</option>)}
+        </select>
+      </div>
+    </div>
+
+    <div class="scl-near" data-panel="near" hidden={mode !== 'near'}>
+      <form class="scl-form" data-near-form novalidate role="search" aria-label="Find closures near an address">
+        <div class="field scl-field-main">
+          <label class="filter-label" for="scl-address">Address or ZIP code</label>
+          <input class="search-input" id="scl-address" type="search" autocomplete="street-address" maxlength="120"
+            placeholder="Try “350 5th Ave, Manhattan” or “11211”" data-address />
+        </div>
+        <div class="field scl-field-go scl-near-btns">
+          <button type="submit" class="c311-go">Search here</button>
+          <button type="button" class="near-btn" data-locate-me>Use my location</button>
+        </div>
+      </form>
+      <div class="scl-suggest-chips" data-address-choices hidden></div>
+      <div class="scl-radius">
+        <span class="filter-label" id="scl-radius-label">How far</span>
+        <div class="toggle" role="group" aria-labelledby="scl-radius-label">
+          {RADII.map((r) => <button type="button" class="toggle-btn" data-radius={r} aria-pressed={query.r === r ? 'true' : 'false'}>{radiusLabel(r)}</button>)}
+        </div>
+      </div>
+    </div>
+
+    <p class="rest-status" role="status" aria-live="polite" data-status></p>
+  </section>
+
+  <section class="dash-section" id="results" aria-labelledby="scl-results-title">
+    <header class="section-head">
+      <h2 id="scl-results-title">What's closed</h2>
+      <p class="section-intro" data-summary aria-live="polite">Loading closures…</p>
+      <p class="scl-asof">
+        {dataAsOf && <>Data as of <time datetime={dataAsOf}>{date(dataAsOf)}</time>. </>}
+        Permits allow full closures, but work may happen only part of the time. Check signage on site.
+      </p>
+    </header>
+
+    <div class="scl-windows" role="group" aria-label="Time window">
+      {WINDOWS.map((w) => (
+        <button type="button" class="scl-window" data-when={w.key} aria-pressed={query.when === w.key ? 'true' : 'false'}>
+          <span class="scl-window-label">{w.label}</span>
+          <span class="scl-window-count" data-count={w.key}>–</span>
+        </button>
+      ))}
+    </div>
+
+    <p class="scl-filter-chip" data-purpose-chip hidden>
+      Only <strong data-purpose-name></strong>
+      <button type="button" class="copy-link" data-clear-purpose>Show all kinds of work</button>
+    </p>
+
+    <div class="scl-layout">
+      <div class="scl-map-col">
+        <button type="button" class="copy-link scl-map-toggle" data-map-toggle aria-expanded="true" aria-controls="scl-map-wrap">Hide map</button>
+        <div id="scl-map-wrap" class="scl-map-wrap">
+          <div class="c311-map-frame scl-map" data-map role="region" aria-label="Map of closed blocks. The list has the same closures."></div>
+          <ul class="scl-legend" aria-label="Map key">
+            {Object.entries(STATE_STYLES).map(([state, s]) => (
+              <li><span class="scl-key-line" data-state={state}></span>{s.label}</li>
+            ))}
+            <li data-key-you hidden><span class="scl-key-you"></span>Your spot and radius</li>
+          </ul>
+        </div>
+      </div>
+      <div class="scl-list-col">
+        <ol class="scl-cards" data-cards aria-label="Closed blocks"></ol>
+        <div class="scl-empty" data-empty hidden></div>
+        <button type="button" class="pager-btn scl-more" data-more hidden></button>
+      </div>
+    </div>
+  </section>
+
+  <section class="dash-section" id="breakdown" aria-labelledby="scl-breakdown-title">
+    <header class="section-head">
+      <h2 id="scl-breakdown-title">What's behind the closures</h2>
+      <p class="section-intro" data-breakdown-intro>For the place and time window above.</p>
+    </header>
+    <div class="scl-panels">
+      <div class="scl-panel">
+        <h3 class="chart-title">What's the work?</h3>
+        <p class="chart-subtitle">Closed blocks by kind of work. Tap one to see only those.</p>
+        <div data-purposes></div>
+      </div>
+      <div class="scl-panel">
+        <h3 class="chart-title">Most affected streets</h3>
+        <p class="chart-subtitle">Streets with the most closed blocks.</p>
+        <div data-top-streets></div>
+      </div>
+      <div class="scl-panel scl-panel-wide">
+        <h3 class="chart-title">Closed blocks per day, next 60 days</h3>
+        <p class="chart-subtitle">Days in the time window you picked are darker. <span class="scl-readout" data-readout aria-live="polite"></span></p>
+        <div data-strip></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+  import { normalizeQuery, queryToParams, searchParams } from '../../lib/street-closures/filter.js';
+  import { suggestStreets, resolveStreet, streetLabel } from '../../lib/street-closures/streets.js';
+  import {
+    windowRange, windowCounts, blocksInView, purposeCounts, dailyCounts, topStreets, sortBlocks
+  } from '../../lib/street-closures/closures.js';
+  import {
+    cardHtml, purposeBarsHtml, stripHtml, stripReadout, topStreetsHtml, placeText, blockTitle, escape
+  } from '../../lib/street-closures/render.js';
+  import { groupLabel } from '../../lib/street-closures/purposes.js';
+  import { mountClosureMap } from '../../lib/street-closures/closure-map.js';
+  import { WINDOWS, PAGE_SIZE, ERROR_TEXT, METERS_PER_MILE } from '../../lib/street-closures/config.js';
+  import { parseLocationInput, inNyc } from '../../lib/complaints311/location-input.js';
+  import { resolveLocation } from '../../lib/complaints311/geocode.js';
+  import { count } from '../../lib/format.js';
+  import zipFile from '../../data/zip-centroids.json';
+
+  const root = document.querySelector<HTMLElement>('[data-closures]')!;
+  const $ = <T extends HTMLElement = HTMLElement>(sel: string) => root.querySelector<T>(sel)!;
+  const streets: { key: string; label: string; blocks: number }[] = JSON.parse(root.dataset.streets!);
+
+  const status = $('[data-status]');
+  const streetForm = $<HTMLFormElement>('[data-panel="street"]');
+  const streetInput = $<HTMLInputElement>('[data-street]');
+  const streetList = $<HTMLUListElement>('[data-street-list]');
+  const streetBoro = $<HTMLSelectElement>('[data-street-boro]');
+  const boroSelect = $<HTMLSelectElement>('[data-boro]');
+  const nearForm = $<HTMLFormElement>('[data-near-form]');
+  const addressInput = $<HTMLInputElement>('[data-address]');
+  const addressChoices = $('[data-address-choices]');
+  const locateBtn = $<HTMLButtonElement>('[data-locate-me]');
+  const summary = $('[data-summary]');
+  const cards = $('[data-cards]');
+  const empty = $('[data-empty]');
+  const more = $<HTMLButtonElement>('[data-more]');
+  const purposeChip = $('[data-purpose-chip]');
+  const mapWrap = $('#scl-map-wrap');
+  const mapToggle = $<HTMLButtonElement>('[data-map-toggle]');
+  const strip = $('[data-strip]');
+  const readout = $('[data-readout]');
+
+  const map = mountClosureMap($('[data-map]'), { onPick: (seg: string) => select(seg, { fromMap: true }) });
+
+  let query: any = normalizeQuery(new URLSearchParams(location.search));
+  let mode: string = query.mode === 'city' ? 'borough' : query.mode;
+  // The spot's name: never in the URL, so a shared or reloaded link just says "the spot you picked".
+  let placeLabel = '';
+  let data: { today: string; blocks: any[] } | null = null;
+  let loadedFor = '';
+  let shown = PAGE_SIZE;
+  let selected: string | null = null;
+  let sorted: any[] = [];
+  let days: any[] = [];
+  let request = 0;
+  const cache = new Map<string, any>();
+
+  // ---------- URL ----------
+  function go(next: any, { push = true } = {}) {
+    query = next;
+    const qs = queryToParams(query).toString();
+    const url = `${location.pathname}${qs ? `?${qs}` : ''}`;
+    if (push) history.pushState(null, '', url); else history.replaceState(null, '', url);
+    update();
+  }
+
+  window.addEventListener('popstate', () => {
+    query = normalizeQuery(new URLSearchParams(location.search));
+    mode = query.mode === 'city' ? 'borough' : query.mode;
+    if (query.mode !== 'near') placeLabel = '';
+    fillForm();
+    update();
+  });
+
+  // ---------- Search modes ----------
+  root.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach((b) => b.addEventListener('click', () => {
+    mode = b.dataset.mode!;
+    status.textContent = '';
+    showPanel();
+    // Borough mode shows something at once; the others wait for a street or spot.
+    if (mode === 'borough' && query.mode !== 'borough' && query.mode !== 'city') {
+      go({ ...query, mode: boroSelect.value ? 'borough' : 'city', street: null, boro: boroSelect.value || null, lat: null, lon: null });
+    }
+    (root.querySelector<HTMLElement>(`[data-panel="${mode}"] input, [data-panel="${mode}"] select`))?.focus();
+  }));
+
+  function showPanel() {
+    root.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
+    root.querySelectorAll<HTMLElement>('[data-panel]').forEach((p) => (p.hidden = p.dataset.panel !== mode));
+  }
+
+  function fillForm() {
+    showPanel();
+    streetInput.value = query.mode === 'street' ? streetLabel(query.street) : '';
+    streetBoro.value = query.mode === 'street' ? query.boro ?? '' : '';
+    boroSelect.value = query.mode === 'borough' ? query.boro : '';
+    root.querySelectorAll<HTMLButtonElement>('[data-radius]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.radius) === query.r)));
+    closeStreets();
+  }
+
+  // ---------- Street autocomplete ----------
+  let options: typeof streets = [];
+  let active = -1;
+
+  function renderStreets(list: typeof streets) {
+    options = list;
+    active = -1;
+    streetList.innerHTML = list.map((s, i) =>
+      `<li role="option" id="scl-opt-${i}" aria-selected="false" class="c311-option" data-i="${i}">` +
+      `<span>${escape(s.label)}</span><span class="c311-option-hint">${count(s.blocks)} closed ${s.blocks === 1 ? 'block' : 'blocks'}</span></li>`).join('');
+    streetList.hidden = !list.length;
+    streetInput.setAttribute('aria-expanded', String(list.length > 0));
+    streetInput.removeAttribute('aria-activedescendant');
+  }
+  const closeStreets = () => renderStreets([]);
+
+  function highlightOption(i: number) {
+    active = i;
+    streetList.querySelectorAll('[role="option"]').forEach((el, j) => el.setAttribute('aria-selected', String(j === i)));
+    if (i >= 0) {
+      streetInput.setAttribute('aria-activedescendant', `scl-opt-${i}`);
+      streetList.children[i]?.scrollIntoView({ block: 'nearest' });
+    } else streetInput.removeAttribute('aria-activedescendant');
+  }
+
+  streetInput.addEventListener('input', () => {
+    status.textContent = '';
+    renderStreets(streetInput.value.trim().length >= 1 ? suggestStreets(streets, streetInput.value) : []);
+  });
+  streetInput.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' && options.length) { e.preventDefault(); highlightOption(Math.min(active + 1, options.length - 1)); }
+    else if (e.key === 'ArrowUp' && options.length) { e.preventDefault(); highlightOption(Math.max(active - 1, -1)); }
+    else if (e.key === 'Enter' && active >= 0) { e.preventDefault(); pickStreet(options[active]); }
+    else if (e.key === 'Escape' && options.length) { e.preventDefault(); closeStreets(); }
+  });
+  streetList.addEventListener('mousedown', (e) => {
+    const li = (e.target as HTMLElement).closest<HTMLElement>('[role="option"]');
+    if (!li) return;
+    e.preventDefault();
+    pickStreet(options[Number(li.dataset.i)]);
+  });
+  streetInput.addEventListener('blur', () => setTimeout(closeStreets, 150));
+
+  function pickStreet(s: (typeof streets)[number]) {
+    closeStreets();
+    streetInput.value = s.label;
+    status.textContent = '';
+    go({ ...query, mode: 'street', street: s.key, boro: streetBoro.value || null, lat: null, lon: null });
+  }
+
+  streetForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const text = streetInput.value.trim();
+    if (!text) { status.textContent = 'Type a street name first.'; streetInput.focus(); return; }
+    const hit = resolveStreet(streets, text);
+    if (hit) { pickStreet(hit); return; }
+    const near = suggestStreets(streets, text, 6);
+    if (near.length) {
+      status.textContent = 'A few streets match. Pick one:';
+      renderStreets(near);
+      streetInput.focus();
+    } else {
+      status.textContent = `No closures on a street called “${text}” right now. Check the spelling, or search near an address instead.`;
+    }
+  });
+  streetBoro.addEventListener('change', () => {
+    if (query.mode === 'street') go({ ...query, boro: streetBoro.value || null });
+  });
+
+  // ---------- Borough ----------
+  boroSelect.addEventListener('change', () => {
+    go({ ...query, mode: boroSelect.value ? 'borough' : 'city', street: null, boro: boroSelect.value || null, lat: null, lon: null });
+  });
+
+  // ---------- Near me ----------
+  const round3 = (n: number) => Math.round(n * 1e3) / 1e3;
+  function usePoint(lat: number, lon: number, label: string) {
+    addressChoices.hidden = true;
+    status.textContent = '';
+    placeLabel = label;
+    go({ ...query, mode: 'near', street: null, boro: null, lat: round3(lat), lon: round3(lon) });
+  }
+
+  // parseLocationInput() names boroughs the 311 way
+  const BOROUGH_CODES: Record<string, string> = { MANHATTAN: 'M', BRONX: 'X', BROOKLYN: 'B', QUEENS: 'Q', 'STATEN ISLAND': 'S' };
+  let lookup = 0;
+  nearForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    addressChoices.hidden = true;
+    const parsed: any = parseLocationInput({ text: addressInput.value });
+    if (parsed.kind === 'empty') { status.textContent = 'Type an address or ZIP code, or use your location.'; addressInput.focus(); return; }
+    if (parsed.kind === 'error') { status.textContent = parsed.message; return; }
+    if (parsed.kind === 'borough') {
+      mode = 'borough';
+      boroSelect.value = BOROUGH_CODES[parsed.borough];
+      showPanel();
+      go({ ...query, mode: 'borough', street: null, boro: boroSelect.value, lat: null, lon: null });
+      return;
+    }
+    if (parsed.kind === 'zip') {
+      const c = (zipFile.zips as Record<string, number[]>)[parsed.zip];
+      if (!c) { status.textContent = `We don’t have a location for ZIP ${parsed.zip}. Try an address in it.`; return; }
+      usePoint(c[0], c[1], `the middle of ZIP ${parsed.zip}`);
+      return;
+    }
+    status.textContent = 'Looking up that address…';
+    const id = ++lookup;
+    let result: any;
+    try {
+      result = await resolveLocation(parsed);
+    } catch {
+      if (id === lookup) status.textContent = 'Couldn’t reach the address lookup. Try again in a minute, or use your location.';
+      return;
+    }
+    if (id !== lookup) return;
+    if (result.status === 'resolved') { usePoint(result.location.lat, result.location.lon, result.location.label); return; }
+    if (result.status === 'choose') {
+      status.textContent = result.reason === 'ambiguous' ? 'That could be a few places. Which one?' : 'No exact match. Did you mean one of these?';
+      addressChoices.innerHTML = result.suggestions.map((p: any, i: number) =>
+        `<button type="button" class="pay-chip" data-pick="${i}">${escape(p.label)}</button>`).join('');
+      addressChoices.hidden = false;
+      addressChoices.querySelectorAll<HTMLButtonElement>('[data-pick]').forEach((b) => b.addEventListener('click', () => {
+        const p = result.suggestions[Number(b.dataset.pick)];
+        usePoint(p.lat, p.lon, p.label);
+      }));
+      return;
+    }
+    status.textContent = 'No matches. Try a nearby ZIP code or fewer words.';
+  });
+
+  locateBtn.addEventListener('click', () => {
+    addressChoices.hidden = true;
+    if (!navigator.geolocation) { status.textContent = 'Your browser can’t share its location. Type an address or ZIP code instead.'; return; }
+    const id = ++lookup;
+    locateBtn.disabled = true;
+    status.textContent = 'Finding you…';
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        locateBtn.disabled = false;
+        if (id !== lookup) return;
+        const { latitude: lat, longitude: lon } = pos.coords;
+        if (!inNyc(lat, lon)) { status.textContent = 'You seem to be outside NYC. Type an address or ZIP code instead.'; return; }
+        addressInput.value = '';
+        usePoint(lat, lon, 'your location');
+      },
+      () => {
+        locateBtn.disabled = false;
+        if (id === lookup) status.textContent = 'We couldn’t get your location. Check your browser’s location setting, or type an address or ZIP code.';
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
+    );
+  });
+
+  root.querySelectorAll<HTMLButtonElement>('[data-radius]').forEach((b) => b.addEventListener('click', () => {
+    const r = Number(b.dataset.radius);
+    root.querySelectorAll<HTMLButtonElement>('[data-radius]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    if (query.mode === 'near') go({ ...query, r }); else query = { ...query, r };
+  }));
+
+  // ---------- Window, purpose, top streets ----------
+  root.querySelectorAll<HTMLButtonElement>('[data-when]').forEach((b) => b.addEventListener('click', () => go({ ...query, when: b.dataset.when })));
+  $('[data-purposes]').addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-purpose]');
+    if (b) go({ ...query, purpose: query.purpose === b.dataset.purpose ? null : b.dataset.purpose });
+  });
+  $('[data-clear-purpose]').addEventListener('click', () => go({ ...query, purpose: null }));
+  $('[data-top-streets]').addEventListener('click', (e) => {
+    const a = (e.target as HTMLElement).closest<HTMLAnchorElement>('a[data-street]');
+    if (!a || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || (e as MouseEvent).button !== 0) return;
+    e.preventDefault();
+    mode = 'street';
+    go({ ...query, mode: 'street', street: a.dataset.street, boro: a.dataset.boro || null, lat: null, lon: null });
+    fillForm();
+    document.getElementById('results')!.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  empty.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-widen]');
+    if (!b) return;
+    const [k, v] = b.dataset.widen!.split(':');
+    if (k === 'r') { go({ ...query, r: Number(v) }); fillForm(); }
+    else if (k === 'when') go({ ...query, when: v });
+    else if (k === 'purpose') go({ ...query, purpose: null });
+    else if (k === 'boro') { go({ ...query, boro: null }); fillForm(); }
+  });
+
+  // ---------- Map and list in sync ----------
+  function select(seg: string | null, { fromMap = false } = {}) {
+    selected = seg;
+    cards.querySelectorAll('.scl-card.is-selected').forEach((el) => el.classList.remove('is-selected'));
+    map.highlight(seg, { pan: !fromMap });
+    if (!seg) return;
+    if (fromMap) {
+      const i = sorted.findIndex((b) => b.seg === seg);
+      if (i >= shown) { shown = i + 1; drawCards(); }
+    }
+    const card = cards.querySelector<HTMLElement>(`[data-seg="${CSS.escape(seg)}"]`);
+    card?.classList.add('is-selected');
+    if (fromMap && card) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      card.querySelector<HTMLButtonElement>('[data-locate]')?.focus({ preventScroll: true });
+    }
+  }
+  cards.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-locate]');
+    if (b) select(b.dataset.locate!);
+  });
+  cards.addEventListener('mouseover', (e) => {
+    const card = (e.target as HTMLElement).closest<HTMLElement>('.scl-card');
+    if (card) map.highlight(card.dataset.seg!);
+  });
+  cards.addEventListener('mouseleave', () => map.highlight(selected));
+  cards.addEventListener('focusin', (e) => {
+    const card = (e.target as HTMLElement).closest<HTMLElement>('.scl-card');
+    if (card) map.highlight(card.dataset.seg!);
+  });
+  more.addEventListener('click', () => {
+    const first = shown;
+    shown += PAGE_SIZE;
+    drawCards();
+    cards.children[first]?.querySelector<HTMLButtonElement>('[data-locate]')?.focus();
+  });
+
+  mapToggle.addEventListener('click', () => {
+    const open = mapWrap.hidden;
+    mapWrap.hidden = !open;
+    mapToggle.setAttribute('aria-expanded', String(open));
+    mapToggle.textContent = open ? 'Hide map' : 'Show map';
+    if (open) map.invalidate();
+  });
+
+  // ---------- Loading ----------
+  async function load() {
+    const params = searchParams(query).toString();
+    if (cache.has(params)) return cache.get(params);
+    const res = await fetch(`/api/street-closures/search?${params}`);
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || ERROR_TEXT);
+    cache.set(params, body);
+    return body;
+  }
+
+  async function update() {
+    const params = searchParams(query).toString();
+    if (params !== loadedFor || !data) {
+      const id = ++request;
+      summary.textContent = 'Loading closures…';
+      cards.innerHTML = Array.from({ length: 3 }, () => '<li class="scl-card is-skeleton" aria-hidden="true"><span class="sk-line"></span><span class="sk-line sk-short"></span></li>').join('');
+      empty.hidden = true;
+      more.hidden = true;
+      root.setAttribute('aria-busy', 'true');
+      try {
+        const body = await load();
+        if (id !== request) return;
+        data = body;
+        loadedFor = params;
+        shown = PAGE_SIZE;
+        selected = null;
+        root.removeAttribute('aria-busy');
+        render({ refit: true });
+      } catch (err: any) {
+        if (id !== request) return;
+        root.removeAttribute('aria-busy');
+        cards.innerHTML = '';
+        summary.textContent = '';
+        empty.innerHTML = `<p>${escape(err.message || ERROR_TEXT)}</p><button type="button" class="copy-link" data-retry>Try again</button>`;
+        empty.hidden = false;
+        empty.querySelector('[data-retry]')!.addEventListener('click', () => update());
+      }
+      return;
+    }
+    shown = PAGE_SIZE;
+    render({ refit: false });
+  }
+
+  // ---------- Drawing ----------
+  const plural = (n: number, one: string, many = `${one}s`) => `${count(n)} ${n === 1 ? one : many}`;
+
+  function render({ refit }: { refit: boolean }) {
+    const { today, blocks } = data!;
+    const range = windowRange(query.when, today);
+    const counts = windowCounts(blocks, today, query.purpose);
+    root.querySelectorAll<HTMLButtonElement>('[data-when]').forEach((b) => {
+      b.setAttribute('aria-pressed', String(b.dataset.when === query.when));
+      const n = counts[b.dataset.when!];
+      b.querySelector('[data-count]')!.textContent = count(n);
+      b.setAttribute('aria-label', `${b.querySelector('.scl-window-label')!.textContent}: ${plural(n, 'closed block')}`);
+    });
+
+    const view = blocksInView(blocks, range, query.purpose);
+    sorted = sortBlocks(view, today);
+    const windowName = WINDOWS.find((w) => w.key === query.when)!.label.toLowerCase();
+    const where = placeText(query, placeLabel);
+    summary.textContent = `${plural(sorted.length, 'block')} closed ${query.when === 'all' ? 'now or coming up' : query.when === 'today' ? 'today' : `at some point ${windowName}`} ${where}${query.purpose ? `, for ${groupLabel(query.purpose)!.toLowerCase()}` : ''}.`;
+    $('[data-breakdown-intro]').textContent = `Closed blocks ${where}, ${query.when === 'all' ? 'now or coming up' : windowName}.`;
+
+    purposeChip.hidden = !query.purpose;
+    if (query.purpose) $('[data-purpose-name]').textContent = groupLabel(query.purpose)!.toLowerCase();
+
+    drawCards();
+    const point = query.mode === 'near' ? { lat: query.lat, lon: query.lon } : null;
+    $('[data-key-you]').hidden = !point;
+    map.update({ blocks: sorted, point, radiusMeters: point ? query.r * METERS_PER_MILE : 0, refit, title: blockTitle });
+
+    $('[data-purposes]').innerHTML = purposeBarsHtml(purposeCounts(blocks, range), query.purpose);
+    $('[data-top-streets]').innerHTML = topStreetsHtml(topStreets(view), query);
+    days = dailyCounts(blocks, today, query.purpose);
+    strip.innerHTML = stripHtml(days, range);
+    readout.textContent = stripReadout(days[0]);
+  }
+
+  function drawCards() {
+    const { today } = data!;
+    cards.innerHTML = sorted.slice(0, shown).map((b) => cardHtml(b, today)).join('');
+    if (selected) cards.querySelector(`[data-seg="${CSS.escape(selected)}"]`)?.classList.add('is-selected');
+    const left = sorted.length - shown;
+    more.hidden = left <= 0;
+    more.textContent = `Show ${count(Math.min(left, PAGE_SIZE))} more (${count(left)} left)`;
+    empty.hidden = sorted.length > 0;
+    if (!sorted.length) empty.innerHTML = emptyHtml();
+  }
+
+  // Nothing here: suggest the next wider view that would show something.
+  function emptyHtml() {
+    const { today, blocks } = data!;
+    const ideas: string[] = [];
+    if (query.purpose) ideas.push(`<button type="button" class="copy-link" data-widen="purpose">Show all kinds of work</button>`);
+    if (query.when !== 'all') {
+      const all = windowCounts(blocks, today, query.purpose).all;
+      if (all) ideas.push(`<button type="button" class="copy-link" data-widen="when:all">See all upcoming (${count(all)})</button>`);
+    }
+    if (query.mode === 'near' && query.r < 1) ideas.push(`<button type="button" class="copy-link" data-widen="r:1">Widen to 1 mile</button>`);
+    if (query.mode === 'street' && query.boro) ideas.push(`<button type="button" class="copy-link" data-widen="boro">Look in every borough</button>`);
+    const where = placeText(query, placeLabel);
+    return `<p><strong>Nothing closed ${where} ${query.when === 'all' ? 'now or coming up' : 'in this window'}.</strong> The asphalt gets a rest.</p>` +
+      (ideas.length ? `<p>Try a wider view:</p><div class="scl-widen">${ideas.join('')}</div>` : '');
+  }
+
+  // Hovering a day of the strip shows its count.
+  strip.addEventListener('mouseover', (e) => {
+    const col = (e.target as HTMLElement).closest<HTMLElement>('[data-i]');
+    if (col) readout.textContent = stripReadout(days[Number(col.dataset.i)]);
+  });
+  strip.addEventListener('mouseleave', () => { if (days.length) readout.textContent = stripReadout(days[0]); });
+
+  fillForm();
+  update();
+</script>

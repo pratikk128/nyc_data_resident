@@ -1,0 +1,53 @@
+---
+/*
+ * Street Closures Near You. Rendered on demand so the "Data as of" date and
+ * the street list come from the block index in KV
+ * (src/lib/server/street-closures.js). The place and view live in the URL
+ * (src/lib/street-closures/filter.js); the closures load in the browser from
+ * /api/street-closures/search, and the time window and purpose are picked
+ * there without another request.
+ */
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+import ClosureFinder from '../../components/street-closures/ClosureFinder.astro';
+import AboutSection from '../../components/street-closures/AboutSection.astro';
+import { getMetadata, getIndex } from '../../lib/server/street-closures.js';
+import { normalizeQuery } from '../../lib/street-closures/filter.js';
+import { boroughLabel } from '../../lib/street-closures/config.js';
+import { streetLabel } from '../../lib/street-closures/streets.js';
+import { date } from '../../lib/format.js';
+
+export const prerender = false;
+
+const [meta, index] = await Promise.allSettled([getMetadata(), getIndex()]);
+for (const r of [meta, index]) if (r.status === 'rejected') console.error(r.reason); // the page still loads; the script retries
+const metaValue = meta.status === 'fulfilled' ? meta.value : null;
+const streets = index.status === 'fulfilled' ? index.value.streets : [];
+
+const query = normalizeQuery(Astro.url.searchParams);
+const pageTitle = 'Street Closures Near You';
+const title = query.mode === 'street' ? `Street closures on ${streetLabel(query.street)}${query.boro ? `, ${boroughLabel(query.boro)}` : ''}`
+  : query.mode === 'borough' ? `Street closures in ${boroughLabel(query.boro)}`
+  : pageTitle;
+
+if (import.meta.env.PROD && index.status === 'fulfilled') Astro.response.headers.set('Cache-Control', 'public, max-age=300');
+---
+
+<DashboardLayout
+  title={title}
+  description="See which NYC blocks are closed for construction near you, on your street or in your borough, today and in the weeks ahead."
+  path="/street-closures/"
+  category="Transportation"
+  lastRefreshed={metaValue?.rowsUpdatedAt ? date(metaValue.rowsUpdatedAt) : undefined}
+  dataUpdated={metaValue?.rowsUpdatedAt ?? undefined}
+>
+  <header class="page-head">
+    <h1>{pageTitle}</h1>
+    <p>
+      Repaving, gas work, cranes, new sewers: NYC DOT permits thousands of block closures for construction at any
+      time. Find out what's closed on your street, near you or across your borough, and for how long.
+    </p>
+  </header>
+
+  <ClosureFinder query={query} streets={streets} dataAsOf={metaValue?.rowsUpdatedAt ?? null} />
+  <AboutSection meta={metaValue} />
+</DashboardLayout>

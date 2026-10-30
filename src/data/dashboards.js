@@ -60,6 +60,13 @@ export const dashboards = [
     description: "Find any NYC public school and see how it’s doing now and whether it’s getting better or worse.",
     category: "Education",
     url: "/school-quality/"
+  },
+  {
+    id: "street-closures",
+    title: "Street Closures Near You",
+    description: "See which blocks are closed for construction near you, on your street or in your borough, today and in the weeks ahead.",
+    category: "Transportation",
+    url: "/street-closures/"
   }
 ];
 

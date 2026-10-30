@@ -1,0 +1,79 @@
+---
+/*
+ * "How to read this": what a closure permit means, how the dates, windows
+ * and chips work (the rules in src/lib/street-closures/closures.js), data
+ * quirks, and the source.
+ */
+import { DATASET_URL, DATASET_NAME, DATASET_ID, SOON_DAYS, LONG_DAYS } from '../../lib/street-closures/config.js';
+import { date } from '../../lib/format.js';
+
+interface Props {
+  meta: { rowsUpdatedAt: string | null } | null;
+}
+const { meta } = Astro.props;
+---
+
+<section class="dash-section" aria-labelledby="scl-about-title">
+  <h2 class="chart-title" id="scl-about-title">How to read this</h2>
+
+  <p class="callout callout-heads-up">
+    <strong>Heads up:</strong> a permit allows the block to be fully closed between its start and end dates, but crews
+    may only work part of that time, and some kinds of work (like sidewalk permits) may only take a lane, the curb or the
+    sidewalk. Check the signs on site before you plan around a closure.
+  </p>
+
+  <details class="about-data">
+    <summary>What counts as a closure</summary>
+    <div class="about-body">
+      <p>
+        Each closure is one block of one street, between two cross streets, that a DOT construction permit lets
+        someone close. DOT's street map sometimes splits a block into several pieces, each listed with its own copy of
+        the permit; we put the pieces back together and count that permit once. A block can have several permits at
+        once (a crane and a debris container, say), so we show one card per block with every permit on it. Searching
+        for a street finds blocks on that street and blocks where it's one of the cross streets.
+      </p>
+      <p>
+        A closure counts in a time window if it's in effect on any day of it. Both the start and end dates count, so a
+        permit that ends today is still on the “Today” tab. “This week” runs through Sunday and “This month” through
+        the last day of the month. All dates are New York time.
+      </p>
+    </div>
+  </details>
+
+  <details class="about-data">
+    <summary>What the labels mean</summary>
+    <div class="about-body">
+      <ul class="caveats">
+        <li><strong>Active now:</strong> today falls between the permit's start and end dates.</li>
+        <li><strong>Starts soon:</strong> not yet in effect, and starts within {SOON_DAYS} days.</li>
+        <li><strong>Ending soon:</strong> in effect, and ends within {SOON_DAYS} days.</li>
+        <li><strong>Long-running:</strong> the closure lasts more than {LONG_DAYS} days in all. Back-to-back permits on the same block count as one closure.</li>
+        <li><strong>Kind of work:</strong> DOT's permit types, in plain English and grouped for the bars. Some permit names mention a “protected” street: one repaved or rebuilt in the last few years, where the rules for digging it up are stricter. It's the same work, so we group it the same way.</li>
+        <li><strong>Distance:</strong> from your spot to the nearest point of the block.</li>
+      </ul>
+    </div>
+  </details>
+
+  <details class="about-data">
+    <summary>How we cleaned the data</summary>
+    <div class="about-body">
+      <p>
+        Some permits appear more than once, word for word; we count each permit once (by its unique id). Permits whose
+        end date has passed are left out. Street names are matched however they're written, so “W 8th St” finds
+        “WEST 8 STREET”. Your location never leaves your browser except as a rounded spot (about a block) used to
+        find nearby closures, and a typed address never goes in the page link.
+      </p>
+    </div>
+  </details>
+
+  <footer class="section-sources">
+    <h3 class="sources-title">Where this comes from</h3>
+    <p>
+      <a href={DATASET_URL}>{DATASET_NAME}</a> on NYC Open Data (dataset {DATASET_ID}), published by the NYC Department
+      of Transportation.
+      {meta?.rowsUpdatedAt && <> Last updated {date(meta.rowsUpdatedAt)}. </>}
+      DOT updates it about once a week; we check for changes every hour.
+    </p>
+    <p><a href={DATASET_URL}>Report a data problem</a> to NYC Open Data.</p>
+  </footer>
+</section>
