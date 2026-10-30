@@ -16,6 +16,7 @@ import { REPORTS, BASE_PATH, schoolPath, yearLabel, normalizeDbn } from '../../l
 import { typeBadges, boroughHtml, NO_ADDRESS, UPSTREAM_TEXT } from '../../lib/schools/render.js';
 import { gapYears } from '../../lib/schools/values.js';
 import { METRICS } from '../../lib/schools/metrics.js';
+import { compareHref } from '../../lib/schools/compare.js';
 import { date } from '../../lib/format.js';
 
 export const prerender = false;
@@ -113,6 +114,9 @@ const json = JSON.stringify({ name: school?.name, loc: loc?.lat != null ? { lat:
               </dd>
             </div>
           </dl>
+          <p class="sq-compare-link">
+            <a class="near-btn" href={compareHref([school.dbn])} data-compare-link={school.dbn}>Compare with other schools</a>
+          </p>
           {multiple && (
             <nav class="sq-jump" aria-label="This school's reports">
               <p>This school has {reports.length} reports:</p>
@@ -154,6 +158,8 @@ const json = JSON.stringify({ name: school?.name, loc: loc?.lat != null ? { lat:
   import { mountMiniMap } from '../../lib/schools/school-map.js';
   import { formatValue, targetBand } from '../../lib/schools/values.js';
   import { yearLabel } from '../../lib/schools/config.js';
+  import { compareHref, MAX_COMPARE } from '../../lib/schools/compare.js';
+  import { readShortlist } from '../../lib/schools/shortlist.js';
 
   const data = JSON.parse(document.getElementById('sq-school')!.textContent || '{}');
   const byId = Object.fromEntries(METRICS.map((m) => [m.id, m]));
@@ -191,6 +197,14 @@ const json = JSON.stringify({ name: school?.name, loc: loc?.lat != null ? { lat:
         }
       });
     }
+  }
+
+  // "Compare with other schools" brings along the schools already picked (the newest ones, if that's too many).
+  const compareLink = document.querySelector<HTMLAnchorElement>('[data-compare-link]');
+  if (compareLink) {
+    const dbn = compareLink.dataset.compareLink!;
+    const others = readShortlist().map((x) => x.dbn).filter((d) => d !== dbn);
+    compareLink.href = compareHref([...others.slice(-(MAX_COMPARE - 1)), dbn]);
   }
 
   const mapEl = document.querySelector<HTMLElement>('[data-mini-map]');

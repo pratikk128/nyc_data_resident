@@ -343,3 +343,129 @@ test("cards: card metrics with the NYC average, 'Address not available', older r
   assert.equal(statusText({ total: 30, page: 1, pages: 2, q: "ps", sort: "" }), "30 schools · page 1 of 2 · best matches first");
   assert.equal(statusText({ total: 30, page: 1, pages: 2 }, "map"), "30 schools");
 });
+
+// ---------- Compare ----------
+
+import {
+  parseSchools, compareHref, chooseReport, bestOf, compareTable, aheadOn, midSentence, pickListHtml
+} from "../src/lib/schools/compare.js";
+
+const GRAD = metric("grad_pct_4_all");
+const STUDENTS = metric("students_ems");
+// A schoolDetail()-shaped school with one or more reports: { [report]: { year, type, metrics: { [id]: { [year]: v } } } }
+const detail = (dbn, reports, name = dbn) => ({
+  dbn, name, boro: "Brooklyn", types: [], latestYear: 2024,
+  reports: Object.entries(reports).map(([report, r]) => ({
+    report, type: r.type, year: r.year, years: r.years ?? [r.year],
+    metrics: Object.entries(r.metrics).map(([id, byYear]) => ({
+      id,
+      points: Object.fromEntries(Object.entries(byYear).map(([y, v]) => [y, { v }])),
+      city: r.city?.[id] ?? {},
+      trend: r.trend?.[id] ?? { dir: null }
+    }))
+  }))
+});
+
+test("compare links keep up to 3 distinct DBNs in order", () => {
+  assert.deepEqual(parseSchools("02m475, 13K430,02M475,bad,15K321,31R080"), ["02M475", "13K430", "15K321"]);
+  assert.deepEqual(parseSchools(null), []);
+  assert.equal(compareHref(["02M475", "13K430"]), "/school-quality/compare/?schools=02M475,13K430");
+  assert.equal(compareHref(["02M475"], { report: "HS" }), "/school-quality/compare/?schools=02M475&report=HS");
+  assert.equal(compareHref([]), "/school-quality/compare/");
+});
+
+test("the compared report is the one most schools share", () => {
+  const hs = (dbn) => detail(dbn, { HS: { year: 2024, type: "high-school", metrics: {} } });
+  const sixTwelve = (dbn) => detail(dbn, {
+    HS: { year: 2024, type: "high-school", metrics: {} },
+    EMS: { year: 2024, type: "middle", metrics: {} }
+  });
+  const ems = (dbn) => detail(dbn, { EMS: { year: 2024, type: "middle", metrics: {} } });
+  assert.deepEqual(chooseReport([ems("A"), sixTwelve("B"), ems("C")]), { report: "EMS", options: ["EMS"] });
+  // Two 6–12 schools share both; the first school's main report wins, and either can be asked for.
+  assert.deepEqual(chooseReport([sixTwelve("A"), sixTwelve("B")]), { report: "HS", options: ["HS", "EMS"] });
+  assert.equal(chooseReport([sixTwelve("A"), sixTwelve("B")], "EMS").report, "EMS");
+  assert.equal(chooseReport([sixTwelve("A"), sixTwelve("B")], "EC").report, "HS");
+  // Nothing shared: no table.
+  assert.equal(chooseReport([hs("A"), ems("B")]), null);
+});
+
+test("best of the group respects direction and ties as shown", () => {
+  assert.deepEqual(bestOf(ELA, [0.4, 0.55, 0.5]), [1]);
+  assert.deepEqual(bestOf(ABSENT, [0.4, 0.2, 0.3]), [1]);
+  assert.deepEqual(bestOf(ELA, [0.551, 0.548, 0.3]), [0, 1]); // both show 55%
+  assert.deepEqual(bestOf(ELA, [0.5, 0.5]), []);             // all tied: nobody stands out
+  assert.deepEqual(bestOf(ELA, [0.5, null, null]), []);      // nothing to compare
+  assert.deepEqual(bestOf(STUDENTS, [300, 900]), []);        // size isn't better or worse
+});
+
+test("the compare table lines up shared measures and leaves out other report types", () => {
+  const a = detail("15K321", { EMS: {
+    year: 2024, type: "elementary",
+    metrics: { prof_pct_ela_all: { 2024: 0.8 }, chronic_absent_ems_all: { 2024: 0.1 }, students_ems: { 2024: 900 } },
+    city: { prof_pct_ela_all: { 2024: 0.5 } },
+    trend: { prof_pct_ela_all: { dir: "improving", change: 0.05, years: [2022, 2023, 2024] } }
+  } }, "PS 321");
+  const b = detail("13K113", { EMS: {
+    year: 2024, type: "elementary",
+    metrics: { prof_pct_ela_all: { 2024: 0.6 }, chronic_absent_ems_all: { 2024: 0.05 }, prof_pct_mth_all: { 2023: 0.4 } },
+    city: { prof_pct_ela_all: { 2024: 0.5 } }
+  } }, "PS 113");
+  const c = detail("02M475", { HS: { year: 2024, type: "high-school", metrics: { grad_pct_4_all: { 2024: 0.95 } } } }, "Stuyvesant");
+
+  const t = compareTable([a, c, b], "EMS");
+  assert.deepEqual(t.columns.map((x) => [x.dbn, x.n]), [["15K321", 1], ["13K113", 3]]);
+  assert.deepEqual(t.left.map((x) => x.name), ["Stuyvesant"]);
+  assert.equal(t.cityLine, true);
+  // Math is blank in 2024 for both: no row. GRAD isn't an EMS measure.
+  assert.deepEqual(t.rows.map((r) => r.metric.id), ["prof_pct_ela_all", "chronic_absent_ems_all"]);
+  const [ela, absent] = t.rows;
+  assert.deepEqual(ela.cells.map((x) => x.best), [true, false]);
+  assert.deepEqual(absent.cells.map((x) => x.best), [false, true]);
+  assert.equal(ela.city, 0.5);
+  assert.deepEqual(ela.cells.map((x) => x.verdict), ["better", "better"]);
+  assert.equal(ela.cells[0].trend.dir, "improving");
+  assert.equal(absent.cells[0].verdict, null); // no NYC average given
+  assert.deepEqual(t.context.map((r) => r.cells.map((x) => x.v)), [[900, null]]);
+  assert.deepEqual(aheadOn(t).map((xs) => xs.map((x) => [x.text, x.v])), [[["Highest ELA proficiency", 0.8]], [["Lowest chronic absenteeism", 0.05]]]);
+  assert.ok(!t.rows.some((r) => r.metric === GRAD));
+});
+
+test("schools of different types or years get no shared NYC average line", () => {
+  const school = (dbn, type, year) => detail(dbn, { EMS: { year, type, metrics: { prof_pct_ela_all: { [year]: 0.5 } } } });
+  assert.equal(compareTable([school("A", "elementary", 2024), school("B", "middle", 2024)], "EMS").cityLine, false);
+  assert.equal(compareTable([school("A", "middle", 2023), school("B", "middle", 2024)], "EMS").cityLine, false);
+});
+
+test("add-a-school matches link to the compare page with the school added", () => {
+  const html = pickListHtml([
+    { dbn: "02M475", name: "Stuyvesant <HS>", types: ["high-school"], boro: "Manhattan" },
+    { dbn: "15K321", name: "PS 321", types: [], boro: "Brooklyn" }
+  ], ["15K321"], { report: "HS" });
+  assert.match(html, /href="\/school-quality\/compare\/\?schools=15K321,02M475&#38;report=HS"/);
+  assert.match(html, /Stuyvesant &#60;HS&#62;/);
+  assert.doesNotMatch(html, /PS 321/); // already compared
+});
+
+test("the takeaway says where each school comes out ahead, ties marked", () => {
+  const school = (dbn, ela, math) => detail(dbn, { EMS: { year: 2024, type: "elementary",
+    metrics: { prof_pct_ela_all: { 2024: ela }, prof_pct_mth_all: { 2024: math } } } });
+  const t = compareTable([school("A", 0.8, 0.5), school("B", 0.8, 0.4), school("C", 0.3, 0.2)], "EMS");
+  assert.deepEqual(aheadOn(t).map((xs) => xs.map((x) => x.text)), [
+    ["Tied for highest ELA proficiency", "Highest math proficiency"],
+    ["Tied for highest ELA proficiency"],
+    []
+  ]);
+  // Nothing comparable (each school reports a different measure): no takeaway.
+  const lone = compareTable([school("A", 0.8, null), school("B", null, 0.4)], "EMS");
+  assert.equal(aheadOn(lone), null);
+  assert.equal(midSentence("Most 9th graders on track"), "most 9th graders on track");
+  assert.equal(midSentence("ELA proficiency"), "ELA proficiency");
+});
+
+test("every quality measure says how to name coming out ahead on it", () => {
+  for (const m of METRICS.filter((x) => !x.context)) {
+    assert.match(m.lead ?? "", /^(Highest|Lowest|Most|Biggest) /, m.id);
+    assert.equal(m.lead.startsWith("Lowest"), m.higherIsBetter === false, m.id);
+  }
+});

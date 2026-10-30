@@ -8,6 +8,8 @@
  * work without script. The script then fetches /api/schools/search on every
  * change (as you type, after a short pause) and keeps the URL in step.
  * ?view=map shows the map (every match, from the same endpoint with view=map).
+ * Each card's Compare button adds the school to a tray (up to 3, kept in this
+ * browser by shortlist.js) that links to /school-quality/compare/.
  */
 import { MAX_QUERY_LENGTH, yearLabel } from '../../lib/schools/config.js';
 import { SORTS, queryToParams } from '../../lib/schools/filter.js';
@@ -121,6 +123,15 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), inputError
   )}
 </section>
 
+<div class="sq-tray" role="region" aria-label="Schools to compare" data-tray hidden>
+  <div class="sq-tray-inner">
+    <p class="sq-tray-title"><strong>Compare</strong> <span data-tray-count></span></p>
+    <ul class="sq-tray-list" data-tray-list></ul>
+    <a class="sq-tray-go" href="/school-quality/compare/" data-tray-go>Compare schools</a>
+  </div>
+  <p class="sr-only" role="status" aria-live="polite" data-tray-status></p>
+</div>
+
 <script type="application/json" id="sq-initial" set:html={initialJson}></script>
 
 <script>
@@ -130,6 +141,9 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), inputError
     UPSTREAM_TEXT, LOADING_TEXT
   } from '../../lib/schools/render.js';
   import { mountSchoolsMap } from '../../lib/schools/school-map.js';
+  import { compareHref, MAX_COMPARE } from '../../lib/schools/compare.js';
+  import { readShortlist, writeShortlist } from '../../lib/schools/shortlist.js';
+  import { escape } from '../../lib/schools/render.js';
   import { count } from '../../lib/format.js';
 
   const BASE = '/school-quality/';
@@ -259,6 +273,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), inputError
       latestYear = data.latestYear;
       renderFacets(data);
       list.innerHTML = cardsHtml(data.results, latestYear);
+      syncCompare();
       empty.hidden = data.total > 0;
       pager.innerHTML = pagerHtml(data, (page: number) => pageUrl({ ...query, page }));
       status.textContent = statusText(data, view);
@@ -355,7 +370,70 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), inputError
     search();
   });
 
+  // ---------- Compare tray ----------
+  const tray = $('[data-tray]');
+  const trayList = $('[data-tray-list]');
+  const trayCount = $('[data-tray-count]');
+  const trayGo = $<HTMLAnchorElement>('[data-tray-go]');
+  const trayStatus = $('[data-tray-status]');
+
+  function syncCompare() {
+    const picked = readShortlist();
+    const dbns = picked.map((x) => x.dbn);
+    list.querySelectorAll<HTMLButtonElement>('[data-compare]').forEach((b) => {
+      b.hidden = false;
+      b.setAttribute('aria-pressed', String(dbns.includes(b.dataset.compare!)));
+    });
+    tray.hidden = !picked.length;
+    document.body.classList.toggle('has-sq-tray', picked.length > 0);
+    trayCount.textContent = `${picked.length} of ${MAX_COMPARE}`;
+    trayList.innerHTML = picked.map((x) => `
+      <li class="sq-tray-chip">
+        <span class="sq-tray-name">${escape(x.name)}</span>
+        <button type="button" class="sq-tray-remove" data-tray-remove="${escape(x.dbn)}" aria-label="Remove ${escape(x.name)}">×</button>
+      </li>`).join('');
+    trayGo.href = compareHref(dbns);
+    trayGo.textContent = picked.length < 2 ? 'Compare: add one more' : 'Compare schools';
+  }
+
+  function togglePick(dbn: string, name: string) {
+    const picked = readShortlist();
+    if (picked.some((x) => x.dbn === dbn)) {
+      writeShortlist(picked.filter((x) => x.dbn !== dbn));
+      trayStatus.textContent = `Removed ${name}.`;
+    } else if (picked.length >= MAX_COMPARE) {
+      trayStatus.textContent = `You can compare up to ${MAX_COMPARE} schools. Remove one first.`;
+      tray.classList.remove('is-full');
+      void tray.offsetWidth; // restart the nudge
+      tray.classList.add('is-full');
+      return;
+    } else {
+      writeShortlist([...picked, { dbn, name }]);
+      trayStatus.textContent = `Added ${name}. ${picked.length + 1} of ${MAX_COMPARE} picked.`;
+    }
+    syncCompare();
+  }
+
+  list.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-compare]');
+    if (btn) togglePick(btn.dataset.compare!, btn.dataset.name ?? btn.dataset.compare!);
+  });
+  trayList.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-tray-remove]');
+    if (!btn) return;
+    const picked = readShortlist();
+    const gone = picked.find((x) => x.dbn === btn.dataset.trayRemove);
+    writeShortlist(picked.filter((x) => x.dbn !== btn.dataset.trayRemove));
+    trayStatus.textContent = gone ? `Removed ${gone.name}.` : '';
+    syncCompare();
+    (trayList.querySelector<HTMLButtonElement>('[data-tray-remove]') ?? (tray.hidden ? list : trayGo)).focus();
+  });
+  // Picks made in another tab, or on the compare page before coming back.
+  window.addEventListener('pageshow', syncCompare);
+  window.addEventListener('storage', (e) => { if (e.key === 'sq-compare') syncCompare(); });
+
   // ---------- Start ----------
+  syncCompare();
   viewToggle.hidden = false;
   // The browser may have kept edited fields (back/forward cache, autofill).
   const fromForm = readForm().query;

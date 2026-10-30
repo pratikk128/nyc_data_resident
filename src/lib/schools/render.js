@@ -127,6 +127,7 @@ function cardMetricsHtml(r) {
 
 // Only the name is a link (screen readers hear the school, not every number);
 // its ::after stretches over the card so the whole card is still clickable.
+// The Compare button sits above that and is shown by the browse page's script.
 export function cardsHtml(results, latestYear) {
   return results.map((r) => `
     <li>
@@ -136,7 +137,10 @@ export function cardsHtml(results, latestYear) {
         <span class="sq-card-meta">${escape(r.dbn)}${r.district ? ` · ${escape(r.district)}` : ""}</span>
         <span class="sq-card-place">${boroughHtml(r.boro)}<span class="sq-card-address${r.loc?.address ? "" : " is-missing"}">${escape(addressText(r.loc))}</span></span>
         ${cardMetricsHtml(r)}
-        <span class="sq-card-year">${r.current ? `${yearLabel(r.year)} report` : `Latest report: ${yearLabel(r.year)} · none for ${yearLabel(latestYear)}`}</span>
+        <span class="sq-card-foot">
+          <span class="sq-card-year">${r.current ? `${yearLabel(r.year)} report` : `Latest report: ${yearLabel(r.year)} · none for ${yearLabel(latestYear)}`}</span>
+          <button type="button" class="sq-compare-btn" data-compare="${escape(r.dbn)}" data-name="${escape(r.name)}" aria-pressed="false" hidden>Compare<span class="sr-only"> ${escape(r.name)}</span></button>
+        </span>
       </article>
     </li>`).join("");
 }

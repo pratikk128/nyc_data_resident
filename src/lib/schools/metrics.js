@@ -11,6 +11,8 @@
  *   key          metric_variable_name in the dataset
  *   label        what we call it
  *   description  one plain-English line under the number
+ *   lead         the measure when a school comes out ahead on it, for the
+ *                compare page's takeaway ("Lowest chronic absenteeism")
  *   reports      report types it applies to (REPORTS in config.js)
  *   format       "percent" (0–1), "points" (a change, ±percentage points)
  *                or "count"
@@ -51,30 +53,35 @@ export const METRICS = [
   {
     key: "prof_pct_ela_all", reports: ["EMS", "EC"], card: { EMS: 1 }, sortKey: "ela",
     label: "ELA proficiency",
+    lead: "Highest ELA proficiency",
     description: "Share of tested students (grades 3–8) scoring at Level 3 or 4, proficient, on the New York State English test.",
     format: "percent", higherIsBetter: true, stateTest: true, seriesBreak: NEW_STATE_TESTS
   },
   {
     key: "prof_pct_mth_all", reports: ["EMS", "EC"], card: { EMS: 2 }, sortKey: "math",
     label: "Math proficiency",
+    lead: "Highest math proficiency",
     description: "Share of tested students (grades 3–8) scoring at Level 3 or 4, proficient, on the New York State math test.",
     format: "percent", higherIsBetter: true, stateTest: true, seriesBreak: NEW_STATE_TESTS
   },
   {
     key: "ele_core_all", reports: ["EMS"],
     label: "Former students passing middle school courses",
+    lead: "Most former students passing middle school courses",
     description: "How this school’s former 5th graders did in their middle school core courses (DOE’s adjusted pass rate).",
     format: "percent", higherIsBetter: true
   },
   {
     key: "hs_9gr_credits_all", reports: ["EMS"],
     label: "Former students on track in 9th grade",
+    lead: "Most former students on track in 9th grade",
     description: "Share of this school’s former 8th graders who earned enough credits in 9th grade to stay on track (adjusted).",
     format: "percent", higherIsBetter: true
   },
   {
     key: "pct_accelerated_all", reports: ["EMS"],
     label: "8th graders earning high school credit",
+    lead: "Most 8th graders earning high school credit",
     description: "Share of 8th graders who passed a high school–level course or Regents exam.",
     format: "percent", higherIsBetter: true
   },
@@ -83,36 +90,42 @@ export const METRICS = [
   {
     key: "grad_pct_4_all", reports: ["HS"], card: { HS: 1 }, sortKey: "grad",
     label: "4-year graduation rate",
+    lead: "Highest 4-year graduation rate",
     description: "Share of students who graduated within 4 years of starting 9th grade.",
     format: "percent", higherIsBetter: true
   },
   {
     key: "ccr_4yr_all", reports: ["HS"], card: { HS: 2 }, scale: 100,
     label: "College and career readiness",
+    lead: "Highest college and career readiness",
     description: "Share of the 4-year class who graduated and met DOE’s college- or career-readiness standards (exams, courses or credentials).",
     format: "percent", higherIsBetter: true, ...CCR_STARTED
   },
   {
     key: "pct_cer_18mo_all", reports: ["HS"], card: { HS: 3 },
     label: "Went on to college or training",
+    lead: "Most students going on to college or training",
     description: "Share of students who enrolled in college, a vocational program or public service within 18 months of their scheduled graduation.",
     format: "percent", higherIsBetter: true
   },
   {
     key: "grad_pct_6_all", reports: ["HS"],
     label: "6-year graduation rate",
+    lead: "Highest 6-year graduation rate",
     description: "Share of students who graduated within 6 years of starting 9th grade.",
     format: "percent", higherIsBetter: true
   },
   {
     key: "pct_cpci_all", reports: ["HS", "HST"],
     label: "College prep course index",
+    lead: "Highest college prep course index",
     description: "Share of students who passed a college-level course or exam (AP, IB, college credit, a technical exam or advanced Regents) by the end of 4 years.",
     format: "percent", higherIsBetter: true
   },
   {
     key: "credit_10_pct_yr1", reports: ["HS"],
     label: "9th graders on track",
+    lead: "Most 9th graders on track",
     description: "Share of first-year students who earned 10 or more credits, the pace needed to graduate on time.",
     format: "percent", higherIsBetter: true
   },
@@ -121,36 +134,42 @@ export const METRICS = [
   {
     key: "grad_pct_6_all", id: "grad_pct_6_transfer", reports: ["HST", "YABC"], card: { HST: 1, YABC: 1 },
     label: "Graduation rate",
+    lead: "Highest graduation rate",
     description: "DOE’s graduation rate for schools that serve students who are behind or returning: the share of students in the school’s 6-year graduation group who earned a diploma.",
     format: "percent", higherIsBetter: true
   },
   {
     key: "ccr_6yr_all", reports: ["HST"], scale: 100,
     label: "College and career readiness",
+    lead: "Highest college and career readiness",
     description: "Share of the school’s 6-year class who graduated and met DOE’s college- or career-readiness standards.",
     format: "percent", higherIsBetter: true, firstYear: 2024, note: "DOE started reporting this measure for transfer schools in 2024–25."
   },
   {
     key: "nondropout_6_all", reports: ["HST", "YABC"], card: { YABC: 2 },
     label: "Stayed in school",
+    lead: "Most students staying in school",
     description: "Share of students who graduated or are still enrolled, rather than dropping out (DOE’s persistence rate).",
     format: "percent", higherIsBetter: true
   },
   {
     key: "pct_cer_6mo_all", reports: ["HST", "YABC"], card: { HST: 2 },
     label: "Went on to college or training",
+    lead: "Most students going on to college or training",
     description: "Share of students who enrolled in college, a vocational program or public service within 6 months of their scheduled graduation.",
     format: "percent", higherIsBetter: true
   },
   {
     key: "met_reg_compl_all", reports: ["HST", "YABC"],
     label: "Regents exams completed",
+    lead: "Most Regents exams completed",
     description: "On average, the share of the Regents exams students still needed to graduate that they passed this year.",
     format: "percent", higherIsBetter: true
   },
   {
     key: "attend_increase_mean_all", reports: ["HST", "YABC", "D75"],
     label: "Change in attendance",
+    lead: "Biggest gain in attendance",
     description: "Average change in each student’s attendance rate from the year before. Above zero means students came to school more.",
     format: "points", higherIsBetter: true, trendThreshold: 0.02
   },
@@ -159,24 +178,28 @@ export const METRICS = [
   {
     key: "prof_nysaa_pct_ela_all", reports: ["D75"], card: { D75: 1 },
     label: "Alternate assessment, ELA",
+    lead: "Highest alternate assessment results, ELA",
     description: "Students with significant disabilities take the NYS Alternate Assessment (NYSAA) instead of the regular test. Share scoring Level 3 or 4 in English.",
     format: "percent", higherIsBetter: true, stateTest: true
   },
   {
     key: "prof_nysaa_pct_mth_all", reports: ["D75"], card: { D75: 2 },
     label: "Alternate assessment, math",
+    lead: "Highest alternate assessment results, math",
     description: "Share of students taking the NYS Alternate Assessment who scored Level 3 or 4 in math.",
     format: "percent", higherIsBetter: true, stateTest: true
   },
   {
     key: "move_to_lre_pct_all", reports: ["D75"],
     label: "Moved to less restrictive settings",
+    lead: "Most students moved to less restrictive settings",
     description: "Share of students who moved to a less restrictive special education setting during the year.",
     format: "percent", higherIsBetter: true, trendThreshold: 0.02
   },
   {
     key: "move_to_gen_pct_all", reports: ["D75"],
     label: "Moved to a non-District 75 school",
+    lead: "Most students moved to a non-District 75 school",
     description: "Share of students who moved from District 75 into a community school.",
     format: "percent", higherIsBetter: true, trendThreshold: 0.02
   },
@@ -185,36 +208,42 @@ export const METRICS = [
   {
     key: "chronic_absent_ems_all", reports: ["EMS"], card: { EMS: 3 }, sortKey: "absent", invert: true,
     label: "Chronic absenteeism",
+    lead: "Lowest chronic absenteeism",
     description: "Share of students who missed more than 10% of school days, about 18 days a year. Lower is better.",
     format: "percent", higherIsBetter: false
   },
   {
     key: "chronic_absent_hs_all", reports: ["HS"], sortKey: "absent", invert: true,
     label: "Chronic absenteeism",
+    lead: "Lowest chronic absenteeism",
     description: "Share of students who missed more than 10% of school days, about 18 days a year. Lower is better.",
     format: "percent", higherIsBetter: false
   },
   {
     key: "chronic_absent_all", reports: ["EC"], card: { EC: 1 }, sortKey: "absent", invert: true,
     label: "Chronic absenteeism",
+    lead: "Lowest chronic absenteeism",
     description: "Share of students who missed more than 10% of school days, about 18 days a year. Lower is better.",
     format: "percent", higherIsBetter: false
   },
   {
     key: "attendance_k8_all", reports: ["EMS"],
     label: "Average attendance",
+    lead: "Highest average attendance",
     description: "The average student’s share of school days attended.",
     format: "percent", higherIsBetter: true, trendThreshold: 0.01
   },
   {
     key: "attendance_hs_all", reports: ["HS"],
     label: "Average attendance",
+    lead: "Highest average attendance",
     description: "The average student’s share of school days attended.",
     format: "percent", higherIsBetter: true, trendThreshold: 0.01
   },
   {
     key: "attendance_k3_all", reports: ["EC"], card: { EC: 2 },
     label: "Average attendance",
+    lead: "Highest average attendance",
     description: "The average student’s share of school days attended.",
     format: "percent", higherIsBetter: true, trendThreshold: 0.01
   },

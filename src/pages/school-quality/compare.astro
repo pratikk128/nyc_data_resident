@@ -1,0 +1,400 @@
+---
+/*
+ * NYC School Quality Explorer, compare: /school-quality/compare/?schools=02M475,13K430
+ * Up to 3 schools side by side, one row per measure from each school's
+ * latest report of one shared type, each value with its call against the NYC
+ * average and the best of the group marked. URL parameters and the table
+ * logic are in src/lib/schools/compare.js. Rendered on demand so a shared
+ * link shows the table on first paint; "Add a school" works without script
+ * (?add= lists matches) and searches as you type with it.
+ */
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+import AboutSection from '../../components/school-quality/AboutSection.astro';
+import { getMetadata, getIndex, loadSchool, loadSearch } from '../../lib/server/schools.js';
+import { RateLimited, RATE_LIMITED_TEXT } from '../../lib/server/rate-limit.js';
+import { BASE_PATH, REPORTS, MAX_QUERY_LENGTH, schoolPath, yearLabel, normalizeDbn } from '../../lib/schools/config.js';
+import { formatValue, trendSentence } from '../../lib/schools/values.js';
+import { typeBadges, boroughHtml, verdictPill, trendChip, UPSTREAM_TEXT } from '../../lib/schools/render.js';
+import { normalizeQuery } from '../../lib/schools/filter.js';
+import {
+  MAX_COMPARE, COMPARE_PATH, parseSchools, compareHref, chooseReport, compareTable, aheadOn, cityPeers, pickListHtml
+} from '../../lib/schools/compare.js';
+import { date } from '../../lib/format.js';
+
+export const prerender = false;
+
+const params = Astro.url.searchParams;
+let dbns = parseSchools(params.get('schools'));
+const requested = params.get('report') ?? '';
+const add = (params.get('add') ?? '').trim().replace(/\s+/g, ' ').slice(0, MAX_QUERY_LENGTH);
+
+// "Add a school" without script: a full DBN of a real school is added straight away.
+if (add && dbns.length < MAX_COMPARE) {
+  const dbn = normalizeDbn(add);
+  if (dbn) {
+    const index = await getIndex().catch(() => null);
+    if (index?.schools.some((s: any) => s.dbn === dbn)) return Astro.redirect(compareHref([...dbns, dbn]), 303);
+  }
+}
+// The canonical link: no duplicates, upper-case DBNs, no leftover parameters.
+const canonical = compareHref(dbns, { report: requested || undefined });
+if (!add && params.size && Astro.url.pathname + Astro.url.search !== canonical) {
+  return Astro.redirect(canonical, 301);
+}
+
+const [meta, ...loaded] = await Promise.allSettled([
+  getMetadata(),
+  ...dbns.map((dbn) => loadSchool(dbn, Astro.url, Astro.locals.cfContext, Astro.clientAddress))
+]);
+if (meta.status === 'rejected') console.error(meta.reason);
+const metaValue = meta.status === 'fulfilled' ? meta.value : null;
+
+// Each slot: the school, or why it isn't there.
+const slots = dbns.map((dbn, i) => {
+  const r = loaded[i];
+  if (r.status === 'fulfilled') return r.value ? { dbn, school: r.value } : { dbn, missing: true };
+  if (!(r.reason instanceof RateLimited)) console.error(r.reason);
+  return { dbn, error: r.reason instanceof RateLimited ? RATE_LIMITED_TEXT : UPSTREAM_TEXT };
+});
+const schools = slots.filter((s) => s.school).map((s) => s.school);
+const failed = slots.some((s) => s.error);
+const latestYear = schools[0]?.latestYear ?? null;
+
+// Matches for "Add a school" without script.
+let picks: any[] | null = null;
+let pickError: string | null = null;
+if (add && dbns.length < MAX_COMPARE) {
+  const { query } = normalizeQuery(new URLSearchParams({ q: add, all: '1' }));
+  try {
+    const found = await loadSearch(query, { view: 'list' }, Astro.url, Astro.locals.cfContext, Astro.clientAddress);
+    picks = found.results.filter((r: any) => !dbns.includes(r.dbn)).slice(0, 6);
+  } catch (err) {
+    if (!(err instanceof RateLimited)) console.error(err);
+    pickError = err instanceof RateLimited ? RATE_LIMITED_TEXT : UPSTREAM_TEXT;
+  }
+}
+
+const choice = schools.length >= 2 ? chooseReport(schools, requested) : null;
+const table = choice ? compareTable(schools, choice.report) : null;
+const showTable = table && table.columns.length >= 2;
+const ahead = showTable ? aheadOn(table) : null;
+const peers = table ? cityPeers(table) : '';
+const yearsDiffer = showTable && new Set(table.columns.map((c: any) => c.year)).size > 1;
+const typesDiffer = showTable && !table.cityLine && !yearsDiffer;
+const groupWord = showTable ? (table.columns.length === 2 ? 'Better of the two' : 'Best of the three') : '';
+const reportNoun = (code: string) => REPORTS[code as keyof typeof REPORTS]?.noun ?? 'school';
+const reportLabel = (code: string) => REPORTS[code as keyof typeof REPORTS]?.label ?? code;
+const listNames = (names: string[]) => names.length <= 2 ? names.join(' and ') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+
+const pageTitle = 'Compare schools';
+const title = schools.length >= 2 ? `Compare ${schools.map((s: any) => s.name).join(' vs ')}` : pageTitle;
+if (import.meta.env.PROD && !failed && !add) Astro.response.headers.set('Cache-Control', 'public, max-age=3600');
+if (failed && !schools.length) Astro.response.status = slots.some((s) => s.error === RATE_LIMITED_TEXT) ? 429 : 502;
+
+const pickerJson = JSON.stringify({
+  dbns,
+  names: Object.fromEntries(schools.map((s: any) => [s.dbn, s.name]))
+}).replace(/</g, '\\u003c');
+---
+
+<DashboardLayout
+  title={`${title} | NYC School Quality Explorer`}
+  description="Put up to 3 NYC public schools side by side: test scores, graduation, attendance and more from DOE School Quality Reports, each next to the NYC average."
+  path={COMPARE_PATH}
+  category="Education"
+  lastRefreshed={metaValue?.rowsUpdatedAt ? date(metaValue.rowsUpdatedAt) : undefined}
+  dataUpdated={metaValue?.rowsUpdatedAt ?? undefined}
+>
+  <p class="sq-back"><a href={BASE_PATH}>← All schools</a></p>
+
+  <header class="page-head">
+    <p class="sq-eyebrow">From NYC DOE School Quality Reports</p>
+    <h1>{pageTitle}</h1>
+    <p>Put up to {MAX_COMPARE} schools side by side. Each number is from the school’s latest report, next to the NYC average for its type.</p>
+  </header>
+
+  <section class="dash-section sq-cmp-pick" aria-labelledby="sq-cmp-pick-title">
+    <h2 class="sr-only" id="sq-cmp-pick-title">Schools you’re comparing</h2>
+    <ol class="sq-cmp-slots" style={`--cols: ${MAX_COMPARE}`}>
+      {slots.map((slot: any, i: number) => (
+        <li class="sq-cmp-slot">
+          <span class="sq-cmp-bullet" data-slot={i + 1} aria-hidden="true">{i + 1}</span>
+          <div class="sq-cmp-slot-body">
+            {slot.school ? (
+              <>
+                <p class="sq-card-badges" set:html={typeBadges(slot.school.types)}></p>
+                <a class="sq-cmp-slot-name" href={schoolPath(slot.dbn)}>{slot.school.name}</a>
+                <p class="sq-cmp-slot-meta">{slot.dbn} · <Fragment set:html={boroughHtml(slot.school.boro)} /></p>
+              </>
+            ) : (
+              <>
+                <p class="sq-cmp-slot-name">{slot.dbn}</p>
+                <p class="sq-cmp-slot-meta">{slot.missing ? 'No School Quality Report with this DBN.' : slot.error}</p>
+              </>
+            )}
+          </div>
+          <a class="sq-cmp-remove" href={compareHref(dbns.filter((d) => d !== slot.dbn), { report: requested || undefined })}>
+            Remove<span class="sr-only"> {slot.school?.name ?? slot.dbn}</span>
+          </a>
+        </li>
+      ))}
+
+      {dbns.length < MAX_COMPARE && (
+        <li class="sq-cmp-slot sq-cmp-add">
+          <span class="sq-cmp-bullet" data-slot="empty" aria-hidden="true">{dbns.length + 1}</span>
+          <form class="sq-cmp-slot-body" action={COMPARE_PATH} method="get" role="search" data-add-form>
+            {dbns.length > 0 && <input type="hidden" name="schools" value={dbns.join(',')} />}
+            {requested && <input type="hidden" name="report" value={requested} />}
+            <label class="filter-label" for="sq-cmp-add">{dbns.length ? 'Add another school' : 'Add a school'}</label>
+            <div class="sq-cmp-add-row">
+              <input class="search-input" id="sq-cmp-add" name="add" type="search" maxlength={MAX_QUERY_LENGTH} value={add}
+                autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search"
+                placeholder="School name or DBN" aria-describedby="sq-cmp-add-status" data-add-input />
+              <button type="submit" class="near-btn" data-add-submit>Find</button>
+            </div>
+            <p class="sq-cmp-add-status" id="sq-cmp-add-status" role="status" aria-live="polite" data-add-status>
+              {pickError ?? (picks ? (picks.length ? `${picks.length === 1 ? '1 match' : `${picks.length} matches`}. Pick one to add it.` : 'No matches. Try fewer words or the DBN.') : '')}
+            </p>
+            <ul class="sq-picks" data-picks set:html={picks ? pickListHtml(picks, dbns, { report: requested || undefined }) : ''}></ul>
+          </form>
+        </li>
+      )}
+    </ol>
+
+    {dbns.length === 0 && (
+      <p class="sq-cmp-hint">Or <a href={BASE_PATH}>browse all schools</a> and tap <strong>Compare</strong> on the ones you like.</p>
+    )}
+    {schools.length === 1 && !failed && (
+      <p class="sq-cmp-hint">Add one or two more schools to see them side by side.</p>
+    )}
+  </section>
+
+  {schools.length >= 2 && !table && (
+    <p class="callout callout-heads-up">
+      <strong>Heads up:</strong> these schools don’t share a report type ({schools.map((s: any) => `${s.name}: ${s.reports.filter((r: any) => r.years.length).map((r: any) => reportNoun(r.report)).join(' and ')}`).join('; ')}),
+      so their numbers don’t line up. Open each school to see its own report.
+    </p>
+  )}
+
+  {table && table.columns.length < 2 && (
+    <p class="callout callout-heads-up">
+      <strong>Heads up:</strong> only {table.columns[0]?.name} has a {reportNoun(table.report)} report here, so there’s nothing to line it up with.
+    </p>
+  )}
+
+  {showTable && (
+    <section class="dash-section sq-cmp" aria-labelledby="sq-cmp-title">
+      <div class="section-head">
+        <h2 id="sq-cmp-title">Side by side</h2>
+        <p class="section-intro">
+          {reportLabel(table.report)} measures from each school’s
+          {yearsDiffer ? ' latest report' : ` ${yearLabel(table.columns[0].year)} report`}.
+          “{groupWord}” marks the strongest number on each measure; the colored note says how it compares with the NYC average.
+        </p>
+      </div>
+
+      {choice && choice.options.length > 1 && (
+        <nav class="sq-cmp-reports" aria-label="Which report to compare">
+          <span>These schools share more than one report. Compare:</span>
+          <ul>
+            {choice.options.map((code: string) => (
+              <li><a href={compareHref(dbns, { report: code })} aria-current={code === table.report ? 'page' : undefined}>{reportLabel(code)} grades</a></li>
+            ))}
+          </ul>
+        </nav>
+      )}
+
+      {table.left.length > 0 && (
+        <p class="callout callout-heads-up">
+          <strong>Heads up:</strong> {listNames(table.left.map((s: any) => s.name))} {table.left.length === 1 ? 'has' : 'have'} no
+          {' '}{reportNoun(table.report)} report, so {table.left.length === 1 ? 'it isn’t' : 'they aren’t'} in this table.
+        </p>
+      )}
+      {yearsDiffer && (
+        <p class="callout callout-heads-up">
+          <strong>Heads up:</strong> these reports are from different years
+          ({table.columns.map((c: any) => `${c.name}: ${yearLabel(c.year)}`).join('; ')}), so the numbers aren’t from the same school year.
+        </p>
+      )}
+
+      {ahead && (
+        <div class="sq-cmp-glance">
+          <h3 class="sq-cmp-glance-title" id="sq-cmp-glance-title">At a glance: where each school comes out ahead</h3>
+          <ul class="sq-cmp-glance-list" aria-labelledby="sq-cmp-glance-title">
+            {table.columns.map((c: any, i: number) => (
+              <li class="sq-cmp-glance-card" data-slot={c.n}>
+                <p class="sq-cmp-glance-head">
+                  <span class="sq-cmp-bullet" data-slot={c.n} aria-hidden="true">{c.n}</span>
+                  <span class="sq-cmp-glance-name">{c.name}</span>
+                </p>
+                {ahead[i].length ? (
+                  <ul class="sq-cmp-wins">
+                    {ahead[i].map((x: any) => (
+                      <li>
+                        <a class="sq-cmp-win" href={`#cmp-${x.metric.id}`}>
+                          <span class="sq-cmp-win-text">{x.text}</span>
+                          <span class="sq-cmp-win-value">{formatValue(x.metric, x.v)}</span>
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p class="sq-cmp-wins-none">Doesn’t come out ahead on any measure here.</p>
+                )}
+              </li>
+            ))}
+          </ul>
+          <p class="sq-cmp-glance-note">Measures don’t carry equal weight, so this isn’t a ranking. Pick the ones that matter to you.</p>
+        </div>
+      )}
+
+      <div class="sq-cmp-wrap">
+        <table class="sq-cmp-table" role="table" style={`--cols: ${table.columns.length}`}>
+          <caption class="sr-only">
+            {reportLabel(table.report)} measures for {listNames(table.columns.map((c: any) => c.name))}
+          </caption>
+          <thead role="rowgroup">
+            <tr role="row">
+              <td class="sq-cmp-corner" role="cell"></td>
+              {table.columns.map((c: any, i: number) => (
+                <th scope="col" class="sq-cmp-col" role="columnheader">
+                  <span class="sq-cmp-bullet" data-slot={c.n} aria-hidden="true">{c.n}</span>
+                  <a href={schoolPath(c.dbn)}>{c.name}</a>
+                  <span class="sq-cmp-col-meta">
+                    {yearLabel(c.year)} report
+                  </span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody role="rowgroup">
+            {table.rows.map((row: any) => (
+              <tr role="row" id={`cmp-${row.metric.id}`}>
+                <th scope="row" class="sq-cmp-measure" role="rowheader">
+                  <span class="sq-cmp-measure-label">{row.metric.label}</span>
+                  {row.city != null && <span class="sq-cmp-city">NYC avg for {peers}: {formatValue(row.metric, row.city)}</span>}
+                  <details class="sq-cmp-about">
+                    <summary>What’s this?</summary>
+                    <p>{row.metric.description}</p>
+                  </details>
+                </th>
+                {row.cells.map((cell: any, i: number) => (
+                  <td class="sq-cmp-cell" role="cell" data-best={cell.best ? 'true' : undefined}>
+                    <span class="sq-cmp-cell-school" aria-hidden="true">
+                      <span class="sq-cmp-bullet" data-slot={table.columns[i].n}>{table.columns[i].n}</span>
+                    </span>
+                    {cell.best && <span class="sq-cmp-best">{groupWord}</span>}
+                    <span class={`sq-cmp-value${cell.v == null ? ' is-missing' : ''}`}>{formatValue(row.metric, cell.v)}</span>
+                    {cell.verdict && <span class="sq-cmp-verdict" set:html={verdictPill(cell.verdict)} />}
+                    {cell.trend?.dir && (
+                      <span class="sq-cmp-trend">
+                        <span aria-hidden="true">Trend </span><Fragment set:html={trendChip(row.metric, cell.trend)} />
+                        <span class="sr-only"> {trendSentence(row.metric, cell.trend)}</span>
+                      </span>
+                    )}
+                  </td>
+                ))}
+              </tr>
+            ))}
+            {table.context.map((row: any) => (
+              <tr class="sq-cmp-context" role="row">
+                <th scope="row" class="sq-cmp-measure" role="rowheader">
+                  <span class="sq-cmp-measure-label">{row.metric.label}</span>
+                  <span class="sq-cmp-city">Size, not a sign of quality</span>
+                </th>
+                {row.cells.map((cell: any, i: number) => (
+                  <td class="sq-cmp-cell" role="cell">
+                    <span class="sq-cmp-cell-school" aria-hidden="true">
+                      <span class="sq-cmp-bullet" data-slot={table.columns[i].n}>{table.columns[i].n}</span>
+                    </span>
+                    <span class={`sq-cmp-value${cell.v == null ? ' is-missing' : ''}`}>{formatValue(row.metric, cell.v)}</span>
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <p class="chart-hint sq-cmp-note">
+        {typesDiffer
+          ? 'These are different kinds of schools, so each one is compared with the NYC average for its own type.'
+          : `NYC averages are for ${peers}, weighted by students.`}
+        {' '}Trends cover each school’s last 3 years with data. A report is one year’s snapshot: open a school for its
+        charts and similar-school comparisons.
+      </p>
+    </section>
+  )}
+
+  <AboutSection meta={metaValue} latestYear={latestYear} />
+</DashboardLayout>
+
+<script type="application/json" id="sq-cmp" set:html={pickerJson}></script>
+
+<script>
+  import { pickListHtml, MAX_COMPARE } from '../../lib/schools/compare.js';
+  import { readShortlist, writeShortlist } from '../../lib/schools/shortlist.js';
+  import { UPSTREAM_TEXT } from '../../lib/schools/render.js';
+
+  const DEBOUNCE_MS = 300;
+  const state = JSON.parse(document.getElementById('sq-cmp')!.textContent || '{}');
+  const dbns: string[] = state.dbns ?? [];
+  const report = new URLSearchParams(location.search).get('report') || undefined;
+
+  // This page's schools become the shortlist, keeping names already known for ones that didn't load.
+  const known = Object.fromEntries(readShortlist().map((x) => [x.dbn, x.name]));
+  writeShortlist(dbns.map((dbn) => ({ dbn, name: state.names?.[dbn] ?? known[dbn] ?? dbn })));
+
+  const form = document.querySelector<HTMLFormElement>('[data-add-form]');
+  const input = document.querySelector<HTMLInputElement>('[data-add-input]');
+  const status = document.querySelector<HTMLElement>('[data-add-status]');
+  const picks = document.querySelector<HTMLElement>('[data-picks]');
+  if (form && input && status && picks && dbns.length < MAX_COMPARE) {
+    let timer = 0;
+    let abort: AbortController | null = null;
+
+    async function find() {
+      const q = input!.value.trim();
+      abort?.abort();
+      if (q.length < 2) { picks!.replaceChildren(); status!.textContent = ''; return; }
+      abort = new AbortController();
+      try {
+        const res = await fetch(`/api/schools/search?${new URLSearchParams({ q, all: '1' })}`, { signal: abort.signal });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !Array.isArray(data?.results)) {
+          status!.textContent = typeof data?.error === 'string' ? data.error : UPSTREAM_TEXT;
+          picks!.replaceChildren();
+          return;
+        }
+        const results = data.results.filter((r: any) => !dbns.includes(r.dbn)).slice(0, 6);
+        picks!.innerHTML = pickListHtml(results, dbns, { report });
+        status!.textContent = results.length
+          ? `${results.length === 1 ? '1 match' : `${results.length} matches`}. Pick one to add it.`
+          : 'No matches. Try fewer words or the DBN.';
+      } catch (err: any) {
+        if (err.name !== 'AbortError') status!.textContent = UPSTREAM_TEXT;
+      }
+    }
+
+    input.addEventListener('input', () => {
+      clearTimeout(timer);
+      timer = window.setTimeout(find, DEBOUNCE_MS);
+    });
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      clearTimeout(timer);
+      find().then(() => picks!.querySelector<HTMLAnchorElement>('a')?.focus());
+    });
+    // Arrow keys move between the input and the matches.
+    form.addEventListener('keydown', (e) => {
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+      const links = [...picks!.querySelectorAll<HTMLAnchorElement>('a')];
+      if (!links.length) return;
+      const at = links.indexOf(document.activeElement as HTMLAnchorElement);
+      e.preventDefault();
+      if (e.key === 'ArrowDown') links[Math.min(at + 1, links.length - 1)].focus();
+      else if (at <= 0) input!.focus();
+      else links[at - 1].focus();
+    });
+  }
+</script>
