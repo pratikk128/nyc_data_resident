@@ -2,19 +2,22 @@
 
 **asknycdata.com** · NYC's public data, made easy to understand.
 
-Interactive dashboards for NYC residents, built on public [NYC Open Data](https://opendata.cityofnewyork.us/): a landing page plus seven dashboards (restaurant inspections, 311 complaints, city payroll, drinking water, women- and minority-owned businesses, school quality, street closures).
+Interactive dashboards for NYC residents and businesses, built on public [NYC Open Data](https://opendata.cityofnewyork.us/): a landing page plus ten dashboards (restaurant inspections, restaurant leads, 311 complaints, city payroll spending, what city jobs pay, drinking water, women- and minority-owned businesses, school quality, street closures, help near me).
 
 Built with [Astro](https://docs.astro.build) and deployed to Cloudflare Workers. The page's interactivity is plain vanilla JavaScript. Most pages are prerendered; pages and API routes that read live NYC Open Data run in the Worker (`export const prerender = false`).
 
 ```
 src/pages/index.astro     Landing page markup
 src/styles/landing.css    Landing page styles (theme tokens at the top in :root)
-src/pages/city-payroll/        City Payroll Spending dashboard, one page per section (rendered on demand)
-src/components/city-payroll/   PayrollPage.astro (shared heading + section nav) and the sections
+src/pages/city-payroll/        City Payroll Spending (rendered on demand)
+src/components/city-payroll/   WorkforceSection.astro
+src/pages/city-jobs/           What NYC City Jobs Pay, from the same payroll data (rendered on demand)
+src/components/city-jobs/      JobsSection.astro
 src/layouts/DashboardLayout.astro   Shared shell for dashboard pages
 src/lib/                  Formatting helpers, payroll stats, chart code
 src/lib/payroll/build.js  Payroll queries and checks, shared by the cron and npm run data:payroll
 src/pages/restaurant-inspections/   NYC Restaurant Inspections (rendered on demand)
+src/pages/restaurant-leads/   Restaurant Leads by Service Type, from the same inspection data (rendered on demand)
 src/pages/311-complaints/  311 Complaints in My Neighborhood (rendered on demand)
 src/pages/drinking-water/  NYC Drinking Water Quality, one page per section (rendered on demand)
 src/components/drinking-water/  WaterPage.astro (heading, section nav, context box, method notes) and the sections
@@ -142,21 +145,22 @@ Open `src/data/dashboards.js` and append one object to the `dashboards` array:
 
 To add a new category, add an entry (name, tone, SVG icon paths) to `CATEGORIES` in `src/data/dashboards.js`; sidebar order follows that array's order.
 
-## City Payroll Spending sections
+## City Payroll Spending and What NYC City Jobs Pay
 
-Each section of the dashboard is its own page with its own URL. The section nav (links, with `aria-current="page"` on the current one) lives in `src/components/city-payroll/PayrollPage.astro`; `/city-payroll/` is the default.
+Two dashboards built on the same payroll data (`src/lib/server/payroll.js`), each with its own landing-page card:
 
-| Route | Section | Component |
+| Route | Question | Component |
 |---|---|---|
-| `/city-payroll/` | How much does NYC spend on its workforce? | `WorkforceSection.astro` |
+| `/city-payroll/` | How much does NYC spend on its workforce? | `city-payroll/WorkforceSection.astro` |
 | `/city-payroll/spending/` | Redirects to `/city-payroll/` (set in `astro.config.mjs`) | |
-| `/city-payroll/jobs/` | What do city jobs actually pay? | `JobsSection.astro` |
+| `/city-jobs/` | What do city jobs actually pay? | `city-jobs/JobsSection.astro` |
+| `/city-payroll/jobs/` | Redirects to `/city-jobs/`, keeping the query string | |
 
-To add a section, add an entry to `SECTIONS` in `PayrollPage.astro` and a page in `src/pages/city-payroll/`.
-
-The jobs section keeps its state in the URL so views can be shared: `?chip=firefighter`, `?q=nurse`, `?sort=base-desc` (sort keys: `label`, `employees`, `base`, `extra`, `change`; direction `asc` or `desc`).
+`/city-jobs/` keeps its state in the URL so views can be shared: `?chip=firefighter`, `?q=nurse`, `?sort=base-desc` (sort keys: `label`, `employees`, `base`, `extra`, `change`; direction `asc` or `desc`).
 
 ## NYC Restaurant Inspections
+
+`/restaurant-leads/` (Restaurant Leads by Service Type, for businesses) is a separate dashboard on the same dataset; `/restaurant-inspections/leads/` redirects there with its query string.
 
 `/restaurant-inspections/` looks up a restaurant from NYC Open Data's [DOHMH New York City Restaurant Inspection Results](https://data.cityofnewyork.us/d/43nn-pn8j) (`43nn-pn8j`), live. `?camis=50066715` opens a restaurant directly (rendered on the server, so shared links work); `?name=&boro=&place=` restores a search; `&compare=similar` picks the "Similar restaurants" benchmark.
 

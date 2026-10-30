@@ -1,11 +1,12 @@
 ---
 /*
- * City Payroll Spending, default view: "How much does NYC spend on its
- * workforce?" Other sections live next to this file (jobs.astro, ...).
+ * City Payroll Spending: "How much does NYC spend on its workforce?"
+ * What individual jobs pay is its own dashboard, /city-jobs/.
  */
-import PayrollPage from '../../components/city-payroll/PayrollPage.astro';
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
 import WorkforceSection from '../../components/city-payroll/WorkforceSection.astro';
 import { getPayroll } from '../../lib/server/payroll.js';
+import { date } from '../../lib/format.js';
 
 // Rendered on demand from the payroll data the hourly cron keeps in KV.
 export const prerender = false;
@@ -15,10 +16,18 @@ const payroll = await getPayroll();
 if (import.meta.env.PROD) Astro.response.headers.set('Cache-Control', 'public, max-age=3600');
 ---
 
-<PayrollPage
-  payroll={payroll.byYear}
-  section="spending"
+<DashboardLayout
+  title="City Payroll Spending"
   description="How much NYC spends on its workforce: total payroll, overtime and other pay by fiscal year, from NYC Open Data."
+  path="/city-payroll/"
+  category="City Government"
+  lastRefreshed={date(payroll.byYear.refreshedAt)}
+  dataUpdated={payroll.byYear.dataset.sourceUpdatedAt}
 >
+  <header class="page-head">
+    <h1>City Payroll Spending</h1>
+    <p>What it costs to pay the people who run the city, in plain numbers: salaries, overtime and other pay across every agency.</p>
+  </header>
+
   <WorkforceSection byYear={payroll.byYear} byAgency={payroll.byAgency} />
-</PayrollPage>
+</DashboardLayout>

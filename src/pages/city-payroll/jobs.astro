@@ -1,23 +1,9 @@
 ---
 /*
- * City Payroll Spending: "What do city jobs actually pay?"
+ * What NYC City Jobs Pay was a section of City Payroll Spending; it's
+ * its own dashboard now. Old links keep their filters (?chip=, ?q=, ?sort=).
  */
-import PayrollPage from '../../components/city-payroll/PayrollPage.astro';
-import JobsSection from '../../components/city-payroll/JobsSection.astro';
-import { getPayroll } from '../../lib/server/payroll.js';
-
-// Rendered on demand from the payroll data the hourly cron keeps in KV.
 export const prerender = false;
 
-const payroll = await getPayroll();
-// Production only: in dev a cached page hides edits for an hour.
-if (import.meta.env.PROD) Astro.response.headers.set('Cache-Control', 'public, max-age=3600');
+return Astro.redirect('/city-jobs/' + Astro.url.search, 301);
 ---
-
-<PayrollPage
-  payroll={payroll.byYear}
-  section="jobs"
-  description="Median base salary and median overtime and other pay for full-time NYC city jobs, by job title, from NYC Open Data."
->
-  <JobsSection byYear={payroll.byYear} jobs={payroll.jobs} />
-</PayrollPage>

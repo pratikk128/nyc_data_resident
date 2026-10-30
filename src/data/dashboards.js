@@ -25,10 +25,18 @@ export const dashboards = [
   {
     id: "restaurant-inspections",
     title: "NYC Restaurant Inspections",
-    description: "Explore health inspection grades, violations, and trends for restaurants across the five boroughs.",
+    description: "Look up any restaurant’s health inspection grade and latest violations, and see how it compares with similar places.",
     category: "Health",
     url: "/restaurant-inspections/",
     audience: ["resident", "business"]
+  },
+  {
+    id: "restaurant-leads",
+    title: "Restaurant Leads by Service Type",
+    description: "Restaurants just cited for pests, broken refrigeration, plumbing and more, grouped by the kind of business that can fix them.",
+    category: "Business",
+    url: "/restaurant-leads/",
+    audience: ["business"]
   },
   {
     id: "311-complaints",
@@ -44,6 +52,14 @@ export const dashboards = [
     description: "See what NYC pays its workforce: total payroll, overtime and other pay by agency and year.",
     category: "City Government",
     url: "/city-payroll/",
+    audience: ["resident"]
+  },
+  {
+    id: "city-jobs",
+    title: "What NYC City Jobs Pay",
+    description: "See what full-time city jobs pay, from nurses to firefighters: median salary, overtime and how pay has changed.",
+    category: "City Government",
+    url: "/city-jobs/",
     audience: ["resident"]
   },
   {

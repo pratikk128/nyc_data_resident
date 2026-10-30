@@ -1,0 +1,33 @@
+---
+/*
+ * What NYC City Jobs Pay: median salary and overtime and other pay by job
+ * title. Shares its data with City Payroll Spending (/city-payroll/).
+ */
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+import JobsSection from '../../components/city-jobs/JobsSection.astro';
+import { getPayroll } from '../../lib/server/payroll.js';
+import { date } from '../../lib/format.js';
+
+// Rendered on demand from the payroll data the hourly cron keeps in KV.
+export const prerender = false;
+
+const payroll = await getPayroll();
+// Production only: in dev a cached page hides edits for an hour.
+if (import.meta.env.PROD) Astro.response.headers.set('Cache-Control', 'public, max-age=3600');
+---
+
+<DashboardLayout
+  title="What NYC City Jobs Pay"
+  description="Median base salary and median overtime and other pay for full-time NYC city jobs, by job title, from NYC Open Data."
+  path="/city-jobs/"
+  category="City Government"
+  lastRefreshed={date(payroll.byYear.refreshedAt)}
+  dataUpdated={payroll.byYear.dataset.sourceUpdatedAt}
+>
+  <header class="page-head">
+    <h1>What NYC City Jobs Pay</h1>
+    <p>Thinking about working for the city? See what nurses, firefighters, engineers and hundreds of other full-time city jobs actually pay, and how that's changed.</p>
+  </header>
+
+  <JobsSection byYear={payroll.byYear} jobs={payroll.jobs} />
+</DashboardLayout>

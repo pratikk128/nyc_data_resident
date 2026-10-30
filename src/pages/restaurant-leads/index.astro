@@ -1,0 +1,39 @@
+---
+/*
+ * Restaurant Leads by Service Type, for businesses that sell to restaurants.
+ * Rendered on demand (not prerendered) so the "Data updated" date comes from
+ * the inspection dataset's live metadata; the leads themselves load in the
+ * browser from /api/restaurants/leads. Each lead links to its full record on
+ * NYC Restaurant Inspections (/restaurant-inspections/).
+ */
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+import LeadsSection from '../../components/restaurant-leads/LeadsSection.astro';
+import { getMetadata } from '../../lib/server/restaurants.js';
+import { date } from '../../lib/format.js';
+
+export const prerender = false;
+
+let meta = null;
+try {
+  meta = await getMetadata();
+} catch (err) {
+  console.error(err); // the page still works; it just can't show the date
+}
+Astro.response.headers.set('Cache-Control', 'public, max-age=300');
+---
+
+<DashboardLayout
+  title="Restaurant Leads by Service Type"
+  description="NYC restaurants with recent critical health violations, grouped by the service that can fix them: pest control, refrigeration, plumbing and more."
+  path="/restaurant-leads/"
+  category="Business"
+  lastRefreshed={meta?.rowsUpdatedAt ? date(meta.rowsUpdatedAt) : undefined}
+  dataUpdated={meta?.rowsUpdatedAt ?? undefined}
+>
+  <header class="page-head">
+    <h1>Restaurant Leads by Service Type</h1>
+    <p>Sell pest control, refrigeration repair, plumbing or cleaning? These restaurants were just cited by Health Department inspectors for problems your business can fix.</p>
+  </header>
+
+  <LeadsSection meta={meta} />
+</DashboardLayout>

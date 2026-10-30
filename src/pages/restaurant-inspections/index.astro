@@ -5,13 +5,14 @@
  * link like ?camis=50066715 opens straight to that restaurant, and a search
  * (?name=&boro=&place=) shows its results even without JavaScript.
  */
-import InspectionsPage from '../../components/restaurant-inspections/InspectionsPage.astro';
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
 import RestaurantLookup from '../../components/restaurant-inspections/RestaurantLookup.astro';
 import { getMetadata } from '../../lib/server/restaurants.js';
 import { loadRestaurant, loadSearch, isCamis } from '../../lib/server/restaurant-page.js';
 import { normalizeSearch } from '../../lib/restaurants/soql.js';
 import { RateLimited, RATE_LIMITED_TEXT } from '../../lib/server/rate-limit.js';
 import { UPSTREAM_TEXT } from '../../lib/restaurants/render.js';
+import { date } from '../../lib/format.js';
 
 export const prerender = false;
 
@@ -70,13 +71,19 @@ const description = initial
   : 'Look up any NYC restaurant’s health inspection grade, latest violations and how it compares, from NYC Open Data.';
 ---
 
-<InspectionsPage
-  section="lookup"
+<DashboardLayout
   title={title}
   description={description}
   path={initial ? `/restaurant-inspections/?camis=${initial.camis}` : '/restaurant-inspections/'}
-  meta={meta}
+  category="Health"
+  lastRefreshed={meta?.rowsUpdatedAt ? date(meta.rowsUpdatedAt) : undefined}
+  dataUpdated={meta?.rowsUpdatedAt ?? undefined}
 >
+  <header class="page-head">
+    <h1>NYC Restaurant Inspections</h1>
+    <p>Every restaurant in the city gets surprise visits from Health Department inspectors. Here's what they found, in plain language.</p>
+  </header>
+
   <RestaurantLookup meta={meta} initial={initial} initialError={initialError} benchmark={benchmark}
     searchInput={searchInput} initialSearch={initialSearch} />
-</InspectionsPage>
+</DashboardLayout>
