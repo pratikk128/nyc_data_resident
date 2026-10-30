@@ -1,0 +1,80 @@
+---
+/*
+ * "How to read this": 311, what each kind of help includes and leaves out
+ * (the rules in src/lib/help-near-me/normalize.js), and every source with
+ * its last update.
+ */
+import { CATEGORIES, STALE_DAYS, HOURS_MISSING } from '../../lib/help-near-me/config.js';
+import { date } from '../../lib/format.js';
+
+interface Props {
+  sources: { key: string; datasetId: string; name: string; url: string; updatedAt: string | null }[];
+}
+const { sources } = Astro.props;
+const now = Date.now();
+const stale = (d: string | null) => Boolean(d) && now - Date.parse(d!) > STALE_DAYS * 864e5;
+---
+
+<section class="dash-section" aria-labelledby="hn-about-title">
+  <h2 class="chart-title" id="hn-about-title">How to read this</h2>
+
+  <p class="callout callout-good hn-311">
+    <strong>Need help finding services?</strong> Call <a href="tel:311">311</a> (or 212-NEW-YORK from outside the city).
+    They can connect you with food, housing, benefits and more, any time, in many languages. In an emergency, call 911.
+  </p>
+
+  <p class="callout callout-heads-up">
+    <strong>Heads up:</strong> these lists come from city agencies and some are only updated once a year. Hours,
+    phone numbers and programs change. Call ahead before you go if you can. When a list doesn't include hours or a
+    phone number, we say “{HOURS_MISSING}” rather than guess.
+  </p>
+
+  <details class="about-data">
+    <summary>What each kind of help includes</summary>
+    <div class="about-body">
+      <ul class="caveats">
+        <li><strong>Food &amp; Cash Benefits (SNAP):</strong> the city's SNAP centers, where you can apply for SNAP (food stamps) and get help with your case. You can also apply online at ACCESS HRA.</li>
+        <li><strong>Homelessness Prevention:</strong> Homebase offices, which help people at risk of losing their home stay housed. Each office serves certain ZIP codes, shown on its card.</li>
+        <li><strong>Drop-In Centers:</strong> places for people living on the street to rest, eat, shower and get connected to shelter.</li>
+        <li><strong>Free Computers &amp; Internet:</strong> public computer centers at libraries, older adult centers, community centers and parks, from the latest year the city published. Some ask you to sign up or be a member first.</li>
+        <li><strong>Youth Programs:</strong> city-funded youth and community programs (after-school, community centers, job training, violence prevention), from the latest fiscal year. Summer job worksites, adult literacy classes and youth shelters aren't shown: they aren't places to walk into.</li>
+        <li><strong>Older Adults:</strong> older adult centers, NORC programs (support for older adults in their own building or neighborhood), case management, caregiver support, legal help, elder abuse help, mental health support and NY Connects. Services that come to your home (meals, home care, friendly visiting, rides) aren't shown, and neither are offices outside the city.</li>
+        <li><strong>Community Centers (NYCHA):</strong> occupied NYCHA community spaces with a program for residents and neighbors, like community and older adult centers, child care and clinics. NYCHA's own offices, shops and storage aren't shown.</li>
+      </ul>
+    </div>
+  </details>
+
+  <details class="about-data">
+    <summary>How we cleaned the data</summary>
+    <div class="about-body">
+      <p>
+        When a list has the same building more than once (one row per program, say), we show it once with all its
+        services. A few places have no map location in the city's list; we look up their address with NYC Planning's
+        GeoSearch and leave out any we can't match exactly. Distances are straight-line (as the crow flies), not
+        walking distance.
+      </p>
+      <p>
+        We show the nearest 5 of each kind within your radius first. If nothing is within it, we look farther and
+        say so. Your location never leaves your browser except as a rounded spot (about a block) used to find
+        places nearby, and a typed address never goes in the page link.
+      </p>
+    </div>
+  </details>
+
+  <footer class="section-sources">
+    <h3 class="sources-title">Where this comes from</h3>
+    <ul class="hn-sources">
+      {CATEGORIES.map((c) => {
+        const s = sources.find((x) => x.key === c.key);
+        return (
+          <li>
+            <strong>{c.label}:</strong> <a href={s?.url}>{c.datasetName}</a> ({c.datasetId}), {c.agency}.
+            {s?.updatedAt ? <> Last updated <time datetime={s.updatedAt}>{date(s.updatedAt)}</time>.</> : <> Last update unknown.</>}
+            {stale(s?.updatedAt ?? null) && <span class="hn-stale"> Not updated in over a year.</span>}
+          </li>
+        );
+      })}
+    </ul>
+    <p>All on NYC Open Data. We check each list for changes every hour. Spot a mistake? Use “Contact dataset owner” on the dataset’s page to report a data problem.</p>
+  </footer>
+</section>

@@ -67,6 +67,13 @@ export const dashboards = [
     description: "See which blocks are closed for construction near you, on your street or in your borough, today and in the weeks ahead.",
     category: "Transportation",
     url: "/street-closures/"
+  },
+  {
+    id: "help-near-me",
+    title: "Where Can I Get Help Near Me?",
+    description: "Find the nearest food benefits office, homelessness help, free computers, youth and older adult programs, with hours and directions.",
+    category: "Social Services",
+    url: "/help-near-me/"
   }
 ];
 

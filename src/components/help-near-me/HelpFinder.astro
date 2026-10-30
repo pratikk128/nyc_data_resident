@@ -1,0 +1,481 @@
+---
+/*
+ * The help finder: an address (with suggestions) or "Use my location", then
+ * the nearest help sites: category chips with counts, a radius, a map and a
+ * list kept in sync.
+ *
+ * The sites near a spot come from /api/help-near-me/search, once per spot;
+ * the categories, radius and "Show more" are applied here
+ * (src/lib/help-near-me/distance.js), so they switch at once. The spot,
+ * radius and categories are in the URL (page-state.js).
+ */
+import { CATEGORIES, RADII, DEFAULT_RADIUS } from '../../lib/help-near-me/config.js';
+import { radiusText } from '../../lib/help-near-me/distance.js';
+import { iconSvg } from '../../lib/help-near-me/render.js';
+import { pendingText } from '../../lib/help-near-me/page-state.js';
+import { MAX_INPUT_LENGTH } from '../../lib/complaints311/location-input.js';
+
+interface Props {
+  query: { r: number; cats: string[] };
+}
+const { query } = Astro.props;
+const all = query.cats.length === 0;
+---
+
+<div class="hn" data-help>
+  <section class="dash-section hn-find" id="find" aria-labelledby="hn-find-title">
+    <h2 class="sr-only" id="hn-find-title">Search</h2>
+    <form class="hn-search" data-form novalidate role="search" aria-label="Find help near an address">
+      <label class="filter-label" for="hn-address">Your address or ZIP code</label>
+      <div class="hn-search-row">
+        <div class="c311-combo hn-field">
+          <input class="search-input" id="hn-address" type="text" role="combobox" aria-autocomplete="list"
+            aria-expanded="false" aria-controls="hn-address-list" autocomplete="street-address" spellcheck="false"
+            maxlength={MAX_INPUT_LENGTH} placeholder="Try “1910 Monterey Ave, Bronx” or “10457”" data-address />
+          <ul class="c311-suggest" id="hn-address-list" role="listbox" aria-label="Address suggestions" hidden data-address-list></ul>
+        </div>
+        <button type="submit" class="c311-go">Find help</button>
+        <button type="button" class="near-btn" data-locate-me>
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+          Use my location
+        </button>
+      </div>
+    </form>
+    <div class="scl-suggest-chips" data-address-choices hidden></div>
+    <p class="rest-status" role="status" aria-live="polite" data-status></p>
+  </section>
+
+  <section class="dash-section" id="results" aria-labelledby="hn-results-title">
+    <header class="section-head">
+      <h2 id="hn-results-title">Help near you</h2>
+      <p class="section-intro" data-summary aria-live="polite">{pendingText}</p>
+    </header>
+
+    <div class="hn-filters">
+      <div class="hn-chips" role="group" aria-label="Kinds of help (pick one or more)">
+        <button type="button" class="hn-chip hn-chip-all" data-cat="all" aria-pressed={all ? 'true' : 'false'}>
+          All kinds of help <span class="hn-chip-count" data-count="all" hidden></span>
+        </button>
+        {CATEGORIES.map((c) => (
+          <button type="button" class="hn-chip" data-cat={c.key} data-tone={c.tone} style={`--hn-pin:${c.color}`}
+            aria-pressed={!all && query.cats.includes(c.key) ? 'true' : 'false'}>
+            <Fragment set:html={iconSvg(c.icon, 'hn-icon hn-chip-icon')} />
+            <span>{c.label}</span>
+            <span class="hn-chip-count" data-count={c.key} hidden></span>
+          </button>
+        ))}
+      </div>
+      <div class="hn-radius">
+        <span class="filter-label" id="hn-radius-label">How far</span>
+        <div class="toggle" role="group" aria-labelledby="hn-radius-label">
+          {RADII.map((r) => <button type="button" class="toggle-btn" data-radius={r} aria-pressed={(query.r ?? DEFAULT_RADIUS) === r ? 'true' : 'false'}>{radiusText(r)}</button>)}
+        </div>
+      </div>
+    </div>
+
+    <ul class="hn-missing" data-missing hidden></ul>
+
+    <div class="hn-layout" data-layout hidden>
+      <div class="hn-map-col">
+        <button type="button" class="copy-link hn-map-toggle" data-map-toggle aria-expanded="true" aria-controls="hn-map-wrap">Hide map</button>
+        <div id="hn-map-wrap">
+          <div class="c311-map-frame hn-map" data-map role="region" aria-label="Map of help sites. Each pin is also in the list."></div>
+          <p class="hn-legend"><span class="scl-key-you"></span>Your spot and radius. Pins match the colors and icons of the kinds of help above.</p>
+        </div>
+      </div>
+      <div class="hn-list-col">
+        <ol class="hn-cards" data-cards aria-label="Help sites, nearest first"></ol>
+        <div class="scl-empty" data-empty hidden></div>
+        <button type="button" class="pager-btn scl-more" data-more hidden></button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+  import { CATEGORIES, ERROR_TEXT, METERS_PER_MILE } from '../../lib/help-near-me/config.js';
+  import { selectView, radiusText } from '../../lib/help-near-me/distance.js';
+  import { cardHtml, skeletonHtml, escape } from '../../lib/help-near-me/render.js';
+  import { mountHelpMap } from '../../lib/help-near-me/help-map.js';
+  import {
+    normalizeQuery, queryToParams, pointQuery, toggleCategory, summaryText, missingNotes, radiusFor, chipLabel, moreText, pendingText
+  } from '../../lib/help-near-me/page-state.js';
+  import { nearSearch, addressOutcome } from '../../lib/location/near-search.js';
+  import { parseLocationInput, inNyc, isNycZip } from '../../lib/complaints311/location-input.js';
+  import { resolveLocation, suggest } from '../../lib/complaints311/geocode.js';
+  import { boroughLabel } from '../../lib/complaints311/config.js';
+  import { count } from '../../lib/format.js';
+  import zipFile from '../../data/zip-centroids.json';
+
+  // The decisions about the list and its wording are in distance.js and page-state.js, with tests.
+
+  const root = document.querySelector<HTMLElement>('[data-help]')!;
+  const $ = <T extends HTMLElement = HTMLElement>(sel: string) => root.querySelector<T>(sel)!;
+
+  const form = $<HTMLFormElement>('[data-form]');
+  const input = $<HTMLInputElement>('[data-address]');
+  const list = $<HTMLUListElement>('[data-address-list]');
+  const choices = $('[data-address-choices]');
+  const locateBtn = $<HTMLButtonElement>('[data-locate-me]');
+  const status = $('[data-status]');
+  const summary = $('[data-summary]');
+  const layout = $('[data-layout]');
+  const cards = $('[data-cards]');
+  const empty = $('[data-empty]');
+  const more = $<HTMLButtonElement>('[data-more]');
+  const missing = $('[data-missing]');
+  const mapWrap = $('#hn-map-wrap');
+  const mapToggle = $<HTMLButtonElement>('[data-map-toggle]');
+  const mapCol = $('.hn-map-col');
+  const narrow = matchMedia('(max-width: 1023px)'); // matches the CSS breakpoint
+
+  const map = mountHelpMap($('[data-map]'), { onPick: (id: string) => select(id, { fromMap: true }) });
+
+  let query: any = normalizeQuery(new URLSearchParams(location.search));
+  // The spot's name: never in the URL, so a shared or reloaded link says "the spot you picked".
+  let placeLabel = (history.state?.placeLabel as string) || '';
+  let data: { point: any; sites: any[]; sources: any[] } | null = null;
+  let loadedFor = '';
+  let pages = 1;
+  let selected: string | null = null;
+  let view: any = null;
+  let request = 0;
+  const cache = new Map<string, any>();
+
+  // ---------- URL ----------
+  function go(next: any, { push = true, reload = false } = {}) {
+    query = next;
+    const qs = queryToParams(query).toString();
+    const url = `${location.pathname}${qs ? `?${qs}` : ''}`;
+    const state = { placeLabel };
+    if (push) history.pushState(state, '', url); else history.replaceState(state, '', url);
+    if (reload || spotKey() !== loadedFor) pages = 1;
+    update();
+  }
+
+  window.addEventListener('popstate', () => {
+    query = normalizeQuery(new URLSearchParams(location.search));
+    placeLabel = history.state?.placeLabel || '';
+    pages = 1;
+    update();
+  });
+
+  const spotKey = () => (query.lat == null ? '' : `lat=${query.lat}&lon=${query.lon}`);
+
+  // ---------- Address box with suggestions ----------
+  type Option = { label: string; hint?: string; lat: number; lon: number };
+  let options: Option[] = [];
+  let active = -1;
+  let timer = 0;
+  let suggestAbort: AbortController | null = null;
+
+  function renderOptions(next: Option[]) {
+    options = next;
+    active = -1;
+    list.innerHTML = next.map((o, i) =>
+      `<li role="option" id="hn-opt-${i}" aria-selected="false" class="c311-option" data-i="${i}">` +
+      `<span>${escape(o.label)}</span>${o.hint ? `<span class="c311-option-hint">${escape(o.hint)}</span>` : ''}</li>`).join('');
+    list.hidden = !next.length;
+    input.setAttribute('aria-expanded', String(next.length > 0));
+    input.removeAttribute('aria-activedescendant');
+  }
+  const closeOptions = () => renderOptions([]);
+
+  function highlightOption(i: number) {
+    active = i;
+    list.querySelectorAll('[role="option"]').forEach((el, j) => el.setAttribute('aria-selected', String(j === i)));
+    if (i >= 0) {
+      input.setAttribute('aria-activedescendant', `hn-opt-${i}`);
+      list.children[i]?.scrollIntoView({ block: 'nearest' });
+    } else input.removeAttribute('aria-activedescendant');
+  }
+
+  // A ZIP comes from the text itself; GeoSearch adds addresses.
+  async function updateSuggestions() {
+    const text = input.value.trim();
+    suggestAbort?.abort();
+    const local: Option[] = [];
+    const c = (zipFile.zips as Record<string, number[]>)[text];
+    if (/^\d{5}$/.test(text) && isNycZip(text) && c) local.push({ label: `ZIP code ${text}`, hint: 'The middle of the ZIP', lat: c[0], lon: c[1] });
+    if (text.length < 3 || /^\d+$/.test(text)) { renderOptions(local); return; }
+    suggestAbort = new AbortController();
+    try {
+      const places = await suggest(text, { signal: suggestAbort.signal });
+      renderOptions([...local, ...places.map((p: any) => ({ label: p.label, lat: p.lat, lon: p.lon }))].slice(0, 6));
+    } catch (err: any) {
+      if (err.name !== 'AbortError') renderOptions(local); // typing still works; submitting looks it up
+    }
+  }
+
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    status.textContent = '';
+    timer = window.setTimeout(updateSuggestions, 250);
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' && options.length) { e.preventDefault(); highlightOption(Math.min(active + 1, options.length - 1)); }
+    else if (e.key === 'ArrowUp' && options.length) { e.preventDefault(); highlightOption(Math.max(active - 1, -1)); }
+    else if (e.key === 'Enter' && active >= 0) { e.preventDefault(); pickOption(options[active]); }
+    else if (e.key === 'Escape' && options.length) { e.preventDefault(); closeOptions(); }
+  });
+  // mousedown so the input keeps focus (a click would blur it first and close the list).
+  list.addEventListener('mousedown', (e) => {
+    const li = (e.target as HTMLElement).closest<HTMLElement>('[role="option"]');
+    if (!li) return;
+    e.preventDefault();
+    pickOption(options[Number(li.dataset.i)]);
+  });
+  input.addEventListener('blur', () => setTimeout(closeOptions, 150));
+
+  function pickOption(o: Option) {
+    closeOptions();
+    clearTimeout(timer);
+    input.value = o.label;
+    usePoint(o.lat, o.lon, o.label.startsWith('ZIP code') ? `the middle of ${o.label.replace('ZIP code', 'ZIP')}` : o.label);
+  }
+
+  // ---------- Search ----------
+  function usePoint(lat: number, lon: number, label: string) {
+    choices.hidden = true;
+    status.textContent = '';
+    placeLabel = label;
+    go(pointQuery(query, lat, lon), { reload: true });
+    // On a phone the results are below the fold.
+    if (narrow.matches) document.getElementById('results')!.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  let lookup = 0;
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearTimeout(timer);
+    suggestAbort?.abort();
+    closeOptions();
+    choices.hidden = true;
+    const parsed: any = parseLocationInput({ text: input.value });
+    const next: any = nearSearch(parsed, zipFile.zips);
+    if (next.kind === 'message') { status.textContent = next.text; if (next.focus) input.focus(); return; }
+    if (next.kind === 'borough') {
+      status.textContent = `${boroughLabel(next.borough)} is a big place. Add a street address or ZIP code so we can find what’s closest.`;
+      input.focus();
+      return;
+    }
+    if (next.kind === 'point') { usePoint(next.lat, next.lon, next.label); return; }
+    status.textContent = 'Looking up that address…';
+    const id = ++lookup;
+    let result: any;
+    try {
+      result = addressOutcome(await resolveLocation(parsed));
+    } catch {
+      if (id === lookup) status.textContent = 'Couldn’t reach the address lookup. Try again in a minute, or use your location.';
+      return;
+    }
+    if (id !== lookup) return;
+    if (result.kind === 'point') { usePoint(result.lat, result.lon, result.label); return; }
+    status.textContent = result.text;
+    if (result.kind === 'choose') {
+      choices.innerHTML = result.choices.map((p: any, i: number) =>
+        `<button type="button" class="pay-chip" data-pick="${i}">${escape(p.label)}</button>`).join('');
+      choices.hidden = false;
+      choices.querySelectorAll<HTMLButtonElement>('[data-pick]').forEach((b) => b.addEventListener('click', () => {
+        const p = result.choices[Number(b.dataset.pick)];
+        input.value = p.label;
+        usePoint(p.lat, p.lon, p.label);
+      }));
+    }
+  });
+
+  locateBtn.addEventListener('click', () => {
+    choices.hidden = true;
+    if (!navigator.geolocation) { status.textContent = 'Your browser can’t share its location. Type an address or ZIP code instead.'; return; }
+    const id = ++lookup;
+    locateBtn.disabled = true;
+    status.textContent = 'Finding you…';
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        locateBtn.disabled = false;
+        if (id !== lookup) return;
+        const { latitude: lat, longitude: lon } = pos.coords;
+        if (!inNyc(lat, lon)) { status.textContent = 'You seem to be outside NYC. Type an address or ZIP code instead.'; return; }
+        input.value = '';
+        usePoint(lat, lon, 'your location');
+      },
+      () => {
+        locateBtn.disabled = false;
+        if (id === lookup) status.textContent = 'We couldn’t get your location. Check your browser’s location setting, or type an address or ZIP code.';
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
+    );
+  });
+
+  // ---------- Chips, radius, more ----------
+  root.querySelectorAll<HTMLButtonElement>('[data-cat]').forEach((b) => b.addEventListener('click', () => {
+    pages = 1;
+    go({ ...query, cats: toggleCategory(query.cats, b.dataset.cat!) }, { push: false });
+  }));
+  root.querySelectorAll<HTMLButtonElement>('[data-radius]').forEach((b) => b.addEventListener('click', () => {
+    pages = 1;
+    go({ ...query, r: Number(b.dataset.radius) }, { push: false });
+  }));
+  missing.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-widen]');
+    if (!b) return;
+    pages = 1;
+    go({ ...query, r: Number(b.dataset.widen) }, { push: false });
+  });
+  more.addEventListener('click', () => {
+    const first = cards.children.length;
+    pages += 1;
+    render({ refit: false });
+    cards.children[first]?.querySelector<HTMLButtonElement>('[data-locate]')?.focus();
+  });
+
+  mapToggle.addEventListener('click', () => {
+    const open = mapWrap.hidden;
+    mapWrap.hidden = !open;
+    mapToggle.setAttribute('aria-expanded', String(open));
+    mapToggle.textContent = open ? 'Hide map' : 'Show map';
+    if (open) map.invalidate();
+  });
+
+  // ---------- Map and list in sync ----------
+  function select(id: string | null, { fromMap = false } = {}) {
+    selected = id;
+    cards.querySelectorAll('.hn-card.is-selected').forEach((el) => el.classList.remove('is-selected'));
+    map.highlight(id, { pan: !fromMap });
+    if (!id) return;
+    // Below the two-column layout the map sits above the list, out of view.
+    if (!fromMap && narrow.matches && !mapWrap.hidden) mapCol.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const card = cards.querySelector<HTMLElement>(`[data-id="${CSS.escape(id)}"]`);
+    card?.classList.add('is-selected');
+    if (fromMap && card) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      card.querySelector<HTMLButtonElement>('[data-locate]')?.focus({ preventScroll: true });
+    }
+  }
+  cards.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-locate]');
+    if (b) select(b.dataset.locate!);
+  });
+  cards.addEventListener('mouseover', (e) => {
+    const card = (e.target as HTMLElement).closest<HTMLElement>('.hn-card');
+    if (card?.dataset.id) map.highlight(card.dataset.id);
+  });
+  cards.addEventListener('mouseleave', () => map.highlight(selected));
+  cards.addEventListener('focusin', (e) => {
+    const card = (e.target as HTMLElement).closest<HTMLElement>('.hn-card');
+    if (card?.dataset.id) map.highlight(card.dataset.id);
+  });
+  // Up and down arrows move between the places' names.
+  cards.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    const names = [...cards.querySelectorAll<HTMLButtonElement>('[data-locate]')];
+    const i = names.indexOf(document.activeElement as HTMLButtonElement);
+    if (i < 0) return;
+    e.preventDefault();
+    names[Math.max(0, Math.min(names.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)))].focus();
+  });
+
+  // ---------- Loading ----------
+  async function load() {
+    const key = spotKey();
+    if (cache.has(key)) return cache.get(key);
+    const res = await fetch(`/api/help-near-me/search?${key}`);
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error && body.error !== 'upstream' ? body.error : ERROR_TEXT);
+    cache.set(key, body);
+    return body;
+  }
+
+  async function update() {
+    fillControls();
+    if (query.lat == null) {
+      layout.hidden = true;
+      missing.hidden = true;
+      summary.textContent = pendingText;
+      return;
+    }
+    const key = spotKey();
+    if (key === loadedFor && data) { render({ refit: true }); return; }
+    const id = ++request;
+    layout.hidden = false;
+    summary.textContent = 'Looking for help nearby…';
+    cards.innerHTML = skeletonHtml();
+    empty.hidden = true;
+    more.hidden = true;
+    missing.hidden = true;
+    root.setAttribute('aria-busy', 'true');
+    try {
+      const body = await load();
+      if (id !== request) return;
+      data = body;
+      loadedFor = key;
+      selected = null;
+      root.removeAttribute('aria-busy');
+      render({ refit: true });
+    } catch (err: any) {
+      if (id !== request) return;
+      root.removeAttribute('aria-busy');
+      cards.innerHTML = '';
+      summary.textContent = '';
+      empty.innerHTML = `<p>${escape(err.message || ERROR_TEXT)}</p><button type="button" class="copy-link" data-retry>Try again</button>`;
+      empty.hidden = false;
+      empty.querySelector('[data-retry]')!.addEventListener('click', () => update());
+    }
+  }
+
+  function fillControls() {
+    const all = query.cats.length === 0;
+    root.querySelectorAll<HTMLButtonElement>('[data-cat]').forEach((b) =>
+      b.setAttribute('aria-pressed', String(b.dataset.cat === 'all' ? all : !all && query.cats.includes(b.dataset.cat))));
+    root.querySelectorAll<HTMLButtonElement>('[data-radius]').forEach((b) =>
+      b.setAttribute('aria-pressed', String(Number(b.dataset.radius) === query.r)));
+  }
+
+  // ---------- Drawing ----------
+  function render({ refit }: { refit: boolean }) {
+    const { sites, sources } = data!;
+    view = selectView(sites, { categories: query.cats, radius: query.r, pages });
+
+    // Chip counts: within the radius used (the chosen one, or the wider one we fell back to).
+    let total = 0;
+    for (const c of CATEGORIES) {
+      const n = view.counts[c.key];
+      total += n;
+      const el = root.querySelector<HTMLElement>(`[data-count="${c.key}"]`)!;
+      el.textContent = count(n);
+      el.hidden = false;
+      el.closest('button')!.setAttribute('aria-label', chipLabel(c.label, n));
+    }
+    const allCount = root.querySelector<HTMLElement>('[data-count="all"]')!;
+    allCount.textContent = count(total);
+    allCount.hidden = false;
+    allCount.closest('button')!.setAttribute('aria-label', chipLabel('All kinds of help', total));
+
+    summary.textContent = summaryText(view, query, placeLabel);
+
+    // Chosen kinds with nothing close, how far the nearest is, and a button to reach it.
+    const notes = missingNotes(view);
+    const broken = sources.filter((s: any) => s.error && (!query.cats.length || query.cats.includes(s.key)));
+    missing.innerHTML =
+      broken.map((s: any) => `<li class="hn-missing-error">${escape(CATEGORIES.find((c) => c.key === s.key)!.label)} couldn’t load right now. Try again later.</li>`).join('') +
+      notes.filter((n: any) => !broken.some((s: any) => s.key === n.key)).map((n: any) => {
+        const r = n.miles != null ? radiusFor(n.miles) : null;
+        const btn = r && r > view.radius ? ` <button type="button" class="copy-link" data-widen="${r}">Widen to ${radiusText(r)}</button>` : '';
+        return `<li>${escape(n.text)}${btn}</li>`;
+      }).join('');
+    missing.hidden = !missing.innerHTML;
+
+    cards.innerHTML = view.list.map(cardHtml).join('');
+    if (selected) cards.querySelector(`[data-id="${CSS.escape(selected)}"]`)?.classList.add('is-selected');
+    more.hidden = !view.more;
+    more.textContent = moreText;
+    empty.hidden = view.list.length > 0;
+    if (!view.list.length) empty.innerHTML = '<p><strong>We couldn’t find any of these places in the city’s lists.</strong> Call 311 and ask for help finding services near you.</p>';
+
+    const point = { lat: query.lat, lon: query.lon };
+    const fitTo = view.widened === 'anywhere' ? view.list.slice(0, 6).map((s: any) => [s.lat, s.lon]) : null;
+    map.update({ sites: view.list, point, radiusMeters: view.radius * METERS_PER_MILE, refit, fitTo });
+  }
+
+  update();
+</script>

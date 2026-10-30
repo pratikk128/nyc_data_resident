@@ -11,6 +11,7 @@ import { suggestStreets, resolveStreet, streetKey } from "./streets.js";
 import { searchParams } from "./filter.js";
 import { placeText } from "./render.js";
 import { count } from "../format.js";
+import { nearSearch as sharedNearSearch, addressOutcome } from "../location/near-search.js";
 
 const plural = (n, one, many = `${one}s`) => `${count(n)} ${n === 1 ? one : many}`;
 const round3 = (n) => Math.round(n * 1e3) / 1e3;
@@ -68,41 +69,17 @@ export const noStreetText = (text) =>
 const BOROUGH_CODES = { MANHATTAN: "M", BRONX: "X", BROOKLYN: "B", QUEENS: "Q", "STATEN ISLAND": "S" };
 
 /*
- * The "Near me" form's submit, from parseLocationInput() and the ZIP centroids →
- *   { kind: "message", text, focus }   say why not (focus: back to the box)
- *   { kind: "borough", boro }          a borough name: switch to that borough
- *   { kind: "point", lat, lon, label } a ZIP's middle
- *   { kind: "lookup" }                 an address: geocode it
+ * The "Near me" form's submit (src/lib/location/near-search.js), with a
+ * borough name alone meaning "switch to that borough":
+ *   { kind: "borough", boro }   boro: DOT's borough code
+ *   or nearSearch()'s message, point or lookup
  */
 export function nearSearch(parsed, zips) {
-  if (parsed.kind === "empty") return { kind: "message", text: "Type an address or ZIP code, or use your location.", focus: true };
-  if (parsed.kind === "error") return { kind: "message", text: parsed.message, focus: false };
-  if (parsed.kind === "borough") return { kind: "borough", boro: BOROUGH_CODES[parsed.borough] };
-  if (parsed.kind === "zip") {
-    const c = zips[parsed.zip];
-    if (!c) return { kind: "message", text: `We don’t have a location for ZIP ${parsed.zip}. Try an address in it.`, focus: false };
-    return { kind: "point", lat: c[0], lon: c[1], label: `the middle of ZIP ${parsed.zip}` };
-  }
-  return { kind: "lookup" };
+  const next = sharedNearSearch(parsed, zips);
+  return next.kind === "borough" ? { kind: "borough", boro: BOROUGH_CODES[next.borough] } : next;
 }
 
-/*
- * resolveLocation()'s answer →
- *   { kind: "point", lat, lon, label }
- *   { kind: "choose", text, choices }   choices: [{ lat, lon, label }]
- *   { kind: "message", text }
- */
-export function addressOutcome(result) {
-  if (result.status === "resolved") {
-    const { lat, lon, label } = result.location;
-    return { kind: "point", lat, lon, label };
-  }
-  if (result.status === "choose") {
-    const text = result.reason === "ambiguous" ? "That could be a few places. Which one?" : "No exact match. Did you mean one of these?";
-    return { kind: "choose", text, choices: result.suggestions };
-  }
-  return { kind: "message", text: "No matches. Try a nearby ZIP code or fewer words." };
-}
+export { addressOutcome };
 
 /*
  * Nothing here: buttons for the next wider views that would show something.

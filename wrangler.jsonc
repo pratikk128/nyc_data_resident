@@ -29,11 +29,13 @@
     // and the map view asks twice), plus classrooms and libraries share one IP.
     { "name": "SCHOOL_SEARCH_RATE_LIMITER", "namespace_id": "1006", "simple": { "limit": 120, "period": 60 } },
     // Street closures: KV only, but one search per place change and per radius
-    { "name": "CLOSURES_RATE_LIMITER", "namespace_id": "1007", "simple": { "limit": 60, "period": 60 } }
+    { "name": "CLOSURES_RATE_LIMITER", "namespace_id": "1007", "simple": { "limit": 60, "period": 60 } },
+    // Help near me: KV only, one search per spot (radius and categories switch in the browser)
+    { "name": "HELP_RATE_LIMITER", "namespace_id": "1008", "simple": { "limit": 60, "period": 60 } }
   ],
 
-  // The deploy's version id, part of the Shop Diverse and Street Closures edge cache keys
-  // (src/lib/server/shop-diverse.js, street-closures.js) so a deploy's changes show at once.
+  // The deploy's version id, part of the Shop Diverse, Street Closures and Help Near Me edge cache keys
+  // (src/lib/server/shop-diverse.js, street-closures.js, help-near-me.js) so a deploy's changes show at once.
   "version_metadata": { "binding": "CF_VERSION_METADATA" },
 
   // Hourly: checks every dataset's last update on NYC Open Data and rebuilds

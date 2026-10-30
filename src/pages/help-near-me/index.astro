@@ -1,0 +1,43 @@
+---
+/*
+ * Where can I get help near me? Rendered on demand so each directory's
+ * "Last updated" date comes from the metadata in KV
+ * (src/lib/server/help-near-me.js). The spot, radius and categories live in
+ * the URL (src/lib/help-near-me/page-state.js); the sites load in the
+ * browser from /api/help-near-me/search.
+ */
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+import HelpFinder from '../../components/help-near-me/HelpFinder.astro';
+import AboutSection from '../../components/help-near-me/AboutSection.astro';
+import { getSources } from '../../lib/server/help-near-me.js';
+import { normalizeQuery } from '../../lib/help-near-me/page-state.js';
+import { date } from '../../lib/format.js';
+
+export const prerender = false;
+
+const sources = await getSources();
+const query = normalizeQuery(Astro.url.searchParams);
+// The newest of the seven, for the header; each one's own date is in the sources list.
+const newest = sources.map((s) => s.updatedAt).filter(Boolean).sort().at(-1) ?? undefined;
+
+if (import.meta.env.PROD && sources.every((s) => s.updatedAt)) Astro.response.headers.set('Cache-Control', 'public, max-age=300');
+---
+
+<DashboardLayout
+  title="Where can I get help near me?"
+  description="Find the nearest SNAP centers, Homebase offices, drop-in centers, free computer centers, youth programs, older adult centers and NYCHA community centers in NYC."
+  path="/help-near-me/"
+  category="Social Services"
+  lastRefreshed={newest ? date(newest) : undefined}
+>
+  <header class="page-head">
+    <h1>Where can I get help near me?</h1>
+    <p>
+      Food benefits, help keeping your home, a place to rest, free computers, programs for young people and older
+      adults: find the closest places run or funded by the city, with hours, phone numbers and directions.
+    </p>
+  </header>
+
+  <HelpFinder query={query} />
+  <AboutSection sources={sources} />
+</DashboardLayout>
