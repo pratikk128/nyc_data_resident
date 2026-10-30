@@ -1,6 +1,6 @@
 /*
  * GET /api/311/heatmap?lat=40.748&lon=-73.986&window=3m|12m[&types=NOISE - RESIDENTIAL|ILLEGAL PARKING]
- * Requests within 1 mile per ~50 m grid cell, for the heat map.
+ * Requests within ½ mile per ~50 m grid cell, for the heat map.
  * `types` is a |-separated list of typeKey() values; empty means every type.
  * → { total, cells: [[lat, lon, n], ...], ... } or { error }
  *
@@ -10,7 +10,7 @@ import { heatmapCells, roundCoord, AREA_TTL } from "../../../lib/server/complain
 import { windowStart } from "../../../lib/complaints311/soql.js";
 import { typeKey } from "../../../lib/complaints311/labels.js";
 import { inNyc } from "../../../lib/complaints311/location-input.js";
-import { WINDOWS, MAX_HEATMAP_TYPES } from "../../../lib/complaints311/config.js";
+import { WINDOWS, MAX_HEATMAP_TYPES, RADII } from "../../../lib/complaints311/config.js";
 import { edgeCached } from "../../../lib/server/cache.js";
 import { json, upstreamError } from "../../../lib/server/json.js";
 import { checkRateLimit, RateLimited, RATE_LIMITED_TEXT } from "../../../lib/server/rate-limit.js";
@@ -30,7 +30,7 @@ export async function GET({ url, locals, clientAddress }) {
     return json({ error: "Too many complaint types." }, { status: 400 });
   }
 
-  const key = `311/heatmap/${window}/${windowStart(window)}/${lat},${lon}/${encodeURIComponent(types.join("|"))}`;
+  const key = `311/heatmap/${window}/${windowStart(window)}/${lat},${lon}/${RADII.neighborhood}/${encodeURIComponent(types.join("|"))}`;
   try {
     const data = await edgeCached(url, key, AREA_TTL, async () => {
       await checkRateLimit("AREA_RATE_LIMITER", clientAddress);

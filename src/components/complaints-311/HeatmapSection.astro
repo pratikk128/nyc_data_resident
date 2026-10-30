@@ -1,7 +1,7 @@
 ---
 /*
  * "Map: where complaints happen near you". A heat map of requests within
- * 1 mile, with the ¼ mile outlined, and a filter for the area's top complaint
+ * ½ mile, with the ¼ mile outlined, and a filter for the area's top complaint
  * types. The drawing and data loading are in src/lib/complaints311/heatmap.js.
  */
 ---
@@ -9,7 +9,7 @@
 <section class="dash-section c311-map" id="map" aria-labelledby="map-title" data-heatmap hidden>
   <header class="section-head">
     <h2 id="map-title">Map: where complaints happen near you</h2>
-    <p class="section-intro">A heat map of where requests were made within 1 mile, with your ¼ mile outlined. Brighter means more requests.</p>
+    <p class="section-intro">A heat map of where requests were made within ½ mile, with your ¼ mile outlined. Brighter means more requests.</p>
   </header>
 
   <fieldset class="c311-map-filter" data-heatmap-filter hidden>
@@ -19,11 +19,11 @@
   <p class="field-hint" role="status" aria-live="polite" data-heatmap-status></p>
 
   <!-- role="region", not "img": "img" would hide Leaflet's zoom buttons from screen readers. -->
-  <div class="c311-map-frame" data-heatmap-canvas role="region" aria-label="Heat map of 311 requests within 1 mile" aria-describedby="map-note"></div>
+  <div class="c311-map-frame" data-heatmap-canvas role="region" aria-label="Heat map of 311 requests within ½ mile" aria-describedby="map-note"></div>
   <div class="c311-map-legend" aria-hidden="true">
     <span>Fewer requests</span><span class="c311-map-ramp"></span><span>More</span>
     <span class="c311-map-key"><span class="c311-map-key-ring"></span>¼ mile</span>
-    <span class="c311-map-key"><span class="c311-map-key-ring outer"></span>1 mile</span>
+    <span class="c311-map-key"><span class="c311-map-key-ring outer"></span>½ mile</span>
   </div>
   <p class="field-hint" id="map-note">The lists above cover the same requests. A small share of requests have no location and aren’t on the map.</p>
 </section>

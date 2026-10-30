@@ -1,7 +1,7 @@
 /*
  * What the comparison sections (above-average types, location types) compare,
  * worked out from store.js state:
- *   - a spot or ZIP: the 1 mile neighborhood by default, or the ¼ mile when the
+ *   - a spot or ZIP: the ½ mile neighborhood by default, or the ¼ mile when the
  *     reader picks it and it has enough requests; against the borough or the city.
  *   - a borough on its own: the borough against the city.
  */
@@ -31,7 +31,7 @@ export function comparisonView(state) {
   if (failed) return { status: "error", error: failed.error };
   if (waiting(nb, base) || imm.status === "loading") return { status: "loading", waitingOnBaseline: waiting(base) };
 
-  // If the ¼ mile query failed, compare with the 1 mile and say the ¼ mile isn't available.
+  // If the ¼ mile query failed, compare with the ½ mile and say the ¼ mile isn't available.
   const cmp = comparisonArea(imm.status === "ready" ? imm.data.total : 0, state.area);
   const immediateFailed = imm.status === "error";
   const local = cmp.area === "immediate" ? imm.data : nb.data;
@@ -40,7 +40,7 @@ export function comparisonView(state) {
   return {
     status: "ready", mode: "radius", ...cmp, immediateFailed,
     local, localName: "here",
-    names: { here: cmp.area === "immediate" ? "Within ¼ mile" : "Within 1 mile", borough: hasBorough ? boroughName : null, city: "NYC" },
+    names: { here: cmp.area === "immediate" ? "Within ¼ mile" : "Within ½ mile", borough: hasBorough ? boroughName : null, city: "NYC" },
     baseline: vs === "borough" ? base.data.borough : base.data.city,
     baselineName: vs === "borough" ? `the ${boroughName} average` : "the NYC average",
     boroughBaseline: hasBorough ? base.data.borough : null,

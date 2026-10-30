@@ -91,7 +91,7 @@ test("ratio text", () => {
 
 // ---------- Low-data fallback ----------
 
-test("comparisons use the 1 mile by default", () => {
+test("comparisons use the ½ mile by default", () => {
   assert.deepEqual(comparisonArea(5000), { area: "neighborhood", immediateOk: true, lowData: false });
 });
 
@@ -183,7 +183,7 @@ test("window cutoffs are calendar days, clamped to the month's end", () => {
 
 test("radius queries use within_circle on the location point", () => {
   assert.equal(circle(40.7484, -73.9857, RADII.immediate), "within_circle(location, 40.74840, -73.98570, 402)");
-  assert.equal(RADII.neighborhood, 1609);
+  assert.equal(RADII.neighborhood, 805);
 });
 
 // ---------- Input parsing ----------
@@ -386,7 +386,7 @@ test("baselineParams counts only requests with a location, like the radius count
   assert.match(baselineParams("2025-10-28", "complaint_type").$where, /^created_date >= '2025-10-28T00:00:00' AND location IS NOT NULL$/);
 });
 
-test("comparisonView falls back to the 1 mile and says why when the ¼ mile failed", () => {
+test("comparisonView falls back to the ½ mile and says why when the ¼ mile failed", () => {
   const ready = (data) => ({ status: "ready", data, error: null });
   const area = { total: 500, types: { NOISE: 500 }, locations: {}, status: { open: 0, closed: 500 } };
   const state = {

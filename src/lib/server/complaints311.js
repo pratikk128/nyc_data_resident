@@ -4,7 +4,7 @@
  *
  * Borough and city baselines (share of requests by complaint type, by location
  * type and open vs closed, for each time window) and the citywide distribution
- * of ¼ and 1 mile counts take Socrata about a minute per query, so they're
+ * of ¼ and ½ mile counts take Socrata about a minute per query, so they're
  * daily jobs kept in KV. Areas around a point,
  * and ZIPs, take a few seconds and are cached at the edge for AREA_TTL.
  */
@@ -25,7 +25,7 @@ import { typeKey, locationGroup } from "../complaints311/labels.js";
 export const AREA_TTL = 6 * 3600;      // areas and ZIPs: the data updates once a day
 export const BASELINE_TTL = 3600;      // the baseline API response (the value itself lives in KV)
 const BASELINE_TIMEOUT_MS = 240000;    // ~1 minute each on a good day
-const HEATMAP_TIMEOUT_MS = 45000;      // a few seconds warm, but a cold 1 mile query can pass the default 20
+const HEATMAP_TIMEOUT_MS = 45000;      // a few seconds warm, but a cold ½ mile query can pass the default 20
 
 // 311 updates daily, and every window ends today.
 const CADENCE = "daily";
@@ -94,14 +94,14 @@ function baselineJob(windowKey) {
 export const baselineJobs = Object.fromEntries(Object.keys(WINDOWS).map((w) => [w, baselineJob(w)]));
 
 /*
- * One job per window: how many requests fall within ¼ and 1 mile of every
+ * One job per window: how many requests fall within ¼ and ½ mile of every
  * ~100 m grid cell in the city that has any, so a spot's counts can be ranked
  * against the rest of NYC. The grid query runs in GRID_CHUNK_MONTHS pieces at
  * once (a cell can appear in several; its counts are added up).
  */
 function distributionJob(windowKey) {
   return {
-    key: `311:distribution:v1:${windowKey}`,
+    key: `311:distribution:v2:${windowKey}`,
     maxAgeHours: MAX_AGE_HOURS,
     async run() {
       const since = windowStart(windowKey);
@@ -199,7 +199,7 @@ export async function radiusSummary(lat, lon, areaKey, windowKey) {
 }
 
 /*
- * The heat map: requests per ~50 m cell within the 1 mile circle, as
+ * The heat map: requests per ~50 m cell within the ½ mile circle, as
  * [lat, lon, n] at each cell's middle. `types` (typeKey() values) narrows it.
  */
 export async function heatmapCells(lat, lon, windowKey, types = []) {

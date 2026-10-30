@@ -18,8 +18,8 @@ const { id } = Astro.props;
     <button type="button" class="toggle-btn" data-area="neighborhood" aria-pressed="true">Neighborhood</button>
   </div>
   <p class="c311-why" id={`${id}-why`} data-why
-    data-low={`Fewer than ${MIN_IMMEDIATE_REQUESTS} requests within ¼ mile in this period, too few to compare fairly, so we use the 1 mile neighborhood.`}
-    data-failed="The ¼ mile counts didn’t load, so we use the 1 mile neighborhood. Try again in a minute." hidden></p>
+    data-low={`Fewer than ${MIN_IMMEDIATE_REQUESTS} requests within ¼ mile in this period, too few to compare fairly, so we use the ½ mile neighborhood.`}
+    data-failed="The ¼ mile counts didn’t load, so we use the ½ mile neighborhood. Try again in a minute." hidden></p>
 </div>
 
 <script>

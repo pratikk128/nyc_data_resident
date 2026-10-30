@@ -27,7 +27,7 @@ export const FIELDS = {
 };
 
 // Radius in meters around the chosen spot.
-export const RADII = { immediate: 402, neighborhood: 1609 };
+export const RADII = { immediate: 402, neighborhood: 805 };
 
 export const AREAS = {
   immediate: {
@@ -40,9 +40,9 @@ export const AREAS = {
   neighborhood: {
     key: "neighborhood",
     radius: RADII.neighborhood,
-    title: "Neighborhood (1 mile)",
-    label: "Your neighborhood (about a 20-minute walk)",
-    walk: "about a 20-minute walk"
+    title: "Neighborhood (½ mile)",
+    label: "Your neighborhood (about a 10-minute walk)",
+    walk: "about a 10-minute walk"
   }
 };
 
@@ -53,7 +53,7 @@ export const WINDOWS = {
 };
 export const DEFAULT_WINDOW = "12m";
 
-// Below this many requests in the ¼ mile, compare using the 1 mile instead.
+// Below this many requests in the ¼ mile, compare using the ½ mile instead.
 export const MIN_IMMEDIATE_REQUESTS = 100;
 // A complaint type is only called out above/below average with at least this many requests locally.
 export const MIN_LOCAL_COUNT = 20;
@@ -69,7 +69,7 @@ export const TOP_COMPLAINT_TYPES = 5;
 /*
  * "More than 72% of NYC blocks with any 311 requests": the city is cut into cells of
  * 1/GRID_CELLS_PER_DEGREE degree (about 111 m north–south, 84 m east–west), requests are counted per
- * cell, and the ¼ and 1 mile circles are summed around every cell that has a request. The daily
+ * cell, and the ¼ and ½ mile circles are summed around every cell that has a request. The daily
  * job keeps DISTRIBUTION_QUANTILES evenly spaced values of each sorted distribution.
  */
 export const GRID_CELLS_PER_DEGREE = 1000;
@@ -78,7 +78,7 @@ export const DISTRIBUTION_QUANTILES = 1001;
 export const GRID_CHUNK_MONTHS = 3;
 
 // Heat map: requests counted per 1/HEATMAP_CELLS_PER_DEGREE degree cell (about 55 m × 42 m)
-// within the 1 mile circle, so the browser gets a couple of thousand weighted points.
+// within the ½ mile circle, so the browser gets a couple of thousand weighted points.
 export const HEATMAP_CELLS_PER_DEGREE = 2000;
 // The heat map filter: at most this many complaint types at once (the area's top 10 are offered).
 export const MAX_HEATMAP_TYPES = 10;

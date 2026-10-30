@@ -1,9 +1,9 @@
 ---
 /*
  * "What people are reporting": two cards side by side (stacked on phones).
- *   A spot or ZIP: immediate area (¼ mile) and neighborhood (1 mile).
+ *   A spot or ZIP: immediate area (¼ mile) and neighborhood (½ mile).
  *   A borough:     the borough and the whole city.
- * Each card loads on its own, so the quick ¼ mile card doesn't wait for the 1 mile.
+ * Each card loads on its own, so the quick ¼ mile card doesn't wait for the ½ mile.
  */
 ---
 
@@ -30,7 +30,7 @@
   const zipCount = section.querySelector<HTMLElement>('[data-zip-count]')!;
   const slots = { a: section.querySelector<HTMLElement>('[data-slot="a"]')!, b: section.querySelector<HTMLElement>('[data-slot="b"]')! };
 
-  const RADIUS_NAMES = { immediate: '¼ mile', neighborhood: '1 mile' };
+  const RADIUS_NAMES = { immediate: '¼ mile', neighborhood: '½ mile' };
   const LOW_DATA_NOTE = 'Not many requests here, so we compare using your wider neighborhood.';
 
   // Redraw a slot only when what it shows changed (each store update redraws every subscriber).

@@ -20,7 +20,7 @@ const { meta } = Astro.props;
     <div class="about-body">
       <p>
         <strong>Distances.</strong> “Immediate area” is every request within ¼ mile (402 m) of your spot, about a
-        5-minute walk. “Neighborhood” is within 1 mile (1,609 m), about a 20-minute walk. A small share of requests have no map
+        5-minute walk. “Neighborhood” is within ½ mile (805 m), about a 10-minute walk. A small share of requests have no map
         location and aren't counted in either.
       </p>
       <p>
@@ -29,7 +29,7 @@ const { meta } = Astro.props;
       <p>
         <strong>Compared with the rest of NYC.</strong> To say an area has more requests than, say, 72% of NYC
         blocks with any 311 requests, we split the city into blocks about 100 m across and, for every block with at least one request in
-        the period, count the requests within ¼ mile and 1 mile of it. Your count is placed among those. The citywide
+        the period, count the requests within ¼ mile and ½ mile of it. Your count is placed among those. The citywide
         counts are worked out once a day from the blocks' centres, so they're close to, not exactly, what a circle
         around each spot would give.
       </p>
@@ -41,7 +41,7 @@ const { meta } = Astro.props;
       </p>
       <p>
         <strong>Small areas.</strong> When the ¼ mile has fewer than {MIN_IMMEDIATE_REQUESTS} requests in the period,
-        we compare using the 1 mile neighborhood, since a handful of requests can swing a share a lot.
+        we compare using the ½ mile neighborhood, since a handful of requests can swing a share a lot.
       </p>
       <p>
         <strong>Borough and city averages</strong> include every request in the period that has a map location,

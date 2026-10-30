@@ -1,12 +1,12 @@
 /*
  * "Where complaints happen near you": a Leaflet map with a Leaflet.heat layer
- * of request counts per ~50 m cell (/api/311/heatmap), the 1 mile circle as
+ * of request counts per ~50 m cell (/api/311/heatmap), the ½ mile circle as
  * the view and the ¼ mile circle outlined. Leaflet loads only once a place is
  * picked. The ranked lists above stay the non-map alternative (DESIGN.md "Maps").
  *
  * @typedef {Object} HeatmapProps
  * @property {{ lat: number, lon: number }} center   Middle of the map
- * @property {number} radiusMeters                     Area shown (the 1 mile neighborhood)
+ * @property {number} radiusMeters                     Area shown (the ½ mile neighborhood)
  * @property {string} window                           "3m" | "12m"
  * @property {{ since: string, through: string }} dateRange   YYYY-MM-DD, created_date
  * @property {string[]} complaintTypes                 Filter options: the area's top complaint types (typeKey() values)
@@ -97,7 +97,7 @@ export function mountHeatmap(root) {
     if (id !== request) return;
 
     const c = [p.center.lat, p.center.lon];
-    // The 1 mile circle's box. (L.Circle.getBounds() only works once the circle is on a map.)
+    // The ½ mile circle's box. (L.Circle.getBounds() only works once the circle is on a map.)
     const bounds = L.latLng(c).toBounds(p.radiusMeters * 2);
     // The view has to be set before the heat layer is added; it reads the map's position on add.
     if (!map) {
@@ -133,8 +133,8 @@ export function mountHeatmap(root) {
       : types.length === 1 ? typeLabel(types[0])
       : `${types.length} complaint types`;
     status.textContent = data.total
-      ? `Showing ${count(data.total)} requests within 1 mile (${which}).`
-      : `No requests within 1 mile for ${which}.`;
+      ? `Showing ${count(data.total)} requests within ½ mile (${which}).`
+      : `No requests within ½ mile for ${which}.`;
   }
 
   options.addEventListener("change", () => {

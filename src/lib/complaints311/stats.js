@@ -92,7 +92,7 @@ export function compareShares(local, baseline, {
 
 /*
  * The ¼ mile is used for comparisons only when it has enough requests;
- * otherwise everything compares the 1 mile. `requested` is what the reader
+ * otherwise everything compares the ½ mile. `requested` is what the reader
  * picked with the toggle (default "neighborhood").
  */
 export function comparisonArea(immediateTotal, requested = "neighborhood", min = MIN_IMMEDIATE_REQUESTS) {

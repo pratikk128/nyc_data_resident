@@ -4,7 +4,7 @@
  * least ABOVE_RATIO × their share in the borough (or city), with at least
  * MIN_LOCAL_COUNT requests here, beside the ones at BELOW_RATIO × or under.
  * Each column shows the top MAX_COMPARE_SHOWN; the rest sit behind "Show N more".
- * Toggles: compare the ¼ mile or the 1 mile (AreaToggle), against the borough
+ * Toggles: compare the ¼ mile or the ½ mile (AreaToggle), against the borough
  * or the city. Both are kept in the URL.
  */
 import AreaToggle from './AreaToggle.astro';
@@ -104,7 +104,7 @@ import { HOW_WE_CALCULATE } from '../../lib/complaints311/render.js';
 
     const result = compareShares(v.local.types, v.baseline.types);
     const where = v.mode === 'borough' ? v.boroughName :
-      v.area === 'immediate' ? 'your immediate area (¼ mile)' : 'your neighborhood (1 mile)';
+      v.area === 'immediate' ? 'your immediate area (¼ mile)' : 'your neighborhood (½ mile)';
     const scope = `<p class="c311-scope">Comparing ${where} with ${v.baselineName}, ${WINDOWS[s.window].phrase}.</p>`;
     body.innerHTML = scope + compareListHtml(result, { baselineName: v.baselineName, localName: v.localName });
   });
