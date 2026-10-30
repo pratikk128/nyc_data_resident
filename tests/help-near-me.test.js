@@ -17,7 +17,7 @@ import {
 import { haversineMiles, byDistance, sitesNear, selectView, milesText } from "../src/lib/help-near-me/distance.js";
 import { geocodeMissing, lookupText } from "../src/lib/help-near-me/geocode-sites.js";
 import {
-  normalizeQuery, queryToParams, toggleCategory, summaryText, missingNotes, radiusFor
+  normalizeQuery, queryToParams, toggleCategory, summaryText, missingNotes, radiusFor, moreText, radiusNote, lowerFirst
 } from "../src/lib/help-near-me/page-state.js";
 import { cardHtml, directionsUrl } from "../src/lib/help-near-me/render.js";
 import { CATEGORIES, HOURS_MISSING } from "../src/lib/help-near-me/config.js";
@@ -288,9 +288,12 @@ test("byDistance: nearest first, ties by name, sites with no point left out", ()
   assert.ok(Math.abs(sorted[1].miles - 0.691) < 0.01);
 });
 
-test("selectView: temporarily closed sites after the open ones", () => {
+test("selectView: temporarily closed sites after the open ones, and left out of the counts", () => {
   const sorted = byDistance([{ ...at("shut", "snap", 0.001), closed: true }, at("open", "snap", 0.01)], SPOT);
-  assert.deepEqual(selectView(sorted, { categories: [], radius: 2 }).list.map((s) => s.id), ["open", "shut"]);
+  const v = selectView(sorted, { categories: [], radius: 2 });
+  assert.deepEqual(v.list.map((s) => s.id), ["open", "shut"]);
+  assert.equal(v.counts.snap, 1);
+  assert.equal(summaryText(v, { r: 2 }, "350 5th Avenue"), "1 place within 2 mi of 350 5th Avenue, plus 1 temporarily closed.");
 });
 
 test("selectView: nearest per category within the radius, capped, with Show more", () => {
@@ -305,6 +308,9 @@ test("selectView: nearest per category within the radius, capped, with Show more
   assert.equal(v.list.length, 6, "5 older-adult sites + 1 SNAP");
   assert.deepEqual(v.list.map((s) => s.id), ["o0", "o1", "o2", "o3", "o4", "s1"], "nearest first; o4 and s1 tie, by name");
   assert.ok(v.more);
+  assert.deepEqual(v.moreOf, ["older"]);
+  assert.equal(moreText(v), "Show more: Older adults", "only one kind has more: say which");
+  assert.equal(moreText({ moreOf: ["older", "snap"] }), "Show more of each kind");
   assert.equal(v.counts.older, 7);
   assert.equal(v.counts.snap, 1);
   assert.equal(v.inRadius.length, 8);
@@ -375,6 +381,19 @@ test("words: summary, widening and how far the nearest missing kind is", () => {
 
   const widened = selectView(sorted, { categories: ["dropin"], radius: 0.5 });
   assert.equal(summaryText(widened, { r: 0.5 }, ""), "Nothing within ½ mi, so we looked farther: 1 place within 2 mi of the spot you picked.");
+});
+
+test("words: the note by the radius buttons when the list is for another radius", () => {
+  const sorted = byDistance([at("d1", "dropin", 0.02), at("d2", "dropin", 0.2)], SPOT); // ~1.4 mi, ~13.8 mi
+  assert.equal(radiusNote(selectView(sorted, { categories: ["dropin"], radius: 2 }), { r: 2 }), null);
+  assert.equal(radiusNote(selectView(sorted, { categories: ["dropin"], radius: 0.5 }), { r: 0.5 }), "Nothing within ½ mi, so showing 2 mi");
+  const far = byDistance([at("d2", "dropin", 0.2)], SPOT);
+  assert.equal(radiusNote(selectView(far, { categories: ["dropin"], radius: 1 }), { r: 1 }), "Nothing within 5 mi, so showing the nearest anywhere");
+});
+
+test("words: a short label mid-sentence keeps its acronyms", () => {
+  assert.equal(lowerFirst("Drop-in centers"), "drop-in centers");
+  assert.equal(lowerFirst("NYCHA community centers"), "NYCHA community centers");
 });
 
 test("card: hours and phone fall back to plain words; tap-to-call and directions links", () => {

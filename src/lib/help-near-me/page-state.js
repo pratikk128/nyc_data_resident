@@ -50,13 +50,16 @@ const where = (label) => (label ? `of ${label}` : "of the spot you picked");
  * The line above the list, from selectView()'s answer:
  *   "12 places within 2 mi of 350 5th Avenue. Showing the nearest 5 of each kind."
  *   "Nothing within ½ mi, so we looked farther: 4 places within 1 mi of …"
+ * Temporarily closed places are counted apart: "3 places within 1 mi of …, plus 1 temporarily closed."
  */
 export function summaryText(view, query, placeLabel) {
   if (view.widened === "anywhere") {
     return `Nothing within ${radiusText(query.r)} ${where(placeLabel)}, or within ${radiusText(MAX_RADIUS)}. These are the nearest anywhere in the city.`;
   }
   const n = view.inRadius.length;
-  const found = `${plural(n, "place")} within ${radiusText(view.radius)} ${where(placeLabel)}`;
+  const closed = view.inRadius.filter((s) => s.closed).length;
+  const found = `${plural(n - closed, "place")} within ${radiusText(view.radius)} ${where(placeLabel)}` +
+    (closed ? `, plus ${count(closed)} temporarily closed` : "");
   const lead = view.widened === "radius" ? `Nothing within ${radiusText(query.r)}, so we looked farther: ${found}.` : `${found}.`;
   return view.more || view.list.length < n ? `${lead} Showing the nearest of each kind first.` : lead;
 }
@@ -80,6 +83,21 @@ export const radiusFor = (miles) => RADII.find((r) => r >= miles) ?? null;
 
 export const chipLabel = (label, n) => `${label}: ${plural(n, "place")} nearby`;
 
-export const moreText = "Show more of each kind";
+// "Show more: Youth programs" when only one kind has more, else "Show more of each kind".
+export const moreText = (view) =>
+  view.moreOf.length === 1 ? `Show more: ${categoryOf(view.moreOf[0]).short}` : "Show more of each kind";
+
+// A short label mid-sentence: "Drop-in centers" → "drop-in centers", "NYCHA community centers" kept.
+export const lowerFirst = (s) => (/^[A-Z][a-z]/.test(s) ? s[0].toLowerCase() + s.slice(1) : s);
+
+/*
+ * Beside the radius buttons when the list isn't for the one picked
+ * (selectView() widened it), so the buttons and the map's ring agree; null otherwise.
+ */
+export function radiusNote(view, query) {
+  if (view.widened === "radius") return `Nothing within ${radiusText(query.r)}, so showing ${radiusText(view.radius)}`;
+  if (view.widened === "anywhere") return `Nothing within ${radiusText(MAX_RADIUS)}, so showing the nearest anywhere`;
+  return null;
+}
 
 export const pendingText = "Type an address or ZIP code above, or use your location, to see help nearby.";

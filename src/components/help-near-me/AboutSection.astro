@@ -4,7 +4,7 @@
  * (the rules in src/lib/help-near-me/normalize.js), and every source with
  * its last update.
  */
-import { CATEGORIES, STALE_DAYS, HOURS_MISSING } from '../../lib/help-near-me/config.js';
+import { CATEGORIES, STALE_DAYS, HOURS_MISSING, PER_CATEGORY } from '../../lib/help-near-me/config.js';
 import { date } from '../../lib/format.js';
 
 interface Props {
@@ -54,7 +54,7 @@ const stale = (d: string | null) => Boolean(d) && now - Date.parse(d!) > STALE_D
         walking distance.
       </p>
       <p>
-        We show the nearest 5 of each kind within your radius first. If nothing is within it, we look farther and
+        We show the nearest {PER_CATEGORY} of each kind within your radius first. If nothing is within it, we look farther and
         say so. What you type in the address box is sent to NYC Planning's GeoSearch as you type, to suggest
         addresses. We only get a rounded spot (about a block), never the address or your exact location. That
         spot goes in the page link, so anyone you share the link with sees roughly where you searched. The

@@ -70,6 +70,7 @@ const all = query.cats.length === 0;
         <div class="toggle" role="group" aria-labelledby="hn-radius-label">
           {RADII.map((r) => <button type="button" class="toggle-btn" data-radius={r} aria-pressed={(query.r ?? DEFAULT_RADIUS) === r ? 'true' : 'false'}>{radiusText(r)}</button>)}
         </div>
+        <span class="hn-radius-note" id="hn-radius-note" data-radius-note hidden></span>
       </div>
     </div>
 
@@ -104,7 +105,7 @@ const all = query.cats.length === 0;
   import { cardHtml, skeletonHtml, escape } from '../../lib/help-near-me/render.js';
   import { mountHelpMap } from '../../lib/help-near-me/help-map.js';
   import {
-    normalizeQuery, queryToParams, pointQuery, toggleCategory, summaryText, missingNotes, radiusFor, chipLabel, moreText, pendingText
+    normalizeQuery, queryToParams, pointQuery, toggleCategory, summaryText, missingNotes, radiusFor, chipLabel, moreText, radiusNote, lowerFirst, pendingText
   } from '../../lib/help-near-me/page-state.js';
   import { nearSearch, addressOutcome } from '../../lib/location/near-search.js';
   import { parseLocationInput, inNyc, isNycZip } from '../../lib/complaints311/location-input.js';
@@ -131,6 +132,7 @@ const all = query.cats.length === 0;
   const more = $<HTMLButtonElement>('[data-more]');
   const missing = $('[data-missing]');
   const picked = $('[data-picked]');
+  const radiusNoteEl = $('[data-radius-note]');
   const narrow = matchMedia('(max-width: 1023px)'); // matches the CSS breakpoint
 
   const map = mountHelpMap($('[data-map]'), { onPick: (id: string) => select(id, { fromMap: true }) });
@@ -405,6 +407,10 @@ const all = query.cats.length === 0;
     if (card?.dataset.id) map.highlight(card.dataset.id);
   });
   cards.addEventListener('mouseleave', () => map.highlight(selected));
+  // Tabbing out of the list puts the halo back on the picked place, as the mouse leaving does.
+  cards.addEventListener('focusout', (e) => {
+    if (!cards.contains(e.relatedTarget as Node | null)) map.highlight(selected);
+  });
   cards.addEventListener('focusin', (e) => {
     const card = (e.target as HTMLElement).closest<HTMLElement>('.hn-card');
     if (card?.dataset.id) map.highlight(card.dataset.id);
@@ -431,12 +437,17 @@ const all = query.cats.length === 0;
     return body;
   }
 
-  // The chips without counts, until the spot's sites are in.
+  // The chips without counts and the radius without a note, until the spot's sites are in.
   function clearCounts() {
     root.querySelectorAll<HTMLElement>('[data-count]').forEach((el) => {
       el.hidden = true;
       el.textContent = '';
       el.closest('button')!.removeAttribute('aria-label');
+    });
+    radiusNoteEl.hidden = true;
+    root.querySelectorAll<HTMLButtonElement>('[data-radius]').forEach((b) => {
+      b.classList.remove('is-widened');
+      b.removeAttribute('aria-describedby');
     });
   }
 
@@ -520,6 +531,17 @@ const all = query.cats.length === 0;
 
     summary.textContent = summaryText(view, query, placeLabel);
 
+    // When the list isn't for the picked radius, the buttons say so (the summary has the full story).
+    const note = radiusNote(view, query);
+    radiusNoteEl.textContent = note ?? '';
+    radiusNoteEl.hidden = !note;
+    root.querySelectorAll<HTMLButtonElement>('[data-radius]').forEach((b) => {
+      const shownHere = view.widened === 'radius' && Number(b.dataset.radius) === view.radius;
+      b.classList.toggle('is-widened', shownHere);
+      if (note && Number(b.dataset.radius) === query.r) b.setAttribute('aria-describedby', 'hn-radius-note');
+      else b.removeAttribute('aria-describedby');
+    });
+
     // Chosen kinds with nothing close, how far the nearest is, and a button to reach it.
     const notes = missingNotes(view);
     const broken = sources.filter((s: any) => s.error && (!query.cats.length || query.cats.includes(s.key)));
@@ -529,7 +551,7 @@ const all = query.cats.length === 0;
         const r = n.miles != null ? radiusFor(n.miles) : null;
         const label = CATEGORIES.find((c) => c.key === n.key)!.short;
         const btn = r && r > view.radius ? ` <button type="button" class="copy-link" data-widen="${r}">Widen to ${radiusText(r)}</button>`
-          : n.miles != null && !r && query.cats.length !== 1 ? ` <button type="button" class="copy-link" data-only="${n.key}">Show the nearest ${escape(label.toLowerCase())}</button>` : '';
+          : n.miles != null && !r && query.cats.length !== 1 ? ` <button type="button" class="copy-link" data-only="${n.key}">Show the nearest ${escape(lowerFirst(label))}</button>` : '';
         return `<li>${escape(n.text)}${btn}</li>`;
       }).join('');
     missing.hidden = !missing.innerHTML;
@@ -539,7 +561,7 @@ const all = query.cats.length === 0;
     if (selected) cardFor(selected)?.classList.add('is-selected');
     showPicked();
     more.hidden = !view.more;
-    more.textContent = moreText;
+    more.textContent = moreText(view);
     empty.hidden = view.list.length > 0;
     if (!view.list.length) empty.innerHTML = '<p><strong>We couldn’t find any of these places in the city’s lists.</strong> Call 311 and ask for help finding services near you.</p>';
 

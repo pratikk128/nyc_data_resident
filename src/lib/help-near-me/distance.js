@@ -55,10 +55,11 @@ export const radiusText = (r) => (r === 0.5 ? "½ mi" : r === 0.25 ? "¼ mi" : `
  *     radius     the radius used: the chosen one, or the next wider one with something in it
  *     widened    null | "radius" (nothing inside the chosen radius) | "anywhere" (nothing within MAX_RADIUS)
  *     list       nearest perCategory × pages per category, nearest first (temporarily closed last)
- *     counts     { [category]: sites within the radius used }, for the chips
+ *     counts     { [category]: open sites within the radius used }, for the chips (temporarily closed left out)
  *     inRadius   every site of the chosen categories within the radius used
  *     missing    [{ key, miles }] chosen categories with nothing within the radius used, and how far the nearest is
  *     more       true when "Show more" would add something
+ *     moreOf     the categories it would add to
  *   }
  */
 export function selectView(sorted, { categories, radius, pages = 1, perCategory = PER_CATEGORY }) {
@@ -74,16 +75,16 @@ export function selectView(sorted, { categories, radius, pages = 1, perCategory 
   }
 
   const counts = Object.fromEntries(CATEGORY_KEYS.map((k) => [k, 0]));
-  for (const s of sorted) if (s.miles <= used) counts[s.category]++;
+  for (const s of sorted) if (s.miles <= used && !s.closed) counts[s.category]++;
 
   const inRadius = widened === "anywhere" ? [] : within(used);
   const take = perCategory * pages;
   const list = [];
-  let more = false;
+  const moreOf = [];
   for (const k of chosen) {
     const ofKind = widened === "anywhere" ? pool.filter((s) => s.category === k) : inRadius.filter((s) => s.category === k);
     list.push(...ofKind.slice(0, take));
-    if (ofKind.length > take) more = true;
+    if (ofKind.length > take) moreOf.push(k);
   }
   // Temporarily closed sites after the open ones.
   list.sort((a, b) => (a.closed ? 1 : 0) - (b.closed ? 1 : 0) || a.miles - b.miles || String(a.name).localeCompare(String(b.name)));
@@ -92,5 +93,5 @@ export function selectView(sorted, { categories, radius, pages = 1, perCategory 
     .filter((k) => !list.some((s) => s.category === k))
     .map((k) => ({ key: k, miles: pool.find((s) => s.category === k)?.miles ?? null }));
 
-  return { radius: used, widened, list, counts, inRadius, missing, more };
+  return { radius: used, widened, list, counts, inRadius, missing, more: moreOf.length > 0, moreOf };
 }
