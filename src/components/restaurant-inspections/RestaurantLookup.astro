@@ -292,12 +292,14 @@ const deepLink = Boolean(initial || initialError);
   boroSelect.addEventListener('change', runSearch);
 
   // "Near me": a ~0.5 mile box around the browser's location, with or without
-  // a name. Press again to turn off.
+  // a name. Press again to turn off. A link from the address report starts it
+  // on that spot instead (?lat=&lng=, see Start); turning it off drops the spot from the URL.
   nearBtn.addEventListener('click', () => {
     if (near) {
       near = null;
       nearBtn.setAttribute('aria-pressed', 'false');
       nearLabel.textContent = 'Near me';
+      setUrl({ lat: null, lng: null });
       runSearch();
       return;
     }
@@ -464,8 +466,15 @@ const deepLink = Boolean(initial || initialError);
   // ---------- Start ----------
   const params = new URL(location.href).searchParams;
   if (current) syncCompareUrl(); // a shared ?compare=similar for a restaurant that can't use it
+  // A spot from the address report: "near" that spot, in place of the browser's location.
+  const spotLat = Number(params.get('lat')), spotLng = Number(params.get('lng'));
+  if (params.get('lat') && params.get('lng') && inCityLimits(spotLat, spotLng)) {
+    near = { lat: spotLat, lng: spotLng };
+    nearBtn.setAttribute('aria-pressed', 'true');
+    nearLabel.textContent = 'Near the address (½ mile)';
+  }
   // The server already ran the search in the URL, unless the browser kept edited fields.
   const changed = fillSearch(params);
-  if (list.dataset.ssr === undefined || changed) runSearch();
+  if (list.dataset.ssr === undefined || changed || near) runSearch();
   if (!current && params.get('camis') && detail.hidden) openRestaurant(params.get('camis')!);
 </script>

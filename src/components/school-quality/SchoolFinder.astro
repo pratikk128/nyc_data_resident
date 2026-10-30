@@ -141,6 +141,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), inputError
     sortChipsHtml, sortNoteText, UPSTREAM_TEXT, LOADING_TEXT
   } from '../../lib/schools/render.js';
   import { mountSchoolsMap } from '../../lib/schools/school-map.js';
+  import { spotFromParams } from '../../lib/address-report/report.js';
   import { compareHref, MAX_COMPARE } from '../../lib/schools/compare.js';
   import { readShortlist, writeShortlist } from '../../lib/schools/shortlist.js';
   import { escape } from '../../lib/schools/render.js';
@@ -183,6 +184,8 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), inputError
   let loadingTimer = 0;
   let skeletonTimer = 0;
   let schoolsMap: ReturnType<typeof mountSchoolsMap> | null = null;
+  // From the address report's link (?lat=&lon=): the map stays on that spot. Kept here, not in the URL the page writes.
+  const spot = spotFromParams(new URLSearchParams(location.search));
   const coarsePointer = matchMedia('(pointer: coarse)');
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 
@@ -316,7 +319,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), inputError
         : 'The map couldn’t load. Switch to the list instead.';
       return;
     }
-    schoolsMap ??= mountSchoolsMap($('[data-map]'));
+    schoolsMap ??= mountSchoolsMap($('[data-map]'), { spot });
     await schoolsMap.update({ points: data.points });
     mapNote.textContent = data.missing
       ? `${count(data.points.length)} schools on the map. ${count(data.missing)} more have no location on file; switch to the list to see them.`

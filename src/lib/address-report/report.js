@@ -37,8 +37,8 @@ export function dashboardLinks({ lat, lon }, { waterSite = null } = {}) {
     closures: `/street-closures/?${at}&r=0.25`,
     help: `/help-near-me/?${at}`,
     water: `/drinking-water/near-me?${at}${waterSite ? `&sites=${encodeURIComponent(waterSite)}` : ""}`,
-    restaurants: "/restaurant-inspections/",
-    schools: "/school-quality/"
+    restaurants: `/restaurant-inspections/?lat=${round3(lat)}&lng=${round3(lon)}`,
+    schools: `/school-quality/?view=map&${at}`
   };
 }
 

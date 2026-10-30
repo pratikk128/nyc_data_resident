@@ -2,10 +2,12 @@
  * Maps for the NYC School Quality Explorer, on the same muted Esri basemap
  * as the drinking water and 311 maps. Leaflet loads on first draw. Browser only.
  *
- * mountSchoolsMap(canvas) → { update({ points }) }
+ * mountSchoolsMap(canvas, { spot }) → { update({ points }) }
  *   Browse page: every matching school as a dot (canvas renderer, so 1,900
  *   points stay fast), with a popup linking to its page. The result list is
- *   the non-map alternative (DESIGN.md "Maps").
+ *   the non-map alternative (DESIGN.md "Maps"). With a spot ({ lat, lon },
+ *   from the address report's link) the map stays on it, pinned, instead of
+ *   fitting every match.
  *   points: [[lat, lon, dbn, name, type slug], ...]
  *
  * mountMiniMap(canvas, { lat, lon, label })  School page: one marker.
@@ -40,7 +42,7 @@ function baseMap(L, canvas, options = {}) {
 
 const FAILED = '<p class="chart-fallback">The map couldn’t load. Use the list instead.</p>';
 
-export function mountSchoolsMap(canvas) {
+export function mountSchoolsMap(canvas, { spot = /** @type {{ lat: number, lon: number } | null} */ (null) } = {}) {
   let map = null, layer = null, L = null;
   let request = 0;
 
@@ -56,6 +58,11 @@ export function mountSchoolsMap(canvas) {
     if (!map) {
       map = baseMap(L, canvas);
       layer = L.layerGroup().addTo(map);
+      if (spot) {
+        L.circleMarker([spot.lat, spot.lon], { radius: 9, color: INK, weight: 3, fillColor: YELLOW, fillOpacity: 1 })
+          .bindTooltip("The address", { direction: "top" })
+          .addTo(map);
+      }
     }
     layer.clearLayers();
     const renderer = L.canvas({ padding: 0.5 });
@@ -65,7 +72,8 @@ export function mountSchoolsMap(canvas) {
         .addTo(layer);
     }
     map.invalidateSize();
-    if (points.length > 1) map.fitBounds(points.map(([lat, lon]) => [lat, lon]), { padding: [24, 24], maxZoom: 15 });
+    if (spot) map.setView([spot.lat, spot.lon], 15);
+    else if (points.length > 1) map.fitBounds(points.map(([lat, lon]) => [lat, lon]), { padding: [24, 24], maxZoom: 15 });
     else if (points.length === 1) map.setView([points[0][0], points[0][1]], 15);
     else map.fitBounds(NYC_BOUNDS);
   }

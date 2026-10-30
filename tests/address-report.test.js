@@ -37,6 +37,8 @@ test("links: each dashboard opens on the same spot", () => {
   assert.equal(links.help, "/help-near-me/?lat=40.748&lon=-73.986");
   assert.equal(links.water, "/drinking-water/near-me?lat=40.748&lon=-73.986&sites=1S03B");
   assert.equal(dashboardLinks(EMPIRE).water, "/drinking-water/near-me?lat=40.748&lon=-73.986");
+  assert.equal(links.restaurants, "/restaurant-inspections/?lat=40.748&lng=-73.986");
+  assert.equal(links.schools, "/school-quality/?view=map&lat=40.748&lon=-73.986");
 });
 
 // ---------- 311 ----------

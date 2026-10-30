@@ -3738,6 +3738,8 @@ a.hn-directions:hover { background: var(--accent-deep); }
 .ar-lead { max-width: 60ch; }
 .ar-note { margin-top: var(--space-3); font-size: .875rem; color: var(--ink-soft); }
 .ar-error { color: var(--ink-soft); }
+.ar-retry { margin-top: var(--space-3); }
+.ar-card:focus:not(:focus-visible) { outline: none; }
 .ar-sub {
   margin-top: var(--space-4);
   font-size: .8125rem;
