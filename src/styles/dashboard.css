@@ -2819,7 +2819,11 @@ a.sd-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
 .scl-chip[data-tone="ending"] { background: var(--orange-tint); color: var(--orange-deep); }
 .scl-chip[data-tone="long"] { background: var(--purple-tint); color: var(--purple-deep); }
 .scl-dist { margin-left: auto; font-size: .875rem; font-weight: 600; color: var(--ink-soft); white-space: nowrap; }
-.scl-card-title { margin-top: var(--space-1); font-size: 1.0625rem; font-weight: 800; line-height: 1.3; }
+/* Switched to "By street" or "Near me" and not searched yet: the last place's results stay out of sight */
+.scl.is-pending #results > :not(.section-head),
+.scl.is-pending #breakdown { display: none; }
+.scl-card-top + .scl-card-title { margin-top: var(--space-1); }
+.scl-card-title { font-size: 1.0625rem; font-weight: 800; line-height: 1.3; }
 .scl-locate {
   padding: 0;
   border: 0;
@@ -2837,7 +2841,6 @@ a.sd-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
 .scl-permits ul { margin: var(--space-2) 0 0; padding-left: var(--space-4); }
 .scl-permits li + li { margin-top: var(--space-1); }
 .scl-permit-dates { font-weight: 700; font-variant-numeric: tabular-nums; margin-right: var(--space-1); }
-.scl-film { align-self: flex-start; margin-top: var(--space-1); font-size: .875rem; font-weight: 600; }
 .scl-more { width: 100%; margin-top: var(--space-3); }
 .scl-empty {
   padding: var(--space-5);
@@ -2891,9 +2894,12 @@ a.sd-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
   margin-top: var(--space-3);
   padding-bottom: 22px; /* room for the date ticks */
   border-bottom: 1px solid var(--line-strong);
+  touch-action: pan-y; /* a sideways drag reads the days */
 }
+.scl-strip:focus-visible { outline: 3px solid var(--link); outline-offset: 4px; }
 .scl-strip-col { position: relative; flex: 1 1 0; height: 100%; display: flex; align-items: flex-end; cursor: default; }
-.scl-strip-col:hover .scl-strip-bar { background: var(--ink); }
+.scl-strip-col:hover .scl-strip-bar,
+.scl-strip-col.is-current .scl-strip-bar { background: var(--ink); }
 .scl-strip-bar { width: 100%; border-radius: 3px 3px 0 0; background: var(--blue); }
 .scl-strip-col.is-in .scl-strip-bar { background: var(--blue-deep); }
 /* Not all posted yet: a hatch behind a lighter bar */

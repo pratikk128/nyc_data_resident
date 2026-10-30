@@ -9,8 +9,6 @@
  * borough_code is M, X, B, Q or S (Brooklyn is B, not K); 58 purpose values,
  * some truncated at 40 characters.
  */
-import { dashboards } from "../../data/dashboards.js";
-
 export const DATASET_ID = "i6b5-j7bu";
 export const DATASET_URL = `https://data.cityofnewyork.us/d/${DATASET_ID}`;
 export const DATASET_NAME = "Street Closures due to Construction Activities by Block";
@@ -45,10 +43,5 @@ export const STRIP_DAYS = 60;     // the closures-per-day strip
 export const TOP_STREETS = 8;     // "Most affected streets"
 export const PAGE_SIZE = 25;      // cards shown before "Show more"
 export const MERGE_METERS = 60;   // segments with the same names are one block only when they touch (within this)
-
-// The Film Permits dashboard, once it's in the registry. Cards link to it
-// filtered to the same street; until it exists the link is left out.
-const film = dashboards.find((d) => d.id === "film-permits");
-export const FILM_PERMITS_URL = film && film.url !== "#" ? film.url : null;
 
 export const ERROR_TEXT = "Couldn’t reach NYC Open Data. Their servers might be stuck behind a double-parked truck. Try again in a minute.";

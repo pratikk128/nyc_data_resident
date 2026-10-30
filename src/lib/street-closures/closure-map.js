@@ -19,6 +19,7 @@ const ATTRIBUTION = 'Tiles &copy; <a href="https://www.esri.com/">Esri</a>, HERE
 const INK = "#1C2A44";
 const YELLOW = "#FFE27A";
 const NYC_BOUNDS = [[40.49, -74.26], [40.92, -73.69]];
+const MIN_PICKED_PX = 48; // a picked block shorter than this on screen gets zoomed to
 
 // The basemap stays light in both themes, so these fixed colors work in both.
 export const STATE_STYLES = {
@@ -110,8 +111,10 @@ export function mountClosureMap(canvas, { onPick }) {
     L.polyline(block.lines, { renderer, color: YELLOW, weight: 13, opacity: 1, lineCap: "round", interactive: false }).addTo(halo);
     L.polyline(block.lines, { renderer, ...styleFor(block.status.state, true), interactive: false }).addTo(halo);
     if (pan) {
+      // Zoom in when the block is off screen or too small to make out (a borough view on a phone).
       const b = L.latLngBounds(block.lines.flat());
-      if (!map.getBounds().contains(b)) map.fitBounds(b, { maxZoom: Math.max(map.getZoom(), 15), padding: [40, 40] });
+      const px = map.latLngToContainerPoint(b.getNorthEast()).distanceTo(map.latLngToContainerPoint(b.getSouthWest()));
+      if (!map.getBounds().contains(b) || px < MIN_PICKED_PX) map.fitBounds(b, { maxZoom: Math.max(map.getZoom(), 16), padding: [40, 40] });
     }
   }
 

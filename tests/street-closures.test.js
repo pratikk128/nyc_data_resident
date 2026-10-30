@@ -11,7 +11,7 @@ import { streetKey, streetLabel, suggestStreets, resolveStreet } from "../src/li
 import { describePurpose } from "../src/lib/street-closures/purposes.js";
 import {
   calendarDate, windowRange, overlaps, buildIndex, selectBlocks, mergeSpans, blockStatus,
-  blocksInView, windowCounts, purposeCounts, dailyCounts, topStreets, sortBlocks
+  blocksInView, windowCounts, purposeCounts, dailyCounts, topStreets, sortBlocks, streetList
 } from "../src/lib/street-closures/closures.js";
 import { distanceToLine } from "../src/lib/street-closures/geo.js";
 import { normalizeQuery, queryToParams, searchParams, selection } from "../src/lib/street-closures/filter.js";
@@ -84,7 +84,7 @@ test("purposes: plain labels and groups; protected-street suffixes, even cut sho
 test("index: dates parsed as calendar days, duplicate uniqueids dropped, permits grouped by block", () => {
   assert.equal(calendarDate("2026-10-27T00:00:00.000"), "2026-10-27");
   assert.equal(calendarDate(""), null);
-  const { blocks, streets, postedThrough } = buildIndex([
+  const { blocks, postedThrough } = buildIndex([
     row(),
     row(), // the same permit again, word for word
     row({ uniqueid: "u2", work_start_date: "2026-11-06T00:00:00.000", work_end_date: "2026-11-10T00:00:00.000", purpose: "REPAIR GAS" }),
@@ -99,18 +99,39 @@ test("index: dates parsed as calendar days, duplicate uniqueids dropped, permits
   assert.equal(w8.on, "WEST 8 STREET", "spaces collapsed");
   assert.equal(w8.onKey, "WEST 8 STREET");
   assert.deepEqual(w8.lines, [[[40.6, -73.98], [40.601, -73.979]]], "[lat, lon], rounded");
-  assert.deepEqual(streets.map((s) => [s.key, s.blocks]), [["AVENUE S", 2], ["AVENUE T", 1], ["WEST 7 STREET", 1], ["WEST 8 STREET", 2]],
+  assert.deepEqual(streetList(blocks, TODAY).map((s) => [s.key, s.blocks]), [["AVENUE S", 2], ["AVENUE T", 1], ["WEST 7 STREET", 1], ["WEST 8 STREET", 2]],
     "cross streets too, counted the way a street search finds them");
   assert.equal(postedThrough, "2026-11-06", "the latest start");
 });
 
 test("index: a street that's only ever a cross street can be searched, but DOT's stand-ins can't", () => {
-  const { streets } = buildIndex([
+  const { blocks } = buildIndex([
     row({ onstreetname: "UNION TURNPIKE", fromstreetname: "BEND", tostreetname: "PROSPECT PLACE" }),
     row({ uniqueid: "u2", segmentid: "200", onstreetname: "ELM AVENUE", fromstreetname: "DEAD END", tostreetname: "WASHINGTON CEMETERY BOUNDARY" })
   ], TODAY);
+  const streets = streetList(blocks, TODAY);
   assert.deepEqual(streets.map((s) => s.key), ["ELM AVENUE", "PROSPECT PLACE", "UNION TURNPIKE"]);
   assert.equal(resolveStreet(streets, "Prospect Pl").key, "PROSPECT PLACE");
+});
+
+test("street list: only blocks with a permit that hasn't ended count, as the index ages", () => {
+  const { blocks } = buildIndex([
+    row(), // ends Nov 5
+    row({ uniqueid: "u2", segmentid: "200", onstreetname: "AVENUE S", fromstreetname: "WEST 7 STREET", tostreetname: "WEST 8 STREET", work_end_date: "2026-11-20T00:00:00.000" })
+  ], TODAY);
+  assert.deepEqual(streetList(blocks, "2026-11-10").map((s) => [s.key, s.blocks]), [["AVENUE S", 1], ["WEST 7 STREET", 1], ["WEST 8 STREET", 1]]);
+});
+
+test("index: the same work twice on one segment is two permits; on two segments, one", () => {
+  const { blocks } = buildIndex([
+    row({ uniqueid: "p1" }),
+    row({ uniqueid: "p2" }), // another permit for the same work on the same segment
+    row({ uniqueid: "p3", segmentid: "101", the_geom: line(40.601, -73.979) }), // the next segment's copy of one of them
+    row({ uniqueid: "p4", segmentid: "101", the_geom: line(40.601, -73.979) }) // ... and of the other
+  ], TODAY);
+  assert.equal(blocks.length, 1);
+  assert.deepEqual(blocks[0].permits.map((p) => p.id), ["p1", "p2"]);
+  assert.ok(blocks[0].permits.every((p) => !("segs" in p)), "bookkeeping left out of the index");
 });
 
 test("index: segments with the same names are one block only where they touch", () => {
@@ -224,10 +245,13 @@ test("cards: title, dates, timing and chips in words", () => {
   assert.equal(timingText(s, TODAY), "Starts today · 10 days left");
   assert.equal(timingText(blockStatus([{ start: "2026-10-01", end: "2026-10-31" }], TODAY), TODAY), "Ends tomorrow");
   assert.equal(timingText(blockStatus([{ start: "2026-11-04", end: "2026-11-09" }], TODAY), TODAY), "Starts in 5 days");
-  assert.deepEqual(chips(blockStatus([{ start: "2026-08-01", end: TODAY }], TODAY)).map((c) => c[1]), ["Active now", "Ending soon", "Long-running"]);
+  assert.deepEqual(chips(blockStatus([{ start: "2026-08-01", end: TODAY }], TODAY)).map((c) => c[1]), ["Ending soon", "Long-running"]);
+  assert.deepEqual(chips(blockStatus([{ start: "2026-10-01", end: "2026-12-01" }], TODAY)), [], "an ordinary active closure gets no chip");
+  assert.deepEqual(chips(blockStatus([{ start: "2026-11-01", end: "2026-11-09" }], TODAY)).map((c) => c[1]), ["Starts soon"]);
   const html = cardHtml({ ...b, permits: [{ id: "x", start: TODAY, end: "2026-11-09", purpose: "<b>REPAIR GAS</b>" }], status: s }, TODAY);
   assert.ok(html.includes("&#60;b&#62;"), "data is escaped");
-  assert.ok(!html.includes("Film permits"), "no link until the Film Permits dashboard exists");
+  assert.ok(html.includes("Starts today"), "timing in the dates line");
+  assert.ok(!html.includes("scl-card-top"), "no empty chip row");
 });
 
 // ---------- Views ----------

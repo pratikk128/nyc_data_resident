@@ -12,7 +12,8 @@
  * street map often splits a block into several segments (segmentid), each
  * with its own copy of the same permit, so segments with the same street,
  * cross streets and borough that touch are one block, and the same work
- * (dates and purpose) on it is one permit. They must touch because the names
+ * (dates and purpose) on it is one permit, unless one segment has it twice:
+ * then they're two permits that happen to match. They must touch because the names
  * alone can repeat far apart: DOT writes "BEND" or "PEDESTRIAN OVERPASS" for
  * a cross street that isn't a street, and some segments carry the wrong
  * borough. Several permits can close the same block, so
@@ -90,18 +91,19 @@ function blockStreets(b) {
   return [...names].filter(([key]) => key && isStreetName(key));
 }
 
+// The same work on another segment is that segment's copy; on the same segment, it's another permit.
 const samePermit = (p, q) => p.start === q.start && p.end === q.end && p.purpose === q.purpose;
 function addPermit(block, permit) {
-  if (!block.permits.some((p) => samePermit(p, permit))) block.permits.push(permit);
+  const copy = block.permits.find((p) => samePermit(p, permit) && !permit.segs.some((s) => p.segs.includes(s)));
+  if (copy) copy.segs.push(...permit.segs);
+  else block.permits.push(permit);
 }
 
 /*
- * Raw rows → { blocks, streets, postedThrough }
+ * Raw rows → { blocks, postedThrough }
  *   blocks         [{ seg, segs, on, from, to, boro, onKey, fromKey, toKey, lines, permits: [{ id, start, end, purpose }] }]
  *                  seg is the block's id (its lowest segmentid); permits sorted by
  *                  start; rows without dates or a line are dropped
- *   streets        [{ key, label, blocks }] every street a search can find (closed,
- *                  or a cross street of a closed block), for the autocomplete
  *   postedThrough  the latest start date of any permit: DOT posts permits only
  *                  shortly before work starts, so later days look emptier than they'll be
  * Permits that ended before `today` are dropped (they're in the data for a
@@ -149,21 +151,34 @@ export function buildIndex(rows, today) {
       if (Number(seg) < Number(block.seg)) block.seg = seg;
       bySeg.set(`${key}#${seg}`, block);
     }
-    addPermit(block, { id, start, end, purpose: clean(row.purpose) });
+    addPermit(block, { id, start, end, purpose: clean(row.purpose), segs: [seg] });
   }
   const blocks = [...groups.values()].flat();
-  for (const b of blocks) b.permits.sort((x, y) => x.start.localeCompare(y.start) || x.end.localeCompare(y.end));
+  for (const b of blocks) {
+    for (const p of b.permits) delete p.segs;
+    b.permits.sort((x, y) => x.start.localeCompare(y.start) || x.end.localeCompare(y.end));
+  }
+  return { blocks, postedThrough };
+}
 
-  // A street search finds a block on the street or crossing it, so both count.
+/*
+ * Every street a search can find on `today` (closed, or a cross street of a
+ * closed block), for the autocomplete: [{ key, label, blocks }]. Built per
+ * day, since the index is rebuilt only when DOT updates the data and its
+ * permits end in between.
+ */
+export function streetList(blocks, today) {
   const streets = new Map();
   for (const b of blocks) {
+    if (!b.permits.some((p) => p.end >= today)) continue;
+    // A street search finds a block on the street or crossing it, so both count.
     for (const [key, name] of blockStreets(b)) {
       const s = streets.get(key) ?? { key, label: streetLabel(name), blocks: 0 };
       s.blocks++;
       streets.set(key, s);
     }
   }
-  return { blocks, streets: [...streets.values()].sort((a, b) => a.label.localeCompare(b.label)), postedThrough };
+  return [...streets.values()].sort((a, b) => a.label.localeCompare(b.label));
 }
 
 /*

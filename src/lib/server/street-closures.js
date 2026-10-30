@@ -3,8 +3,9 @@
  * the rules are in src/lib/street-closures/closures.js.
  *
  * The dataset is small (~4,500 rows, one per permit per block, about 2 MB)
- * and DOT updates it about weekly, so a job rebuilt when it changes (etl.js)
- * keeps every block in KV, deduped by uniqueid and grouped by segmentid.
+ * and DOT updates it about weekly. The hourly ETL check (etl.js) rebuilds a
+ * job when it changes, which keeps every block in KV, deduped by uniqueid and
+ * grouped by segmentid.
  * Searches (a street, a borough or a radius) filter that copy in the Worker
  * and are cached at the edge for an hour, so requests never wait on Socrata.
  * The browser gets every upcoming permit for the place and picks the time
@@ -17,7 +18,7 @@ import { requestMaxAgeHours } from "../etl/cadence.js";
 import { checkRateLimit } from "./rate-limit.js";
 import { nycToday } from "../format.js";
 import { DATASET_ID } from "../street-closures/config.js";
-import { buildIndex, selectBlocks } from "../street-closures/closures.js";
+import { buildIndex, selectBlocks, streetList } from "../street-closures/closures.js";
 import { searchParams, selection } from "../street-closures/filter.js";
 
 export const SEARCH_TTL = 3600;
@@ -34,7 +35,7 @@ export const metadataJob = {
 };
 
 export const blocksJob = {
-  key: "street-closures:blocks:v3", // v3: only touching segments merged; cross streets in the street list; postedThrough
+  key: "street-closures:blocks:v4", // v4: matching permits on one segment kept apart; street list built per request
   maxAgeHours: MAX_AGE_HOURS,
   async run() {
     const rows = [];
@@ -65,6 +66,9 @@ export const streetClosuresDataset = {
 
 export const getMetadata = () => dailyValue(metadataJob);
 export const getIndex = () => dailyValue(blocksJob);
+
+// The autocomplete's streets, counting only blocks with a permit that hasn't ended.
+export const getStreets = async () => streetList((await getIndex()).blocks, nycToday());
 
 const codeVersion = () => env.CF_VERSION_METADATA?.id ?? "dev";
 

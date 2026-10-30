@@ -160,7 +160,7 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
       </div>
       <div class="scl-panel">
         <h3 class="chart-title">Most affected streets</h3>
-        <p class="chart-subtitle">Streets with the most closed blocks on or crossing them.</p>
+        <p class="chart-subtitle" data-top-note>Streets with the most closed blocks on or crossing them.</p>
         <div data-top-streets></div>
       </div>
       <div class="scl-panel scl-panel-wide">
@@ -267,6 +267,26 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
   function showPanel() {
     root.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
     root.querySelectorAll<HTMLElement>('[data-panel]').forEach((p) => (p.hidden = p.dataset.panel !== mode));
+    showPending();
+  }
+
+  // After switching to "By street" or "Near me", the last place's results are
+  // hidden (CSS, .is-pending) until a search in the new mode runs.
+  const isPending = () => mode !== (query.mode === 'city' ? 'borough' : query.mode);
+  function showPending() {
+    if (!isPending() && root.classList.contains('is-pending') && data && !root.hasAttribute('aria-busy')) {
+      render({ refit: false }); // back to the mode on screen: its results and summary again
+      map.invalidate();
+    } else markPending();
+  }
+  function markPending() {
+    const pending = isPending();
+    root.classList.toggle('is-pending', pending);
+    if (pending && mode !== 'borough') {
+      summary.textContent = mode === 'street'
+        ? 'Pick a street above to see its closures.'
+        : 'Type an address or ZIP code above, or use your location, to see closures near it.';
+    }
   }
 
   function fillForm() {
@@ -534,6 +554,7 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
     if (params !== loadedFor || !data || data.today !== nycToday()) {
       const id = ++request;
       summary.textContent = 'Loading closures…';
+      markPending();
       cards.innerHTML = Array.from({ length: 3 }, () => '<li class="scl-card is-skeleton" aria-hidden="true"><span class="sk-line"></span><span class="sk-line sk-short"></span></li>').join('');
       empty.hidden = true;
       more.hidden = true;
@@ -601,7 +622,12 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
     stripNote.textContent = postedThrough && days[days.length - 1].day > postedThrough
       ? `Hatched days come after ${date(postedThrough)}, the latest start DOT has posted, so they'll fill in as permits are added.`
       : '';
+    stripDay = 0;
     readout.textContent = stripReadout(days[0], postedThrough);
+    $('[data-top-note]').textContent = query.mode === 'near'
+      ? 'Streets with the most closed blocks on or crossing them within your radius. Tap one to see the whole street.'
+      : 'Streets with the most closed blocks on or crossing them.';
+    markPending(); // a refresh in the background keeps the prompt
   }
 
   function drawCards() {
@@ -631,12 +657,32 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
       (ideas.length ? `<p>Try a wider view:</p><div class="scl-widen">${ideas.join('')}</div>` : '');
   }
 
-  // Hovering a day of the strip shows its count.
-  strip.addEventListener('mouseover', (e) => {
-    const col = (e.target as HTMLElement).closest<HTMLElement>('[data-i]');
-    if (col) readout.textContent = stripReadout(days[Number(col.dataset.i)], data?.postedThrough);
+  // A day's count: hover, tap or drag across the strip, or the arrow keys once it has focus.
+  let stripDay = 0;
+  function showDay(i: number, { mark = true } = {}) {
+    if (!days.length) return;
+    stripDay = Math.max(0, Math.min(days.length - 1, i));
+    strip.querySelectorAll('.is-current').forEach((el) => el.classList.remove('is-current'));
+    if (mark) strip.querySelector(`[data-i="${stripDay}"]`)?.classList.add('is-current');
+    readout.textContent = stripReadout(days[stripDay], data?.postedThrough);
+  }
+  // A touch keeps its pointer on the first column, so find the one under the finger.
+  const dayAt = (e: PointerEvent) =>
+    (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null)?.closest<HTMLElement>('.scl-strip [data-i]');
+  strip.addEventListener('pointerdown', (e) => { const col = dayAt(e); if (col) showDay(Number(col.dataset.i)); });
+  strip.addEventListener('pointermove', (e) => {
+    if (e.pointerType !== 'mouse' && !e.buttons) return;
+    const col = dayAt(e);
+    if (col) showDay(Number(col.dataset.i), { mark: e.pointerType !== 'mouse' });
   });
-  strip.addEventListener('mouseleave', () => { if (days.length) readout.textContent = stripReadout(days[0], data?.postedThrough); });
+  // The mouse leaving goes back to today; a tapped day stays.
+  strip.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') showDay(0, { mark: false }); });
+  strip.addEventListener('keydown', (e) => {
+    const step: Record<string, number> = { ArrowLeft: stripDay - 1, ArrowRight: stripDay + 1, Home: 0, End: days.length - 1 };
+    if (!(e.key in step)) return;
+    e.preventDefault();
+    showDay(step[e.key]);
+  });
 
   // A tab left open overnight catches up when it's looked at again.
   document.addEventListener('visibilitychange', () => {

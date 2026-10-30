@@ -10,7 +10,7 @@
 import DashboardLayout from '../../layouts/DashboardLayout.astro';
 import ClosureFinder from '../../components/street-closures/ClosureFinder.astro';
 import AboutSection from '../../components/street-closures/AboutSection.astro';
-import { getMetadata, getIndex } from '../../lib/server/street-closures.js';
+import { getMetadata, getStreets } from '../../lib/server/street-closures.js';
 import { normalizeQuery } from '../../lib/street-closures/filter.js';
 import { boroughLabel } from '../../lib/street-closures/config.js';
 import { streetLabel } from '../../lib/street-closures/streets.js';
@@ -18,10 +18,10 @@ import { date } from '../../lib/format.js';
 
 export const prerender = false;
 
-const [meta, index] = await Promise.allSettled([getMetadata(), getIndex()]);
+const [meta, index] = await Promise.allSettled([getMetadata(), getStreets()]);
 for (const r of [meta, index]) if (r.status === 'rejected') console.error(r.reason); // the page still loads; the script retries
 const metaValue = meta.status === 'fulfilled' ? meta.value : null;
-const streets = index.status === 'fulfilled' ? index.value.streets : [];
+const streets = index.status === 'fulfilled' ? index.value : [];
 
 const query = normalizeQuery(Astro.url.searchParams);
 const pageTitle = 'Street Closures Near You';

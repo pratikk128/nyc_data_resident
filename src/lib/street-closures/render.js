@@ -3,7 +3,7 @@
  * closures-per-day strip and the most affected streets. Browser-safe; every
  * value from the data goes through escape().
  */
-import { boroughLabel, FILM_PERMITS_URL, METERS_PER_MILE } from "./config.js";
+import { boroughLabel, METERS_PER_MILE } from "./config.js";
 import { describePurpose, groupLabel } from "./purposes.js";
 import { streetLabel } from "./streets.js";
 import { mergeSpans } from "./closures.js";
@@ -40,12 +40,13 @@ export function timingText(status, today) {
   return status.startsIn === 1 ? "Starts tomorrow" : `Starts in ${count(status.startsIn)} days`;
 }
 
-// Status chips: words first, the color only helps.
+// Status chips: words first, the color only helps. Nearly every block is
+// active, so "Active now" would be on almost every card; the dates line says
+// how long it has left, and the chips flag what stands out.
 export function chips(status) {
   const out = [];
-  if (status.state === "active") out.push(["active", "Active now"]);
-  else if (status.state === "soon") out.push(["soon", "Starts soon"]);
-  else out.push(["later", "Upcoming"]);
+  if (status.state === "soon") out.push(["soon", "Starts soon"]);
+  else if (status.state === "later") out.push(["later", "Upcoming"]);
   if (status.endingSoon) out.push(["ending", "Ending soon"]);
   if (status.longRunning) out.push(["long", "Long-running"]);
   return out;
@@ -63,21 +64,19 @@ export function cardHtml(b, today) {
   const spans = mergeSpans(b.permits).filter((x) => x.end >= today);
   const chipsHtml = chips(s).map(([tone, text]) => `<span class="scl-chip" data-tone="${tone}">${text}</span>`).join("");
   const dist = b.meters != null ? `<span class="scl-dist">${milesText(b.meters)}</span>` : "";
+  const top = chipsHtml || dist ? `<div class="scl-card-top">${chipsHtml}${dist}</div>` : "";
   const dates = spans.map((x) => rangeLabel(x.start, x.end)).join("; ");
   const permitList = b.permits.length > 1 ? `
     <details class="scl-permits">
       <summary>${plural(b.permits.length, "permit")} on this block</summary>
       <ul>${b.permits.map((p) => `<li><span class="scl-permit-dates">${rangeLabel(p.start, p.end)}</span> ${escape(describePurpose(p.purpose).label)}</li>`).join("")}</ul>
     </details>` : "";
-  const film = FILM_PERMITS_URL
-    ? `<a class="scl-film" href="${FILM_PERMITS_URL}?${new URLSearchParams({ street: b.onKey })}">Film permits on ${escape(streetLabel(b.on))} →</a>`
-    : "";
   return `<li class="scl-card" data-seg="${escape(b.seg)}" data-state="${s.state}">
-    <div class="scl-card-top">${chipsHtml}${dist}</div>
+    ${top}
     <h3 class="scl-card-title"><button type="button" class="scl-locate" data-locate="${escape(b.seg)}" aria-label="${escape(blockTitle(b))}, show on map">${escape(blockTitle(b))}</button></h3>
     <p class="scl-card-dates"><strong>${dates}</strong> · ${timingText(s, today)}</p>
     <p class="scl-card-purpose">${purposeLabels(b.inView ?? b.permits).map(escape).join("; ")}</p>
-    ${permitList}${film}
+    ${permitList}
   </li>`;
 }
 
@@ -102,7 +101,8 @@ const unposted = (d, postedThrough) => Boolean(postedThrough) && d.day > postedT
  * Blocks closed each day, as columns. The days in the picked window are
  * darker; days after `postedThrough` are hatched, since closures starting
  * then aren't posted yet. data-i lets the page show a day's count on hover;
- * the table under it is the non-chart version.
+ * the table under it is the non-chart version. The strip takes focus so the
+ * arrow keys can step through the days.
  */
 export function stripHtml(days, range, postedThrough) {
   const max = Math.max(1, ...days.map((d) => d.blocks));
@@ -117,7 +117,8 @@ export function stripHtml(days, range, postedThrough) {
   }).join("");
   const rows = days.map((d) => `<tr><th scope="row">${date(d.day)}</th><td>${count(d.blocks)}${unposted(d, postedThrough) ? " (not all posted yet)" : ""}</td></tr>`).join("");
   const partial = unposted(days[days.length - 1], postedThrough) ? `; days after ${date(postedThrough)} aren't fully posted yet` : "";
-  return `<div class="scl-strip" role="img" aria-label="Closed blocks per day from ${date(days[0].day)} to ${date(days[days.length - 1].day)}: from ${count(Math.min(...days.map((d) => d.blocks)))} to ${count(max)} a day${partial}">${cols}</div>
+  const keys = ". Left and right arrow keys read each day";
+  return `<div class="scl-strip" role="img" tabindex="0" aria-label="Closed blocks per day from ${date(days[0].day)} to ${date(days[days.length - 1].day)}: from ${count(Math.min(...days.map((d) => d.blocks)))} to ${count(max)} a day${partial}${keys}">${cols}</div>
     <details class="scl-table-toggle"><summary>View as table</summary>
       <div class="table-scroll"><table><thead><tr><th scope="col">Day</th><th scope="col">Closed blocks</th></tr></thead><tbody>${rows}</tbody></table></div>
     </details>`;
