@@ -463,6 +463,8 @@ svg { flex-shrink: 0; }
   border-radius: var(--radius-md);
   background: var(--yellow-tint);
 }
+/* Hidden before first paint for a remembered business view (index.astro's head script); app.js keeps it in step. */
+.not-default-audience .hero-address { display: none; }
 .hero-address-label { display: block; font-weight: 700; }
 .hero-address-row {
   display: grid;

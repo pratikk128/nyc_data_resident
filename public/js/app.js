@@ -84,6 +84,7 @@
     audience = id;
     // The address report is about where you live, so it's for residents only.
     if (heroAddress) heroAddress.hidden = id !== DEFAULT_AUDIENCE;
+    root.classList.toggle("not-default-audience", id !== DEFAULT_AUDIENCE);
     audienceBtns.forEach(function (btn) {
       btn.setAttribute("aria-pressed", String(btn.getAttribute("data-audience") === id));
     });

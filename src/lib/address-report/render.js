@@ -12,7 +12,7 @@ import { count, percent } from "../format.js";
 import { ratioText } from "../complaints311/stats.js";
 import { blockTitle, timingText, milesText as metersText } from "../street-closures/render.js";
 import { stationVerdict } from "../water/near-me.js";
-import { monthLabel, STATUS_ICON, STATUS_TEXT } from "../water/stats.js";
+import { monthLabel, isStale, STATUS_ICON, STATUS_TEXT } from "../water/stats.js";
 import { boroughLabel as waterBorough } from "../water/config.js";
 import { fullAddress, directionsUrl } from "../help-near-me/render.js";
 import { TYPE_BY_SLUG, LINKS } from "../schools/config.js";
@@ -35,14 +35,26 @@ const glance = (tone, text) => ({ tone, text });
 
 const WATER_TONE = { green: "good", amber: "warn", red: "bad" };
 
-// station: nearestStation() (with .miles); data: /api/water/stations for it.
-export function waterGlance(station, data) {
-  const v = station ? stationVerdict(data?.stations?.[station.site]) : null;
-  if (!v || !WATER_TONE[v.status]) return glance("info", "No recent water samples nearby");
-  return glance(WATER_TONE[v.status], `Water: ${STATUS_TEXT[v.status].toLowerCase()}`);
+// The latest month with samples ("2026-09"), and whether DEP should have posted newer ones by today.
+function waterMonth(data, today) {
+  const month = data?.completeMonth ?? data?.months?.at(-1);
+  return month ? { month, stale: isStale(month, today) } : null;
 }
 
-export function waterHtml(station, data) {
+// station: nearestStation() (with .miles); data: /api/water/stations for it; today: "YYYY-MM-DD".
+export function waterGlance(station, data, today = new Date().toISOString().slice(0, 10)) {
+  const v = station ? stationVerdict(data?.stations?.[station.site]) : null;
+  if (!v || !WATER_TONE[v.status]) return glance("info", "No recent water samples nearby");
+  const text = `Water: ${STATUS_TEXT[v.status].toLowerCase()}`;
+  const m = waterMonth(data, today);
+  if (!m) return glance(WATER_TONE[v.status], text);
+  const when = monthLabel(m.month, "short");
+  // Old samples can't vouch for today's water, so a good verdict turns amber.
+  if (m.stale) return glance(v.status === "red" ? "bad" : "warn", `${text}, but no samples since ${when}`);
+  return glance(WATER_TONE[v.status], `${text} (samples to ${when})`);
+}
+
+export function waterHtml(station, data, today = new Date().toISOString().slice(0, 10)) {
   if (!station) return lead("No active sampling station near here.");
   const details = data?.stations?.[station.site];
   const v = stationVerdict(details);
@@ -52,7 +64,8 @@ export function waterHtml(station, data) {
   if (!v) return lead(`${where}: no routine samples in the last 12 months.`);
   return `<p class="water-card-verdict" data-status="${v.status}"><span class="water-status-icon" aria-hidden="true">${STATUS_ICON[v.status]}</span>` +
     `<span>${escape(v.text)}</span></p>` +
-    note(`${where}${station.place ? ` (${escape(station.place)})` : ""}. Routine samples${range ? `, ${escape(range)}` : ""}.`);
+    note(`${where}${station.place ? ` (${escape(station.place)})` : ""}. Routine samples${range ? `, ${escape(range)}` : ""}.`) +
+    (waterMonth(data, today)?.stale ? note("The city hasn’t posted newer samples yet, so this may be out of date.") : "");
 }
 
 // ---------- Street closures ----------
@@ -81,7 +94,8 @@ export function closuresHtml(c) {
 export function complaintsGlance(c, standouts) {
   if (!c.total) return glance("good", "No 311 requests nearby this year");
   const top = standouts?.above?.[0];
-  if (top) return glance("warn", `Stands out on 311: ${top.label} (${ratioText(top.ratio)} the city)`);
+  // Information, not a warning: "more common than citywide" can be animals in a park.
+  if (top) return glance("info", `Stands out on 311: ${top.label} (${ratioText(top.ratio)} the city)`);
   return glance("info", `Most common 311 request: ${c.top[0].label}`);
 }
 
@@ -144,9 +158,11 @@ export function restaurantsHtml(c) {
 // ---------- Help near me ----------
 
 // sites: helpCard()
+// How many kinds of help are close, not whichever one happens to be nearest.
 export function helpGlance(sites) {
   if (!sites.length) return glance("info", "No city help sites within 2 miles");
-  return glance("info", `${sites[0].kind}: ${milesText(sites[0].miles)} away`);
+  const close = sites.filter((s) => s.miles <= 1).length;
+  return glance("info", close ? `${plural(close, "kind")} of city help within 1 mi` : `${plural(sites.length, "kind")} of city help within 2 mi`);
 }
 
 export function helpHtml(sites) {

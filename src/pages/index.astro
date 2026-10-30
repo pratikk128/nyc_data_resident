@@ -37,13 +37,19 @@ const plural = (n: number) => `${n} ${n === 1 ? 'dashboard' : 'dashboards'}`;
   <!-- Favicon: map pin on a pastel blue tile -->
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 
-  <!-- Apply the saved sidebar state before first paint to avoid a flash -->
-  <script is:inline>
+  <!-- Apply the saved sidebar state and audience before first paint to avoid a flash -->
+  <script is:inline define:vars={{ audiences: AUDIENCES.map((a) => a.id) }}>
     try {
       if (localStorage.getItem("anycd-sidebar") === "collapsed") {
         document.documentElement.classList.add("sidebar-collapsed");
       }
     } catch (e) {}
+    // Same order as app.js: ?for=, then the saved choice. The address box is for residents only.
+    var audience = new URLSearchParams(location.search).get("for");
+    if (audiences.indexOf(audience) === -1) {
+      try { audience = localStorage.getItem("anycd-audience"); } catch (e) { audience = null; }
+    }
+    if (audiences.indexOf(audience) > 0) document.documentElement.classList.add("not-default-audience");
   </script>
 </head>
 <body class="has-audience">

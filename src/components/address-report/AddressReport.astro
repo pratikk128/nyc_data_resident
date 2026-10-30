@@ -22,7 +22,8 @@ interface Props {
 const { stations, waterError } = Astro.props;
 
 // Topics in the order a resident asks about them: what affects today, then
-// the block itself, then what's around. Each has a line in "At a glance".
+// the block itself, then what's around. Each has a line in "At a glance",
+// and its card says how far around the spot it looks (scope).
 const ICONS: Record<string, string> = {
   water: '<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>',
   closures: '<path d="M3 10h18v5H3zM6 15v5M18 15v5M7 10l3 5M12 10l3 5"/>',
@@ -33,16 +34,16 @@ const ICONS: Record<string, string> = {
 };
 const GROUPS = [
   { key: 'now', title: 'Right now', intro: 'What could change your day.', topics: [
-    { key: 'water', title: 'Drinking water', glance: 'Water', link: 'See the full results' },
-    { key: 'closures', title: 'Street closures', glance: 'Streets', link: 'See every closure nearby' }
+    { key: 'water', title: 'Drinking water', glance: 'Water', scope: 'The nearest sampling station', link: 'See the full results' },
+    { key: 'closures', title: 'Street closures', glance: 'Streets', scope: 'Within ¼ mile, this week', link: 'See every closure nearby' }
   ] },
-  { key: 'block', title: 'Your block', intro: 'What neighbors call 311 about, within about a 5-minute walk.', topics: [
-    { key: 'complaints', title: '311 requests', glance: '311', link: 'See all 311 requests here' }
+  { key: 'block', title: 'Your block', intro: 'What neighbors call 311 about, within ¼ mile (about a 5-minute walk).', topics: [
+    { key: 'complaints', title: '311 requests', glance: '311', scope: 'Within ¼ mile, last 12 months', link: 'See all 311 requests here' }
   ] },
-  { key: 'around', title: 'Around you', intro: 'Places nearby, when you need them.', topics: [
-    { key: 'restaurants', title: 'Restaurant grades', glance: 'Restaurants', link: 'See every restaurant near here' },
-    { key: 'help', title: 'Nearest help', glance: 'Help', link: 'See all help nearby' },
-    { key: 'schools', title: 'Nearest public schools', glance: 'Schools', link: 'See schools near here on a map' }
+  { key: 'around', title: 'Around you', intro: 'Places nearby, when you need them. Each says how far it looks.', topics: [
+    { key: 'restaurants', title: 'Restaurant grades', glance: 'Restaurants', scope: 'Up to 25 of the nearest, within about ½ mile', link: 'See every restaurant near here' },
+    { key: 'help', title: 'Nearest help', glance: 'Help', scope: 'The nearest of each kind, within 2 miles', link: 'See all help nearby' },
+    { key: 'schools', title: 'Nearest public schools', glance: 'Schools', scope: 'The 3 nearest, at any distance', link: 'See schools near here on a map' }
   ] }
 ];
 const TOPICS = GROUPS.flatMap((g) => g.topics);
@@ -65,6 +66,7 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
           Use my location
         </button>
+        <button type="button" class="near-btn" data-cancel hidden>Cancel</button>
       </div>
     </form>
     <div class="scl-suggest-chips" data-address-choices hidden></div>
@@ -75,7 +77,7 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
     <header class="ar-head">
       <div class="ar-head-text">
         <h2 class="ar-place" id="ar-report-title" tabindex="-1" data-place>The spot in this link</h2>
-        <p class="ar-scope">Within about a 5-minute walk, unless a section says otherwise.</p>
+        <p class="ar-scope">Each section says how far around this spot it looks.</p>
       </div>
       <div class="ar-actions">
         <button type="button" class="near-btn" data-change>Change address</button>
@@ -113,6 +115,7 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
                 <span class="ar-card-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" set:html={ICONS[t.key]} /></span>
                 {t.title}
               </h4>
+              <p class="ar-card-scope">{t.scope}</p>
               <div class="ar-body" data-body></div>
               <a class="ar-more" data-link href="#">{t.link} <span aria-hidden="true">→</span></a>
             </article>
@@ -124,7 +127,7 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
 </div>
 
 <script>
-  import { spotFromParams, spotToParams, dashboardLinks, complaintsCard, complaintsStandouts, closuresCard, helpCard, nearestStation, restaurantsCard, nearestSchools } from '../../lib/address-report/report.js';
+  import { spotFromParams, spotToParams, dashboardLinks, complaintsCard, complaintsStandouts, closuresCard, helpCard, nearestStation, restaurantsCard, nearestSchools, neighborhoodName } from '../../lib/address-report/report.js';
   import {
     waterHtml, waterGlance, complaintsHtml, complaintsGlance, standoutsHtml, closuresHtml, closuresGlance,
     helpHtml, helpGlance, schoolsHtml, schoolsGlance, restaurantsHtml, restaurantsGlance, escape
@@ -132,12 +135,13 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
   import { nearSearch, addressOutcome } from '../../lib/location/near-search.js';
   import { parseLocationInput, isNycZip } from '../../lib/complaints311/location-input.js';
   import { inCityLimits } from '../../lib/in-city.js';
-  import { resolveLocation, suggest } from '../../lib/complaints311/geocode.js';
+  import { resolveLocation, suggest, GEOSEARCH } from '../../lib/complaints311/geocode.js';
   import zipFile from '../../data/zip-centroids.json';
 
   const ERROR_TEXT = 'Couldn’t reach NYC Open Data. Their servers might be stuck behind a double-parked truck. Try again in a minute.';
   const TIMEOUT_TEXT = 'NYC Open Data is taking too long to answer. Try again in a minute.';
   const TIMEOUT_MS = 15000;
+  const NAME_TIMEOUT_MS = 8000;
   // The city's 311 numbers are built once a day; the first request after a deploy waits about a minute.
   const BASELINE_TIMEOUT_MS = 90000;
 
@@ -153,11 +157,16 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
   const results = $('[data-results]');
   const placeEl = $('[data-place]');
   const copyBtn = $<HTMLButtonElement>('[data-copy]');
+  const changeBtn = $<HTMLButtonElement>('[data-change]');
+  const cancelBtn = $<HTMLButtonElement>('[data-cancel]');
   const stations = JSON.parse(root.dataset.stations!);
   const waterError = root.dataset.waterError === '1';
 
-  // The spot's name: never in the URL, so a shared or reloaded link says "the spot in this link".
+  // The spot's name: never in the URL. A shared or reloaded link (no name) and "your location"
+  // get their neighborhood from GeoSearch instead ("Near Midtown West, Manhattan").
+  const YOUR_LOCATION = 'your location';
   let placeLabel = (history.state?.placeLabel as string) || '';
+  const neighborhoods = new Map<string, string | null>(); // "lat,lon" → its neighborhood, once looked up
   let run = 0; // bumped by every report, so a slow card can't fill in an older one
   let reportAbort = new AbortController(); // cancels the last report's requests when a new one starts
   let shown = ''; // the spot on screen, "lat,lon"
@@ -227,6 +236,26 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
     ).finally(() => { if (id === run) el.removeAttribute('aria-busy'); });
   }
 
+  // The heading for a spot with no address: its neighborhood, once GeoSearch names it.
+  function headingFor(neighborhood: string | null) {
+    if (placeLabel === YOUR_LOCATION) return neighborhood ? `Your location, near ${neighborhood}` : 'Your location';
+    return neighborhood ? `Near ${neighborhood}` : 'The spot in this link';
+  }
+
+  // Looks up the rounded spot, so the name is no closer than the link itself.
+  async function nameSpot(spot: { lat: number; lon: number }, id: number, signal: AbortSignal) {
+    const key = `${spot.lat},${spot.lon}`;
+    if (!neighborhoods.has(key)) {
+      try {
+        const data = await getJson(`${GEOSEARCH}/reverse?point.lat=${spot.lat}&point.lon=${spot.lon}&size=10`, signal, NAME_TIMEOUT_MS);
+        neighborhoods.set(key, neighborhoodName(data.features));
+      } catch {
+        return; // the heading without a name still works
+      }
+    }
+    if (id === run) placeEl.textContent = headingFor(neighborhoods.get(key) ?? null);
+  }
+
   function report(spot: { lat: number; lon: number }) {
     const id = ++run;
     reportAbort.abort();
@@ -237,8 +266,11 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
     const at = `lat=${spot.lat}&lon=${spot.lon}`;
     const station = nearestStation(stations, spot);
     const links = dashboardLinks(spot, { waterSite: station?.site });
-    // A heading on its own: "your location" → "Your location".
-    placeEl.textContent = placeLabel ? placeLabel[0].toUpperCase() + placeLabel.slice(1) : 'The spot in this link';
+    if (!placeLabel || placeLabel === YOUR_LOCATION) {
+      placeEl.textContent = headingFor(neighborhoods.get(shown) ?? null);
+      nameSpot(spot, id, signal);
+    } else placeEl.textContent = placeLabel[0].toUpperCase() + placeLabel.slice(1); // "the middle of ZIP 11211" → "The middle…"
+
     find.hidden = true;
     results.hidden = false;
 
@@ -302,13 +334,29 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
     target.focus({ preventScroll: true });
   });
 
+  // "Change address" opens the search over the report; Cancel or Escape folds it away again.
   function showSearch() {
     find.hidden = false;
+    cancelBtn.hidden = false;
     input.focus();
     input.select();
   }
 
-  $('[data-change]').addEventListener('click', showSearch);
+  function hideSearch() {
+    ++lookup; // a lookup still running would replace the report it was cancelled over
+    closeOptions();
+    choices.hidden = true;
+    status.textContent = '';
+    find.hidden = true;
+    changeBtn.focus();
+  }
+
+  changeBtn.addEventListener('click', showSearch);
+  cancelBtn.addEventListener('click', hideSearch);
+  // The address box's own Escape (closing its suggestions) goes first.
+  find.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !e.defaultPrevented && !results.hidden) { e.preventDefault(); hideSearch(); }
+  });
 
   copyBtn.addEventListener('click', async () => {
     try {
@@ -340,7 +388,7 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
     placeLabel = history.state?.placeLabel || '';
     input.value = history.state?.text || '';
     if (spot) report(spot);
-    else { ++run; reportAbort.abort(); shown = ''; results.hidden = true; find.hidden = false; }
+    else { ++run; reportAbort.abort(); shown = ''; results.hidden = true; find.hidden = false; cancelBtn.hidden = true; }
   });
 
   // ---------- Address box with suggestions ----------
@@ -463,7 +511,7 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
         const { latitude: lat, longitude: lon } = pos.coords;
         if (!inCityLimits(lat, lon)) { status.textContent = 'You seem to be outside NYC. Type an address or ZIP code instead.'; return; }
         input.value = '';
-        useSpot(lat, lon, 'your location');
+        useSpot(lat, lon, YOUR_LOCATION);
       },
       () => {
         locateBtn.disabled = false;

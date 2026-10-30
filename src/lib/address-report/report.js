@@ -125,6 +125,18 @@ export function nearestSchools(points, spot, n = 3) {
     .slice(0, n);
 }
 
+// ---------- The place ----------
+
+/*
+ * GeoSearch's reverse lookup (/v2/reverse) near the spot → "Midtown West, Manhattan",
+ * or null. Names the spot in a shared link or "Use my location" without an
+ * address: the neighborhood of the nearest address GeoSearch knows.
+ */
+export function neighborhoodName(features) {
+  const p = (features ?? []).map((f) => f.properties ?? {}).find((x) => x.neighbourhood);
+  return p ? [p.neighbourhood, p.borough].filter(Boolean).join(", ") : null;
+}
+
 // ---------- Words ----------
 
 // "0.3 mi", "under 0.1 mi"

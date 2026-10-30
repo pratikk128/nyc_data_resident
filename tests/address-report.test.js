@@ -8,7 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  spotFromParams, spotToParams, dashboardLinks, complaintsCard, complaintsStandouts, closuresCard, helpCard, nearestStation, restaurantsCard,
+  spotFromParams, spotToParams, dashboardLinks, complaintsCard, complaintsStandouts, closuresCard, helpCard, nearestStation, restaurantsCard, neighborhoodName,
   nearestSchools, milesText
 } from "../src/lib/address-report/report.js";
 import {
@@ -66,7 +66,9 @@ test("311: what's more common here than across the city", () => {
   assert.deepEqual(s.above.map((r) => r.key), ["NOISE - RESIDENTIAL"]);
   assert.ok(Math.abs(s.above[0].ratio - 3) < 1e-9);
   assert.match(standoutsHtml(s), /3\.0× the city/);
-  assert.match(complaintsGlance(complaintsCard({ ...area, status: {} }), s).text, /Stands out on 311: .+ \(3\.0× the city\)/);
+  const g = complaintsGlance(complaintsCard({ ...area, status: {} }), s);
+  assert.match(g.text, /Stands out on 311: .+ \(3\.0× the city\)/);
+  assert.equal(g.tone, "info"); // more common isn't worse
   // Too few requests to compare, nothing standing out, and no city numbers.
   assert.match(standoutsHtml(complaintsStandouts({ ...area, total: 50 }, city)), /Too few requests/);
   assert.match(standoutsHtml(complaintsStandouts(area, { types: area.types })), /Nothing stands out/);
@@ -110,7 +112,8 @@ test("help: the nearest open site of each kind within 2 miles", () => {
   assert.equal(picked[1].kind, "Food & cash benefits");
   assert.match(helpHtml(picked), /Directions/);
   assert.match(helpHtml([]), /No city help sites/);
-  assert.equal(helpGlance(picked).text, "Free computers & internet: 0.2 mi away");
+  assert.equal(helpGlance(picked).text, "2 kinds of city help within 1 mi");
+  assert.equal(helpGlance([{ ...picked[0], miles: 1.4 }]).text, "1 kind of city help within 2 mi");
 });
 
 // ---------- Water ----------
@@ -123,6 +126,16 @@ test("water: the nearest station, and a card with no samples says so", () => {
   assert.match(waterHtml(null, null), /No active sampling station/);
   assert.match(waterHtml({ ...s, borough: null }, { months: [], stations: {} }), /no routine samples/);
   assert.deepEqual(waterGlance(null, null), { tone: "info", text: "No recent water samples nearby" });
+});
+
+test("water: the glance says how old the samples are, and turns amber when they're stale", () => {
+  const s = { site: "B", place: "", borough: null, miles: 0.1 };
+  const details = { totals: { n: 40, coliN: 40, coliPos: 0, ecoliPos: 0, clN: 40, clOk: 40, turbN: 40, turbOk: 40 }, detections: [] };
+  const data = (month) => ({ months: [month], completeMonth: month, stations: { B: details } });
+  assert.deepEqual(waterGlance(s, data("2026-09"), "2026-10-30"), { tone: "good", text: "Water: looks good (samples to Sep 2026)" });
+  assert.deepEqual(waterGlance(s, data("2026-07"), "2026-10-30"), { tone: "warn", text: "Water: looks good, but no samples since Jul 2026" });
+  assert.match(waterHtml(s, data("2026-07"), "2026-10-30"), /may be out of date/);
+  assert.doesNotMatch(waterHtml(s, data("2026-09"), "2026-10-30"), /may be out of date/);
 });
 
 // ---------- Restaurants ----------
@@ -156,6 +169,13 @@ test("schools: nearest three, with the zoning caveat", () => {
   assert.match(html, /Elementary/);
   assert.match(html, /may not be the nearest one/);
   assert.equal(schoolsGlance(s).text, `Nearest public school: ${milesText(s[0].miles)}`);
+});
+
+test("place: the neighborhood from GeoSearch's reverse lookup, or nothing", () => {
+  const f = (props) => ({ properties: props });
+  assert.equal(neighborhoodName([f({ borough: "Manhattan" }), f({ neighbourhood: "Midtown West", borough: "Manhattan" })]), "Midtown West, Manhattan");
+  assert.equal(neighborhoodName([f({ borough: "Queens" })]), null);
+  assert.equal(neighborhoodName(undefined), null);
 });
 
 test("miles wording", () => {

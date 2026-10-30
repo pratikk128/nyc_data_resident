@@ -3614,6 +3614,8 @@ a.hn-directions:hover { background: var(--accent-deep); }
    then the topics in groups. Each topic fills in on its own.
    ========================================================= */
 .ar [hidden] { display: none !important; }
+/* "Change address" adds Cancel to the search row */
+.ar .hn-search-row:has([data-cancel]:not([hidden])) { grid-template-columns: minmax(0, 1fr) auto auto auto; }
 .ar-results { margin-top: var(--space-6); scroll-margin-top: calc(var(--header-h) + var(--space-4)); }
 
 /* The place, and what you can do with the report */
@@ -3733,6 +3735,7 @@ a.hn-directions:hover { background: var(--accent-deep); }
   background: var(--link-tint);
   color: var(--link);
 }
+.ar-card-scope { margin-top: 2px; color: var(--ink-soft); font-size: .875rem; }
 .ar-body { flex: 1; margin-top: var(--space-3); }
 .ar-more { align-self: flex-start; margin-top: var(--space-4); font-weight: 700; }
 .ar-lead { max-width: 60ch; }
@@ -3833,6 +3836,8 @@ a.hn-directions:hover { background: var(--accent-deep); }
   .ar-glance-item { padding: var(--space-3); gap: var(--space-2); }
   .ar-glance-icon { width: 30px; height: 30px; }
   .ar-group { margin-top: var(--space-6); }
+  .ar .hn-search-row:has([data-cancel]:not([hidden])) { grid-template-columns: 1fr 1fr; }
+  .ar .hn-search [data-cancel] { grid-column: 1 / -1; }
 }
 @media (max-width: 419px) {
   .ar-glance-list { grid-template-columns: 1fr; }
