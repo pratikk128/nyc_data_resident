@@ -187,7 +187,8 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
     nearSearch, addressOutcome, emptyHtml, widenQuery, needsLoad, summaryText, breakdownIntro, windowLabel, topNote,
     moreText, shownFor
   } from '../../lib/street-closures/page-state.js';
-  import { parseLocationInput, inNyc } from '../../lib/complaints311/location-input.js';
+  import { parseLocationInput } from '../../lib/complaints311/location-input.js';
+  import { inCityLimits } from '../../lib/in-city.js';
   import { resolveLocation } from '../../lib/complaints311/geocode.js';
   import { count, nycToday, shortDate } from '../../lib/format.js';
   import zipFile from '../../data/zip-centroids.json';
@@ -419,7 +420,7 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
         locateBtn.disabled = false;
         if (id !== lookup) return;
         const { latitude: lat, longitude: lon } = pos.coords;
-        if (!inNyc(lat, lon)) { status.textContent = 'You seem to be outside NYC. Type an address or ZIP code instead.'; return; }
+        if (!inCityLimits(lat, lon)) { status.textContent = 'You seem to be outside NYC. Type an address or ZIP code instead.'; return; }
         addressInput.value = '';
         usePoint(lat, lon, 'your location');
       },

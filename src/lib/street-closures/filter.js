@@ -13,7 +13,7 @@
 import { BOROUGHS, RADII, DEFAULT_RADIUS, WINDOWS, DEFAULT_WINDOW, METERS_PER_MILE } from "./config.js";
 import { GROUPS } from "./purposes.js";
 import { streetKey } from "./streets.js";
-import { inNyc } from "../complaints311/location-input.js";
+import { inCityLimits } from "../in-city.js";
 
 export const MAX_STREET_LENGTH = 80;
 const round3 = (n) => Math.round(n * 1e3) / 1e3;
@@ -29,7 +29,7 @@ export function normalizeQuery(params) {
   const view = { when, purpose };
 
   const lat = Number(get("lat")), lon = Number(get("lon"));
-  if (get("lat") && get("lon") && Number.isFinite(lat) && Number.isFinite(lon) && inNyc(lat, lon)) {
+  if (get("lat") && get("lon") && Number.isFinite(lat) && Number.isFinite(lon) && inCityLimits(lat, lon)) {
     const r = RADII.includes(Number(get("r"))) ? Number(get("r")) : DEFAULT_RADIUS;
     return { mode: "near", street: null, boro: null, lat: round3(lat), lon: round3(lon), r, ...view };
   }

@@ -96,7 +96,8 @@ const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(
   import { drawSparkline } from '../../lib/water/charts.js';
   import { nearestSites } from '../../lib/water/stats.js';
   import { BOROUGHS, NEAREST_COUNT, MAX_SELECTED, ERROR_TEXT, boroughLabel } from '../../lib/water/config.js';
-  import { parseLocationInput, inNyc } from '../../lib/complaints311/location-input.js';
+  import { parseLocationInput } from '../../lib/complaints311/location-input.js';
+  import { inCityLimits } from '../../lib/in-city.js';
   import { resolveLocation } from '../../lib/complaints311/geocode.js';
   import zipFile from '../../data/zip-centroids.json';
 
@@ -138,7 +139,7 @@ const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(
       const c = (zipFile.zips as Record<string, number[]>)[zip];
       const lat = Number(p.get('lat')), lon = Number(p.get('lon'));
       point = c ? { lat: c[0], lon: c[1], label: `ZIP ${zip}`, zip }
-        : p.get('lat') && Number.isFinite(lat) && Number.isFinite(lon) && inNyc(lat, lon)
+        : p.get('lat') && Number.isFinite(lat) && Number.isFinite(lon) && inCityLimits(lat, lon)
           ? { lat, lon, label: 'your search' } : null;
     }
     // 3 decimals is about 100 m: enough for the distances and the map dot.
@@ -321,7 +322,7 @@ const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(
           locateBtn.disabled = false;
           if (id !== lookup) return;
           const { latitude: lat, longitude: lon } = pos.coords;
-          if (!inNyc(lat, lon)) { status.textContent = 'You seem to be outside NYC. Type an address or ZIP code instead.'; return; }
+          if (!inCityLimits(lat, lon)) { status.textContent = 'You seem to be outside NYC. Type an address or ZIP code instead.'; return; }
           input.value = '';
           usePoint({ lat, lon, label: 'your location' });
         },

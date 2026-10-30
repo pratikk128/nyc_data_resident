@@ -13,7 +13,7 @@
  * cache are rate limited per client (HELP_RATE_LIMITER).
  */
 import { loadSearch, SEARCH_TTL } from "../../../lib/server/help-near-me.js";
-import { inCityLimits } from "../../../lib/help-near-me/in-city.js";
+import { inCityLimits } from "../../../lib/in-city.js";
 import { boroughOf } from "../../../lib/help-near-me/config.js";
 import { json, upstreamError } from "../../../lib/server/json.js";
 import { RateLimited, RATE_LIMITED_TEXT } from "../../../lib/server/rate-limit.js";

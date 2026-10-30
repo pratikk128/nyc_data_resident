@@ -21,7 +21,7 @@ import {
   moreText, radiusNote, lowerFirst
 } from "../src/lib/help-near-me/page-state.js";
 import { cardHtml, directionsUrl } from "../src/lib/help-near-me/render.js";
-import { inCityLimits } from "../src/lib/help-near-me/in-city.js";
+import { inCityLimits } from "../src/lib/in-city.js";
 import { CATEGORIES, HOURS_MISSING } from "../src/lib/help-near-me/config.js";
 
 const FX = JSON.parse(readFileSync(new URL("./fixtures/help-near-me.json", import.meta.url)));

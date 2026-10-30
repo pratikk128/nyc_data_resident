@@ -163,7 +163,8 @@ const deepLink = Boolean(initial || initialError);
 
 <script>
   import { detailHtml, resultCardsHtml, categoryListHtml, benchmarkNote, detailHref, similarAvailable, searchStatusText, UPSTREAM_TEXT } from '../../lib/restaurants/render.js';
-  import { inNyc, normalizeSearch } from '../../lib/restaurants/soql.js';
+  import { normalizeSearch } from '../../lib/restaurants/soql.js';
+  import { inCityLimits } from '../../lib/in-city.js';
 
   const MSG = {
     loading: 'Checking the kitchen…',
@@ -305,7 +306,7 @@ const deepLink = Boolean(initial || initialError);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const { latitude: lat, longitude: lng } = pos.coords;
-        if (!inNyc(lat, lng)) {
+        if (!inCityLimits(lat, lng)) {
           nearLabel.textContent = 'Near me';
           status.textContent = MSG.nearOutside;
           return;

@@ -11,6 +11,7 @@
  * "Bedford Ave 11211") is split off and used to narrow the street search.
  */
 import { BOROUGHS, WINDOWS, DEFAULT_WINDOW } from "./config.js";
+import { inCityLimits } from "../in-city.js";
 
 /**
  * The place the page shows, as kept in the URL and the store.
@@ -131,7 +132,9 @@ export function placeLabel({ houseNumber, street, name, borough, zip }) {
 // ?boro=QUEENS             (a borough on its own)
 // plus &window=3m|12m, &area=immediate, &vs=city
 
-// Roughly the five boroughs, so a URL can't point the radius queries anywhere else.
+// Roughly the five boroughs: a quick filter for junk coordinates in bulk data.
+// To decide whether a spot someone gave us is in the city, use inCityLimits()
+// (src/lib/in-city.js); this box also takes in Jersey City and part of Nassau.
 export function inNyc(lat, lon) {
   return lat > 40.47 && lat < 40.93 && lon > -74.27 && lon < -73.68;
 }
@@ -147,7 +150,7 @@ export function locationFromParams(params) {
   const lat = Number(get("lat")), lon = Number(get("lon"));
   const view = { window, area, vs };
 
-  if (get("lat") && get("lon") && Number.isFinite(lat) && Number.isFinite(lon) && inNyc(lat, lon)) {
+  if (get("lat") && get("lon") && Number.isFinite(lat) && Number.isFinite(lon) && inCityLimits(lat, lon)) {
     return {
       ...view,
       location: {

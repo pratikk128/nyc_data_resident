@@ -5,6 +5,7 @@
  * uppercase and inconsistent, so text matches use upper() on both sides.
  */
 import { BOROUGHS, NOT_INSPECTED_DATE } from "./inspections.js";
+import { inCityLimits } from "../in-city.js";
 
 export const SEARCH_LIMIT = 25;
 const SEARCH_FETCH = 60; // a camis can have several name/address spellings; dedupe, then cut to 25
@@ -51,12 +52,6 @@ export function boundingBox(lat, lng, miles = NEAR_ME_MILES) {
   return { south: lat - dLat, north: lat + dLat, west: lng - dLng, east: lng + dLng };
 }
 
-// Roughly the five boroughs. "Near me" is only allowed inside, so the box
-// can't be used to scan elsewhere; the page checks it too before searching.
-export function inNyc(lat, lng) {
-  return lat > 40.4 && lat < 41 && lng > -74.3 && lng < -73.6;
-}
-
 export const TOO_SHORT_TEXT = "Type at least 2 letters of the restaurant name, or a street or ZIP code.";
 
 // Validates and normalizes raw search input. Returns { error } or { query }.
@@ -79,7 +74,9 @@ export function normalizeSearch({ name, boro, where, lat, lng } = {}) {
   if (location) query.location = location;
   if (hasNear) {
     const la = Number(lat), lo = Number(lng);
-    if (!inNyc(la, lo)) return { error: "“Near me” only works inside New York City." };
+    // "Near me" is only allowed inside the city, so it can't be used to scan
+    // elsewhere; the page checks it too before searching.
+    if (!inCityLimits(la, lo)) return { error: "“Near me” only works inside New York City." };
     query.near = { lat: Math.round(la * 1e4) / 1e4, lng: Math.round(lo * 1e4) / 1e4 };
   }
   return { query };

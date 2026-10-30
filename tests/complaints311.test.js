@@ -248,6 +248,12 @@ test("the location round-trips through the URL", () => {
   assert.equal(outside.window, "12m");
 });
 
+test("a spot across the river in New Jersey or in Nassau isn't taken from the URL", () => {
+  assert.equal(locationFromParams(new URLSearchParams("lat=40.7178&lon=-74.0431")).location, null); // Jersey City
+  assert.equal(locationFromParams(new URLSearchParams("lat=40.701&lon=-73.713")).location, null); // Elmont
+  assert.equal(locationFromParams(new URLSearchParams("lat=40.7484&lon=-73.9857")).location.kind, "point");
+});
+
 // ---------- Resolution (canned GeoSearch results) ----------
 
 const place = (houseNumber, street, borough, zip, lat = 40.7, lon = -73.9) => ({

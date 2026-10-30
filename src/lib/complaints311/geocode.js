@@ -12,7 +12,8 @@
  * resolveLocation() takes a search function so tests can pass canned results.
  */
 import { BOROUGHS, boroughLabel } from "./config.js";
-import { placeLabel, prettyStreet, inNyc } from "./location-input.js";
+import { placeLabel, prettyStreet } from "./location-input.js";
+import { inCityLimits } from "../in-city.js";
 
 export const GEOSEARCH = "https://geosearch.planninglabs.nyc/v2";
 export const MAX_SUGGESTIONS = 5;
@@ -41,7 +42,7 @@ export async function geosearch(endpoint, text, { size = 10, signal, fetchFn = f
   const res = await fetchFn(url, { signal });
   if (!res.ok) throw new Error(`GeoSearch returned ${res.status}`);
   const data = await res.json();
-  return (data.features ?? []).map(normalizeFeature).filter((p) => Number.isFinite(p.lat) && inNyc(p.lat, p.lon));
+  return (data.features ?? []).map(normalizeFeature).filter((p) => Number.isFinite(p.lat) && inCityLimits(p.lat, p.lon));
 }
 
 // Up to 5 autocomplete suggestions, one per label.

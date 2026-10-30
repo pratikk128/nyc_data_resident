@@ -333,6 +333,7 @@ test("curly and straight apostrophes search the same way", () => {
 test("near me only works inside NYC", () => {
   assert.ok(normalizeSearch({ name: "joe", lat: "40.73", lng: "-73.99" }).query.near);
   assert.ok(normalizeSearch({ name: "joe", lat: "34.05", lng: "-118.24" }).error);
+  assert.ok(normalizeSearch({ name: "joe", lat: "40.744", lng: "-74.0324" }).error); // Hoboken
 });
 
 test("near me works without a name, but not with a 1-letter one", () => {

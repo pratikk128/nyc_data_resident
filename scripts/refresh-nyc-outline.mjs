@@ -1,6 +1,6 @@
 /*
- * Builds src/data/nyc-outline.json, the city's outline for Help near me's
- * "is this spot in NYC?" check (src/lib/help-near-me/in-city.js), from
+ * Builds src/data/nyc-outline.json, the city's outline for the site's
+ * "is this spot in NYC?" check (src/lib/in-city.js), from
  * "Borough Boundaries (water areas included)" (wh2p-dxnf).
  *
  *   npm run data:nyc-outline

@@ -8,7 +8,7 @@
  */
 import { outcomeSummary, roundCoord, AREA_TTL } from "../../../lib/server/complaints311.js";
 import { windowStart } from "../../../lib/complaints311/soql.js";
-import { inNyc } from "../../../lib/complaints311/location-input.js";
+import { inCityLimits } from "../../../lib/in-city.js";
 import { WINDOWS, RADII } from "../../../lib/complaints311/config.js";
 import { edgeCached } from "../../../lib/server/cache.js";
 import { json, upstreamError } from "../../../lib/server/json.js";
@@ -20,7 +20,7 @@ export async function GET({ url, locals, clientAddress }) {
   const p = url.searchParams;
   const lat = roundCoord(p.get("lat")), lon = roundCoord(p.get("lon"));
   const window = p.get("window") ?? "12m";
-  if (!Number.isFinite(lat) || !Number.isFinite(lon) || !inNyc(lat, lon)) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || !inCityLimits(lat, lon)) {
     return json({ error: "That spot isn’t in New York City." }, { status: 400 });
   }
   if (!WINDOWS[window]) return json({ error: "Unknown time period." }, { status: 400 });

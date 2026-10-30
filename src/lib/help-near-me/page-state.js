@@ -9,7 +9,7 @@
  */
 import { RADII, DEFAULT_RADIUS, MAX_RADIUS, CATEGORY_KEYS, categoryOf, boroughOf } from "./config.js";
 import { milesText, radiusText } from "./distance.js";
-import { inCityLimits } from "./in-city.js";
+import { inCityLimits } from "../in-city.js";
 import { count } from "../format.js";
 
 const round3 = (n) => Math.round(n * 1e3) / 1e3;

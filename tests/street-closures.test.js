@@ -437,3 +437,8 @@ test("map pick shows enough cards", () => {
   assert.equal(shownFor(sorted, "a", 2), 2);
   assert.equal(shownFor(sorted, "zz", 2), 2);
 });
+
+test("a spot in New Jersey in the URL falls back to the whole city", () => {
+  assert.equal(normalizeQuery(new URLSearchParams("lat=40.7178&lon=-74.0431")).mode, "city"); // Jersey City
+  assert.equal(normalizeQuery(new URLSearchParams("lat=40.7484&lon=-73.9857")).mode, "near");
+});
