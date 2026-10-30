@@ -83,6 +83,13 @@ const touches = (a, b) =>
   ends(a).some((p) => b.some((l) => distanceToLine(p, l) <= MERGE_METERS)) ||
   ends(b).some((p) => a.some((l) => distanceToLine(p, l) <= MERGE_METERS));
 
+// The streets a search can find a block by (closed or crossing), each once: [[key, name], ...]
+// The API leaves out fromKey and toKey, so the page spells them from the names.
+function blockStreets(b) {
+  const names = new Map([[b.toKey ?? streetKey(b.to), b.to], [b.fromKey ?? streetKey(b.from), b.from], [b.onKey, b.on]]); // the closed street's spelling wins
+  return [...names].filter(([key]) => key && isStreetName(key));
+}
+
 const samePermit = (p, q) => p.start === q.start && p.end === q.end && p.purpose === q.purpose;
 function addPermit(block, permit) {
   if (!block.permits.some((p) => samePermit(p, permit))) block.permits.push(permit);
@@ -150,9 +157,7 @@ export function buildIndex(rows, today) {
   // A street search finds a block on the street or crossing it, so both count.
   const streets = new Map();
   for (const b of blocks) {
-    const names = new Map([[b.toKey, b.to], [b.fromKey, b.from], [b.onKey, b.on]]); // the closed street's spelling wins
-    for (const [key, name] of names) {
-      if (!key || !isStreetName(key)) continue;
+    for (const [key, name] of blockStreets(b)) {
       const s = streets.get(key) ?? { key, label: streetLabel(name), blocks: 0 };
       s.blocks++;
       streets.set(key, s);
@@ -276,14 +281,16 @@ export function dailyCounts(blocks, today, purpose = null, days = STRIP_DAYS) {
   return counts.map((n, d) => ({ day: isoDay(first + d), blocks: n }));
 }
 
-// The streets with the most closed blocks in the view (as the street closed, not as a cross street).
+// The streets with the most closed blocks in the view, on or crossing them, as a street search counts them.
 export function topStreets(viewBlocks, limit = TOP_STREETS) {
   const counts = new Map();
   for (const b of viewBlocks) {
-    const s = counts.get(b.onKey) ?? { key: b.onKey, label: streetLabel(b.on), boros: new Set(), blocks: 0 };
-    s.blocks++;
-    if (b.boro) s.boros.add(b.boro);
-    counts.set(b.onKey, s);
+    for (const [key, name] of blockStreets(b)) {
+      const s = counts.get(key) ?? { key, label: streetLabel(name), boros: new Set(), blocks: 0 };
+      s.blocks++;
+      if (b.boro) s.boros.add(b.boro);
+      counts.set(key, s);
+    }
   }
   return [...counts.values()]
     .sort((a, b) => b.blocks - a.blocks || a.label.localeCompare(b.label))

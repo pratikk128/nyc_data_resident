@@ -277,6 +277,14 @@ test("per-day strip counts each block once a day, from today", () => {
 test("most affected streets and card order", () => {
   assert.deepEqual(topStreets(VIEW_BLOCKS).map((s) => [s.label, s.blocks, s.boros]), [["1st Avenue", 2, ["M"]], ["Broadway", 2, ["M"]]]);
   assert.deepEqual(sortBlocks(VIEW_BLOCKS, TODAY).map((b) => b.seg), ["a", "b", "c", "d"], "active, then soon, then by start");
+  const crossing = [
+    { on: "AVENUE S", onKey: "AVENUE S", from: "WEST 8 STREET", fromKey: "WEST 8 STREET", to: "BEND", toKey: "BEND", boro: "B" },
+    { on: "WEST 8 STREET", onKey: "WEST 8 STREET", from: "AVENUE S", fromKey: "AVENUE S", to: "AVENUE T", toKey: "AVENUE T", boro: "B" }
+  ];
+  assert.deepEqual(topStreets(crossing).map((s) => [s.key, s.blocks]), [["AVENUE S", 2], ["WEST 8 STREET", 2], ["AVENUE T", 1]],
+    "on or crossing, as clicking it searches; DOT's stand-ins left out");
+  const slimmed = crossing.map(({ fromKey, toKey, ...b }) => b); // as the API sends them
+  assert.deepEqual(topStreets(slimmed), topStreets(crossing), "cross streets spelled from their names");
   const near = sortBlocks([{ ...VIEW_BLOCKS[3], meters: 50 }, { ...VIEW_BLOCKS[0], meters: 300 }], TODAY);
   assert.deepEqual(near.map((b) => b.seg), ["d", "a"], "near me: nearest first");
 });

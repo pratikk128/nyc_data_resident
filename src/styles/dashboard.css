@@ -2916,7 +2916,7 @@ a.sd-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
   .scl-field-main { grid-column: 1 / -1; }
   .scl-field-go { grid-column: 1 / -1; padding-top: 0; }
   .scl-layout { grid-template-columns: 1fr; }
-  .scl-map-col { order: 0; position: static; }
+  .scl-map-col { order: 0; position: static; scroll-margin-top: calc(var(--header-h) + var(--space-3)); }
   .scl-map-toggle { display: inline-flex; width: auto; margin-bottom: var(--space-2); }
   .scl-map { height: min(360px, 55vh); }
   .scl-windows { grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr)); }

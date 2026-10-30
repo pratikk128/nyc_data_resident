@@ -19,14 +19,15 @@ import { date } from '../../lib/format.js';
 interface Props {
   query: { mode: string; street: string | null; boro: string | null; r: number; when: string };
   streets: { key: string; label: string; blocks: number }[];
+  streetsOk: boolean; // false: the street list didn't load, so a typed street goes to the API as is
   dataAsOf: string | null;
 }
-const { query, streets, dataAsOf } = Astro.props;
+const { query, streets, streetsOk, dataAsOf } = Astro.props;
 const mode = query.mode === 'city' ? 'borough' : query.mode;
 const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' : '1 mi');
 ---
 
-<div class="scl" data-closures data-streets={JSON.stringify(streets)}>
+<div class="scl" data-closures data-streets={JSON.stringify(streets)} data-streets-ok={streetsOk ? "true" : "false"}>
   <section class="dash-section" id="find" aria-labelledby="scl-find-title">
     <header class="section-head">
       <h2 id="scl-find-title">Where should we look?</h2>
@@ -52,7 +53,7 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
             placeholder="Try “Broadway” or “W 8th St”" value={query.street ? streetLabel(query.street) : ''} data-street />
           <ul class="c311-suggest" id="scl-street-list" role="listbox" aria-label="Streets with closures" hidden data-street-list></ul>
         </div>
-        <p class="field-hint" id="scl-street-hint">Finds blocks on the street and blocks it crosses. Only streets with a closure on or across them are suggested.</p>
+        <p class="field-hint" id="scl-street-hint">Finds blocks on the street and blocks it crosses. {streetsOk ? 'Only streets with a closure on or across them are suggested.' : 'Suggestions aren’t available right now, but searching still works.'}</p>
       </div>
       <div class="field">
         <label class="filter-label" for="scl-street-boro">Borough <span class="field-optional">(optional)</span></label>
@@ -159,7 +160,7 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
       </div>
       <div class="scl-panel">
         <h3 class="chart-title">Most affected streets</h3>
-        <p class="chart-subtitle">Streets with the most closed blocks.</p>
+        <p class="chart-subtitle">Streets with the most closed blocks on or crossing them.</p>
         <div data-top-streets></div>
       </div>
       <div class="scl-panel scl-panel-wide">
@@ -173,7 +174,7 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
 
 <script>
   import { normalizeQuery, queryToParams, searchParams } from '../../lib/street-closures/filter.js';
-  import { suggestStreets, resolveStreet, streetLabel } from '../../lib/street-closures/streets.js';
+  import { suggestStreets, resolveStreet, streetLabel, streetKey } from '../../lib/street-closures/streets.js';
   import {
     windowRange, windowCounts, blocksInView, purposeCounts, dailyCounts, topStreets, sortBlocks
   } from '../../lib/street-closures/closures.js';
@@ -185,12 +186,13 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
   import { WINDOWS, PAGE_SIZE, ERROR_TEXT, METERS_PER_MILE } from '../../lib/street-closures/config.js';
   import { parseLocationInput, inNyc } from '../../lib/complaints311/location-input.js';
   import { resolveLocation } from '../../lib/complaints311/geocode.js';
-  import { count, date } from '../../lib/format.js';
+  import { count, date, nycToday } from '../../lib/format.js';
   import zipFile from '../../data/zip-centroids.json';
 
   const root = document.querySelector<HTMLElement>('[data-closures]')!;
   const $ = <T extends HTMLElement = HTMLElement>(sel: string) => root.querySelector<T>(sel)!;
   const streets: { key: string; label: string; blocks: number }[] = JSON.parse(root.dataset.streets!);
+  const streetsOk = root.dataset.streetsOk === 'true';
 
   const status = $('[data-status]');
   const streetForm = $<HTMLFormElement>('[data-panel="street"]');
@@ -209,6 +211,8 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
   const purposeChip = $('[data-purpose-chip]');
   const mapWrap = $('#scl-map-wrap');
   const mapToggle = $<HTMLButtonElement>('[data-map-toggle]');
+  const mapCol = $('.scl-map-col');
+  const narrow = matchMedia('(max-width: 1023px)'); // matches the CSS breakpoint
   const strip = $('[data-strip]');
   const readout = $('[data-readout]');
   const windowNote = $('[data-window-note]');
@@ -234,14 +238,16 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
     query = next;
     const qs = queryToParams(query).toString();
     const url = `${location.pathname}${qs ? `?${qs}` : ''}`;
-    if (push) history.pushState(null, '', url); else history.replaceState(null, '', url);
+    // The spot's name rides in history state (not the URL), so Back shows the right one.
+    const state = { placeLabel: query.mode === 'near' ? placeLabel : '' };
+    if (push) history.pushState(state, '', url); else history.replaceState(state, '', url);
     update();
   }
 
   window.addEventListener('popstate', () => {
     query = normalizeQuery(new URLSearchParams(location.search));
     mode = query.mode === 'city' ? 'borough' : query.mode;
-    if (query.mode !== 'near') placeLabel = '';
+    placeLabel = (query.mode === 'near' && history.state?.placeLabel) || '';
     fillForm();
     update();
   });
@@ -326,6 +332,11 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
     e.preventDefault();
     const text = streetInput.value.trim();
     if (!text) { status.textContent = 'Type a street name first.'; streetInput.focus(); return; }
+    if (!streetsOk) {
+      const key = streetKey(text);
+      if (key) { closeStreets(); go({ ...query, mode: 'street', street: key, boro: streetBoro.value || null, lat: null, lon: null }); }
+      return;
+    }
     const hit = resolveStreet(streets, text);
     if (hit) { pickStreet(hit); return; }
     const near = suggestStreets(streets, text, 6);
@@ -463,6 +474,8 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
     cards.querySelectorAll('.scl-card.is-selected').forEach((el) => el.classList.remove('is-selected'));
     map.highlight(seg, { pan: !fromMap });
     if (!seg) return;
+    // Below the two-column layout the map sits above the list, out of view.
+    if (!fromMap && narrow.matches && !mapWrap.hidden) mapCol.scrollIntoView({ behavior: 'smooth', block: 'start' });
     if (fromMap) {
       const i = sorted.findIndex((b) => b.seg === seg);
       if (i >= shown) { shown = i + 1; drawCards(); }
@@ -503,19 +516,22 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
   });
 
   // ---------- Loading ----------
+  // Keyed by NYC date too, so neither this cache nor the browser's serves yesterday's "today".
   async function load() {
-    const params = searchParams(query).toString();
-    if (cache.has(params)) return cache.get(params);
-    const res = await fetch(`/api/street-closures/search?${params}`);
+    const params = searchParams(query);
+    params.set('d', nycToday()); // the API ignores it
+    const key = params.toString();
+    if (cache.has(key)) return cache.get(key);
+    const res = await fetch(`/api/street-closures/search?${key}`);
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || ERROR_TEXT);
-    cache.set(params, body);
+    cache.set(key, body);
     return body;
   }
 
   async function update() {
     const params = searchParams(query).toString();
-    if (params !== loadedFor || !data) {
+    if (params !== loadedFor || !data || data.today !== nycToday()) {
       const id = ++request;
       summary.textContent = 'Loading closures…';
       cards.innerHTML = Array.from({ length: 3 }, () => '<li class="scl-card is-skeleton" aria-hidden="true"><span class="sk-line"></span><span class="sk-line sk-short"></span></li>').join('');
@@ -621,6 +637,11 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
     if (col) readout.textContent = stripReadout(days[Number(col.dataset.i)], data?.postedThrough);
   });
   strip.addEventListener('mouseleave', () => { if (days.length) readout.textContent = stripReadout(days[0], data?.postedThrough); });
+
+  // A tab left open overnight catches up when it's looked at again.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && data && data.today !== nycToday()) update();
+  });
 
   fillForm();
   update();

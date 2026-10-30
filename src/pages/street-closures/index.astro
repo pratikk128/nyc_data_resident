@@ -48,6 +48,6 @@ if (import.meta.env.PROD && index.status === 'fulfilled') Astro.response.headers
     </p>
   </header>
 
-  <ClosureFinder query={query} streets={streets} dataAsOf={metaValue?.rowsUpdatedAt ?? null} />
+  <ClosureFinder query={query} streets={streets} streetsOk={index.status === 'fulfilled'} dataAsOf={metaValue?.rowsUpdatedAt ?? null} />
   <AboutSection meta={metaValue} />
 </DashboardLayout>
