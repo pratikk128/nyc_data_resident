@@ -141,7 +141,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), inputError
     sortChipsHtml, sortNoteText, UPSTREAM_TEXT, LOADING_TEXT
   } from '../../lib/schools/render.js';
   import { mountSchoolsMap } from '../../lib/schools/school-map.js';
-  import { spotFromParams } from '../../lib/address-report/report.js';
+  import { spotFromParams, spotToParams } from '../../lib/address-report/report.js';
   import { compareHref, MAX_COMPARE } from '../../lib/schools/compare.js';
   import { readShortlist, writeShortlist } from '../../lib/schools/shortlist.js';
   import { escape } from '../../lib/schools/render.js';
@@ -184,7 +184,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), inputError
   let loadingTimer = 0;
   let skeletonTimer = 0;
   let schoolsMap: ReturnType<typeof mountSchoolsMap> | null = null;
-  // From the address report's link (?lat=&lon=): the map stays on that spot. Kept here, not in the URL the page writes.
+  // From the address report's link (?lat=&lon=): the map stays on that spot, and every URL the page writes keeps it.
   const spot = spotFromParams(new URLSearchParams(location.search));
   const coarsePointer = matchMedia('(pointer: coarse)');
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
@@ -192,6 +192,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), inputError
   const pageUrl = (q: any) => {
     const p = queryToParams(q);
     if (view === 'map') p.set('view', 'map');
+    if (spot) for (const [k, v] of spotToParams(spot)) p.set(k, v);
     const s = p.toString();
     return s ? `${BASE}?${s}` : BASE;
   };
