@@ -1,0 +1,190 @@
+---
+/*
+ * "Who depends on overtime?" Server-rendered only, from the payroll data
+ * (src/lib/server/payroll.js): how much overtime the city pays, which
+ * agencies lean on it, how many people get $100K+ of it, and the most any
+ * one person earned in a title. Names are never shown.
+ */
+import StatCard from '../StatCard.astro';
+import type bundledByYear from '../../data/payroll-by-year.json';
+import type bundledByAgency from '../../data/payroll-by-agency.json';
+import type bundledOvertime from '../../data/payroll-overtime.json';
+import { money, count, percent } from '../../lib/format.js';
+import { yearChange } from '../../lib/year-change.js';
+import { changeSince, inflationFactor } from '../../lib/payroll-inflation.js';
+import {
+  overtimeDependence, overtimeLeaders, dependenceHtml, MIN_AGENCY_PAYROLL, TOP_DEPENDENT
+} from '../../lib/payroll-overtime.js';
+
+interface Props {
+  byYear: typeof bundledByYear;
+  byAgency: typeof bundledByAgency;
+  overtime: typeof bundledOvertime;
+}
+
+const { byYear, byAgency, overtime } = Astro.props;
+const { cpi } = byYear;
+const years = overtime.years;
+const latest = years[years.length - 1];
+const first = years[0];
+const FY = latest.fiscalYear;
+const high = money(overtime.highThreshold);
+
+const otReal = changeSince(years, cpi, (y) => y.overtime);
+const payReal = changeSince(byYear.years, cpi);
+const signed = (f: number) => `${f < 0 ? '−' : '+'}${percent(Math.abs(f))}`;
+
+const leaders = overtimeLeaders(byAgency.agencies, FY);
+const dependent = overtimeDependence(byAgency.agencies, FY);
+const list = (items: string[]) => new Intl.ListFormat('en', { type: 'conjunction' }).format(items);
+---
+
+<section class="dash-section" id="overtime" aria-labelledby="overtime-title">
+  <header class="section-head">
+    <h2 id="overtime-title">Who depends on overtime?</h2>
+    <p class="section-intro">
+      Overtime pays for hours beyond a regular schedule: shifts that must be covered, emergencies, short staffing.
+      It has grown much faster than regular pay, and it is concentrated in a handful of agencies and a
+      growing number of people.
+    </p>
+  </header>
+
+  <div class="stat-grid stat-grid-3">
+    <StatCard
+      label={`Overtime paid, FY${FY}`}
+      value={money(latest.overtime, 2)}
+      change={yearChange(years, (y) => y.overtime, money)}
+      context={`${percent(latest.overtime / latest.total)} of all payroll.` +
+        (otReal && payReal
+          ? ` After inflation, overtime is ${signed(otReal.real)} since FY${otReal.from}; payroll overall ${signed(payReal.real)}.`
+          : '')}
+    />
+    <StatCard
+      label={`Paid by the top ${leaders.agencies.length} agencies, FY${FY}`}
+      value={percent(leaders.share, 0)}
+      context={`${list(leaders.agencies.map((a: { label: string }) => a.label))} paid ${money(leaders.overtime, 2)} of the city's ${money(leaders.cityOvertime, 2)} in overtime.`}
+    />
+    <StatCard
+      label={`Pay records with ${high}+ in overtime, FY${FY}`}
+      value={count(latest.peopleHigh)}
+      change={yearChange(years, (y) => y.peopleHigh, count)}
+      context={`${count(first.peopleHigh)} in FY${first.fiscalYear}. Together they got ${money(latest.highOvertime)}, ` +
+        `${percent(latest.highOvertime / latest.overtime)} of all overtime.`}
+    />
+  </div>
+
+  <figure class="chart-frame" aria-labelledby="ot-dependence-title">
+    <div class="chart-head">
+      <div>
+        <h3 class="chart-title" id="ot-dependence-title">Agencies that lean on overtime most, FY{FY}</h3>
+        <p class="chart-subtitle">
+          Overtime as a share of each agency's own payroll, among the {dependent.length} agencies that paid{' '}
+          {money(MIN_AGENCY_PAYROLL)} or more. Top {Math.min(TOP_DEPENDENT, dependent.length)} shown.
+        </p>
+      </div>
+    </div>
+    <ol class="rank-list ot-rank" set:html={dependenceHtml(dependent)} />
+    <p class="chart-hint">Pick an agency name to see its payroll over time on the spending page.</p>
+  </figure>
+
+  <figure class="chart-frame" aria-labelledby="ot-top-title">
+    <div class="chart-head">
+      <div>
+        <h3 class="chart-title" id="ot-top-title">The most overtime one person was paid, by job title, FY{FY}</h3>
+        <p class="chart-subtitle">
+          The single largest overtime payment in each of the {overtime.topByTitle.length} job titles with the largest
+          ones. One row per title. The source data names every employee; this page doesn't.
+        </p>
+      </div>
+    </div>
+    <div class="table-scroll" tabindex="0" role="region" aria-label={`Most overtime one person was paid, by job title, FY${FY}`}>
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Job title</th>
+            <th scope="col">Agency</th>
+            <th scope="col">Overtime</th>
+            <th scope="col">Overtime hours</th>
+            <th scope="col">Regular pay</th>
+            <th scope="col">Total pay</th>
+          </tr>
+        </thead>
+        <tbody>
+          {overtime.topByTitle.map((t) => (
+            <tr>
+              <th scope="row">{t.label}</th>
+              <td class="cell-text">{t.agency}</td>
+              <td>{money(t.overtime)}</td>
+              <td>{count(t.overtimeHours)} <span class="ot-hours-week">(~{Math.round(t.overtimeHours / 52)}/week)</span></td>
+              <td>{money(t.regular)}</td>
+              <td>{money(t.total)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <figure class="chart-frame" aria-labelledby="ot-years-title">
+    <div class="chart-head">
+      <div>
+        <h3 class="chart-title" id="ot-years-title">Overtime by fiscal year</h3>
+        <p class="chart-subtitle">All agencies, FY{first.fiscalYear}–FY{FY}.</p>
+      </div>
+    </div>
+    <div class="table-scroll" tabindex="0" role="region" aria-label="Overtime by fiscal year, table">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Fiscal year</th>
+            <th scope="col">Overtime</th>
+            <th scope="col">In FY{cpi.baseFiscalYear} dollars</th>
+            <th scope="col">Share of payroll</th>
+            <th scope="col">Records with any overtime</th>
+            <th scope="col">Records with {high}+</th>
+            <th scope="col">Their share of overtime</th>
+          </tr>
+        </thead>
+        <tbody>
+          {years.slice().reverse().map((y) => (
+            <tr>
+              <th scope="row">FY{y.fiscalYear}</th>
+              <td>{money(y.overtime, 2)}</td>
+              <td>{money(y.overtime * (inflationFactor(cpi, y.fiscalYear) ?? NaN), 2)}</td>
+              <td>{percent(y.overtime / y.total)}</td>
+              <td>{count(y.peopleWithOvertime)}</td>
+              <td>{count(y.peopleHigh)}</td>
+              <td>{percent(y.overtime > 0 ? y.highOvertime / y.overtime : 0)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <details class="about-data">
+    <summary>About these numbers</summary>
+    <div class="about-body">
+      <p>
+        <strong>Pay records, not people.</strong> The source has one record per person per agency per year,
+        so someone paid by two agencies counts twice. Counts here are of records; for almost everyone that is
+        the same as people.
+      </p>
+      <p>
+        <strong>The {high} line isn't adjusted for inflation.</strong> {high} in FY{FY} bought about what{' '}
+        {money(overtime.highThreshold / (inflationFactor(cpi, first.fiscalYear) ?? NaN))} did in FY{first.fiscalYear},
+        so part of the rise is prices. Most of it isn't: the count rose from {count(first.peopleHigh)} to{' '}
+        {count(latest.peopleHigh)} while prices rose {otReal ? percent(otReal.prices, 0) : 'a fraction of that'}.
+      </p>
+      <p>
+        <strong>Overtime hours</strong> are as reported in the source. “Per week” divides by 52, on top of a
+        regular schedule.
+      </p>
+      <p>
+        <strong>Agency shares</strong> are overtime divided by that agency's total pay (regular, overtime and other
+        pay) in FY{FY}. Agencies paying less than {money(MIN_AGENCY_PAYROLL)} are left out of the ranking because a few
+        people can swing their share.
+      </p>
+    </div>
+  </details>
+</section>

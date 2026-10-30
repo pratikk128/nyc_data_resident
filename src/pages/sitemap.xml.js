@@ -6,7 +6,7 @@ import { dashboards } from "../data/dashboards.js";
 
 const SITE = "https://asknycdata.com";
 // Section pages beyond each dashboard's url
-const EXTRA_PAGES = ["/drinking-water/near-me"];
+const EXTRA_PAGES = ["/drinking-water/near-me", "/city-payroll/overtime"];
 
 export function GET() {
   const paths = ["/", ...dashboards.map((d) => d.url), ...EXTRA_PAGES];

@@ -1,14 +1,18 @@
 /*
  * Stacked bar chart of city payroll by fiscal year (plain SVG, no library).
  *
- * mountWorkforceChart(frame, years, subject)
+ * mountWorkforceChart(frame, years, subject, cpi)
  *   frame    The chart's <figure>. Must contain .chart (drawing area),
  *            .chart-tooltip and the .toggle-btn[data-mode] buttons.
  *   years    Rows from src/data/payroll-by-year.json (or one agency's rows
  *            from payroll-by-agency.json, same shape).
  *   subject  Whose payroll this is, for the screen reader summary.
- * Returns { update(years, subject), setPayTypes(keys) } to redraw with
- * different data or with only some pay types ("regular", "overtime", "other").
+ *   cpi      byYear.cpi, for the "real" mode: every year in the latest
+ *            fiscal year's dollars (src/lib/payroll-inflation.js).
+ * Modes: "dollars" (as paid), "real" (adjusted for inflation), "share".
+ * Returns { update(years, subject), setPayTypes(keys), onModeChange(fn) } to
+ * redraw with different data or with only some pay types ("regular",
+ * "overtime", "other"), or to hear when the mode changes.
  *
  * Keyboard: the chart is one tab stop (role="img" with a summary label);
  * Left/Right/Home/End move between years and show that year's details.
@@ -20,6 +24,7 @@
  */
 import { money, count, percent } from "./format.js";
 import { niceStep } from "./chart-scale.js";
+import { inRealDollars } from "./payroll-inflation.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -49,15 +54,22 @@ export function missingYearsSentence(years) {
   return gaps.length ? `No payroll records for ${new Intl.ListFormat("en", { type: "conjunction" }).format(gaps)}.` : "";
 }
 
-export function mountWorkforceChart(frame, initialYears, initialSubject = "NYC payroll") {
+export function mountWorkforceChart(frame, initialYears, initialSubject = "NYC payroll", cpi = null) {
   const chart = frame.querySelector(".chart");
   const tooltip = frame.querySelector(".chart-tooltip");
   const buttons = Array.from(frame.querySelectorAll(".toggle-btn[data-mode]"));
   const hatchId = `pay-other-hatch-${++instance}`;
 
-  let years = initialYears;
+  let asPaid = initialYears; // years as reported; `years` is what's drawn
+  let years = asPaid;
   let subject = initialSubject;
   let mode = "dollars";
+  const modeListeners = [];
+
+  // Real mode draws inflation-adjusted amounts; the other two draw them as paid.
+  function setYears() {
+    years = mode === "real" ? inRealDollars(asPaid, cpi) : asPaid;
+  }
   let shown = SEGMENTS; // pay types currently drawn, in stacking order
   let active = years.length - 1; // keyboard focus starts on the latest year
   let svg = null;
@@ -66,8 +78,10 @@ export function mountWorkforceChart(frame, initialYears, initialSubject = "NYC p
     btn.addEventListener("click", () => {
       mode = btn.dataset.mode;
       buttons.forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
+      setYears();
       hideTooltip();
       render();
+      modeListeners.forEach((fn) => fn(mode));
     });
   });
 
@@ -221,7 +235,8 @@ export function mountWorkforceChart(frame, initialYears, initialSubject = "NYC p
     const last = years[years.length - 1];
     const all = shown.length === SEGMENTS.length;
     const types = all ? "total pay" : shown.map((s) => s.label.toLowerCase()).join(" and ");
-    const what = mode === "share" ? `${all ? "pay by type" : types} as a share of total pay` : `${types} in dollars`;
+    const what = mode === "share" ? `${all ? "pay by type" : types} as a share of total pay`
+      : mode === "real" ? `${types} in FY${cpi.baseFiscalYear} dollars, adjusted for inflation` : `${types} in dollars as paid`;
     return `Stacked bar chart of ${subject}, ${what}, FY${first.fiscalYear} to FY${last.fiscalYear}. ` +
       `${capitalize(types)} went from ${money(shownTotal(first))} to ${money(shownTotal(last))}. ` +
       (missingYearsSentence(years) && `${missingYearsSentence(years)} `) +
@@ -256,6 +271,9 @@ export function mountWorkforceChart(frame, initialYears, initialSubject = "NYC p
       (negative.length
         ? `<p class="tt-note">${capitalize(negative.map((seg) => seg.label.toLowerCase()).join(" and "))} netted below $0 ` +
           "(refunds and corrections), so it isn't drawn and shares leave it out.</p>"
+        : "") +
+      (mode === "real" && year.fiscalYear !== cpi.baseFiscalYear
+        ? `<p class="tt-note">In FY${cpi.baseFiscalYear} dollars. As paid: ${money(year.asPaid)} total.</p>`
         : "") +
       `<p class="tt-people">${count(year.activeJune30)} active on June 30 · ${count(year.peoplePaid)} people paid</p>`;
     tooltip.hidden = false;
@@ -302,7 +320,8 @@ export function mountWorkforceChart(frame, initialYears, initialSubject = "NYC p
 
   return {
     update(nextYears, nextSubject) {
-      years = nextYears;
+      asPaid = nextYears;
+      setYears();
       subject = nextSubject;
       active = years.length - 1;
       hideTooltip();
@@ -312,6 +331,9 @@ export function mountWorkforceChart(frame, initialYears, initialSubject = "NYC p
       shown = SEGMENTS.filter((seg) => keys.includes(seg.key));
       hideTooltip();
       render();
+    },
+    onModeChange(fn) {
+      modeListeners.push(fn);
     }
   };
 }

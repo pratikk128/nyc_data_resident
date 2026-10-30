@@ -4,7 +4,7 @@
  *
  * The source changes about once a year. When it does, the hourly cron
  * (etl.js) rebuilds the whole dashboard's data, about 30 seconds of Socrata
- * queries, into one KV entry that both pages and /api/payroll/agencies read.
+ * queries plus NYC-area CPI from BLS, into one KV entry that both pages and /api/payroll/agencies read.
  * Requests never run those queries: until the cron has built it (local dev,
  * or a new deployment's first hour), the pages show the bundled copy in
  * src/data/, refreshed by `npm run data:payroll`.
@@ -16,6 +16,7 @@ import { buildPayroll, DATASET_ID } from "../payroll/build.js";
 import bundledByYear from "../../data/payroll-by-year.json";
 import bundledByAgency from "../../data/payroll-by-agency.json";
 import bundledJobs from "../../data/payroll-jobs.json";
+import bundledOvertime from "../../data/payroll-overtime.json";
 
 const CADENCE = "yearly";
 const MAX_AGE_HOURS = requestMaxAgeHours(CADENCE);
@@ -28,9 +29,10 @@ export const metadataJob = {
   run: () => datasetMetadata(DATASET_ID)
 };
 
-// value: { byYear, byAgency, jobs }, the same shapes as the three bundled files
+// value: { byYear, byAgency, jobs, overtime }, the same shapes as the four
+// bundled files. v2 added byYear.cpi and overtime; a v1 copy lacks them.
 export const payrollJob = {
-  key: "payroll:data:v1",
+  key: "payroll:data:v2",
   maxAgeHours: MAX_AGE_HOURS,
   async run() {
     const meta = await datasetMetadata(DATASET_ID);
@@ -53,7 +55,7 @@ export const payrollDataset = {
   jobs: [payrollJob]
 };
 
-const bundled = { byYear: bundledByYear, byAgency: bundledByAgency, jobs: bundledJobs };
+const bundled = { byYear: bundledByYear, byAgency: bundledByAgency, jobs: bundledJobs, overtime: bundledOvertime };
 
 // The cron's copy, or the bundled one until there is one (or KV can't be read).
 export async function getPayroll() {

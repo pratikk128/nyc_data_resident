@@ -196,6 +196,9 @@
   margin-top: var(--space-5);
 }
 
+/* Three cards wrap to two, then one, rather than squeezing. */
+.stat-grid-3 { grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); }
+
 .stat-card {
   padding: var(--space-4) var(--space-5);
   border-radius: var(--radius-md);
@@ -1715,6 +1718,13 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
 .rank-row.is-current .rank-name { color: var(--ink); text-decoration: none; }
 .rank-row.is-current .rank-n { color: var(--ink); }
 .rank-row.is-current { margin-inline: calc(-1 * var(--space-2)); padding: var(--space-2); border-radius: var(--radius-md); background: var(--yellow-tint); }
+a.rank-name { justify-self: start; }
+.ot-hours-week { color: var(--ink-soft); }
+/* Phones: "$359.1M of $1.2B" goes under the percentage so names keep room. */
+@media (max-width: 639px) {
+  .ot-rank .rank-value { text-align: right; }
+  .ot-rank .rank-share { display: block; margin-left: 0; font-size: .8125rem; }
+}
 .rank-note { margin-top: var(--space-4); font-size: .9375rem; color: var(--ink-soft); }
 
 /* =========================================================

@@ -1,0 +1,33 @@
+{
+  "refreshedAt": "2026-10-30",
+  "query": {"$select":"fiscal_year, sum(case(total_ot_paid > 0, 1, true, 0)) AS with_ot, sum(case(total_ot_paid >= 100000, 1, true, 0)) AS high, sum(case(total_ot_paid >= 100000, total_ot_paid, true, 0)) AS high_ot","$group":"fiscal_year","$order":"fiscal_year"},
+  "topQuery": {"$select":"upper(trim(title_description)) AS title, agency_name, payroll_number, regular_gross_paid, total_ot_paid, total_other_pay, ot_hours","$where":"fiscal_year = 2026 AND total_ot_paid > 0 AND title_description IS NOT NULL","$order":"total_ot_paid DESC"},
+  "highThreshold": 100000,
+  "years": [
+    {"fiscalYear":2014,"overtime":1534108557,"total":22862483177,"peopleWithOvertime":141547,"peopleHigh":31,"highOvertime":3702197},
+    {"fiscalYear":2015,"overtime":1700475563,"total":24334089872,"peopleWithOvertime":167802,"peopleHigh":68,"highOvertime":7947138},
+    {"fiscalYear":2016,"overtime":1881359570,"total":25518123148,"peopleWithOvertime":165681,"peopleHigh":163,"highOvertime":20063456},
+    {"fiscalYear":2017,"overtime":1961935755,"total":27145942451,"peopleWithOvertime":162367,"peopleHigh":153,"highOvertime":17875414},
+    {"fiscalYear":2018,"overtime":1898494167,"total":27549319387,"peopleWithOvertime":157467,"peopleHigh":140,"highOvertime":16750373},
+    {"fiscalYear":2019,"overtime":1874009991,"total":29516967440,"peopleWithOvertime":164996,"peopleHigh":104,"highOvertime":12518908},
+    {"fiscalYear":2020,"overtime":1961703942,"total":30418574396,"peopleWithOvertime":154796,"peopleHigh":174,"highOvertime":21149090},
+    {"fiscalYear":2021,"overtime":1796557248,"total":29831122863,"peopleWithOvertime":140393,"peopleHigh":345,"highOvertime":42775398},
+    {"fiscalYear":2022,"overtime":2440510366,"total":31739322582,"peopleWithOvertime":147177,"peopleHigh":582,"highOvertime":70459390},
+    {"fiscalYear":2023,"overtime":2530124947,"total":31114293550,"peopleWithOvertime":150485,"peopleHigh":864,"highOvertime":105044652},
+    {"fiscalYear":2024,"overtime":3059251068,"total":35681667558,"peopleWithOvertime":157551,"peopleHigh":1845,"highOvertime":229582349},
+    {"fiscalYear":2025,"overtime":2922389823,"total":34595934442,"peopleWithOvertime":139687,"peopleHigh":2140,"highOvertime":268977378},
+    {"fiscalYear":2026,"overtime":3023144100,"total":36464528680,"peopleWithOvertime":138883,"peopleHigh":2205,"highOvertime":274813977}
+  ],
+  "topByTitle": [
+    {"title":"STATIONARY ENGINEER","label":"Stationary Engineer","agency":"Dept. of Health and Mental Hygiene","regular":153712,"overtime":265975,"other":49444,"total":469131,"overtimeHours":2305},
+    {"title":"SENIOR STATIONARY ENGINEER","label":"Senior Stationary Engineer","agency":"Department of Correction","regular":182437,"overtime":257572,"other":5263,"total":445272,"overtimeHours":1958},
+    {"title":"SUPERVISOR OF MECHANICS","label":"Supervisor of Mechanics","agency":"Department of Correction","regular":148740,"overtime":248538,"other":27370,"total":424648,"overtimeHours":2258},
+    {"title":"SUPERVISOR SHEET METAL WORKER","label":"Supervisor Sheet Metal Worker","agency":"Department of Sanitation","regular":128915,"overtime":247586,"other":17442,"total":393943,"overtimeHours":1753},
+    {"title":"MARINE ENGINEER","label":"Marine Engineer","agency":"Fire Department","regular":131345,"overtime":240785,"other":25259,"total":397389,"overtimeHours":2238},
+    {"title":"SHEET METAL WORKER","label":"Sheet Metal Worker","agency":"Department of Sanitation","regular":121582,"overtime":234385,"other":15114,"total":371081,"overtimeHours":1762},
+    {"title":"SUPERVISOR PLUMBER","label":"Supervisor Plumber","agency":"NYC Housing Authority","regular":121581,"overtime":230424,"other":1072,"total":353077,"overtimeHours":1725},
+    {"title":"SUPERVISOR ELECTRICIAN","label":"Supervisor Electrician","agency":"Community College (Bronx)","regular":135735,"overtime":229180,"other":5612,"total":370527,"overtimeHours":2066},
+    {"title":"OILER","label":"Oiler","agency":"Department of Correction","regular":144435,"overtime":222229,"other":45767,"total":412431,"overtimeHours":2055},
+    {"title":"ELECTRICIAN","label":"Electrician","agency":"Department of Correction","regular":126033,"overtime":217859,"other":8270,"total":352162,"overtimeHours":2099}
+  ]
+}

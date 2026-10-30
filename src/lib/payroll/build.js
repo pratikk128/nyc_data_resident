@@ -9,8 +9,10 @@
  * we keep the ~dozen resulting rows. Job title medians are computed
  * server-side too, with SoQL median(); that query needs the list of fiscal
  * years, so it runs after the citywide totals come back. It's the slow one,
- * a minute or two.
+ * a minute or two. NYC-area prices come from BLS (./cpi.js) in the same run.
  */
+import { fetchNycCpi, cpiByFiscalYear, CPI_SOURCE } from "./cpi.js";
+
 export const DATASET_ID = "k397-673e";
 const DOMAIN = "https://data.cityofnewyork.us";
 const DATASET_PAGE = `${DOMAIN}/City-Government/Citywide-Payroll-Data-Fiscal-Year-/${DATASET_ID}`;
@@ -79,6 +81,36 @@ function headcountQuery(fiscalYear) {
     $group: "title, agency_name, payroll_number",
     $order: "title, agency_name, payroll_number",
     $limit: "100000"
+  };
+}
+
+// "Who depends on overtime?": how overtime is spread across people. One row
+// per fiscal year. Overtime counts each pay record's total_ot_paid; a person
+// with records at two agencies counts twice, as in the totals above.
+const OT_HIGH = 100e3;   // "paid $100K+ in overtime"
+const OVERTIME_QUERY = {
+  $select: "fiscal_year, sum(case(total_ot_paid > 0, 1, true, 0)) AS with_ot, " +
+    `sum(case(total_ot_paid >= ${OT_HIGH}, 1, true, 0)) AS high, ` +
+    `sum(case(total_ot_paid >= ${OT_HIGH}, total_ot_paid, true, 0)) AS high_ot`,
+  $group: "fiscal_year",
+  $order: "fiscal_year",
+  $limit: "1000"
+};
+
+// The largest single overtime payments in the latest year, to find the most
+// any one person earned in each title. Names are never selected: the source
+// publishes them, this page doesn't. TOP_OT_ROWS is enough rows to cover
+// TOP_OT_TITLES distinct titles (the top few hundred are all trades and
+// uniformed titles).
+const TOP_OT_TITLES = 10;
+const TOP_OT_ROWS = 500;
+function topOvertimeQuery(fiscalYear) {
+  return {
+    $select: "upper(trim(title_description)) AS title, agency_name, payroll_number, " +
+      "regular_gross_paid, total_ot_paid, total_other_pay, ot_hours",
+    $where: `fiscal_year = ${fiscalYear} AND total_ot_paid > 0 AND title_description IS NOT NULL`,
+    $order: "total_ot_paid DESC",
+    $limit: String(TOP_OT_ROWS)
   };
 }
 
@@ -410,6 +442,61 @@ function buildJobs(rows, headcountRows, nameOfCode) {
   return { latestFY, compareFY, jobs, chips, warnings };
 }
 
+const agencyLabelOf = (r, nameOfCode) => {
+  const sourceName = r.agency_name || nameOfCode.get(r.payroll_number);
+  return sourceName ? agencyLabel(AGENCY_ALIASES[sourceName] ?? sourceName) : "Unknown agency";
+};
+
+// Overtime spread per fiscal year, and the single largest overtime payment in
+// each of the TOP_OT_TITLES titles that had the largest ones. rows come from
+// OVERTIME_QUERY, topRows from topOvertimeQuery() (largest first).
+function buildOvertime(rows, topRows, years, nameOfCode) {
+  const byYear = new Map(rows.map((r) => [Number(r.fiscal_year), r]));
+  const overtimeYears = years.flatMap((y) => {
+    const r = byYear.get(y.fiscalYear);
+    if (!r) return [];
+    return [{
+      fiscalYear: y.fiscalYear,
+      overtime: y.overtime,
+      total: y.total,
+      peopleWithOvertime: Number(r.with_ot),
+      peopleHigh: Number(r.high),
+      highOvertime: Math.round(Number(r.high_ot) || 0)
+    }];
+  });
+
+  const topByTitle = [];
+  const seen = new Set();
+  for (const r of topRows) {
+    if (!r.title || seen.has(r.title)) continue;
+    seen.add(r.title);
+    const regular = Math.round(Number(r.regular_gross_paid) || 0);
+    const overtime = Math.round(Number(r.total_ot_paid) || 0);
+    const other = Math.round(Number(r.total_other_pay) || 0);
+    topByTitle.push({
+      title: r.title,
+      label: titleLabel(r.title),
+      agency: agencyLabelOf(r, nameOfCode),
+      regular,
+      overtime,
+      other,
+      total: regular + overtime + other,
+      overtimeHours: Math.round(Number(r.ot_hours) || 0)
+    });
+    if (topByTitle.length === TOP_OT_TITLES) break;
+  }
+
+  const warnings = [];
+  if (topByTitle.length < TOP_OT_TITLES) warnings.push(`Only ${topByTitle.length} titles among the top ${TOP_OT_ROWS} overtime payments.`);
+  for (const y of overtimeYears) {
+    if (y.peopleHigh > y.peopleWithOvertime || y.highOvertime > y.overtime) {
+      warnings.push(`FY${y.fiscalYear} overtime counts don't add up.`);
+    }
+  }
+  if (overtimeYears.length !== years.length) warnings.push("Some fiscal years have no overtime breakdown.");
+  return { years: overtimeYears, topByTitle, warnings };
+}
+
 const withoutLimit = (q) => Object.fromEntries(Object.entries(q).filter(([k]) => k !== "$limit"));
 
 /*
@@ -417,23 +504,33 @@ const withoutLimit = (q) => Object.fromEntries(Object.entries(q).filter(([k]) =>
  * (so a bad run never replaces a good copy):
  *   byYear    citywide totals per fiscal year, with dataset info and checks
  *   byAgency  the same totals split by agency
+ *             (with cpi, NYC-area prices per fiscal year for inflation adjustment)
+ *   byAgency  the same totals split by agency
  *   jobs      median pay by job title
+ *   overtime  how overtime is spread across people, and the largest single
+ *             overtime payments by title
  *   query       (params) => rows, a SoQL query against DATASET_ID
  *   source      { name, rowsUpdatedAt: "YYYY-MM-DD" | null } from the dataset's metadata
  *   refreshedAt "YYYY-MM-DD", shown as "Last refreshed here"
+ *   fetchCpi    (firstYear, lastYear) => monthly CPI rows (src/lib/payroll/cpi.js)
  */
-export async function buildPayroll(query, source, refreshedAt) {
+export async function buildPayroll(query, source, refreshedAt, fetchCpi = fetchNycCpi) {
   await checkFilterValues(query);
   const agencyRowsPromise = query(AGENCY_QUERY);
+  const overtimeRowsPromise = query(OVERTIME_QUERY);
 
   // The job queries need the fiscal years, which the citywide totals give us.
   const rows = await query(QUERY);
   const fiscalYears = rows.filter((r) => r.fiscal_year != null).map((r) => Number(r.fiscal_year));
   if (fiscalYears.length === 0) throw new Error("Payroll query returned no fiscal years.");
+  const latestFiscalYear = Math.max(...fiscalYears);
   const jobsQueryUsed = jobsQuery(fiscalYears);
-  const headcountQueryUsed = headcountQuery(Math.max(...fiscalYears));
-  const [agencyRows, jobRows, headcountRows] = await Promise.all([
-    agencyRowsPromise, query(jobsQueryUsed), query(headcountQueryUsed)
+  const headcountQueryUsed = headcountQuery(latestFiscalYear);
+  const topOvertimeQueryUsed = topOvertimeQuery(latestFiscalYear);
+  const [agencyRows, jobRows, headcountRows, overtimeRows, topOvertimeRows, cpiMonths] = await Promise.all([
+    agencyRowsPromise, query(jobsQueryUsed), query(headcountQueryUsed),
+    overtimeRowsPromise, query(topOvertimeQueryUsed),
+    fetchCpi(Math.min(...fiscalYears) - 1, latestFiscalYear)
   ]);
 
   const years = rows
@@ -454,6 +551,17 @@ export async function buildPayroll(query, source, refreshedAt) {
     checks.warnings.push(`Job titles end in FY${jobs.latestFY} but payroll totals end in FY${years[years.length - 1].fiscalYear}.`);
   }
 
+  // Without prices for every year, the inflation-adjusted view would mix
+  // adjusted and unadjusted bars, so a gap fails the run like a bad query.
+  const cpiYears = cpiByFiscalYear(cpiMonths, years.map((y) => y.fiscalYear));
+  if (cpiYears.missing.length) {
+    throw new Error(`Too few months of NYC-area CPI for ${cpiYears.missing.map((fy) => `FY${fy}`).join(", ")}.`);
+  }
+  for (const [fy, n] of Object.entries(cpiYears.short)) checks.warnings.push(`FY${fy} CPI averages ${n} months; BLS skipped the rest.`);
+
+  const overtime = buildOvertime(overtimeRows, topOvertimeRows, years, nameOfCode);
+  checks.warnings.push(...overtime.warnings);
+
   // The per-agency split should add back up to the citywide total.
   const latestFY = years[years.length - 1].fiscalYear;
   const agencySum = agencies.reduce((sum, a) => sum + (a.years.find((y) => y.fiscalYear === latestFY)?.total ?? 0), 0);
@@ -466,6 +574,7 @@ export async function buildPayroll(query, source, refreshedAt) {
       refreshedAt,
       query: withoutLimit(QUERY),
       checks,
+      cpi: { ...CPI_SOURCE, baseFiscalYear: latestFY, index: cpiYears.index, shortYears: cpiYears.short },
       years
     },
     byAgency: { refreshedAt, query: withoutLimit(AGENCY_QUERY), agencies },
@@ -479,6 +588,14 @@ export async function buildPayroll(query, source, refreshedAt) {
       checks: { latestYearLooksComplete: checks.latestYearLooksComplete, warnings: jobs.warnings },
       chips: jobs.chips,
       jobs: jobs.jobs
+    },
+    overtime: {
+      refreshedAt,
+      query: withoutLimit(OVERTIME_QUERY),
+      topQuery: withoutLimit(topOvertimeQueryUsed),
+      highThreshold: OT_HIGH,
+      years: overtime.years,
+      topByTitle: overtime.topByTitle
     }
   };
 }

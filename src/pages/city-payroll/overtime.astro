@@ -1,0 +1,22 @@
+---
+/*
+ * City Payroll Spending: "Who depends on overtime?" Which agencies lean on
+ * overtime, how many people get $100K+ of it, and the most one person was
+ * paid in a title. Same payroll data as the default view (index.astro).
+ */
+import PayrollPage from '../../components/city-payroll/PayrollPage.astro';
+import OvertimeSection from '../../components/city-payroll/OvertimeSection.astro';
+import { getPayroll } from '../../lib/server/payroll.js';
+
+export const prerender = false;
+
+const payroll = await getPayroll();
+---
+
+<PayrollPage
+  section="overtime"
+  description="Which NYC agencies depend most on overtime, how many city workers are paid $100K+ in overtime, and the most one person was paid by job title. From NYC Open Data."
+  byYear={payroll.byYear}
+>
+  <OvertimeSection byYear={payroll.byYear} byAgency={payroll.byAgency} overtime={payroll.overtime} />
+</PayrollPage>

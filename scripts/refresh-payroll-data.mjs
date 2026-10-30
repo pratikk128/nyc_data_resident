@@ -1,8 +1,10 @@
 /*
  * Refreshes the bundled copy of the City Payroll Spending data:
- * src/data/payroll-by-year.json (citywide), src/data/payroll-by-agency.json
- * (same totals split by agency) and src/data/payroll-jobs.json (median pay
- * by job title), from NYC Open Data.
+ * src/data/payroll-by-year.json (citywide, with NYC-area CPI),
+ * src/data/payroll-by-agency.json (same totals split by agency),
+ * src/data/payroll-jobs.json (median pay by job title) and
+ * src/data/payroll-overtime.json (who earns the overtime), from NYC Open Data
+ * and the Bureau of Labor Statistics.
  *
  *   npm run data:payroll
  *
@@ -24,6 +26,7 @@ const METADATA = `${DOMAIN}/api/views/${DATASET_ID}.json`;
 const OUT_FILE = new URL("../src/data/payroll-by-year.json", import.meta.url);
 const AGENCY_OUT_FILE = new URL("../src/data/payroll-by-agency.json", import.meta.url);
 const JOBS_OUT_FILE = new URL("../src/data/payroll-jobs.json", import.meta.url);
+const OVERTIME_OUT_FILE = new URL("../src/data/payroll-overtime.json", import.meta.url);
 
 async function getJSON(url) {
   const headers = { Accept: "application/json" };
@@ -49,7 +52,7 @@ async function main() {
     rowsUpdatedAt: meta.rowsUpdatedAt ? new Date(meta.rowsUpdatedAt * 1000).toISOString().slice(0, 10) : null
   };
   console.log("(the job title medians are slow; allow a couple of minutes)");
-  const { byYear, byAgency, jobs } = await buildPayroll(query, source, new Date().toLocaleDateString("en-CA")); // local YYYY-MM-DD
+  const { byYear, byAgency, jobs, overtime } = await buildPayroll(query, source, new Date().toLocaleDateString("en-CA")); // local YYYY-MM-DD
 
   await mkdir(new URL(".", OUT_FILE), { recursive: true });
   await writeFile(OUT_FILE, JSON.stringify(byYear, null, 2) + "\n");
@@ -67,6 +70,13 @@ async function main() {
     `  "chips": ${lines(jobs.chips)},\n` +
     `  "jobs": ${lines(jobs.jobs)}\n}\n`
   );
+  await writeFile(
+    OVERTIME_OUT_FILE,
+    `{\n  "refreshedAt": ${JSON.stringify(overtime.refreshedAt)},\n  "query": ${JSON.stringify(overtime.query)},\n` +
+    `  "topQuery": ${JSON.stringify(overtime.topQuery)},\n  "highThreshold": ${overtime.highThreshold},\n` +
+    `  "years": ${lines(overtime.years)},\n` +
+    `  "topByTitle": ${lines(overtime.topByTitle)}\n}\n`
+  );
 
   const { years, checks } = byYear;
   console.log(`\nWrote ${years.length} fiscal years (FY${years[0].fiscalYear}–FY${years[years.length - 1].fiscalYear}) to src/data/payroll-by-year.json\n`);
@@ -75,6 +85,13 @@ async function main() {
       `  FY${y.fiscalYear}  $${(y.total / 1e9).toFixed(2)}B  ${y.peoplePaid.toLocaleString("en-US")} people paid, ` +
       `${y.activeJune30.toLocaleString("en-US")} active on June 30`
     );
+  }
+  const { cpi } = byYear;
+  console.log(`\nNYC-area CPI (${cpi.series}), fiscal-year averages:`);
+  for (const [fy, index] of Object.entries(cpi.index)) console.log(`  FY${fy}  ${index}`);
+  console.log(`\nWrote ${overtime.years.length} years of overtime spread to src/data/payroll-overtime.json`);
+  for (const t of overtime.topByTitle) {
+    console.log(`  ${t.label} (${t.agency}): $${t.overtime.toLocaleString("en-US")} overtime, ${t.overtimeHours} hours`);
   }
   console.log(`\nWrote ${byAgency.agencies.length} agencies to src/data/payroll-by-agency.json`);
   console.log(`\nWrote ${jobs.jobs.length} job titles (FY${jobs.latestFiscalYear}, ${jobs.minEmployees}+ full-year employees) to src/data/payroll-jobs.json`);

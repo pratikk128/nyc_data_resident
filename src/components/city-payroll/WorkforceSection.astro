@@ -8,6 +8,8 @@
  * /api/payroll/agencies, swaps in that agency's and redraws the stats,
  * chart, table and CSV link in place. The pay type checkboxes narrow the
  * total card, chart, table and CSV to regular pay, overtime and/or other pay.
+ * Inflation: the "after inflation" card, the chart's "Adjusted for inflation"
+ * mode and the table's last money column use NYC-area CPI (byYear.cpi).
  */
 import StatCard from '../StatCard.astro';
 import type bundledByYear from '../../data/payroll-by-year.json';
@@ -17,6 +19,7 @@ import { payrollCsvHref } from '../../lib/payroll-csv.js';
 import { payrollRowsHtml } from '../../lib/payroll-table.js';
 import { yearChange } from '../../lib/year-change.js';
 import { rankAgencies, agencyRankingHtml, TOP_N } from '../../lib/agency-ranking.js';
+import { changeSince, realChangeCard } from '../../lib/payroll-inflation.js';
 
 interface Props {
   byYear: typeof bundledByYear;
@@ -24,7 +27,9 @@ interface Props {
 }
 
 const { byYear: snapshot, byAgency } = Astro.props;
-const { years, dataset, checks } = snapshot;
+const { years, dataset, checks, cpi } = snapshot;
+const realCard = realChangeCard(changeSince(years, cpi));
+const shortCpiYears = Object.entries(cpi.shortYears ?? {});
 const latest = years[years.length - 1];
 const first = years[0];
 const range = `FY${first.fiscalYear}–FY${latest.fiscalYear}`;
@@ -42,7 +47,7 @@ const latestRows = byAgency.agencies.flatMap((a) => {
 });
 ---
 
-<section class="dash-section" id="workforce" aria-labelledby="workforce-title" data-years={JSON.stringify(years)}>
+<section class="dash-section" id="workforce" aria-labelledby="workforce-title" data-years={JSON.stringify(years)} data-cpi={JSON.stringify(cpi)}>
   <header class="section-head">
     <h2 id="workforce-title">How much does NYC spend on its workforce?</h2>
     <p class="section-intro">
@@ -81,7 +86,7 @@ const latestRows = byAgency.agencies.flatMap((a) => {
     Couldn't load agency data. Check your connection and pick the agency again.
   </p>
 
-  <div class="stat-grid" aria-live="polite">
+  <div class="stat-grid stat-grid-3" aria-live="polite">
     <StatCard
       name="total"
       label={`Total payroll, FY${latest.fiscalYear}`}
@@ -96,6 +101,7 @@ const latestRows = byAgency.agencies.flatMap((a) => {
       change={yearChange(years, (y) => y.activeJune30, count)}
       context={peopleContext(latest)}
     />
+    <StatCard name="real" label={realCard[0]} value={realCard[1]} context={realCard[2]} />
   </div>
 
   <figure class="chart-frame" id="agency-ranking" aria-labelledby="agency-ranking-title" data-rows={JSON.stringify(latestRows)}>
@@ -124,12 +130,14 @@ const latestRows = byAgency.agencies.flatMap((a) => {
       <div>
         <h3 class="chart-title" id="workforce-chart-title">Payroll by fiscal year</h3>
         <p class="chart-subtitle">
-          <span data-subject>All city employees in the payroll data, {range}.</span> Dollars not adjusted for inflation.
+          <span data-subject>All city employees in the payroll data, {range}.</span>{' '}
+          <span data-dollars-note>Dollars as paid, not adjusted for inflation.</span>
         </p>
       </div>
       <div class="toggle" role="group" aria-label="Chart units">
-        <button type="button" class="toggle-btn" data-mode="dollars" aria-pressed="true">Show as $</button>
-        <button type="button" class="toggle-btn" data-mode="share" aria-pressed="false">Show as % of total</button>
+        <button type="button" class="toggle-btn" data-mode="dollars" aria-pressed="true">$ as paid</button>
+        <button type="button" class="toggle-btn" data-mode="real" aria-pressed="false">$ after inflation</button>
+        <button type="button" class="toggle-btn" data-mode="share" aria-pressed="false">% of total</button>
       </div>
     </div>
 
@@ -157,15 +165,16 @@ const latestRows = byAgency.agencies.flatMap((a) => {
                 <th scope="col" data-pay="overtime">Overtime</th>
                 <th scope="col" data-pay="other">Other pay</th>
                 <th scope="col" data-total-head>Total</th>
+                <th scope="col" data-real-head>Total in FY{cpi.baseFiscalYear} dollars</th>
                 <th scope="col">Active June 30</th>
                 <th scope="col">People paid</th>
               </tr>
             </thead>
-            <tbody data-table-body set:html={payrollRowsHtml(years)} />
+            <tbody data-table-body set:html={payrollRowsHtml(years, cpi)} />
           </table>
         </div>
       </details>
-      <a class="download-link" href={payrollCsvHref(years)} download="nyc-payroll-by-fiscal-year.csv">Download CSV</a>
+      <a class="download-link" href={payrollCsvHref(years, cpi)} download="nyc-payroll-by-fiscal-year.csv">Download CSV</a>
     </div>
   </figure>
 
@@ -196,6 +205,20 @@ const latestRows = byAgency.agencies.flatMap((a) => {
         choices.
       </p>
       <p>
+        <strong>Inflation.</strong> A dollar paid in FY{years[0].fiscalYear} bought more than a dollar does now,
+        so payroll rising doesn't by itself mean the city pays its people more. "After inflation" figures
+        restate each year's pay in FY{cpi.baseFiscalYear} dollars using the Consumer Price Index for the
+        New York-Newark-Jersey City area (CPI-U, all items), averaged over each fiscal year's months.
+        {shortCpiYears.length > 0 && (
+          <>
+            {' '}{shortCpiYears.map(([fy, n]) => `FY${fy} averages ${n} months`).join('; ')}: the Bureau of
+            Labor Statistics didn't publish the rest (it skipped October 2025 during the federal shutdown).
+          </>
+        )}
+        {' '}Local prices are a fair yardstick for what a paycheck buys here. They aren't the only one: city
+        wages are set in labor contracts, which don't track prices month to month.
+      </p>
+      <p>
         <strong>Pay, not the full cost of a worker.</strong> These totals are gross pay. They don't include
         pensions, health insurance or other benefits, which the city pays for separately.
       </p>
@@ -214,10 +237,13 @@ const latestRows = byAgency.agencies.flatMap((a) => {
       Source updated {date(dataset.sourceUpdatedAt)} · Last refreshed here {date(snapshot.refreshedAt)}.
     </p>
     <p>
+      Inflation: <a href={cpi.url}>{cpi.name}</a> from the Bureau of Labor Statistics (series {cpi.series}).
+    </p>
+    <p>
       Looking for all city spending, not just payroll? <a href="https://www.checkbooknyc.com/">Checkbook NYC</a> covers contracts, vendors and every other kind of city spending. This page focuses on payroll.
     </p>
     <ul class="caveats">
-      <li>Dollars are nominal: not adjusted for inflation.</li>
+      <li>Dollars are as paid (not adjusted for inflation) except where marked “after inflation” or “in FY{cpi.baseFiscalYear} dollars”.</li>
       <li>Base salary in the source data is a snapshot as of the end of each fiscal year (June 30). This page uses pay actually received during the year instead.</li>
       <li>Negative pay adjustments, such as refunds and corrections, are included in the totals.</li>
       <li>Names of NYPD and District Attorney employees are redacted in the source data, but their pay is included in these totals.</li>
@@ -233,6 +259,7 @@ const latestRows = byAgency.agencies.flatMap((a) => {
   import { payrollRowsHtml } from '../../lib/payroll-table.js';
   import { yearChange } from '../../lib/year-change.js';
   import { rankAgencies, agencyRankingHtml, TOP_N } from '../../lib/agency-ranking.js';
+  import { changeSince, realChangeCard } from '../../lib/payroll-inflation.js';
 
   type Year = (typeof bundledByYear.years)[number];
   type Agency = { id: string; label: string; years: Year[] };
@@ -257,17 +284,27 @@ const latestRows = byAgency.agencies.flatMap((a) => {
 
   if (section && frame) {
     const snapshot: { years: Year[] } = { years: JSON.parse(section.dataset.years ?? '[]') };
-    const chart = mountWorkforceChart(frame, snapshot.years);
+    const cpi = JSON.parse(section.dataset.cpi ?? '{}');
+    const chart = mountWorkforceChart(frame, snapshot.years, 'NYC payroll', cpi);
+    const dollarsNote = section.querySelector<HTMLElement>('[data-dollars-note]')!;
+    const DOLLARS_NOTES: Record<string, string> = {
+      dollars: 'Dollars as paid, not adjusted for inflation.',
+      real: `Adjusted for inflation: every year in FY${cpi.baseFiscalYear} dollars, using NYC-area prices.`,
+      share: 'Each pay type as a share of that year’s total.'
+    };
+    chart.onModeChange((mode: string) => (dollarsNote.textContent = DOLLARS_NOTES[mode]));
     const select = section.querySelector<HTMLSelectElement>('#workforce-agency')!;
     const subject = section.querySelector<HTMLElement>('[data-subject]')!;
     const tbody = section.querySelector<HTMLElement>('[data-table-body]')!;
     const tableRegion = section.querySelector<HTMLElement>('.table-scroll')!;
     const totalHead = section.querySelector<HTMLElement>('[data-total-head]')!;
+    const realHead = section.querySelector<HTMLElement>('[data-real-head]')!;
     const csvLink = section.querySelector<HTMLAnchorElement>('.download-link')!;
     const loadError = section.querySelector<HTMLElement>('[data-agency-error]')!;
     const cards = {
       total: section.querySelector<HTMLElement>('[data-stat="total"]')!,
-      people: section.querySelector<HTMLElement>('[data-stat="people"]')!
+      people: section.querySelector<HTMLElement>('[data-stat="people"]')!,
+      real: section.querySelector<HTMLElement>('[data-stat="real"]')!
     };
     const cityLatest = snapshot.years[snapshot.years.length - 1];
     const ranking = section.querySelector<HTMLElement>('#agency-ranking')!;
@@ -341,9 +378,10 @@ const latestRows = byAgency.agencies.flatMap((a) => {
     function updateTableAndCsv() {
       const { years, agency } = current;
       const keys = selectedPay();
-      tbody.innerHTML = payrollRowsHtml(years, keys);
+      tbody.innerHTML = payrollRowsHtml(years, cpi, keys);
       totalHead.textContent = allPay() ? 'Total' : 'Total, selected pay';
-      csvLink.href = payrollCsvHref(years, keys, agency?.label);
+      realHead.textContent = `${allPay() ? 'Total' : 'Selected pay'} in FY${cpi.baseFiscalYear} dollars`;
+      csvLink.href = payrollCsvHref(years, cpi, keys, agency?.label);
       const parts = ['nyc-payroll', agency?.id, allPay() ? undefined : keys.join('-'), 'by-fiscal-year'];
       csvLink.download = `${parts.filter(Boolean).join('-')}.csv`;
     }
@@ -352,6 +390,9 @@ const latestRows = byAgency.agencies.flatMap((a) => {
       const { years, agency } = current;
       const last = years[years.length - 1];
       const keys = selectedPay();
+      const what = allPay() ? (agency ? `${agency.label} payroll` : 'Payroll') : payLabel(keys);
+      setCard(cards.real, realChangeCard(changeSince(years, cpi, (y: Year) => keys.reduce((acc, k) => acc + y[k], 0)), what));
+
       setChange(cards.total, yearChange(years, (y) => keys.reduce((acc, k) => acc + y[k], 0), money));
 
       if (allPay()) {

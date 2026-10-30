@@ -1,0 +1,59 @@
+---
+/*
+ * Shell shared by the City Payroll Spending views: page heading, the section
+ * cards, the section in the default slot and the pager. Each view is its own
+ * page in src/pages/city-payroll/ with its own URL. Pages render on demand
+ * from the payroll data the hourly cron keeps in KV (src/lib/server/payroll.js).
+ */
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+import SectionNav from '../SectionNav.astro';
+import SectionPager from '../SectionPager.astro';
+import { date } from '../../lib/format.js';
+
+// Add a section here and a page in src/pages/city-payroll/ to add a view.
+const SECTIONS = [
+  {
+    id: 'spending',
+    href: '/city-payroll/',
+    label: 'How much the city spends',
+    blurb: 'Total payroll by year and agency, as paid and after inflation.'
+  },
+  {
+    id: 'overtime',
+    href: '/city-payroll/overtime/',
+    label: 'Who depends on overtime?',
+    blurb: 'Which agencies lean on overtime, and the most one person was paid.'
+  }
+];
+
+interface Props {
+  section: 'spending' | 'overtime';
+  description: string;
+  byYear: { refreshedAt: string; dataset: { sourceUpdatedAt: string | null } };
+}
+
+const { section, description, byYear } = Astro.props;
+const current = SECTIONS.find((s) => s.id === section)!;
+// Production only: in dev a cached page hides edits for an hour.
+if (import.meta.env.PROD) Astro.response.headers.set('Cache-Control', 'public, max-age=3600');
+---
+
+<DashboardLayout
+  title={section === 'spending' ? 'City Payroll Spending' : `${current.label} | City Payroll Spending`}
+  description={description}
+  path={current.href}
+  category="City Government"
+  lastRefreshed={date(byYear.refreshedAt)}
+  dataUpdated={byYear.dataset.sourceUpdatedAt ?? undefined}
+>
+  <header class="page-head">
+    <h1>City Payroll Spending</h1>
+    <p>What it costs to pay the people who run the city, in plain numbers: salaries, overtime and other pay across every agency.</p>
+  </header>
+
+  <SectionNav sections={SECTIONS} current={section} label="City Payroll Spending sections" />
+
+  <slot />
+
+  <SectionPager sections={SECTIONS} current={section} />
+</DashboardLayout>

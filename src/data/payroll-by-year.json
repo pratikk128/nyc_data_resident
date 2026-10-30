@@ -5,7 +5,7 @@
     "url": "https://data.cityofnewyork.us/City-Government/Citywide-Payroll-Data-Fiscal-Year-/k397-673e",
     "sourceUpdatedAt": "2026-10-29"
   },
-  "refreshedAt": "2026-10-29",
+  "refreshedAt": "2026-10-30",
   "query": {
     "$select": "fiscal_year, count(*) AS employees, sum(case(leave_status_as_of_june_30 = 'ACTIVE', 1, true, 0)) AS active, sum(regular_gross_paid) AS regular, sum(total_ot_paid) AS overtime, sum(total_other_pay) AS other",
     "$group": "fiscal_year",
@@ -14,8 +14,33 @@
   "checks": {
     "latestYearLooksComplete": true,
     "warnings": [
-      "FY2026 has no agency names; 158 agencies were named from their payroll_number."
+      "FY2026 has no agency names; 158 agencies were named from their payroll_number.",
+      "FY2026 CPI averages 11 months; BLS skipped the rest."
     ]
+  },
+  "cpi": {
+    "series": "CUURS12ASA0",
+    "name": "Consumer Price Index for All Urban Consumers (CPI-U), New York-Newark-Jersey City",
+    "url": "https://data.bls.gov/timeseries/CUURS12ASA0",
+    "baseFiscalYear": 2026,
+    "index": {
+      "2014": 258.864,
+      "2015": 260.117,
+      "2016": 261.619,
+      "2017": 266.234,
+      "2018": 270.966,
+      "2019": 275.769,
+      "2020": 280.645,
+      "2021": 286.438,
+      "2022": 300.896,
+      "2023": 316.811,
+      "2024": 327.676,
+      "2025": 340.469,
+      "2026": 352.956
+    },
+    "shortYears": {
+      "2026": 11
+    }
   },
   "years": [
     {
