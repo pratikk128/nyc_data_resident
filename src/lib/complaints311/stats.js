@@ -8,10 +8,10 @@
  *   { total, types: { KEY: n }, locations: { group: n }, status: { open, closed } }
  * with complaint types keyed by typeKey() and location types by locationGroup().
  */
-import { typeKey, typeLabel, locationGroup, OTHER_LOCATION } from "./labels.js";
+import { typeKey, typeLabel, locationGroup, outcomeKey, OTHER_LOCATION } from "./labels.js";
 import {
   STATUS_CLOSED, MIN_IMMEDIATE_REQUESTS, MIN_LOCAL_COUNT, ABOVE_RATIO, BELOW_RATIO,
-  TOP_LOCATION_TYPES, TOP_COMPLAINT_TYPES, GRID_CELLS_PER_DEGREE, DISTRIBUTION_QUANTILES
+  TOP_LOCATION_TYPES, TOP_COMPLAINT_TYPES, TOP_OUTCOME_TYPES, GRID_CELLS_PER_DEGREE, DISTRIBUTION_QUANTILES
 } from "./config.js";
 import { inNyc } from "./location-input.js";
 
@@ -116,6 +116,36 @@ export function topTypes(types, n = TOP_COMPLAINT_TYPES) {
 export function openShare(status) {
   const total = (status?.open ?? 0) + (status?.closed ?? 0);
   return total ? status.open / total : 0;
+}
+
+// ---------- How the city fixes it ----------
+
+/*
+ * timeRows: closeTimeParams() rows, [{ complaint_type, n, days }] (median whole days to close).
+ * resolutionRows: resolutionCountParams() rows, [{ complaint_type, resolution_description, n }].
+ * → the `n` types with the most closed requests (at least minCount), most first:
+ *   [{ key, closed, days, acted, none, unclear }], outcomes as counts.
+ * A type spelled two ways can't have its medians merged, so it takes the median of its commonest spelling.
+ */
+export function closedOutcomes(timeRows, resolutionRows, { n = TOP_OUTCOME_TYPES, minCount = MIN_LOCAL_COUNT } = {}) {
+  const byType = new Map();
+  const get = (raw) => {
+    const key = typeKey(raw);
+    if (!byType.has(key)) byType.set(key, { key, closed: 0, days: null, top: 0, acted: 0, none: 0, unclear: 0 });
+    return byType.get(key);
+  };
+  for (const row of timeRows) {
+    const t = get(row.complaint_type);
+    const count = Number(row.n || 0);
+    t.closed += count;
+    if (count > t.top && row.days != null) { t.top = count; t.days = Number(row.days); }
+  }
+  for (const row of resolutionRows) get(row.complaint_type)[outcomeKey(row.resolution_description)] += Number(row.n || 0);
+  return [...byType.values()]
+    .filter((t) => t.closed >= minCount)
+    .sort((a, b) => b.closed - a.closed || a.key.localeCompare(b.key))
+    .slice(0, n)
+    .map(({ top, ...t }) => t);
 }
 
 // ---------- Location types ----------

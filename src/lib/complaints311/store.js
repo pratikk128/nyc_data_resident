@@ -4,7 +4,7 @@
  * section subscribes and redraws its own part, so a slow query only holds up
  * the sections that need it.
  *
- * state.immediate / .neighborhood / .zip / .baseline / .distribution are each
+ * state.immediate / .neighborhood / .zip / .baseline / .distribution / .outcomes are each
  *   { status: "idle" | "loading" | "ready" | "error", data, error }
  * and state.borough is the borough the comparisons use (from the geocoder, the
  * ZIP, or the most common borough among nearby requests).
@@ -28,7 +28,8 @@ export const state = {
   neighborhood: /** @type {Slice} */ (IDLE),
   zip: /** @type {Slice} */ (IDLE),
   baseline: /** @type {Slice} */ (IDLE),
-  distribution: /** @type {Slice} */ (IDLE)
+  distribution: /** @type {Slice} */ (IDLE),
+  outcomes: /** @type {Slice} */ (IDLE)
 };
 
 const listeners = new Set();
@@ -84,7 +85,7 @@ export function load() {
   controller?.abort();
   controller = new AbortController();
   const loc = state.location;
-  patch({ immediate: IDLE, neighborhood: IDLE, zip: IDLE, baseline: IDLE, distribution: IDLE, borough: loc?.borough ?? null });
+  patch({ immediate: IDLE, neighborhood: IDLE, zip: IDLE, baseline: IDLE, distribution: IDLE, outcomes: IDLE, borough: loc?.borough ?? null });
   if (!loc) return;
 
   const w = encodeURIComponent(state.window);
@@ -110,6 +111,7 @@ export function load() {
     track("immediate", `/api/311/area?${q}&area=immediate`, gen);
     track("neighborhood", `/api/311/area?${q}&area=neighborhood`, gen)
       .then((data) => loadBaseline(data?.topBorough)); // no-op when the borough was already known
+    track("outcomes", `/api/311/outcomes?${q}`, gen);
   };
 
   if (loc.kind === "zip") {
@@ -118,7 +120,7 @@ export function load() {
       else if (z && gen === generation) {
         // Requests name the ZIP but none has a map location, so there's no spot to measure from.
         const error = new LoadError(404, `None of the requests that mention ZIP code ${loc.zip} have a map location. Try an address or street in it instead.`);
-        patch({ immediate: { status: "error", data: null, error }, neighborhood: { status: "error", data: null, error } });
+        patch({ immediate: { status: "error", data: null, error }, neighborhood: { status: "error", data: null, error }, outcomes: { status: "error", data: null, error } });
       }
     });
     return;

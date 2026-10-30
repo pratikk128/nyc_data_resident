@@ -10,6 +10,7 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
 import LocationSearch from '../../components/complaints-311/LocationSearch.astro';
 import OverviewSection from '../../components/complaints-311/OverviewSection.astro';
 import AboveAverageSection from '../../components/complaints-311/AboveAverageSection.astro';
+import OutcomesSection from '../../components/complaints-311/OutcomesSection.astro';
 import LocationTypesSection from '../../components/complaints-311/LocationTypesSection.astro';
 import HeatmapSection from '../../components/complaints-311/HeatmapSection.astro';
 import AboutSection from '../../components/complaints-311/AboutSection.astro';
@@ -53,6 +54,7 @@ const title = initialLabel ? `311 complaints ${location?.kind === 'zip' ? `aroun
   <LocationSearch initialLabel={initialLabel} initialPrefix={location?.kind === 'point' ? 'Showing results near:' : 'Showing results for:'} />
   <OverviewSection />
   <AboveAverageSection />
+  <OutcomesSection />
   <LocationTypesSection />
   <HeatmapSection />
   <AboutSection meta={meta} />

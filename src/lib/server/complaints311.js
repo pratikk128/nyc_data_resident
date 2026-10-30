@@ -17,15 +17,16 @@ import {
 } from "../complaints311/config.js";
 import {
   windowStart, windowChunks, nycToday, circle, typeCountParams, locationTypeCountParams, statusCountParams,
-  boroughCountParams, zipSummaryParams, baselineParams, gridCountParams, heatmapParams
+  boroughCountParams, zipSummaryParams, baselineParams, gridCountParams, heatmapParams, closeTimeParams,
+  resolutionCountParams
 } from "../complaints311/soql.js";
-import { typeCounts, locationCounts, statusCounts, sum, circleDistributions } from "../complaints311/stats.js";
+import { typeCounts, locationCounts, statusCounts, sum, circleDistributions, closedOutcomes } from "../complaints311/stats.js";
 import { typeKey, locationGroup } from "../complaints311/labels.js";
 
 export const AREA_TTL = 6 * 3600;      // areas and ZIPs: the data updates once a day
 export const BASELINE_TTL = 3600;      // the baseline API response (the value itself lives in KV)
 const BASELINE_TIMEOUT_MS = 240000;    // ~1 minute each on a good day
-const HEATMAP_TIMEOUT_MS = 45000;      // a few seconds warm, but a cold ½ mile query can pass the default 20
+const HEATMAP_TIMEOUT_MS = 45000;      // heat map and outcomes: a few seconds warm, but a cold ½ mile query can pass the default 20
 
 // 311 updates daily, and every window ends today.
 const CADENCE = "daily";
@@ -220,6 +221,29 @@ export async function heatmapCells(lat, lon, windowKey, types = []) {
     center: { lat: roundCoord(lat), lon: roundCoord(lon) }, radius: RADII.neighborhood,
     total: cells.reduce((a, c) => a + c[2], 0),
     cells
+  };
+}
+
+/*
+ * "How the city fixes it": for the ½ mile's most common closed complaint types, the
+ * median days to close and what the city's notes say it did (stats.js closedOutcomes()).
+ * The outcome query groups by the full note text, so it's the slower of the two (~10 s cold).
+ */
+export async function outcomeSummary(lat, lon, windowKey) {
+  const since = windowStart(windowKey);
+  const started = Date.now();
+  const where = circle(roundCoord(lat), roundCoord(lon), RADII.neighborhood);
+  const opts = { timeoutMs: HEATMAP_TIMEOUT_MS };
+  const [times, resolutions] = await Promise.all([
+    soql(DATASET_ID, closeTimeParams(since, where), opts),
+    soql(DATASET_ID, resolutionCountParams(since, where), opts)
+  ]);
+  const types = closedOutcomes(times, resolutions);
+  console.log(`311 outcomes ${windowKey}: ${Date.now() - started} ms, ${resolutions.length} notes`);
+  return {
+    window: windowKey, since, through: today(),
+    center: { lat: roundCoord(lat), lon: roundCoord(lon) }, radius: RADII.neighborhood,
+    types
   };
 }
 

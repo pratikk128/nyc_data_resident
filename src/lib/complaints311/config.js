@@ -23,7 +23,8 @@ export const FIELDS = {
   latitude: "latitude",
   longitude: "longitude",
   location: "location",          // point; within_circle() skips rows without one
-  status: "status"               // Closed, Open, In Progress, Assigned, Pending, Started, Unspecified
+  status: "status",              // Closed, Open, In Progress, Assigned, Pending, Started, Unspecified
+  resolution: "resolution_description" // the agency's note on what it did; long boilerplate, sorted by outcomeKey()
 };
 
 // Radius in meters around the chosen spot.
@@ -80,6 +81,9 @@ export const GRID_CHUNK_MONTHS = 3;
 // Heat map: requests counted per 1/HEATMAP_CELLS_PER_DEGREE degree cell (about 55 m × 42 m)
 // within the ½ mile circle, so the browser gets a couple of thousand weighted points.
 export const HEATMAP_CELLS_PER_DEGREE = 2000;
+// "How the city fixes it": the ½ mile's most common types with at least MIN_LOCAL_COUNT closed requests.
+export const TOP_OUTCOME_TYPES = 6;
+
 // The heat map filter: at most this many complaint types at once (the area's top 10 are offered).
 export const MAX_HEATMAP_TYPES = 10;
 

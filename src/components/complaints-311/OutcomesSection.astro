@@ -1,0 +1,40 @@
+---
+/*
+ * "How the city fixes it": for the ½ mile's most common closed complaint types,
+ * how long they usually take to close and what the city's closing note says it
+ * did (fixed or ticketed, found nothing, or no clear answer). Spots and ZIPs only,
+ * like the map. Loads on its own from /api/311/outcomes.
+ */
+---
+
+<section class="dash-section c311-fixes" id="fixes" aria-labelledby="fixes-title" data-fixes hidden>
+  <header class="section-head">
+    <h2 id="fixes-title">How the city fixes it</h2>
+    <p class="section-intro">What happened to the most common requests within ½ mile once the city closed them.</p>
+  </header>
+  <div class="c311-fixes-body" data-fixes-body aria-live="polite" aria-busy="false"></div>
+</section>
+
+<script>
+  import { subscribe } from '../../lib/complaints311/store.js';
+  import { outcomesHtml, skeletonHtml, errorHtml, LOADING_TEXT } from '../../lib/complaints311/render.js';
+  import { WINDOWS } from '../../lib/complaints311/config.js';
+
+  const section = document.querySelector<HTMLElement>('[data-fixes]')!;
+  const body = section.querySelector<HTMLElement>('[data-fixes-body]')!;
+  let drawn: unknown = null;
+
+  subscribe((s) => {
+    const o = s.outcomes;
+    section.hidden = !s.location || s.location.kind === 'borough' || o.status === 'idle';
+    if (section.hidden) { drawn = null; return; }
+    body.setAttribute('aria-busy', String(o.status === 'loading'));
+    const key = o.status === 'ready' ? o.data : o.status === 'error' ? o.error : 'loading';
+    if (key === drawn) return;
+    drawn = key;
+
+    if (o.status === 'error') { body.innerHTML = errorHtml(o.error); return; }
+    if (o.status !== 'ready') { body.innerHTML = skeletonHtml(4, { blocks: 0, text: LOADING_TEXT.outcomes }); return; }
+    body.innerHTML = `<p class="c311-scope">Closed requests ${WINDOWS[s.window].phrase}.</p>` + outcomesHtml(o.data.types);
+  });
+</script>

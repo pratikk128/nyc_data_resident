@@ -1132,6 +1132,10 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
   --c311-less: var(--green);
   --c311-less-tint: var(--green-tint);
   --c311-less-deep: var(--green-deep);
+  /* How the city fixes it: each row also says the shares in words, so color is never the only cue. */
+  --c311-fix-acted: var(--green-deep);
+  --c311-fix-none: var(--red);
+  --c311-fix-unclear: var(--c311-place-other);
 }
 
 [class*="c311-"][hidden] { display: none !important; }
@@ -1390,6 +1394,20 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
 .c311-share-key-val { font-weight: 700; font-variant-numeric: tabular-nums; }
 .c311-share-key-cmp { grid-column: 2 / -1; font-size: .8125rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 .c311-places-body .c311-table-toggle { margin-top: var(--space-4); }
+
+/* ---------- How the city fixes it ---------- */
+.c311-fix-acted { background: var(--c311-fix-acted); }
+.c311-fix-none { background: var(--c311-fix-none); }
+.c311-fix-unclear { background: var(--c311-fix-unclear); }
+.c311-fix-key { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); margin-top: var(--space-4); padding: 0; list-style: none; font-size: .875rem; }
+.c311-fix-key li { display: flex; align-items: center; gap: var(--space-2); }
+.c311-fix { display: grid; gap: var(--space-4); margin-top: var(--space-4); padding: 0; list-style: none; }
+.c311-fix-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 var(--space-3); font-weight: 700; }
+.c311-fix-days { font-weight: 400; color: var(--ink-soft); font-size: .9375rem; }
+.c311-fix-bar { display: flex; gap: 2px; height: 10px; margin: var(--space-1) 0; border-radius: 5px; overflow: hidden; }
+.c311-fix-bar > span { flex: 0 1 0; min-width: 2px; }
+.c311-fix-text { font-size: .875rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.c311-fix-text strong { color: var(--ink); }
 
 /* ---------- Map ---------- */
 .c311-map-filter { margin: var(--space-5) 0 0; padding: 0; border: 0; }

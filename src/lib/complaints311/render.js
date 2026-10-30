@@ -1,12 +1,12 @@
 /*
  * HTML for the 311 dashboard's sections: overview cards, the above/below-average
- * list and the location-type share bar. Plain strings (no framework), drawn by the
+ * list, the location-type share bar and "How the city fixes it". Plain strings (no framework), drawn by the
  * section scripts from store.js state.
  * Every chart has a text version: an aria-label summary and a table.
  */
 import { count, percent } from "../format.js";
 import { ratioText, topTypes, openShare, cityRank, cityRankText } from "./stats.js";
-import { typeLabel, LOCATION_GROUPS } from "./labels.js";
+import { typeLabel, LOCATION_GROUPS, OUTCOMES } from "./labels.js";
 import { MIN_LOCAL_COUNT, ABOVE_RATIO, BELOW_RATIO, MAX_COMPARE_SHOWN } from "./config.js";
 
 export const escape = (str) => String(str ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -23,7 +23,8 @@ export const LOADING_TEXT = {
   rank: "Comparing with the rest of NYC…",
   area: "Counting requests near you…",
   baseline: "Working out the borough and city averages…",
-  baselineSlow: "Working out the borough and city averages. The first time each day this takes about a minute."
+  baselineSlow: "Working out the borough and city averages. The first time each day this takes about a minute.",
+  outcomes: "Reading how the city closed requests near you…"
 };
 
 export function skeletonHtml(lines = 3, { blocks = 1, text = "" } = {}) {
@@ -207,4 +208,38 @@ export function locationShareHtml(rows, names, { id, compare = false }) {
     `<li>${escape(r.key)}: ${series.map((s) => `${escape(s.name)} ${pct(r[s.key] ?? 0)}`).join(", ")}</li>`).join("") + `</ul>`;
 
   return bar + key + srList + table;
+}
+
+// ---------- How the city fixes it ----------
+
+// Median whole days (rounded down) → "Usually closed within a day" / "in about 3 days".
+export function closeTimeText(days) {
+  if (days == null) return "";
+  if (days < 1) return "Usually closed within a day";
+  return `Usually closed in about ${count(days)} day${days === 1 ? "" : "s"}`;
+}
+
+/*
+ * types: closedOutcomes() output. One row per complaint type: how long it usually
+ * takes to close, a bar split by outcome, and the outcome shares in words.
+ */
+export function outcomesHtml(types) {
+  if (!types.length) return `<p class="c311-empty">Not enough closed requests nearby to say.</p>`;
+  const key = `<ul class="c311-fix-key" aria-hidden="true">` + OUTCOMES.map((o) =>
+    `<li><span class="swatch c311-fix-${o.key}"></span>${escape(o.label)}</li>`).join("") + `</ul>`;
+  const rows = types.map((t) => {
+    const total = t.acted + t.none + t.unclear || 1;
+    const share = (k) => t[k] / total;
+    return (
+      `<li>` +
+        `<p class="c311-fix-head"><span class="c311-fix-name">${escape(typeLabel(t.key))}</span>` +
+          `<span class="c311-fix-days">${escape(closeTimeText(t.days))}</span></p>` +
+        `<span class="c311-fix-bar" aria-hidden="true">` + OUTCOMES.filter((o) => t[o.key] > 0).map((o) =>
+          `<span class="c311-fix-${o.key}" style="flex-grow:${share(o.key).toFixed(4)}"></span>`).join("") + `</span>` +
+        `<p class="c311-fix-text"><strong>${pct(share("acted"))} fixed or ticketed</strong> · ` +
+          `${pct(share("none"))} nothing found or no action · ${count(t.closed)} closed</p>` +
+      `</li>`
+    );
+  }).join("");
+  return key + `<ol class="c311-fix">${rows}</ol>`;
 }

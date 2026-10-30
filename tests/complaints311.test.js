@@ -9,9 +9,10 @@ import assert from "node:assert/strict";
 import {
   shares, ratio, compareShares, comparisonArea, typeCounts, locationCounts, statusCounts,
   topTypes, openShare, locationComparison, ratioText,
-  circleDistributions, cityRank, cityRankText
+  circleDistributions, cityRank, cityRankText, closedOutcomes
 } from "../src/lib/complaints311/stats.js";
-import { typeKey, typeLabel, locationGroup, OTHER_LOCATION } from "../src/lib/complaints311/labels.js";
+import { typeKey, typeLabel, locationGroup, outcomeKey, OTHER_LOCATION } from "../src/lib/complaints311/labels.js";
+import { closeTimeText } from "../src/lib/complaints311/render.js";
 import {
   parseLocationInput, isNycZip, prettyStreet, placeLabel, locationFromParams, locationToParams
 } from "../src/lib/complaints311/location-input.js";
@@ -401,4 +402,52 @@ test("comparisonView falls back to the ½ mile and says why when the ¼ mile fai
   const low = comparisonView({ ...state, immediate: ready({ ...area, total: 10 }) });
   assert.equal(low.immediateFailed, false);
   assert.equal(low.immediateOk, false);
+});
+
+// ---------- How the city fixes it ----------
+
+test("outcomeKey sorts agency closing notes into fixed, nothing found or unclear", () => {
+  const cases = [
+    ["The New York City Police Department responded to the complaint and their investigation determined that a violation of law occurred. Police issued a summons in response to the complaint.", "acted"],
+    ["The New York City Police Department responded to the complaint and their investigation determined that no criminal violation existed. The condition was corrected without the need to issue a summons or effect an arrest.", "acted"],
+    ["HPD inspected this condition so the complaint has been closed. Violations were issued.", "acted"],
+    ["The Department of Sanitation cleaned the location.", "acted"],
+    ["The New York City Police Department responded to the complaint and with the information available observed no evidence of a criminal violation at that time.", "none"],
+    ["The Department of Environmental Protection (DEP) didn't observe a violation of the NYC Air or Noise Code at the time of inspection and couldn't issue a summons.", "none"],
+    ["The Department of Housing Preservation and Development inspected the following conditions. No violations were issued. The complaint has been closed.", "none"],
+    ["The mobile outreach response team went to the location provided but could not find the individual that you reported.", "none"],
+    ["An HPD Inspector was not able to gain access to inspect this complaint.", "unclear"],
+    ["The Department of Environmental Protection determined that this complaint is a duplicate of a previously filed complaint.", "unclear"],
+    ["N/A", "unclear"],
+    [undefined, "unclear"]
+  ];
+  for (const [text, want] of cases) assert.equal(outcomeKey(text), want, text);
+});
+
+test("closedOutcomes merges spellings, keeps the commonest spelling's median and drops small types", () => {
+  const times = [
+    { complaint_type: "Noise - Residential", n: "90", days: "0" },
+    { complaint_type: "NOISE - RESIDENTIAL", n: "10", days: "4" },
+    { complaint_type: "HEAT/HOT WATER", n: "50", days: "2" },
+    { complaint_type: "Rodent", n: "5", days: "9" }
+  ];
+  const notes = [
+    { complaint_type: "Noise - Residential", resolution_description: "Police issued a summons in response to the complaint.", n: "20" },
+    { complaint_type: "Noise - Residential", resolution_description: "observed no criminal violation upon their arrival", n: "70" },
+    { complaint_type: "NOISE - RESIDENTIAL", n: "10" },
+    { complaint_type: "HEAT/HOT WATER", resolution_description: "Violations were issued.", n: "50" }
+  ];
+  const rows = closedOutcomes(times, notes, { n: 5, minCount: 20 });
+  assert.deepEqual(rows, [
+    { key: "NOISE - RESIDENTIAL", closed: 100, days: 0, acted: 20, none: 70, unclear: 10 },
+    { key: "HEAT/HOT WATER", closed: 50, days: 2, acted: 50, none: 0, unclear: 0 }
+  ]);
+  assert.equal(closedOutcomes(times, notes, { n: 1, minCount: 20 }).length, 1);
+});
+
+test("closeTimeText reads the median in plain words", () => {
+  assert.equal(closeTimeText(0), "Usually closed within a day");
+  assert.equal(closeTimeText(1), "Usually closed in about 1 day");
+  assert.equal(closeTimeText(9), "Usually closed in about 9 days");
+  assert.equal(closeTimeText(null), "");
 });

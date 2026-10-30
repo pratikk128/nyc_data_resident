@@ -149,3 +149,33 @@ export function locationGroup(raw) {
   const match = OVERRIDES.find((g) => g.test.test(value)) ?? LOCATION_GROUPS.find((g) => g.test.test(value));
   return match?.key ?? OTHER_LOCATION;
 }
+
+/*
+ * What the city did, from resolution_description: agencies write long boilerplate
+ * ("The New York City Police Department responded to the complaint and ..."), so each
+ * note is sorted into one of three outcomes by the phrases below:
+ *   acted    fixed, cleaned, repaired, or a summons or violation issued
+ *   none     the agency found no problem or no violation, or said no action was needed
+ *   unclear  everything else: no note, a duplicate, couldn't get in, referred elsewhere
+ * The checks run in order and the first match wins, since some notes use both kinds of words
+ * ("didn't observe a violation ... couldn't issue a summons").
+ */
+export const OUTCOMES = [
+  { key: "acted", label: "Fixed or ticketed" },
+  { key: "none", label: "Nothing found or no action" },
+  { key: "unclear", label: "No clear answer" }
+];
+
+const OUTCOME_TESTS = [
+  ["none", /\bno violations? (was|were) issued|couldn't issue|could not issue/i],
+  ["acted", /without the need to issue/i], // NYPD: "no criminal violation existed. The condition was corrected without ..."
+  ["unclear", /(unable|not able) to (gain|get) (access|entry)|could not gain access|unable to complete the inspection/i],
+  ["acted", /\bissued (a |an )?(summons|notice of violation|corrective action|office of administrative)|\bpolice issued\b|\bviolations? (was|were) issued\b|\bpled guilty\b|\bhearing was scheduled\b/i],
+  ["acted", /\b(repaired|cleaned|collected|removed|towed|shut)\b|\bconditions? (was|were) corrected\b|\bhad been restored\b|\btook action\b|\bwork necessary to correct\b|\baccepted assistance\b|\bmailed you\b/i],
+  ["none", /\bno (evidence|criminal violation|violations?|encampment|condition)\b|\bnot necessary\b|\bno further action\b|\bcould(n't| not) find\b|\bdid not violate\b|\bdid(n't| not) observe\b|\bmeets its standards\b|\btemporary condition\b|\bdid not accept\b|\bdoesn't meet\b|\bnot to be meeting\b|\b(could not|unable to) locate\b/i]
+];
+
+export function outcomeKey(resolution) {
+  const text = String(resolution ?? "");
+  return OUTCOME_TESTS.find(([, test]) => test.test(text))?.[0] ?? "unclear";
+}

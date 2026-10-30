@@ -8,7 +8,7 @@
  * coordinates (about 2% of requests) have no `location`, so within_circle()
  * leaves them out on its own; a separate IS NOT NULL test would only slow it down.
  */
-import { FIELDS as F, WINDOWS, UNSPECIFIED_BOROUGH, GRID_CELLS_PER_DEGREE, HEATMAP_CELLS_PER_DEGREE } from "./config.js";
+import { FIELDS as F, WINDOWS, UNSPECIFIED_BOROUGH, STATUS_CLOSED, GRID_CELLS_PER_DEGREE, HEATMAP_CELLS_PER_DEGREE } from "./config.js";
 import { typeKey } from "./labels.js";
 import { nycToday } from "../format.js";
 
@@ -91,6 +91,31 @@ export function statusCountParams(since, where) {
     $where: area(since, where),
     $group: F.status,
     $limit: "100"
+  };
+}
+
+/*
+ * "How the city fixes it": closed requests only. A few rows are closed before they were
+ * made (data entry slips), so those are left out. date_diff_d() counts whole days, rounded down.
+ */
+const closedIn = (since, where) =>
+  `${area(since, where)} AND ${F.status} = ${soqlString(STATUS_CLOSED)} AND ${F.closed} >= ${F.created}`;
+
+export function closeTimeParams(since, where) {
+  return {
+    $select: `${F.type}, count(*) AS n, median(date_diff_d(${F.closed}, ${F.created})) AS days`,
+    $where: closedIn(since, where),
+    $group: F.type,
+    $limit: BIG_LIMIT
+  };
+}
+
+export function resolutionCountParams(since, where) {
+  return {
+    $select: `${F.type}, ${F.resolution}, count(*) AS n`,
+    $where: closedIn(since, where),
+    $group: `${F.type}, ${F.resolution}`,
+    $limit: BIG_LIMIT
   };
 }
 
