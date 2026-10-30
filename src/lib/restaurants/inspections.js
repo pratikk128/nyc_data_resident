@@ -196,8 +196,9 @@ export const ABOVE_FACTOR = 2;
 // ...and how many separate inspections have to have cited it, so one bad day
 // isn't a pattern. The ratio alone flagged about 7 in 10 restaurants (rare
 // categories have tiny means), and repeats alone flagged as many (common ones
-// are cited at most inspections); together, about 1 in 7.
-export const MIN_REPEAT_INSPECTIONS = 3;
+// are cited at most inspections); together, at 3 inspections, about 1 in 7.
+// Lowered to 2 so a repeat at a second inspection counts.
+export const MIN_REPEAT_INSPECTIONS = 2;
 
 // rates: the restaurant's violations per inspection by category. citedAt: how
 // many of its inspections cited each category (inspectionsByCategory()).

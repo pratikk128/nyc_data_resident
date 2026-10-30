@@ -2,7 +2,7 @@
 /*
  * "Look up a restaurant": search by name (plus borough, street or ZIP, or
  * near me) or browse near me, pick a result, see its latest grade and inspection and the
- * categories cited at 3+ inspections and at least twice as often per inspection as the average.
+ * categories cited at 2+ inspections and at least twice as often per inspection as the average.
  *
  * Search and detail data come from /api/restaurants/* (server-side, cached).
  * A deep link (?camis=50066715) is rendered on the server and passed in as
@@ -129,7 +129,7 @@ const deepLink = Boolean(initial || initialError);
         starting with 02 is about food temperature). We compare all violations per inspection, critical or not: a restaurant's
         violations in a category divided by its inspections in the window, against the total for every
         restaurant divided by every inspection in the same window, including inspections with none. A category is a
-        problem area when it was cited at three or more separate inspections and at least twice as often per inspection
+        problem area when it was cited at two or more separate inspections and at least twice as often per inspection
         as the average. Both rules have to be met so only clear outliers are flagged. “Similar
         restaurants” means the same cuisine in the same borough. These averages are recalculated once a day.
       </p>

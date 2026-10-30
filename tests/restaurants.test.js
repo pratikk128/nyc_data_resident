@@ -247,12 +247,12 @@ test("a category with a zero mean is above it with any violation cited at enough
   assert.equal(r.above, true);
 });
 
-test("a category has to be cited at 3+ separate inspections, however far above the mean", () => {
+test("a category has to be cited at 2+ separate inspections, however far above the mean", () => {
   // One bad day: a rare category (source) far above the mean, at one inspection.
   const once = compareToMeans({ source: 1 }, { source: 0.026 }, { source: 1 }).find((r) => r.id === "source");
   assert.equal(once.above, false);
-  const twice = compareToMeans({ source: 1 }, { source: 0.026 }, { source: MIN_REPEAT_INSPECTIONS - 1 }).find((r) => r.id === "source");
-  assert.equal(twice.above, false);
+  const tooFew = compareToMeans({ source: 1 }, { source: 0.026 }, { source: MIN_REPEAT_INSPECTIONS - 1 }).find((r) => r.id === "source");
+  assert.equal(tooFew.above, false);
   const repeated = compareToMeans({ source: 1 }, { source: 0.026 }, { source: MIN_REPEAT_INSPECTIONS }).find((r) => r.id === "source");
   assert.equal(repeated.above, true);
   assert.equal(repeated.inspections, MIN_REPEAT_INSPECTIONS);
@@ -273,9 +273,9 @@ test("each inspection counts once per category, however many codes it cited ther
 });
 
 test("too few inspections for a pattern isn't shown as an all-clear", () => {
-  const rows = compareToMeans({ source: 1 }, { source: 0.026 }, { source: 2 });
-  const html = categoryListHtml({ since: "2023-10-28", inspections: 2, citywide: { rows } }, "citywide");
-  assert.match(html, /2 inspections since/);
+  const rows = compareToMeans({ source: 1 }, { source: 0.026 }, { source: 1 });
+  const html = categoryListHtml({ since: "2023-10-28", inspections: 1, citywide: { rows } }, "citywide");
+  assert.match(html, /1 inspection since/);
   assert.match(html, /too soon to spot a pattern/);
   assert.doesNotMatch(html, /Nothing stands out/);
 });
