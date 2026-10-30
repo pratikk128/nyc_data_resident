@@ -64,6 +64,12 @@
     return linkFor(slug) ? slug : "";
   }
 
+  // Put a remembered audience in the URL too, so a copied link shows the same view.
+  function syncURL() {
+    var url = urlFor(slugFromURL());
+    if (url !== window.location.pathname + window.location.search) history.replaceState(null, "", url);
+  }
+
   // ?for= wins (shared links), then the saved choice, then the default.
   function audienceFromURL() {
     var id = new URLSearchParams(window.location.search).get("for");
@@ -140,6 +146,7 @@
 
   window.addEventListener("popstate", function () {
     applyAudience(audienceFromURL());
+    syncURL();
     applyCategory(slugFromURL());
   });
 
@@ -206,10 +213,7 @@
 
   // ---------- Init ----------
   applyAudience(audienceFromURL());
-  // Put a remembered audience in the URL too, so a copied link shows the same view.
-  if (urlFor(slugFromURL()) !== window.location.pathname + window.location.search) {
-    history.replaceState(null, "", urlFor(slugFromURL()));
-  }
+  syncURL();
   applyCategory(slugFromURL());
   syncToggle();
 })();

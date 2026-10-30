@@ -63,7 +63,7 @@ const plural = (n: number) => `${n} ${n === 1 ? 'dashboard' : 'dashboards'}`;
         <button class="audience-btn" type="button" data-audience={id} aria-pressed={i === 0 ? 'true' : 'false'}>
           <svg viewBox="0 0 24 24" aria-hidden="true" set:html={icon} />
           <span class="audience-label">{label}</span>
-          <span class="audience-short" aria-hidden="true">{short}</span>
+          <span class="audience-short">{short}</span>
         </button>
       ))}
     </div>
