@@ -73,7 +73,10 @@ const all = query.cats.length === 0;
       </div>
     </div>
 
-    <ul class="hn-missing" data-missing hidden></ul>
+    <!-- Live on a wrapper that's always there: a live region that was just unhidden often isn't read. -->
+    <div aria-live="polite">
+      <ul class="hn-missing" data-missing hidden></ul>
+    </div>
 
     <div class="hn-layout" data-layout data-view="list" hidden>
       <!-- Narrow screens show the list or the map, one at a time (list first, in page order). -->
