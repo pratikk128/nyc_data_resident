@@ -13,6 +13,9 @@
  *   category    Must exactly match one of the names in CATEGORIES
  *               below (e.g. "Health", "Transportation").
  *   url         Where "Open dashboard →" goes.
+ *   audience    Who it's for: ["resident"], ["business"], or both.
+ *               Drives the For NYC Residents / For NYC Businesses
+ *               switch in the header.
  *
  * The sidebar counts, category filter, and "N dashboards" heading
  * all update automatically. No other file needs to change.
@@ -24,60 +27,77 @@ export const dashboards = [
     title: "NYC Restaurant Inspections",
     description: "Explore health inspection grades, violations, and trends for restaurants across the five boroughs.",
     category: "Health",
-    url: "/restaurant-inspections/"
+    url: "/restaurant-inspections/",
+    audience: ["resident", "business"]
   },
   {
     id: "311-complaints",
     title: "311 Complaints in My Neighborhood",
     description: "See what your neighbors are reporting: noise, sanitation, housing, and more.",
     category: "City Government",
-    url: "/311-complaints/"
+    url: "/311-complaints/",
+    audience: ["resident"]
   },
   {
     id: "city-payroll",
     title: "City Payroll Spending",
     description: "See what NYC pays its workforce: total payroll, overtime and other pay by agency and year.",
     category: "City Government",
-    url: "/city-payroll/"
+    url: "/city-payroll/",
+    audience: ["resident"]
   },
   {
     id: "drinking-water",
     title: "NYC Drinking Water Quality",
     description: "Is the water safe right now? Monthly test results for bacteria, chlorine and more, citywide and near you.",
     category: "Environment",
-    url: "/drinking-water/"
+    url: "/drinking-water/",
+    audience: ["resident"]
   },
   {
     id: "shop-diverse",
     title: "Women- and Minority-Owned Businesses",
     description: "Find and support women- and minority-owned businesses certified by the city, by what you need and where.",
     category: "Business",
-    url: "/shop-diverse/"
+    url: "/shop-diverse/",
+    audience: ["resident", "business"]
   },
   {
     id: "school-quality",
     title: "NYC School Quality Explorer",
     description: "Find any NYC public school and see how it’s doing now and whether it’s getting better or worse.",
     category: "Education",
-    url: "/school-quality/"
+    url: "/school-quality/",
+    audience: ["resident"]
   },
   {
     id: "street-closures",
     title: "Street Closures Near You",
     description: "See which blocks are closed for construction near you, on your street or in your borough, today and in the weeks ahead.",
     category: "Transportation",
-    url: "/street-closures/"
+    url: "/street-closures/",
+    audience: ["resident", "business"]
   },
   {
     id: "help-near-me",
     title: "Where Can I Get Help Near Me?",
     description: "Find the nearest food benefits office, homelessness help, free computers, youth and older adult programs, with hours and directions.",
     category: "Social Services",
-    url: "/help-near-me/"
+    url: "/help-near-me/",
+    audience: ["resident"]
   }
 ];
 
 export const ALL = "All Categories";
+
+/*
+ * Header switch options, in display order. The first is the default;
+ * `id` is the ?for= value (omitted from the URL for the default).
+ */
+export const AUDIENCES = [
+  { id: "resident", label: "For NYC Residents", short: "Residents", icon: '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10M10 20v-6h4v6"/>' },
+  { id: "business", label: "For NYC Businesses", short: "Businesses", icon: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/>' }
+];
 
 /*
  * Sidebar categories, in display order. `tone` picks the pastel color

@@ -2,11 +2,14 @@
 import '../styles/landing.css';
 import ThemeInit from '../components/ThemeInit.astro';
 import ThemeToggle from '../components/ThemeToggle.astro';
-import { dashboards, ALL, CATEGORIES, categorySlug, categoryHref, categoryTone, categoryIcon } from '../data/dashboards.js';
+import { dashboards, ALL, AUDIENCES, CATEGORIES, categorySlug, categoryHref, categoryTone, categoryIcon } from '../data/dashboards.js';
 
 // Cards and the sidebar are rendered here; public/js/app.js only filters them.
+// Counts start at the default audience; app.js recounts when it changes.
+const DEFAULT_AUDIENCE = AUDIENCES[0].id;
+const forDefault = dashboards.filter((d) => d.audience.includes(DEFAULT_AUDIENCE));
 const countFor = (name: string) =>
-  name === ALL ? dashboards.length : dashboards.filter((d) => d.category === name).length;
+  name === ALL ? forDefault.length : forDefault.filter((d) => d.category === name).length;
 const plural = (n: number) => `${n} ${n === 1 ? 'dashboard' : 'dashboards'}`;
 ---
 
@@ -43,7 +46,7 @@ const plural = (n: number) => `${n} ${n === 1 ? 'dashboard' : 'dashboards'}`;
     } catch (e) {}
   </script>
 </head>
-<body>
+<body class="has-audience">
   <a class="skip-link" href="#main">Skip to dashboards</a>
 
   <header class="site-header">
@@ -55,6 +58,15 @@ const plural = (n: number) => `${n} ${n === 1 ? 'dashboard' : 'dashboards'}`;
       <span class="wordmark">Ask <span class="wordmark-accent">NYC</span> Data</span>
     </a>
     <p class="tagline">NYC's public data, made easy to understand.</p>
+    <div class="audience-toggle" id="audience-toggle" role="group" aria-label="Show dashboards">
+      {AUDIENCES.map(({ id, label, short, icon }, i) => (
+        <button class="audience-btn" type="button" data-audience={id} aria-pressed={i === 0 ? 'true' : 'false'}>
+          <svg viewBox="0 0 24 24" aria-hidden="true" set:html={icon} />
+          <span class="audience-label">{label}</span>
+          <span class="audience-short" aria-hidden="true">{short}</span>
+        </button>
+      ))}
+    </div>
     <ThemeToggle />
   </header>
 
@@ -91,11 +103,12 @@ const plural = (n: number) => `${n} ${n === 1 ? 'dashboard' : 'dashboards'}`;
       <section class="results" aria-labelledby="results-title">
         <div class="results-head">
           <h2 id="results-title">{ALL}</h2>
-          <p class="results-count" id="results-count" aria-live="polite">{plural(dashboards.length)}</p>
+          <p class="results-count" id="results-count" aria-live="polite">{plural(forDefault.length)}</p>
         </div>
-        <ul class="card-grid" id="card-grid" hidden={dashboards.length === 0}>
+        <ul class="card-grid" id="card-grid" hidden={forDefault.length === 0}>
           {dashboards.map((d) => (
-            <li data-category={categorySlug(d.category)}>
+            <li data-category={categorySlug(d.category)} data-audience={d.audience.join(' ')}
+              hidden={!d.audience.includes(DEFAULT_AUDIENCE)}>
               <a class="card" data-tone={categoryTone(d.category)} href={d.url || '#'}>
                 <span class="card-icon"><svg viewBox="0 0 24 24" aria-hidden="true" set:html={categoryIcon(d.category)} /></span>
                 <h3 class="card-title">{d.title}</h3>
@@ -108,9 +121,9 @@ const plural = (n: number) => `${n} ${n === 1 ? 'dashboard' : 'dashboards'}`;
             </li>
           ))}
         </ul>
-        <div class="empty-state" id="empty-state" hidden={dashboards.length !== 0}>
+        <div class="empty-state" id="empty-state" hidden={forDefault.length !== 0}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/></svg>
-          <p>No dashboards in this category yet. Coming soon.</p>
+          <p id="empty-text">No dashboards in this category yet. Coming soon.</p>
         </div>
       </section>
     </main>
