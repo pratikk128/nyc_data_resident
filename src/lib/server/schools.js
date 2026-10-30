@@ -54,7 +54,7 @@ export const metadataJob = {
  * }
  */
 export const indexJob = {
-  key: "schools:index:v4", // v2: types from the newest year only; v3: NYC averages per school type; v4: more sort metrics
+  key: "schools:index:v5", // v2: types from the newest year only; v3: NYC averages per school type; v4: more sort metrics; v5: no values from before a measure's first year
   maxAgeHours: MAX_AGE_HOURS,
   async run() {
     const [reportRows, nameRows, cityRows] = await Promise.all([
@@ -126,6 +126,7 @@ export const indexJob = {
       if (!report || Number(row.school_year) !== report.year) continue;
       for (const m of METRICS) {
         if (m.key !== row.metric_variable_name || !m.reports.includes(row.report_type) || m.field) continue;
+        if (report.year < m.firstYear) continue; // an older definition: the card says not reported
         const p = pointFromRow(m, row);
         const forSchool = values.get(row.dbn) ?? {};
         forSchool[m.id] = { v: p.v, s: p.score, y: report.year };

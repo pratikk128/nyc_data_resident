@@ -301,6 +301,31 @@ test("search: a metric sort uses the card report's measure, and cards show it wh
   assert.equal(ps321.match(/Chronic absenteeism/g).length, 1);
 });
 
+test("search: every card of one school type shows that type's measures, 6–12 schools included", () => {
+  const sixTwelve = school("13K527", "Urban Assembly School", ["high-school", "middle"], {
+    reports: [{ report: "HS", type: "high-school", year: 2024 }, { report: "EMS", type: "middle", year: 2024 }],
+    values: { prof_pct_ela_all: { v: 0.6, s: null, y: 2024 }, grad_pct_4_all: { v: 0.9, s: null, y: 2024 } }
+  });
+  const index = { ...INDEX, schools: [...INDEX.schools, sixTwelve] };
+  const card = (params) => searchSchools(index, q(params)).results.find((r) => r.dbn === "13K527");
+  // Listed under Middle: the middle school report, its badge first, ELA/math/absenteeism
+  const middle = card("type=middle");
+  assert.equal(middle.report, "EMS");
+  assert.deepEqual(middle.types, ["middle", "high-school"]);
+  const html = cardsHtml([middle], 2024);
+  assert.match(html, /ELA proficiency[\s\S]*Math proficiency[\s\S]*Chronic absenteeism/);
+  assert.doesNotMatch(html, /graduation/);
+  // Listed under High school, or with no type: the high school report
+  assert.equal(card("type=high-school").report, "HS");
+  assert.equal(card("").report, "HS");
+  // Ranked by a test score with no type chosen: the report that has it, so the card isn't mixed
+  const ela = card("sort=ela");
+  assert.equal(ela.report, "EMS");
+  assert.equal(ela.sorted.id, "prof_pct_ela_all");
+  // Under Middle, a high school measure doesn't rank it (a shared link)
+  assert.equal(card("type=middle&sort=grad").rank, null);
+});
+
 test("search: ranked schools get their place, across pages; schools without the measure get none", () => {
   const r = searchSchools(INDEX, q("sort=ela"), { pageSize: 2 });
   assert.deepEqual(r.results.map((x) => [x.dbn, x.rank]), [["15K321", 1], ["17K382", 2]]);

@@ -173,20 +173,37 @@ const collator = new Intl.Collator("en", { numeric: true, sensitivity: "base" })
 export const sortName = (name) => String(name ?? "").replace(/^[^A-Za-z0-9]+/, "");
 export const byName = (a, b) => collator.compare(sortName(a.name), sortName(b.name)) || a.dbn.localeCompare(b.dbn);
 
+/*
+ * The report a school's card shows, so every card of one school type shows
+ * the same measures: the chosen school type's report (a 6–12 school listed
+ * under Middle shows its middle school report), else the first report the
+ * chosen ranking measure applies to, else its first report.
+ */
+export function cardReport(school, typeSlug = "", sortKey = "") {
+  const reports = school.reports ?? [];
+  const sort = METRIC_SORTS.find((s) => s.value === sortKey);
+  return (typeSlug && reports.find((r) => r.type === typeSlug)) ||
+    (sort && reports.find((r) => sort.reports.includes(r.report))) ||
+    reports[0];
+}
+
 // The sort's metrics, the one for the school's card report first (a 6–12
 // school sorts by its high school absenteeism, the report its card shows).
-function sortMetrics(school, sortKey) {
+// With a school type chosen, only that type's: a 6–12 school listed under
+// Middle isn't ranked by its graduation rate.
+function sortMetrics(school, sortKey, typeSlug = "") {
   const sort = METRIC_SORTS.find((s) => s.value === sortKey);
   if (!sort) return [];
-  const card = school.reports?.[0]?.report;
-  return [...sort.metrics].sort((a, b) => b.reports.includes(card) - a.reports.includes(card));
+  const card = cardReport(school, typeSlug, sortKey)?.report;
+  const metrics = typeSlug ? sort.metrics.filter((m) => m.reports.includes(card)) : sort.metrics;
+  return [...metrics].sort((a, b) => b.reports.includes(card) - a.reports.includes(card));
 }
 
 // The metric a school is sorted by: { metric, v } for the first of the sort's metrics it has, or null.
 // A value from before the measure changed (ELA and math before the 2023 tests) or
 // started (college and career readiness) can't be ranked with newer ones.
-export function sortMetric(school, sortKey) {
-  for (const m of sortMetrics(school, sortKey)) {
+export function sortMetric(school, sortKey, typeSlug = "") {
+  for (const m of sortMetrics(school, sortKey, typeSlug)) {
     const value = school.values?.[m.id];
     if (value?.v != null && !(value.y < m.seriesBreak?.year) && !(value.y < m.firstYear)) return { metric: m, v: value.v };
   }
@@ -194,8 +211,8 @@ export function sortMetric(school, sortKey) {
 }
 
 // A school's value for a metric sort.
-export function sortValue(school, sortKey) {
-  const found = sortMetric(school, sortKey);
+export function sortValue(school, sortKey, typeSlug = "") {
+  const found = sortMetric(school, sortKey, typeSlug);
   return found && { v: found.v, higherIsBetter: found.metric.higherIsBetter };
 }
 
@@ -203,7 +220,7 @@ function sortSchools(rows, query) {
   const sorted = [...rows];
   if (METRIC_SORTS.some((s) => s.value === query.sort)) {
     sorted.sort((a, b) => {
-      const va = sortValue(a.school, query.sort), vb = sortValue(b.school, query.sort);
+      const va = sortValue(a.school, query.sort, query.type), vb = sortValue(b.school, query.sort, query.type);
       if (va && !vb) return -1;
       if (vb && !va) return 1;
       if (va && vb && va.v !== vb.v) return va.higherIsBetter === false ? va.v - vb.v : vb.v - va.v;
@@ -281,8 +298,8 @@ export function searchSchools(index, query, { pageSize = PAGE_SIZE } = {}) {
   const first = (page - 1) * pageSize;
   // Under a metric sort, a school's place in the ranking (schools without the measure have none).
   const results = sorted.slice(first, first + pageSize).map((r, i) => ({
-    ...resultRecord(r.school, index, query.sort),
-    rank: sortMetric(r.school, query.sort) ? first + i + 1 : null
+    ...resultRecord(r.school, index, query.sort, query.type),
+    rank: sortMetric(r.school, query.sort, query.type) ? first + i + 1 : null
   }));
   return { total, page, pages, pageSize, results, facets, latestYear: index.latestYear, sort: query.sort, q: query.q };
 }
@@ -300,21 +317,22 @@ export function searchPoints(index, query) {
 }
 
 /*
- * What a result card needs: identity, place, the card report's values and NYC
- * averages for its school type, and under a metric sort, the measure the school was sorted by
- * (sorted: { id, city }), so the card can show it when it isn't a card measure.
+ * What a result card needs: identity, place (badges with the card's type
+ * first), the card report's values and NYC averages for its school type, and
+ * under a metric sort, the measure the school was sorted by (sorted: { id,
+ * city }), so the card can show it when it isn't a card measure.
  */
-export function resultRecord(s, index, sortKey = "") {
-  const report = s.reports[0];
-  const found = sortMetric(s, sortKey);
-  const sortedBy = found?.metric ?? sortMetrics(s, sortKey).find((m) => m.reports.includes(report?.report));
+export function resultRecord(s, index, sortKey = "", typeSlug = "") {
+  const report = cardReport(s, typeSlug, sortKey);
+  const found = sortMetric(s, sortKey, typeSlug);
+  const sortedBy = found?.metric ?? sortMetrics(s, sortKey, typeSlug).find((m) => m.reports.includes(report?.report));
   // The NYC average for the report and year the sorted value came from.
-  const sortedReport = sortedBy && s.reports.find((r) => sortedBy.reports.includes(r.report));
+  const sortedReport = sortedBy && (sortedBy.reports.includes(report?.report) ? report : s.reports.find((r) => sortedBy.reports.includes(r.report)));
   const sortedYear = s.values?.[sortedBy?.id]?.y ?? sortedReport?.year;
   return {
     dbn: s.dbn,
     name: s.name,
-    types: schoolTypeSlugs(s),
+    types: [...schoolTypeSlugs(s)].sort((a, b) => (b === report?.type) - (a === report?.type)),
     boro: s.boro,
     district: s.district,
     loc: s.loc ? { address: s.loc.address, zip: s.loc.zip, neighborhood: s.loc.neighborhood } : null,
