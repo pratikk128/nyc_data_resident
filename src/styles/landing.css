@@ -454,6 +454,51 @@ svg { flex-shrink: 0; }
   color: var(--ink-soft);
 }
 
+/* Address box: leads to the address report (/address/) */
+.hero-address {
+  max-width: 44rem;
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--yellow-tint);
+}
+.hero-address-label { display: block; font-weight: 700; }
+.hero-address-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.hero-address-input {
+  min-height: 48px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+}
+.hero-address-input::placeholder { color: var(--ink-soft); }
+.hero-address-input:focus-visible, .hero-address-go:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
+.hero-address-go {
+  --ink: var(--ink-on-fill);
+  min-height: 48px;
+  padding: 0 var(--space-5);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.hero-address-go:hover { background: var(--yellow-hover); }
+@media (max-width: 639px) {
+  .hero-address-row { grid-template-columns: 1fr; }
+}
+
 .results { margin-top: var(--space-6); }
 
 .results-head {

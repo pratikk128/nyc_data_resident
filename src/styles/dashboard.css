@@ -3607,3 +3607,85 @@ a.hn-directions:hover { background: var(--accent-deep); }
   .hn-card { transition: none; }
   .hn-card.is-skeleton .sk-line { animation: none; }
 }
+
+/* =========================================================
+   Address report (/address/)
+   One card per dashboard; each card's body fills in on its own.
+   ========================================================= */
+.ar-results { margin-top: var(--space-7); scroll-margin-top: calc(var(--header-h) + var(--space-4)); }
+.ar-place {
+  font-size: clamp(1.375rem, 1.15rem + 1vw, 1.75rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+.ar-place:focus { outline: none; }
+.ar-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5);
+  margin-top: var(--space-4);
+}
+.ar-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+.ar-card-title { font-size: 1.1875rem; font-weight: 800; }
+.ar-body { flex: 1; margin-top: var(--space-3); }
+.ar-more { align-self: flex-start; margin-top: var(--space-4); font-weight: 700; }
+.ar-lead { max-width: 60ch; }
+.ar-note { margin-top: var(--space-3); font-size: .875rem; color: var(--ink-soft); }
+.ar-error { color: var(--ink-soft); }
+
+.ar-list { display: grid; gap: var(--space-3); margin: var(--space-3) 0 0; padding: 0; list-style: none; }
+.ar-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0 var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+.ar-list li:first-child { padding-top: 0; border-top: 0; }
+.ar-row-main { font-weight: 600; overflow-wrap: anywhere; }
+.ar-row-side { color: var(--ink-soft); font-size: .875rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ar-row-sub { grid-column: 1 / -1; margin-top: 2px; font-size: .875rem; color: var(--ink-soft); }
+.ar-kind {
+  display: block;
+  font-size: .75rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.ar-grade {
+  --ink: var(--ink-on-fill);
+  display: inline-grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin-right: var(--space-2);
+  border-radius: 50%;
+  background: var(--grade-pending);
+  color: var(--ink);
+  font-weight: 800;
+  vertical-align: middle;
+}
+.ar-grade[data-tone="a"] { background: var(--grade-a); }
+.ar-grade[data-tone="b"] { background: var(--grade-b); }
+.ar-grade[data-tone="c"] { background: var(--grade-c); }
+.ar-grade[data-tone="none"] { background: var(--card); box-shadow: inset 0 0 0 1.5px var(--line-strong); color: var(--ink-soft); }
+
+.ar-sources { display: grid; gap: var(--space-2); max-width: 75ch; margin-top: var(--space-4); padding-left: var(--space-5); }
+
+@media (max-width: 899px) {
+  .ar-cards { grid-template-columns: 1fr; }
+}
+@media (max-width: 639px) {
+  .ar-card { padding: var(--space-4); }
+}

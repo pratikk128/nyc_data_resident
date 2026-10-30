@@ -1,12 +1,12 @@
 /*
  * GET /sitemap.xml, prerendered: the landing page, every dashboard in
- * src/data/dashboards.js and their other section pages.
+ * src/data/dashboards.js, their other section pages and the address report.
  */
 import { dashboards } from "../data/dashboards.js";
 
 const SITE = "https://asknycdata.com";
 // Section pages beyond each dashboard's url
-const EXTRA_PAGES = ["/drinking-water/near-me", "/city-payroll/overtime"];
+const EXTRA_PAGES = ["/address/", "/drinking-water/near-me", "/city-payroll/overtime"];
 
 export function GET() {
   const paths = ["/", ...dashboards.map((d) => d.url), ...EXTRA_PAGES];

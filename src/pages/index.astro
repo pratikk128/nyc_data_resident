@@ -98,6 +98,23 @@ const plural = (n: number) => `${n} ${n === 1 ? 'dashboard' : 'dashboards'}`;
       <section class="hero" aria-labelledby="hero-title">
         <h1 id="hero-title">Everything NYC has been up to, in one place.</h1>
         <p>Clear answers about your neighborhood, straight from official NYC records.</p>
+        <!-- The address report looks the text up; with JavaScript it's handed over in the hash, which never reaches the server. -->
+        <form class="hero-address" action="/address/" method="get" role="search" aria-label="Get the report for an address" id="hero-address">
+          <label class="hero-address-label" for="hero-q">Your address: water, 311, street closures, help, schools and restaurants around it</label>
+          <div class="hero-address-row">
+            <input class="hero-address-input" id="hero-q" name="q" type="text" autocomplete="street-address" spellcheck="false"
+              maxlength="120" placeholder="Try “350 5th Ave, Manhattan” or “11211”" required>
+            <button class="hero-address-go" type="submit">Get my report</button>
+          </div>
+        </form>
+        <script is:inline>
+          document.getElementById("hero-address").addEventListener("submit", function (e) {
+            var q = document.getElementById("hero-q").value.trim();
+            if (!q) return;
+            e.preventDefault();
+            location.href = "/address/#q=" + encodeURIComponent(q);
+          });
+        </script>
       </section>
 
       <section class="results" aria-labelledby="results-title">

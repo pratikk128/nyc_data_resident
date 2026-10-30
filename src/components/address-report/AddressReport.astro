@@ -1,0 +1,308 @@
+---
+/*
+ * The address report: an address (with suggestions), a ZIP or "Use my
+ * location", then one short card per dashboard that works by location,
+ * each loading on its own from that dashboard's API and linking to it with
+ * the same spot. What each card shows is decided in
+ * src/lib/address-report/report.js; its HTML in render.js.
+ *
+ * The spot is in the URL (?lat=&lon=, about a block); the typed address
+ * isn't. The landing page's box hands over the typed text as #q=… (a hash
+ * never reaches the server) or, without JavaScript, ?q=….
+ */
+import { MAX_INPUT_LENGTH } from '../../lib/complaints311/location-input.js';
+
+interface Props {
+  // Active water sampling stations: { site, place, borough, lat, lon }.
+  stations: { site: string; place: string; borough: string | null; lat: number; lon: number }[];
+  waterError: boolean;
+}
+const { stations, waterError } = Astro.props;
+
+const CARDS = [
+  { key: 'water', title: 'Drinking water', link: 'See the full results' },
+  { key: 'complaints', title: '311 issues nearby', link: 'See all 311 requests here' },
+  { key: 'closures', title: 'Street closures', link: 'See every closure nearby' },
+  { key: 'help', title: 'Nearest help', link: 'See all help nearby' },
+  { key: 'schools', title: 'Nearest public schools', link: 'Explore school quality' },
+  { key: 'restaurants', title: 'Restaurant grades nearby', link: 'Look up any restaurant' }
+];
+---
+
+<div class="ar" data-report data-stations={JSON.stringify(stations)} data-water-error={waterError ? '1' : undefined}>
+  <section class="dash-section hn-find" id="find" aria-labelledby="ar-find-title">
+    <h2 class="sr-only" id="ar-find-title">Search</h2>
+    <form class="hn-search" data-form novalidate role="search" aria-label="Get the report for an address">
+      <label class="filter-label" for="ar-address">Your address or ZIP code</label>
+      <div class="hn-search-row">
+        <div class="c311-combo hn-field">
+          <input class="search-input" id="ar-address" name="q" type="text" role="combobox" aria-autocomplete="list"
+            aria-expanded="false" aria-controls="ar-address-list" autocomplete="street-address" spellcheck="false"
+            maxlength={MAX_INPUT_LENGTH} placeholder="Try “350 5th Ave, Manhattan” or “11211”" data-address />
+          <ul class="c311-suggest" id="ar-address-list" role="listbox" aria-label="Address suggestions" hidden data-address-list></ul>
+        </div>
+        <button type="submit" class="c311-go">Get the report</button>
+        <button type="button" class="near-btn" data-locate-me>
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+          Use my location
+        </button>
+      </div>
+    </form>
+    <div class="scl-suggest-chips" data-address-choices hidden></div>
+    <p class="rest-status" role="status" aria-live="polite" data-status></p>
+  </section>
+
+  <section class="ar-results" id="report" aria-labelledby="ar-report-title" data-results hidden>
+    <h2 class="ar-place" id="ar-report-title" tabindex="-1">Near <span data-place>the spot you picked</span></h2>
+    <div class="ar-cards">
+      {CARDS.map((c) => (
+        <article class="ar-card" data-card={c.key} aria-labelledby={`ar-${c.key}-title`} aria-busy="true">
+          <h3 class="ar-card-title" id={`ar-${c.key}-title`}>{c.title}</h3>
+          <div class="ar-body" data-body></div>
+          <a class="ar-more" data-link href="#">{c.link} <span aria-hidden="true">→</span></a>
+        </article>
+      ))}
+    </div>
+  </section>
+</div>
+
+<script>
+  import { spotFromParams, spotToParams, dashboardLinks, complaintsCard, closuresCard, helpCard, nearestStation, restaurantsCard, nearestSchools } from '../../lib/address-report/report.js';
+  import { waterHtml, complaintsHtml, closuresHtml, helpHtml, schoolsHtml, restaurantsHtml, escape } from '../../lib/address-report/render.js';
+  import { nearSearch, addressOutcome } from '../../lib/location/near-search.js';
+  import { parseLocationInput, isNycZip } from '../../lib/complaints311/location-input.js';
+  import { inCityLimits } from '../../lib/in-city.js';
+  import { resolveLocation, suggest } from '../../lib/complaints311/geocode.js';
+  import zipFile from '../../data/zip-centroids.json';
+
+  const ERROR_TEXT = 'Couldn’t reach NYC Open Data. Their servers might be stuck behind a double-parked truck. Try again in a minute.';
+
+  const root = document.querySelector<HTMLElement>('[data-report]')!;
+  const $ = <T extends HTMLElement = HTMLElement>(sel: string) => root.querySelector<T>(sel)!;
+  const form = $<HTMLFormElement>('[data-form]');
+  const input = $<HTMLInputElement>('[data-address]');
+  const list = $<HTMLUListElement>('[data-address-list]');
+  const choices = $('[data-address-choices]');
+  const locateBtn = $<HTMLButtonElement>('[data-locate-me]');
+  const status = $('[data-status]');
+  const results = $('[data-results]');
+  const placeEl = $('[data-place]');
+  const stations = JSON.parse(root.dataset.stations!);
+  const waterError = root.dataset.waterError === '1';
+
+  // The spot's name: never in the URL, so a shared or reloaded link says "the spot you picked".
+  let placeLabel = (history.state?.placeLabel as string) || '';
+  let run = 0; // bumped by every report, so a slow card can't fill in an older one
+  let lookup = 0; // bumped by every search, so only the latest address lookup counts
+
+  // ---------- The report ----------
+
+  async function getJson(url: string) {
+    const res = await fetch(url);
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data || data.error) throw new Error(data?.error || ERROR_TEXT);
+    return data;
+  }
+
+  // Each card loads on its own: a slow one doesn't hold up the rest.
+  function card(key: string, href: string, load: () => Promise<string>, id: number) {
+    const el = root.querySelector<HTMLElement>(`[data-card="${key}"]`)!;
+    const body = el.querySelector<HTMLElement>('[data-body]')!;
+    el.querySelector<HTMLAnchorElement>('[data-link]')!.href = href;
+    el.setAttribute('aria-busy', 'true');
+    body.innerHTML = '<span class="sk-line"></span><span class="sk-line sk-short"></span><span class="sk-line"></span>';
+    load().then(
+      (html) => { if (id === run) body.innerHTML = html; },
+      (err) => { if (id === run) body.innerHTML = `<p class="ar-error">${escape(err?.message || ERROR_TEXT)}</p>`; }
+    ).finally(() => { if (id === run) el.removeAttribute('aria-busy'); });
+  }
+
+  function report(spot: { lat: number; lon: number }) {
+    const id = ++run;
+    const at = `lat=${spot.lat}&lon=${spot.lon}`;
+    const station = nearestStation(stations, spot);
+    const links = dashboardLinks(spot, { waterSite: station?.site });
+    placeEl.textContent = placeLabel || 'the spot you picked';
+    results.hidden = false;
+
+    card('water', links.water, async () => {
+      if (waterError) throw new Error('Drinking water results aren’t available right now. Try again later.');
+      return waterHtml(station, station ? await getJson(`/api/water/stations?sites=${encodeURIComponent(station.site)}`) : null);
+    }, id);
+    card('complaints', links.complaints, async () =>
+      complaintsHtml(complaintsCard(await getJson(`/api/311/area?${at}&area=immediate&window=12m`))), id);
+    card('closures', links.closures, async () =>
+      closuresHtml(closuresCard(await getJson(`/api/street-closures/search?${at}&r=0.25`))), id);
+    card('help', links.help, async () =>
+      helpHtml(helpCard((await getJson(`/api/help-near-me/search?${at}`)).sites)), id);
+    card('schools', links.schools, async () =>
+      schoolsHtml(nearestSchools((await getJson('/api/schools/search?view=map')).points, spot)), id);
+    card('restaurants', links.restaurants, async () =>
+      restaurantsHtml(restaurantsCard(await getJson(`/api/restaurants/search?lat=${spot.lat}&lng=${spot.lon}`))), id);
+  }
+
+  function useSpot(lat: number, lon: number, label: string) {
+    ++lookup;
+    closeOptions();
+    choices.hidden = true;
+    status.textContent = '';
+    placeLabel = label;
+    const params = spotToParams({ lat, lon });
+    history.pushState({ placeLabel, text: input.value }, '', `${location.pathname}?${params}`);
+    report(spotFromParams(params)!);
+    document.getElementById('ar-report-title')!.focus({ preventScroll: true });
+    results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  window.addEventListener('popstate', () => {
+    placeLabel = history.state?.placeLabel || '';
+    input.value = history.state?.text || '';
+    const spot = spotFromParams(new URLSearchParams(location.search));
+    if (spot) report(spot); else { ++run; results.hidden = true; }
+  });
+
+  // ---------- Address box with suggestions ----------
+
+  type Option = { label: string; hint?: string; lat: number; lon: number };
+  let options: Option[] = [];
+  let active = -1;
+  let timer = 0;
+  let suggestAbort: AbortController | null = null;
+
+  function renderOptions(next: Option[]) {
+    options = next;
+    active = -1;
+    list.innerHTML = next.map((o, i) =>
+      `<li role="option" id="ar-opt-${i}" aria-selected="false" class="c311-option" data-i="${i}">` +
+      `<span>${escape(o.label)}</span>${o.hint ? `<span class="c311-option-hint">${escape(o.hint)}</span>` : ''}</li>`).join('');
+    list.hidden = !next.length;
+    input.setAttribute('aria-expanded', String(next.length > 0));
+    input.removeAttribute('aria-activedescendant');
+  }
+  const closeOptions = () => { clearTimeout(timer); suggestAbort?.abort(); renderOptions([]); };
+
+  function highlightOption(i: number) {
+    active = i;
+    list.querySelectorAll('[role="option"]').forEach((el, j) => el.setAttribute('aria-selected', String(j === i)));
+    if (i >= 0) {
+      input.setAttribute('aria-activedescendant', `ar-opt-${i}`);
+      list.children[i]?.scrollIntoView({ block: 'nearest' });
+    } else input.removeAttribute('aria-activedescendant');
+  }
+
+  // A ZIP comes from the text itself; GeoSearch adds addresses.
+  async function updateSuggestions() {
+    const text = input.value.trim();
+    suggestAbort?.abort();
+    const local: Option[] = [];
+    const c = (zipFile.zips as Record<string, number[]>)[text];
+    if (/^\d{5}$/.test(text) && isNycZip(text) && c) local.push({ label: `ZIP code ${text}`, hint: 'The middle of the ZIP', lat: c[0], lon: c[1] });
+    if (text.length < 3 || /^\d+$/.test(text)) { renderOptions(local); return; }
+    suggestAbort = new AbortController();
+    try {
+      const places = await suggest(text, { signal: suggestAbort.signal });
+      renderOptions([...local, ...places.map((p: any) => ({ label: p.label, lat: p.lat, lon: p.lon }))].slice(0, 6));
+    } catch (err: any) {
+      if (err.name !== 'AbortError') renderOptions(local); // typing still works; submitting looks it up
+    }
+  }
+
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    status.textContent = '';
+    timer = window.setTimeout(updateSuggestions, 250);
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' && options.length) { e.preventDefault(); highlightOption(Math.min(active + 1, options.length - 1)); }
+    else if (e.key === 'ArrowUp' && options.length) { e.preventDefault(); highlightOption(Math.max(active - 1, -1)); }
+    else if (e.key === 'Enter' && active >= 0) { e.preventDefault(); pickOption(options[active]); }
+    else if (e.key === 'Escape' && options.length) { e.preventDefault(); closeOptions(); }
+  });
+  // mousedown so the input keeps focus (a click would blur it first and close the list).
+  list.addEventListener('mousedown', (e) => {
+    const li = (e.target as HTMLElement).closest<HTMLElement>('[role="option"]');
+    if (!li) return;
+    e.preventDefault();
+    pickOption(options[Number(li.dataset.i)]);
+  });
+  input.addEventListener('blur', () => setTimeout(closeOptions, 150));
+
+  function pickOption(o: Option) {
+    input.value = o.label;
+    useSpot(o.lat, o.lon, o.label.startsWith('ZIP code') ? `the middle of ${o.label.replace('ZIP code', 'ZIP')}` : o.label);
+  }
+
+  // ---------- Search ----------
+
+  async function search() {
+    closeOptions();
+    choices.hidden = true;
+    const parsed: any = parseLocationInput({ text: input.value });
+    const next: any = nearSearch(parsed, zipFile.zips);
+    if (next.kind === 'message') { status.textContent = next.text; if (next.focus) input.focus(); return; }
+    if (next.kind === 'borough') { status.textContent = 'A whole borough is too big for one report. Type an address or ZIP code in it.'; return; }
+    if (next.kind === 'point') { useSpot(next.lat, next.lon, next.label); return; }
+    status.textContent = 'Looking up that address…';
+    const id = ++lookup;
+    let result: any;
+    try {
+      result = addressOutcome(await resolveLocation(parsed));
+    } catch {
+      if (id === lookup) status.textContent = 'Couldn’t reach the address lookup. Try again in a minute, or use your location.';
+      return;
+    }
+    if (id !== lookup) return;
+    if (result.kind === 'point') { useSpot(result.lat, result.lon, result.label); return; }
+    status.textContent = result.text;
+    if (result.kind === 'choose') {
+      choices.innerHTML = result.choices.map((p: any, i: number) =>
+        `<button type="button" class="pay-chip" data-pick="${i}">${escape(p.label)}</button>`).join('');
+      choices.hidden = false;
+      choices.querySelectorAll<HTMLButtonElement>('[data-pick]').forEach((b) => b.addEventListener('click', () => {
+        const p = result.choices[Number(b.dataset.pick)];
+        input.value = p.label;
+        useSpot(p.lat, p.lon, p.label);
+      }));
+    }
+  }
+
+  form.addEventListener('submit', (e) => { e.preventDefault(); search(); });
+
+  locateBtn.addEventListener('click', () => {
+    choices.hidden = true;
+    if (!navigator.geolocation) { status.textContent = 'Your browser can’t share its location. Type an address or ZIP code instead.'; return; }
+    const id = ++lookup;
+    locateBtn.disabled = true;
+    status.textContent = 'Finding you…';
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        locateBtn.disabled = false;
+        if (id !== lookup) return;
+        const { latitude: lat, longitude: lon } = pos.coords;
+        if (!inCityLimits(lat, lon)) { status.textContent = 'You seem to be outside NYC. Type an address or ZIP code instead.'; return; }
+        input.value = '';
+        useSpot(lat, lon, 'your location');
+      },
+      () => {
+        locateBtn.disabled = false;
+        if (id === lookup) status.textContent = 'We couldn’t get your location. Check your browser’s location setting, or type an address or ZIP code.';
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
+    );
+  });
+
+  // ---------- Start ----------
+
+  // From the landing page: the typed text, looked up here, then dropped from the URL.
+  const params = new URLSearchParams(location.search);
+  const handed = new URLSearchParams(location.hash.slice(1)).get('q') ?? params.get('q');
+  const spot = spotFromParams(params);
+  if (handed) {
+    history.replaceState(null, '', location.pathname);
+    input.value = handed.slice(0, input.maxLength);
+    search();
+  } else if (spot) {
+    input.value = history.state?.text || '';
+    report(spot);
+  }
+</script>

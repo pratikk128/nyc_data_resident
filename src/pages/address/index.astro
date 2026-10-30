@@ -1,0 +1,70 @@
+---
+/*
+ * The address report: your address → drinking water, 311, street closures,
+ * help, schools and restaurant grades near it, each from its own dashboard.
+ * Rendered on demand for the water station list (active stations only, from
+ * the daily stations job in KV, as on /drinking-water/near-me); everything
+ * else loads in the browser (AddressReport.astro).
+ */
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+import AddressReport from '../../components/address-report/AddressReport.astro';
+import { getStations } from '../../lib/server/water.js';
+import { plainDescription } from '../../lib/water/stats.js';
+import { ALL } from '../../data/dashboards.js';
+import sitesFile from '../../data/water-sites.json';
+
+export const prerender = false;
+
+let stations: { site: string; place: string; borough: string | null; lat: number; lon: number }[] = [];
+let waterError = false;
+try {
+  const active = new Set(Object.keys((await getStations()).totals ?? {}));
+  stations = sitesFile.sites
+    .filter((s) => active.has(s.site) && s.lat != null && s.lon != null)
+    .map((s) => ({ site: s.site, place: plainDescription(s.description), borough: s.borough, lat: s.lat!, lon: s.lon! }));
+} catch (err) {
+  console.error(err);
+  waterError = true;
+}
+
+if (import.meta.env.PROD && !waterError) Astro.response.headers.set('Cache-Control', 'public, max-age=300');
+---
+
+<DashboardLayout
+  title="Your address report"
+  description="Type an NYC address and see the drinking water, 311 requests, street closures, nearest help, nearest schools and restaurant grades around it."
+  path="/address/"
+  category={ALL}
+>
+  <header class="page-head">
+    <h1>Your address report</h1>
+    <p>
+      One address, the city’s data around it: the water, what neighbors call 311 about, which streets are closed,
+      the nearest help and schools, and how nearby restaurants did on inspection.
+    </p>
+  </header>
+
+  <AddressReport stations={stations} waterError={waterError} />
+
+  <section class="dash-section" aria-labelledby="ar-about-title">
+    <header class="section-head">
+      <h2 id="ar-about-title">Where this comes from</h2>
+    </header>
+    <p class="section-intro">
+      Each card is a short version of one of our dashboards, using the same NYC Open Data and the same rules.
+      Open a card’s link for the details, the method and the caveats.
+    </p>
+    <ul class="ar-sources">
+      <li><strong>Drinking water:</strong> the nearest DEP sampling station, routine samples over the last 12 months.</li>
+      <li><strong>311:</strong> requests within ¼ mile (about a 5-minute walk), last 12 months.</li>
+      <li><strong>Street closures:</strong> DOT construction permits closing a block within ¼ mile, today and this week.</li>
+      <li><strong>Help:</strong> the nearest open site of each kind within 2 miles, from seven city directories.</li>
+      <li><strong>Schools:</strong> the nearest public schools by straight-line distance. Nearest isn’t the same as zoned.</li>
+      <li><strong>Restaurants:</strong> up to 25 restaurants within about half a mile, nearest first, with their latest grade.</li>
+    </ul>
+    <p class="ar-note">
+      Addresses are looked up with NYC Planning Labs’ GeoSearch. The link to a report holds only a spot rounded to
+      about a block, never the address.
+    </p>
+  </section>
+</DashboardLayout>
