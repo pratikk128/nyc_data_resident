@@ -39,7 +39,6 @@ export const DEFAULT_WINDOW = "today";
 
 export const SOON_DAYS = 3;       // "Starts soon" / "Ending soon": within this many days
 export const LONG_DAYS = 90;      // "Long-running": more than this many days in total
-export const STRIP_DAYS = 60;     // the closures-per-day strip
 export const TOP_STREETS = 8;     // "Most affected streets"
 export const PAGE_SIZE = 25;      // cards shown before "Show more"
 export const MERGE_METERS = 60;   // segments with the same names are one block only when they touch (within this)

@@ -3,7 +3,7 @@
  * The street closures finder: "Where should we look?" (a street, a borough,
  * or near a spot), then the closures for that place (time window tabs with
  * counts, a map and cards kept in sync), then what's behind them (kind of
- * work, closures per day, most affected streets).
+ * work, most affected streets).
  *
  * The street list for the autocomplete is inlined; the closures for a place
  * come from /api/street-closures/search, once per place. The time window and
@@ -163,11 +163,6 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
         <p class="chart-subtitle" data-top-note>Streets with the most closed blocks on or crossing them.</p>
         <div data-top-streets></div>
       </div>
-      <div class="scl-panel scl-panel-wide">
-        <h3 class="chart-title">Closed blocks per day, next 60 days</h3>
-        <p class="chart-subtitle">Days in the time window you picked are darker. <span data-strip-note></span> <span class="scl-readout" data-readout aria-live="polite"></span></p>
-        <div data-strip></div>
-      </div>
     </div>
   </section>
 </div>
@@ -176,10 +171,10 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
   import { normalizeQuery, queryToParams, searchParams } from '../../lib/street-closures/filter.js';
   import { suggestStreets, streetLabel } from '../../lib/street-closures/streets.js';
   import {
-    windowRange, windowCounts, blocksInView, purposeCounts, dailyCounts, topStreets, sortBlocks
+    windowRange, windowCounts, blocksInView, purposeCounts, topStreets, sortBlocks
   } from '../../lib/street-closures/closures.js';
   import {
-    cardHtml, purposeBarsHtml, stripHtml, stripReadout, postedNote, topStreetsHtml, blockTitle, escape
+    cardHtml, purposeBarsHtml, postedNote, topStreetsHtml, blockTitle, escape
   } from '../../lib/street-closures/render.js';
   import { groupLabel } from '../../lib/street-closures/purposes.js';
   import { mountClosureMap } from '../../lib/street-closures/closure-map.js';
@@ -187,7 +182,7 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
   import {
     viewMode, isPending, pendingText, streetQuery, boroughQuery, nearQuery, switchModeQuery, streetSearch, noStreetText,
     nearSearch, addressOutcome, emptyHtml, widenQuery, needsLoad, summaryText, breakdownIntro, windowLabel, topNote,
-    stripNote as stripNoteText, moreText, shownFor, stripStep
+    moreText, shownFor
   } from '../../lib/street-closures/page-state.js';
   import { parseLocationInput, inNyc } from '../../lib/complaints311/location-input.js';
   import { resolveLocation } from '../../lib/complaints311/geocode.js';
@@ -220,10 +215,7 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
   const mapToggle = $<HTMLButtonElement>('[data-map-toggle]');
   const mapCol = $('.scl-map-col');
   const narrow = matchMedia('(max-width: 1023px)'); // matches the CSS breakpoint
-  const strip = $('[data-strip]');
-  const readout = $('[data-readout]');
   const windowNote = $('[data-window-note]');
-  const stripNote = $('[data-strip-note]');
 
   const map = mountClosureMap($('[data-map]'), { onPick: (seg: string) => select(seg, { fromMap: true }) });
 
@@ -236,7 +228,6 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
   let shown = PAGE_SIZE;
   let selected: string | null = null;
   let sorted: any[] = [];
-  let days: any[] = [];
   let request = 0;
   const cache = new Map<string, any>();
 
@@ -592,11 +583,6 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
 
     $('[data-purposes]').innerHTML = purposeBarsHtml(purposeCounts(blocks, range), query.purpose);
     $('[data-top-streets]').innerHTML = topStreetsHtml(topStreets(view), query);
-    days = dailyCounts(blocks, today, query.purpose);
-    strip.innerHTML = stripHtml(days, range, postedThrough);
-    stripNote.textContent = stripNoteText(days, postedThrough);
-    stripDay = 0;
-    readout.textContent = stripReadout(days[0], postedThrough);
     $('[data-top-note]').textContent = topNote(query);
     markPending(); // a refresh in the background keeps the prompt
   }
@@ -611,33 +597,6 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
     empty.hidden = sorted.length > 0;
     if (!sorted.length) empty.innerHTML = emptyHtml(query, placeLabel, windowCounts(blocks, today, query.purpose).all);
   }
-
-  // A day's count: hover, tap or drag across the strip, or the arrow keys once it has focus.
-  let stripDay = 0;
-  function showDay(i: number, { mark = true } = {}) {
-    if (!days.length) return;
-    stripDay = Math.max(0, Math.min(days.length - 1, i));
-    strip.querySelectorAll('.is-current').forEach((el) => el.classList.remove('is-current'));
-    if (mark) strip.querySelector(`[data-i="${stripDay}"]`)?.classList.add('is-current');
-    readout.textContent = stripReadout(days[stripDay], data?.postedThrough);
-  }
-  // A touch keeps its pointer on the first column, so find the one under the finger.
-  const dayAt = (e: PointerEvent) =>
-    (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null)?.closest<HTMLElement>('.scl-strip [data-i]');
-  strip.addEventListener('pointerdown', (e) => { const col = dayAt(e); if (col) showDay(Number(col.dataset.i)); });
-  strip.addEventListener('pointermove', (e) => {
-    if (e.pointerType !== 'mouse' && !e.buttons) return;
-    const col = dayAt(e);
-    if (col) showDay(Number(col.dataset.i), { mark: e.pointerType !== 'mouse' });
-  });
-  // The mouse leaving goes back to today; a tapped day stays.
-  strip.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') showDay(0, { mark: false }); });
-  strip.addEventListener('keydown', (e) => {
-    const i = stripStep(e.key, stripDay, days.length);
-    if (i == null) return;
-    e.preventDefault();
-    showDay(i);
-  });
 
   // A tab left open overnight catches up when it's looked at again.
   document.addEventListener('visibilitychange', () => {

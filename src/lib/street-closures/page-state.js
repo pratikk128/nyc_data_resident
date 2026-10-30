@@ -10,7 +10,7 @@ import { groupLabel } from "./purposes.js";
 import { suggestStreets, resolveStreet, streetKey } from "./streets.js";
 import { searchParams } from "./filter.js";
 import { placeText } from "./render.js";
-import { count, date } from "../format.js";
+import { count } from "../format.js";
 
 const plural = (n, one, many = `${one}s`) => `${count(n)} ${n === 1 ? one : many}`;
 const round3 = (n) => Math.round(n * 1e3) / 1e3;
@@ -154,20 +154,10 @@ export const topNote = (query) => query.mode === "near"
   ? "Streets with the most closed blocks on or crossing them within your radius. Tap one to see the whole street."
   : "Streets with the most closed blocks on or crossing them.";
 
-export const stripNote = (days, postedThrough) => postedThrough && days.length && days[days.length - 1].day > postedThrough
-  ? `Hatched days come after ${date(postedThrough)}, the latest start DOT has posted, so they'll fill in as permits are added.`
-  : "";
-
 export const moreText = (left, pageSize) => `Show ${count(Math.min(left, pageSize))} more (${count(left)} left)`;
 
 // How many cards to show so the block picked on the map has one.
 export function shownFor(sorted, seg, shown) {
   const i = sorted.findIndex((b) => b.seg === seg);
   return i >= shown ? i + 1 : shown;
-}
-
-// The strip's arrow keys → the day to show, or null for any other key.
-export function stripStep(key, day, days) {
-  const step = { ArrowLeft: day - 1, ArrowRight: day + 1, Home: 0, End: days - 1 };
-  return key in step ? Math.max(0, Math.min(days - 1, step[key])) : null;
 }

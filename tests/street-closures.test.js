@@ -12,15 +12,15 @@ import { streetKey, streetLabel, suggestStreets, resolveStreet } from "../src/li
 import { describePurpose } from "../src/lib/street-closures/purposes.js";
 import {
   calendarDate, windowRange, overlaps, buildIndex, selectBlocks, mergeSpans, blockStatus,
-  blocksInView, windowCounts, purposeCounts, dailyCounts, topStreets, sortBlocks, streetList
+  blocksInView, windowCounts, purposeCounts, topStreets, sortBlocks, streetList
 } from "../src/lib/street-closures/closures.js";
 import { distanceToLine } from "../src/lib/street-closures/geo.js";
 import { normalizeQuery, queryToParams, searchParams, selection } from "../src/lib/street-closures/filter.js";
-import { rangeLabel, blockTitle, timingText, chips, cardHtml, placeText, stripHtml, postedNote } from "../src/lib/street-closures/render.js";
+import { rangeLabel, blockTitle, timingText, chips, cardHtml, placeText, postedNote } from "../src/lib/street-closures/render.js";
 import {
   viewMode, isPending, pendingText, streetQuery, boroughQuery, nearQuery, switchModeQuery, streetSearch, noStreetText,
   nearSearch, addressOutcome, emptyHtml, widenQuery, needsLoad, summaryText, breakdownIntro, windowLabel, topNote,
-  stripNote, moreText, shownFor, stripStep
+  moreText, shownFor
 } from "../src/lib/street-closures/page-state.js";
 import { parseLocationInput } from "../src/lib/complaints311/location-input.js";
 
@@ -285,12 +285,7 @@ test("counts per window, and with a purpose picked", () => {
   assert.ok(cardHtml(gas, TODAY).includes("Nov 2 – Nov 4, 2026") && !cardHtml(gas, TODAY).includes("Nov 20"));
 });
 
-test("not posted yet: days past the latest posted start are marked, and windows past it get a note", () => {
-  const days = dailyCounts(VIEW_BLOCKS, TODAY, null, 10);
-  const html = stripHtml(days, windowRange("today", TODAY), "2026-11-06");
-  assert.equal((html.match(/is-unposted/g) ?? []).length, 2, "Nov 7 and 8");
-  assert.ok(html.includes("aren't fully posted yet"));
-  assert.ok(!stripHtml(days, windowRange("today", TODAY), "2026-12-31").includes("is-unposted"));
+test("not posted yet: windows past the latest posted start get a note", () => {
   assert.equal(postedNote(windowRange("week", TODAY), "2026-11-06"), null, "this week ends Nov 1");
   assert.match(postedNote(windowRange("next-week", TODAY), "2026-11-06"), /starts Nov 6, 2026/);
   assert.match(postedNote(windowRange("all", TODAY), "2026-11-06"), /aren’t listed yet/);
@@ -299,13 +294,6 @@ test("not posted yet: days past the latest posted start are marked, and windows 
 test("purpose bars count blocks, a block with two kinds of work in each", () => {
   assert.deepEqual(purposeCounts(VIEW_BLOCKS, windowRange("all", TODAY)),
     [{ group: "paving", blocks: 2 }, { group: "gas", blocks: 2 }, { group: "equipment", blocks: 1 }], "ties in the groups' order");
-});
-
-test("per-day strip counts each block once a day, from today", () => {
-  const days = dailyCounts(VIEW_BLOCKS, TODAY, null, 6);
-  assert.deepEqual(days.map((d) => [d.day, d.blocks]), [
-    ["2026-10-30", 1], ["2026-10-31", 0], ["2026-11-01", 0], ["2026-11-02", 1], ["2026-11-03", 1], ["2026-11-04", 1]
-  ]);
 });
 
 test("most affected streets and card order", () => {
@@ -439,23 +427,13 @@ test("words around the results", () => {
   assert.equal(windowLabel("Today", 1), "Today: 1 closed block");
   assert.match(topNote(q("lat=40.712&lon=-74.006")), /within your radius/);
   assert.doesNotMatch(topNote(q("")), /radius/);
-  const days = dailyCounts(VIEW_BLOCKS, TODAY, null, 10);
-  assert.match(stripNote(days, "2026-11-06"), /after Nov 6, 2026/);
-  assert.equal(stripNote(days, "2026-12-31"), "");
-  assert.equal(stripNote(days, null), "");
   assert.equal(moreText(30, 25), "Show 25 more (30 left)");
   assert.equal(moreText(3, 25), "Show 3 more (3 left)");
 });
 
-test("map pick shows enough cards; strip keys stay on the strip", () => {
+test("map pick shows enough cards", () => {
   const sorted = ["a", "b", "c", "d"].map((seg) => ({ seg }));
   assert.equal(shownFor(sorted, "d", 2), 4);
   assert.equal(shownFor(sorted, "a", 2), 2);
   assert.equal(shownFor(sorted, "zz", 2), 2);
-  assert.equal(stripStep("ArrowRight", 0, 60), 1);
-  assert.equal(stripStep("ArrowLeft", 0, 60), 0);
-  assert.equal(stripStep("ArrowRight", 59, 60), 59);
-  assert.equal(stripStep("End", 3, 60), 59);
-  assert.equal(stripStep("Home", 30, 60), 0);
-  assert.equal(stripStep("Enter", 3, 60), null);
 });

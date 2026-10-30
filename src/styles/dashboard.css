@@ -2854,7 +2854,6 @@ a.sd-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
 /* What's behind the closures */
 .scl-panels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-5); margin-top: var(--space-5); }
 .scl-panel { min-width: 0; }
-.scl-panel-wide { grid-column: 1 / -1; }
 .scl-empty-small { margin-top: var(--space-3); font-size: .9375rem; color: var(--ink-soft); }
 .scl-bars, .scl-top { display: grid; gap: var(--space-1); margin: var(--space-3) 0 0; padding: 0; list-style: none; }
 .scl-bar-btn, .scl-top a {
@@ -2884,38 +2883,6 @@ a.sd-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
 .scl-top a { grid-template-columns: minmax(0, 11rem) minmax(0, 1fr) 5.5rem; }
 .scl-top-name { display: flex; flex-direction: column; font-weight: 700; line-height: 1.25; }
 .scl-top-boro { font-size: .8125rem; font-weight: 400; color: var(--ink-soft); }
-.scl-readout { font-weight: 700; color: var(--ink); }
-
-.scl-strip {
-  display: flex;
-  align-items: flex-end;
-  gap: 2px;
-  height: 140px;
-  margin-top: var(--space-3);
-  padding-bottom: 22px; /* room for the date ticks */
-  border-bottom: 1px solid var(--line-strong);
-  touch-action: pan-y; /* a sideways drag reads the days */
-}
-.scl-strip:focus-visible { outline: 3px solid var(--link); outline-offset: 4px; }
-.scl-strip-col { position: relative; flex: 1 1 0; height: 100%; display: flex; align-items: flex-end; cursor: default; }
-.scl-strip-col:hover .scl-strip-bar,
-.scl-strip-col.is-current .scl-strip-bar { background: var(--ink); }
-.scl-strip-bar { width: 100%; border-radius: 3px 3px 0 0; background: var(--blue); }
-.scl-strip-col.is-in .scl-strip-bar { background: var(--blue-deep); }
-/* Not all posted yet: a hatch behind a lighter bar */
-.scl-strip-col.is-unposted { background: repeating-linear-gradient(135deg, var(--line) 0 2px, transparent 2px 6px); }
-.scl-strip-col.is-unposted .scl-strip-bar { opacity: .55; }
-.scl-strip-tick {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  font-size: .75rem;
-  color: var(--ink-soft);
-  white-space: nowrap;
-}
-.scl-table-toggle { margin-top: var(--space-3); }
-.scl-table-toggle > summary { font-size: .9375rem; cursor: pointer; }
-.scl-table-toggle .table-scroll { max-height: 18rem; margin-top: var(--space-2); }
 
 @media (max-width: 1023px) {
   .scl-form { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
@@ -2937,7 +2904,6 @@ a.sd-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
   .scl-bar-btn, .scl-top a { grid-template-columns: minmax(0, 1fr) auto; }
   .scl-top a { grid-template-columns: minmax(0, 1fr) auto; }
   .scl-bar-btn .scl-bar-track, .scl-top a .scl-bar-track { grid-column: 1 / -1; grid-row: 2; }
-  .scl-strip { height: 110px; gap: 1px; }
   .scl-card { padding: var(--space-3) var(--space-4); }
 }
 @media (prefers-reduced-motion: reduce) {

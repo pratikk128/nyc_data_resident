@@ -20,7 +20,7 @@
  * the page shows one card per block with its permits listed. Rows also repeat
  * word for word under the same uniqueid (about 4% of them); those are dropped.
  */
-import { WINDOWS, SOON_DAYS, LONG_DAYS, STRIP_DAYS, TOP_STREETS, MERGE_METERS } from "./config.js";
+import { WINDOWS, SOON_DAYS, LONG_DAYS, TOP_STREETS, MERGE_METERS } from "./config.js";
 import { describePurpose, GROUPS } from "./purposes.js";
 import { streetKey, streetLabel, isStreetName } from "./streets.js";
 import { distanceToLine } from "./geo.js";
@@ -273,23 +273,6 @@ export function purposeCounts(blocks, range) {
   }
   const order = (g) => GROUPS.findIndex((x) => x.key === g);
   return [...counts].map(([group, blocks]) => ({ group, blocks })).sort((a, b) => b.blocks - a.blocks || order(a.group) - order(b.group));
-}
-
-// Blocks closed on each of the next `days` days (permits of the purpose group, when one is picked).
-export function dailyCounts(blocks, today, purpose = null, days = STRIP_DAYS) {
-  const first = dayNumber(today);
-  const counts = new Array(days).fill(0);
-  for (const b of blocks) {
-    const hit = new Array(days).fill(false);
-    for (const p of b.permits) {
-      if (purpose && purposeGroup(p) !== purpose) continue;
-      const s = Math.max(dayNumber(p.start) - first, 0);
-      const e = Math.min(dayNumber(p.end) - first, days - 1);
-      for (let d = s; d <= e; d++) hit[d] = true;
-    }
-    hit.forEach((h, d) => { if (h) counts[d]++; });
-  }
-  return counts.map((n, d) => ({ day: isoDay(first + d), blocks: n }));
 }
 
 // The streets with the most closed blocks in the view, on or crossing them, as a street search counts them.

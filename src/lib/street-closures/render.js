@@ -1,6 +1,6 @@
 /*
- * HTML for the street closures page: block cards, the purpose bars, the
- * closures-per-day strip and the most affected streets. Browser-safe; every
+ * HTML for the street closures page: block cards, the purpose bars and
+ * the most affected streets. Browser-safe; every
  * value from the data goes through escape().
  */
 import { boroughLabel, METERS_PER_MILE } from "./config.js";
@@ -91,41 +91,6 @@ export function purposeBarsHtml(counts, selected) {
       <span class="scl-bar-value">${count(c.blocks)}</span>
     </button></li>`).join("")}</ul>`;
 }
-
-const dayLabel = (iso) => date(iso).replace(/, \d{4}$/, "");
-
-// Days after the latest posted start date: DOT hasn't posted all their permits yet.
-const unposted = (d, postedThrough) => Boolean(postedThrough) && d.day > postedThrough;
-
-/*
- * Blocks closed each day, as columns. The days in the picked window are
- * darker; days after `postedThrough` are hatched, since closures starting
- * then aren't posted yet. data-i lets the page show a day's count on hover;
- * the table under it is the non-chart version. The strip takes focus so the
- * arrow keys can step through the days.
- */
-export function stripHtml(days, range, postedThrough) {
-  const max = Math.max(1, ...days.map((d) => d.blocks));
-  const inWindow = (d) => d.day >= range.from && (range.to == null || d.day <= range.to);
-  const cols = days.map((d, i) => {
-    const h = d.blocks ? Math.max(3, (d.blocks / max) * 100) : 0;
-    // Today, then each month's 1st (unless it's too close to today's label to fit).
-    const tick = i === 0 ? "Today" : d.day.endsWith("-01") && i >= 7 ? dayLabel(d.day) : "";
-    const month = tick ? `<span class="scl-strip-tick">${tick}</span>` : "";
-    const cls = `${inWindow(d) ? " is-in" : ""}${unposted(d, postedThrough) ? " is-unposted" : ""}`;
-    return `<span class="scl-strip-col${cls}" data-i="${i}"><span class="scl-strip-bar" style="height:${h.toFixed(1)}%"></span>${month}</span>`;
-  }).join("");
-  const rows = days.map((d) => `<tr><th scope="row">${date(d.day)}</th><td>${count(d.blocks)}${unposted(d, postedThrough) ? " (not all posted yet)" : ""}</td></tr>`).join("");
-  const partial = unposted(days[days.length - 1], postedThrough) ? `; days after ${date(postedThrough)} aren't fully posted yet` : "";
-  const keys = ". Left and right arrow keys read each day";
-  return `<div class="scl-strip" role="img" tabindex="0" aria-label="Closed blocks per day from ${date(days[0].day)} to ${date(days[days.length - 1].day)}: from ${count(Math.min(...days.map((d) => d.blocks)))} to ${count(max)} a day${partial}${keys}">${cols}</div>
-    <details class="scl-table-toggle"><summary>View as table</summary>
-      <div class="table-scroll"><table><thead><tr><th scope="col">Day</th><th scope="col">Closed blocks</th></tr></thead><tbody>${rows}</tbody></table></div>
-    </details>`;
-}
-
-export const stripReadout = (d, postedThrough) =>
-  `${date(d.day)}: ${plural(d.blocks, "block")} closed${unposted(d, postedThrough) ? " so far (not all posted yet)" : ""}`;
 
 // Under the tabs when the window runs past the latest posted start, or null.
 export function postedNote(range, postedThrough) {
