@@ -54,7 +54,7 @@ export const metadataJob = {
  * }
  */
 export const indexJob = {
-  key: "schools:index:v3", // v2: types from the newest year only; v3: NYC averages per school type
+  key: "schools:index:v4", // v2: types from the newest year only; v3: NYC averages per school type; v4: more sort metrics
   maxAgeHours: MAX_AGE_HOURS,
   async run() {
     const [reportRows, nameRows, cityRows] = await Promise.all([

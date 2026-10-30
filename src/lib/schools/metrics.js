@@ -26,7 +26,9 @@
  *   field        "number_of_students" to read that column instead of
  *                metric_value (enrollment isn't in the dataset)
  *   card         order on the browse cards (1–3), per report type
- *   sortKey      offered as a browse sort under this URL value
+ *   sortKey      offered as a browse sort under this URL value (METRIC_SORTS
+ *                below); the index keeps these values, so adding one means a
+ *                new index key in src/lib/server/schools.js
  *   stateTest    a New York State test result: blank 2019–20 and 2020–21
  *                years get the COVID-19 testing explanation (GAP_REASONS)
  *   firstYear    the measure exists only from this school year: charts and
@@ -95,14 +97,14 @@ export const METRICS = [
     format: "percent", higherIsBetter: true
   },
   {
-    key: "ccr_4yr_all", reports: ["HS"], card: { HS: 2 }, scale: 100,
+    key: "ccr_4yr_all", reports: ["HS"], card: { HS: 2 }, sortKey: "ccr", scale: 100,
     label: "College and career readiness",
     lead: "Highest college and career readiness",
     description: "Share of the 4-year class who graduated and met DOE’s college- or career-readiness standards (exams, courses or credentials).",
     format: "percent", higherIsBetter: true, ...CCR_STARTED
   },
   {
-    key: "pct_cer_18mo_all", reports: ["HS"], card: { HS: 3 },
+    key: "pct_cer_18mo_all", reports: ["HS"], card: { HS: 3 }, sortKey: "college",
     label: "Went on to college or training",
     lead: "Most students going on to college or training",
     description: "Share of students who enrolled in college, a vocational program or public service within 18 months of their scheduled graduation.",
@@ -123,7 +125,7 @@ export const METRICS = [
     format: "percent", higherIsBetter: true
   },
   {
-    key: "credit_10_pct_yr1", reports: ["HS"],
+    key: "credit_10_pct_yr1", reports: ["HS"], sortKey: "on-track",
     label: "9th graders on track",
     lead: "Most 9th graders on track",
     description: "Share of first-year students who earned 10 or more credits, the pace needed to graduate on time.",
@@ -139,7 +141,7 @@ export const METRICS = [
     format: "percent", higherIsBetter: true
   },
   {
-    key: "ccr_6yr_all", reports: ["HST"], scale: 100,
+    key: "ccr_6yr_all", reports: ["HST"], sortKey: "ccr", scale: 100,
     label: "College and career readiness",
     lead: "Highest college and career readiness",
     description: "Share of the school’s 6-year class who graduated and met DOE’s college- or career-readiness standards.",
@@ -153,7 +155,7 @@ export const METRICS = [
     format: "percent", higherIsBetter: true
   },
   {
-    key: "pct_cer_6mo_all", reports: ["HST", "YABC"], card: { HST: 2 },
+    key: "pct_cer_6mo_all", reports: ["HST", "YABC"], card: { HST: 2 }, sortKey: "college",
     label: "Went on to college or training",
     lead: "Most students going on to college or training",
     description: "Share of students who enrolled in college, a vocational program or public service within 6 months of their scheduled graduation.",
@@ -227,21 +229,21 @@ export const METRICS = [
     format: "percent", higherIsBetter: false
   },
   {
-    key: "attendance_k8_all", reports: ["EMS"],
+    key: "attendance_k8_all", reports: ["EMS"], sortKey: "attendance",
     label: "Average attendance",
     lead: "Highest average attendance",
     description: "The average student’s share of school days attended.",
     format: "percent", higherIsBetter: true, trendThreshold: 0.01
   },
   {
-    key: "attendance_hs_all", reports: ["HS"],
+    key: "attendance_hs_all", reports: ["HS"], sortKey: "attendance",
     label: "Average attendance",
     lead: "Highest average attendance",
     description: "The average student’s share of school days attended.",
     format: "percent", higherIsBetter: true, trendThreshold: 0.01
   },
   {
-    key: "attendance_k3_all", reports: ["EC"], card: { EC: 2 },
+    key: "attendance_k3_all", reports: ["EC"], card: { EC: 2 }, sortKey: "attendance",
     label: "Average attendance",
     lead: "Highest average attendance",
     description: "The average student’s share of school days attended.",
@@ -290,12 +292,21 @@ export const cardMetrics = (report) => METRICS
   .filter((m) => m.card?.[report] && m.reports.includes(report))
   .sort((a, b) => a.card[report] - b.card[report]);
 
-// Browse sorts by a metric: URL value → the metrics behind it (one per report type).
+// Browse sorts by a metric: URL value → the metrics behind it (one per report
+// type), shown in groups as the browse page's "What matters most" choices.
+// `note` says which schools have it; `reports` is every report type that does.
 export const METRIC_SORTS = [
-  { value: "ela", label: "ELA proficiency", note: "elementary and middle schools" },
-  { value: "math", label: "Math proficiency", note: "elementary and middle schools" },
-  { value: "grad", label: "4-year graduation rate", note: "high schools" },
-  { value: "absent", label: "Chronic absenteeism (lowest first)", note: "where reported" }
-].map((s) => ({ ...s, metrics: METRICS.filter((m) => m.sortKey === s.value) }));
+  { value: "ela", label: "ELA proficiency", group: "Test scores", note: "elementary, middle and K–8 schools" },
+  { value: "math", label: "Math proficiency", group: "Test scores", note: "elementary, middle and K–8 schools" },
+  { value: "grad", label: "4-year graduation rate", group: "High school results", note: "high schools" },
+  { value: "ccr", label: "College and career readiness", group: "High school results", note: "high schools and transfer high schools" },
+  { value: "college", label: "Went on to college or training", group: "High school results", note: "high schools, transfer high schools and Young Adult Borough Centers" },
+  { value: "on-track", label: "9th graders on track", group: "High school results", note: "high schools" },
+  { value: "attendance", label: "Average attendance", group: "Attendance", note: "elementary, middle, K–8, early childhood and high schools" },
+  { value: "absent", label: "Chronic absenteeism (lowest first)", short: "Lowest chronic absenteeism", group: "Attendance", note: "elementary, middle, K–8, early childhood and high schools" }
+].map((s) => {
+  const metrics = METRICS.filter((m) => m.sortKey === s.value);
+  return { ...s, metrics, reports: [...new Set(metrics.flatMap((m) => m.reports))] };
+});
 
 export const CARD_KEYS = [...new Set(METRICS.filter((m) => m.card || m.sortKey).map((m) => m.key))];

@@ -15,9 +15,9 @@ import {
 } from "../src/lib/schools/values.js";
 import {
   words, parseDbn, dbnMatches, nameScore, addressMatches, editDistance, normalizeQuery, queryToParams,
-  searchSchools, searchPoints, sortValue
+  searchSchools, searchPoints, sortValue, sortApplies, SORTS
 } from "../src/lib/schools/filter.js";
-import { cardsHtml, statusText, addressText } from "../src/lib/schools/render.js";
+import { cardsHtml, statusText, addressText, sortChipsHtml, sortNoteText } from "../src/lib/schools/render.js";
 
 const metric = (id) => METRICS.find((m) => m.id === id);
 const ELA = metric("prof_pct_ela_all");
@@ -301,6 +301,54 @@ test("search: a metric sort uses the card report's measure, and cards show it wh
   assert.equal(ps321.match(/Chronic absenteeism/g).length, 1);
 });
 
+test("search: ranked schools get their place, across pages; schools without the measure get none", () => {
+  const r = searchSchools(INDEX, q("sort=ela"), { pageSize: 2 });
+  assert.deepEqual(r.results.map((x) => [x.dbn, x.rank]), [["15K321", 1], ["17K382", 2]]);
+  const page2 = searchSchools(INDEX, q("sort=ela&page=2"), { pageSize: 2 });
+  assert.deepEqual(page2.results.map((x) => [x.dbn, x.rank]), [["10X100", null], ["02M475", null]]);
+  assert.ok(searchSchools(INDEX, q()).results.every((x) => x.rank === null));
+  // The ranked measure comes first on the card, marked, with the rank
+  const html = cardsHtml(r.results.slice(0, 1), 2024);
+  assert.match(html, /<span class="sr-only">Ranked <\/span>#1/);
+  assert.match(html, /<div class="sq-card-metric" data-sorted>\s*<dt>ELA proficiency/);
+  assert.doesNotMatch(cardsHtml(searchSchools(INDEX, q()).results, 2024), /data-sorted|sq-card-rank/);
+});
+
+test("search: newer sorts rank by their measure, college and career readiness only from its first year", () => {
+  const index = {
+    ...INDEX,
+    schools: [
+      school("01M001", "A High", ["high-school"], { values: { ccr_4yr_all: { v: 0.4, s: null, y: 2024 }, attendance_hs_all: { v: 0.9, s: null, y: 2024 } } }),
+      school("01M002", "B High", ["high-school"], { values: { ccr_4yr_all: { v: 0.7, s: null, y: 2024 }, attendance_hs_all: { v: 0.8, s: null, y: 2024 } } }),
+      school("01M003", "C High", ["high-school"], { values: { ccr_4yr_all: { v: 0.9, s: null, y: 2021 } } })
+    ]
+  };
+  assert.deepEqual(searchSchools(index, q("sort=ccr")).results.map((r) => r.dbn), ["01M002", "01M001", "01M003"]);
+  assert.equal(sortValue(index.schools[2], "ccr"), null);
+  assert.deepEqual(searchSchools(index, q("sort=attendance")).results.map((r) => r.dbn), ["01M001", "01M002", "01M003"]);
+  assert.equal(q("sort=on-track").sort, "on-track");
+});
+
+test("what matters most: chips grouped, measures a school type doesn't have left out, a note on what the ranking does", () => {
+  assert.ok(SORTS.every((s) => s.group));
+  assert.ok(sortApplies("math", "middle"));
+  assert.ok(!sortApplies("math", "high-school"));
+  assert.ok(sortApplies("college", "yabc"));
+  assert.ok(sortApplies("district", "high-school") && sortApplies("ela", ""));
+  const all = sortChipsHtml(q());
+  for (const label of ["Name (A–Z)", "Test scores", "ELA proficiency", "High school results", "Lowest chronic absenteeism"]) assert.ok(all.includes(label), label);
+  assert.match(all, /value="" form="sq-filters" checked/);
+  const hs = sortChipsHtml(q("type=high-school&sort=grad"));
+  assert.doesNotMatch(hs, /Math proficiency|Test scores/);
+  assert.match(hs, /value="grad" form="sq-filters" checked/);
+  // A chosen measure stays visible even if it doesn't apply (a shared link)
+  assert.match(sortChipsHtml(q("type=high-school&sort=math")), /value="math" form="sq-filters" checked/);
+  assert.match(sortChipsHtml(q("q=ps")), /Best match/);
+  assert.equal(sortNoteText(""), "");
+  assert.match(sortNoteText("ela"), /^Ranked by ELA proficiency, highest first\. Reported for elementary, middle and K–8 schools/);
+  assert.match(sortNoteText("absent"), /^Ranked by chronic absenteeism, lowest first/);
+});
+
 test("search: elementary, middle and K-8 cards each get their own type's NYC average", () => {
   const middle = school("13K113", "M.S. 113 Ronald Edmonds", ["middle"], { values: { prof_pct_ela_all: { v: 0.5, s: null, y: 2024 } } });
   const k8 = school("15K130", "P.S. 130 The Parkside", ["k-8"], { values: { prof_pct_ela_all: { v: 0.7, s: null, y: 2024 } } });
@@ -339,6 +387,7 @@ test("cards: card metrics with the NYC average, 'Address not available', older r
   assert.match(html, /Address not available/);
   assert.match(html, /Latest report: 2018–19/);
   assert.match(html, /href="\/school-quality\/15K321\/"/);
+  assert.match(html, /<span class="sq-card-open" aria-hidden="true">See full report/);
   assert.equal(addressText({ address: "180 7 Avenue", zip: "11215" }), "180 7 Avenue, 11215");
   assert.equal(statusText({ total: 30, page: 1, pages: 2, q: "ps", sort: "" }), "30 schools · page 1 of 2 · best matches first");
   assert.equal(statusText({ total: 30, page: 1, pages: 2 }, "map"), "30 schools");

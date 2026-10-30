@@ -10,17 +10,25 @@
  *   boro   manhattan, brooklyn, queens, bronx, staten-island
  *   where  street, ZIP, neighborhood or borough words
  *   all    1: include schools whose latest report is older than the newest year
- *   sort   "" (best match when there's a name, else A–Z), district, ela, math, grad, absent
+ *   sort   "" (best match when there's a name, else A–Z), district, or a METRIC_SORTS value
+ *          (ela, math, grad, ccr, college, on-track, attendance, absent)
  *   page   1-based
  */
 import { TYPES, TYPE_BY_SLUG, BOROUGHS, PAGE_SIZE, MAX_QUERY_LENGTH } from "./config.js";
 import { METRIC_SORTS } from "./metrics.js";
 
 export const SORTS = [
-  { value: "", label: "Name (A–Z)" },
-  { value: "district", label: "District" },
-  ...METRIC_SORTS.map(({ value, label }) => ({ value, label }))
+  { value: "", label: "Name (A–Z)", group: "Order" },
+  { value: "district", label: "District", group: "Order" },
+  ...METRIC_SORTS.map(({ value, label, short, group }) => ({ value, label: short ?? label, group }))
 ];
+
+// A metric sort that no school of this type has (math for high schools) isn't offered.
+export const sortApplies = (sortKey, typeSlug) => {
+  const sort = METRIC_SORTS.find((s) => s.value === sortKey);
+  const report = TYPE_BY_SLUG[typeSlug]?.report;
+  return !sort || !report || sort.reports.includes(report);
+};
 const SORT_VALUES = new Set(SORTS.map((s) => s.value));
 const BOROUGH_SLUGS = new Set(BOROUGHS.map((b) => b.slug));
 
@@ -175,11 +183,12 @@ function sortMetrics(school, sortKey) {
 }
 
 // The metric a school is sorted by: { metric, v } for the first of the sort's metrics it has, or null.
-// A value from before the measure changed (ELA and math before the 2023 tests) can't be ranked with newer ones.
+// A value from before the measure changed (ELA and math before the 2023 tests) or
+// started (college and career readiness) can't be ranked with newer ones.
 export function sortMetric(school, sortKey) {
   for (const m of sortMetrics(school, sortKey)) {
     const value = school.values?.[m.id];
-    if (value?.v != null && !(value.y < m.seriesBreak?.year)) return { metric: m, v: value.v };
+    if (value?.v != null && !(value.y < m.seriesBreak?.year) && !(value.y < m.firstYear)) return { metric: m, v: value.v };
   }
   return null;
 }
@@ -269,7 +278,12 @@ export function searchSchools(index, query, { pageSize = PAGE_SIZE } = {}) {
   const pages = Math.max(1, Math.ceil(total / pageSize));
   const page = Math.min(query.page, pages);
   const sorted = sortSchools(matched, query);
-  const results = sorted.slice((page - 1) * pageSize, page * pageSize).map((r) => resultRecord(r.school, index, query.sort));
+  const first = (page - 1) * pageSize;
+  // Under a metric sort, a school's place in the ranking (schools without the measure have none).
+  const results = sorted.slice(first, first + pageSize).map((r, i) => ({
+    ...resultRecord(r.school, index, query.sort),
+    rank: sortMetric(r.school, query.sort) ? first + i + 1 : null
+  }));
   return { total, page, pages, pageSize, results, facets, latestYear: index.latestYear, sort: query.sort, q: query.q };
 }
 

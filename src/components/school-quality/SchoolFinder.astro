@@ -1,7 +1,8 @@
 ---
 /*
  * The browse page's finder: filters (name or DBN, type, borough, address),
- * a list / map switch, sort, result cards and pages.
+ * "What matters most" (the sort, as chips: name, district or a measure to rank
+ * by), a list / map switch, result cards and pages.
  *
  * The first view is rendered here on the server from the URL (see
  * src/lib/schools/filter.js for the parameters), so shared links and the form
@@ -12,9 +13,9 @@
  * browser by shortlist.js) that links to /school-quality/compare/.
  */
 import { MAX_QUERY_LENGTH, yearLabel } from '../../lib/schools/config.js';
-import { SORTS, queryToParams } from '../../lib/schools/filter.js';
+import { queryToParams } from '../../lib/schools/filter.js';
 import {
-  cardsHtml, pagerHtml, statusText, typeOptionsHtml, boroughOptionsHtml, olderLabel, UPSTREAM_TEXT
+  cardsHtml, pagerHtml, statusText, typeOptionsHtml, boroughOptionsHtml, olderLabel, sortChipsHtml, sortNoteText, UPSTREAM_TEXT
 } from '../../lib/schools/render.js';
 
 interface Props {
@@ -37,6 +38,7 @@ const listHref = listParams.toString() ? `${base}?${listParams}` : base;
 const facets = initial?.facets;
 const status = inputError ?? (initial ? statusText(initial, view) : loadError ?? UPSTREAM_TEXT);
 const latestYear = initial?.latestYear;
+const sortNote = sortNoteText(query.sort);
 // Safe inside <script type="application/json">
 const initialJson = JSON.stringify({ query, loaded: Boolean(initial), inputError, latestYear, view }).replace(/</g, '\\u003c');
 ---
@@ -78,6 +80,13 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), inputError
     </div>
   </form>
 
+  <fieldset class="sq-rank" data-sort-wrap hidden={view === 'map'}>
+    <legend class="sq-rank-title">What matters most to you?</legend>
+    <p class="sq-rank-hint" id="sq-rank-hint">Pick a measure to put the strongest schools first.</p>
+    <div class="sq-rank-groups" aria-describedby="sq-rank-hint" data-sort-chips set:html={sortChipsHtml(query)}></div>
+    <p class="sq-sort-note" data-sort-note hidden={!sortNote}>{sortNote}</p>
+  </fieldset>
+
   <div class="sq-results-head">
     <p class="sq-status" role="status" aria-live="polite" data-status>{status}</p>
     <div class="sq-controls">
@@ -85,17 +94,8 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), inputError
         <button type="button" class="toggle-btn" aria-pressed={view === 'list' ? 'true' : 'false'} data-view="list">List</button>
         <button type="button" class="toggle-btn" aria-pressed={view === 'map' ? 'true' : 'false'} data-view="map">Map</button>
       </div>
-      <div class="sq-sort" data-sort-wrap hidden={view === 'map'}>
-        <label class="filter-label" for="sq-sort">Sort by</label>
-        <select class="filter-select" id="sq-sort" name="sort" form="sq-filters" data-sort>
-          {SORTS.map((s) => <option value={s.value} selected={s.value === query.sort}>{s.label}</option>)}
-        </select>
-      </div>
     </div>
   </div>
-  <p class="sq-sort-note" data-sort-note hidden={!query.sort || query.sort === 'district' || view === 'map'}>
-    Schools without this measure are listed last.
-  </p>
 
   <div class="sq-map-wrap" data-map-wrap hidden={view !== 'map'}>
     <div class="sq-map" data-map role="region" aria-label="Map of matching schools"></div>
@@ -117,8 +117,8 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), inputError
   </div>
   {latestYear && (
     <p class="chart-hint sq-cards-note">
-      Cards show each school’s {yearLabel(latestYear)} report and the NYC average for its school type. Open a school for
-      every measure and how it changed over time.
+      Cards show each school’s {yearLabel(latestYear)} report and the NYC average for its school type. Select a card or
+      “See full report” for every measure, how it changed over time and how it compares with the city.
     </p>
   )}
 </section>
@@ -135,10 +135,10 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), inputError
 <script type="application/json" id="sq-initial" set:html={initialJson}></script>
 
 <script>
-  import { normalizeQuery, queryToParams } from '../../lib/schools/filter.js';
+  import { normalizeQuery, queryToParams, sortApplies } from '../../lib/schools/filter.js';
   import {
     cardsHtml, skeletonCards, pagerHtml, statusText, typeOptionsHtml, boroughOptionsHtml, olderLabel,
-    UPSTREAM_TEXT, LOADING_TEXT
+    sortChipsHtml, sortNoteText, UPSTREAM_TEXT, LOADING_TEXT
   } from '../../lib/schools/render.js';
   import { mountSchoolsMap } from '../../lib/schools/school-map.js';
   import { compareHref, MAX_COMPARE } from '../../lib/schools/compare.js';
@@ -162,8 +162,8 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), inputError
   const olderWrap = $('[data-older-wrap]');
   const olderBox = $<HTMLInputElement>('[data-older]');
   const olderText = $('[data-older-label]');
-  const sortSelect = $<HTMLSelectElement>('[data-sort]');
-  const sortWrap = $('[data-sort-wrap]');
+  const sortWrap = $<HTMLFieldSetElement>('[data-sort-wrap]');
+  const sortChips = $('[data-sort-chips]');
   const sortNote = $('[data-sort-note]');
   const status = $('[data-status]');
   const list = $<HTMLUListElement>('[data-results]');
@@ -196,8 +196,21 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), inputError
   function readForm() {
     const p = new URLSearchParams();
     for (const [k, v] of new FormData(form)) if (typeof v === 'string' && v) p.append(k, v);
-    p.set('sort', sortSelect.value);
     return normalizeQuery(p);
+  }
+
+  // The chips change only with the type (measures it has) and the name search ("Best match"), so
+  // they aren't rebuilt under a keyboard user moving through them.
+  let chipsKey = '';
+  function renderSortChips(q: any) {
+    const key = [q.type, Boolean(q.q), sortApplies(q.sort, q.type) ? '' : q.sort].join('|');
+    if (key !== chipsKey) {
+      chipsKey = key;
+      sortChips.innerHTML = sortChipsHtml(q);
+    }
+    sortChips.querySelectorAll<HTMLInputElement>('[data-sort]').forEach((r) => { r.checked = r.value === q.sort; });
+    const note = sortNoteText(q.sort);
+    if (sortNote.textContent !== note) sortNote.textContent = note;
   }
 
   function fillForm(q: any) {
@@ -206,7 +219,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), inputError
     typeSelect.value = q.type;
     boroSelect.value = q.boro;
     olderBox.checked = q.all;
-    sortSelect.value = q.sort;
+    renderSortChips(q);
   }
 
   function syncViewControls() {
@@ -214,7 +227,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), inputError
     mapWrap.hidden = view !== 'map';
     listWrap.hidden = view === 'map';
     sortWrap.hidden = view === 'map';
-    sortNote.hidden = view === 'map' || !query.sort || query.sort === 'district';
+    sortNote.hidden = !sortNoteText(query.sort);
   }
 
   function renderFacets(data: any) {
@@ -313,8 +326,10 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), inputError
   // A filter changed: back to page 1.
   function applyForm() {
     const { query: q, error } = readForm();
-    if (error) { showError(error); return; }
-    query = { ...q, page: 1 };
+    if (error || !q) { showError(error ?? UPSTREAM_TEXT); return; }
+    // A measure the new school type doesn't have (math, after picking high schools) goes back to the default.
+    query = { ...q, sort: sortApplies(q.sort, q.type) ? q.sort : '', page: 1 };
+    renderSortChips(query);
     search();
   }
 
@@ -322,7 +337,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), inputError
     if (e.target === qInput || e.target === whereInput) return; // handled on input
     applyForm();
   });
-  sortSelect.addEventListener('change', applyForm);
+  sortWrap.addEventListener('change', applyForm);
   form.addEventListener('submit', (e) => { e.preventDefault(); applyForm(); });
   for (const input of [qInput, whereInput]) {
     // Two text fields and no submit button: the browser won't submit on Enter, so do it here.
@@ -434,6 +449,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), inputError
 
   // ---------- Start ----------
   syncCompare();
+  renderSortChips(query);
   viewToggle.hidden = false;
   // The browser may have kept edited fields (back/forward cache, autofill).
   const fromForm = readForm().query;
