@@ -1,28 +1,32 @@
 ---
 /*
- * "How to read this list": what certification means, how the Recommended
- * order works (the same rules as src/lib/shop-diverse/ranking.js), data
- * quirks, and the source.
+ * "How to read this list": what certification means, what the capacity
+ * fields and codes are and how many firms give them, how the Recommended
+ * order works (the same rules as src/lib/shop-diverse/ranking.js), the
+ * shortlist file, data quirks, and the source.
  */
-import { DATASET_URL, DATASET_NAME, DATASET_ID, LINKS } from '../../lib/shop-diverse/config.js';
+import { DATASET_URL, DATASET_NAME, DATASET_ID, LINKS, MAX_EXPORT } from '../../lib/shop-diverse/config.js';
 import { POINTS } from '../../lib/shop-diverse/ranking.js';
-import { date } from '../../lib/format.js';
+import { date, count } from '../../lib/format.js';
 
 interface Props {
   meta: { rowsUpdatedAt: string | null } | null;
   /** Share of listed businesses with no NYC borough (0–1), or null if the list didn't load. */
   outsideShare: number | null;
+  /** How many firms give each capacity field (the daily job's coverage), or null. */
+  coverage: { total: number; bonding: number; union: number; largestContract: number } | null;
 }
-const { meta, outsideShare } = Astro.props;
+const { meta, outsideShare, coverage } = Astro.props;
+const of = (n: number) => `${count(n)} of ${count(coverage!.total)}`;
 ---
 
 <section class="dash-section sd-about" aria-labelledby="sd-about-title">
   <h2 class="chart-title" id="sd-about-title">How to read this list</h2>
 
   <p class="callout callout-heads-up">
-    <strong>Heads up:</strong> certification status comes from NYC Small Business Services (SBS). Confirm details
-    directly with the business, and use the <a href={LINKS.sbsDirectory}>SBS Online Directory</a> to verify that a
-    certification is current.
+    <strong>Heads up:</strong> certification status comes from NYC Small Business Services (SBS). Before you count a
+    firm toward an M/WBE goal, use the <a href={LINKS.sbsDirectory}>SBS Online Directory</a> to verify that its
+    certification is current, and confirm capacity and union status directly with the firm.
   </p>
 
   <details class="about-data">
@@ -39,6 +43,31 @@ const { meta, outsideShare } = Astro.props;
         Certified firms can work anywhere, so
         {outsideShare != null ? <>about {Math.round(outsideShare * 100)}% of the businesses</> : 'many businesses'} listed here are
         outside the five boroughs. Pick a borough under “Location” to narrow it down.
+      </p>
+    </div>
+  </details>
+
+  <details class="about-data">
+    <summary>Codes, bonding and past contracts</summary>
+    <div class="about-body">
+      <p>
+        Each firm is listed under one six-digit <strong>NAICS</strong> code (the federal industry classification) and
+        any number of <strong>NIGP</strong> commodity codes, the codes City agencies buy under. A code finds every firm
+        whose code starts with it, so 238 finds all specialty trade contractors and 238210 only electrical contractors.
+      </p>
+      <p>
+        <strong>Bonding limit</strong> (the aggregate surety bonding a firm says it can get), <strong>largest past
+        contract</strong> and <strong>union contracts</strong> come from each firm’s certification application, as
+        reported. Most firms, especially outside construction, leave bonding and union blank:
+        {coverage
+          ? <> {of(coverage.bonding)} give a bonding limit, {of(coverage.union)} name a union and {of(coverage.largestContract)} give a largest contract.</>
+          : ' few give a bonding limit or name a union.'}
+        A firm with a blank field drops out when you filter on it, so it isn’t proof a firm lacks the capacity. Ask.
+      </p>
+      <p>
+        <strong>Shortlist:</strong> add firms with the Shortlist button and download them as a spreadsheet (CSV) with
+        contacts, certifications and renewal dates, codes and capacity. It’s saved in your browser only. “Download these
+        results” gives the first {MAX_EXPORT} firms of any search the same way.
       </p>
     </div>
   </details>

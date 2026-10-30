@@ -9,14 +9,19 @@
  *   eth=black,asian  narrows the MBE side to these owner ethnicities
  *   cat, sub      NAICS sector and subsector, exactly as the dataset spells them
  *   q             keyword (name, DBA, description, industry)
+ *   code=238210,914  NAICS or NIGP codes, any of; each matches the start of
+ *                 the firm's NAICS code or of any of its NIGP codes
+ *   bond, contract   a minimum bonding limit or largest past contract, a
+ *                 value from AMOUNT_TIERS ("1m"); firms that give none drop out
+ *   union=1       firms that name a union they're signatory to
  *   boro          a slug from BOROUGHS ("outside" = outside the five boroughs)
  *   zip           a 5-digit ZIP: that ZIP, then its borough, rank first
  *                 (Recommended only, so other sorts drop it)
- *   sort          recommended | az | newest | oldest
+ *   sort          recommended | az | newest | oldest | bonding | contract
  *   lapsed=1      include certifications whose renewal dates have passed
  *   page          1-based
  */
-import { BOROUGHS, MINORITY_ETHNICITIES, SORTS, PAGE_SIZE, MAX_KEYWORD_LENGTH } from "./config.js";
+import { BOROUGHS, MINORITY_ETHNICITIES, SORTS, PAGE_SIZE, MAX_KEYWORD_LENGTH, MAX_CODES, AMOUNT_TIERS } from "./config.js";
 import { keywordWords, boroughFromZip } from "./clean.js";
 import { haystack, keywordMatch, rankBusinesses, certStatus, displayName } from "./ranking.js";
 
@@ -26,10 +31,18 @@ const MAX_PAGE = 1000;
 export const slug = (label) => label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const ETHNICITY_BY_SLUG = Object.fromEntries(MINORITY_ETHNICITIES.map((e) => [slug(e), e]));
 const BOROUGH_BY_SLUG = Object.fromEntries(BOROUGHS.map((b) => [b.slug, b.label]));
+const TIER_BY_VALUE = Object.fromEntries(AMOUNT_TIERS.map((t) => [t.value, t]));
+const tier = (value) => (TIER_BY_VALUE[value] ? value : "");
 
 // "wbe,mbe", or the same name repeated (a plain form GET sends who=wbe&who=mbe).
 const list = (params, key) =>
   [...new Set(params.getAll(key).join(",").toLowerCase().split(",").map((s) => s.trim()).filter(Boolean))];
+
+// "238210, 914": NAICS (2–6 digits) or NIGP (3- or 5-digit) codes.
+const codeParts = (value) => String(value ?? "").split(/[\s,;|]+/).filter(Boolean);
+const isCode = (c) => /^\d{2,6}$/.test(c);
+// Whether every part typed is a code; the form waits until it is.
+export const codesValid = (value) => codeParts(value).every(isCode);
 
 // URLSearchParams → { query } or { error }. Unknown values in lists are
 // dropped rather than rejected, so an old link still opens.
@@ -42,6 +55,10 @@ export function normalizeQuery(params) {
     cat: get("cat").trim(),
     sub: get("sub").trim(),
     q: get("q").replace(/\s+/g, " ").trim(),
+    code: [...new Set(codeParts(get("code")).filter(isCode))].slice(0, MAX_CODES),
+    bond: tier(get("bond")),
+    contract: tier(get("contract")),
+    union: get("union") === "1",
     boro: BOROUGH_BY_SLUG[get("boro")] ? get("boro") : "",
     zip: /^\d{5}$/.test(get("zip").trim()) ? get("zip").trim() : "",
     sort: SORTS.some((s) => s.value === get("sort")) ? get("sort") : "recommended",
@@ -69,6 +86,10 @@ export function queryToParams(query, { page = true } = {}) {
   if (query.cat) p.set("cat", query.cat);
   if (query.sub) p.set("sub", query.sub);
   if (query.q) p.set("q", query.q);
+  if (query.code?.length) p.set("code", query.code.join(","));
+  if (query.bond) p.set("bond", query.bond);
+  if (query.contract) p.set("contract", query.contract);
+  if (query.union) p.set("union", "1");
   if (query.boro) p.set("boro", query.boro);
   if (query.zip) p.set("zip", query.zip);
   if (query.sort && query.sort !== "recommended") p.set("sort", query.sort);
@@ -89,12 +110,19 @@ function matchesWho(record, query) {
   return query.match === "all" ? query.who.every((c) => wants[c]) : query.who.some((c) => wants[c]);
 }
 
+// The firm's NAICS code or any NIGP code starts with one of the codes.
+// nigp is " 91800 92500 " (see codeHaystack), so " 918" finds the class.
+function matchesCode(record, codes, nigp) {
+  return codes.some((c) => record.naics?.startsWith(c) || nigp.includes(` ${c}`));
+}
+const codeHaystack = (record) => ` ${record.nigp ?? ""} `;
+
 // Haystacks are built once per vendor list (per Worker isolate), not per request.
 const haystacks = new WeakMap();
 function haystacksFor(vendors) {
   let hay = haystacks.get(vendors);
   if (!hay) {
-    hay = vendors.map(haystack);
+    hay = vendors.map((v) => ({ ...haystack(v), nigp: codeHaystack(v) }));
     haystacks.set(vendors, hay);
   }
   return hay;
@@ -121,6 +149,10 @@ export function cardSummary(record, today) {
     category: record.title || record.subsector || record.sector || "",
     excerpt: record.excerpt ?? "",
     place: record.borough ?? [record.city, record.state].filter(Boolean).join(", "),
+    ...(record.naics && { naics: record.naics }),
+    ...(record.bonding && { bonding: record.bonding }),
+    ...(record.largestContract && { largestContract: record.largestContract }),
+    ...(record.union && { union: true }),
     ...(certStatus(record, today) === "lapsed" && { lapsed: true })
   };
 }
@@ -129,8 +161,9 @@ export function cardSummary(record, today) {
  * Everything one view of the page shows. vendors: the cleaned list.
  * → {
  *   total, page, pages, results: [cardSummary],
- *   facets: { who: {WBE, MBE}, eth: [{label,count}], categories, subcategories, boroughs, lapsed },
- *   kpis: { total, wbe, mbe, both, outside }
+ *   facets: { who: {WBE, MBE}, eth: [{label,count}], categories, subcategories, boroughs,
+ *             bond: [{value,label,count}], contract: [...], union, lapsed },
+ *   kpis: { total, wbe, mbe, both, outside, bonding, union }
  * }
  * Facet counts follow every other filter, so "Construction (412)" is how many
  * results picking Construction would give.
@@ -139,6 +172,9 @@ export function searchBusinesses(vendors, query, { today, seed = today, pageSize
   const hay = haystacksFor(vendors);
   const words = keywordWords(query.q);
   const boroLabel = BOROUGH_BY_SLUG[query.boro];
+  const codes = query.code ?? [];
+  const minBond = TIER_BY_VALUE[query.bond]?.amount ?? 0;
+  const minContract = TIER_BY_VALUE[query.contract]?.amount ?? 0;
 
   const facets = {
     who: { WBE: 0, MBE: 0 },
@@ -146,8 +182,12 @@ export function searchBusinesses(vendors, query, { today, seed = today, pageSize
     categories: new Map(),
     subcategories: new Map(),
     boroughs: new Map(),
+    bond: AMOUNT_TIERS.map(() => 0),
+    contract: AMOUNT_TIERS.map(() => 0),
+    union: 0,
     lapsed: 0
   };
+  const countTiers = (counts, amount) => AMOUNT_TIERS.forEach((t, j) => { if (amount >= t.amount) counts[j]++; });
   const matches = [];
 
   for (let i = 0; i < vendors.length; i++) {
@@ -158,6 +198,10 @@ export function searchBusinesses(vendors, query, { today, seed = today, pageSize
       cat: !query.cat || r.sector === query.cat,
       sub: !query.sub || r.subsector === query.sub,
       q: !words.length || match !== null,
+      code: !codes.length || matchesCode(r, codes, hay[i].nigp),
+      bond: !minBond || r.bonding >= minBond,
+      contract: !minContract || r.largestContract >= minContract,
+      union: !query.union || Boolean(r.union),
       boro: !boroLabel || boroughOf(r) === boroLabel,
       lapsed: query.lapsed || certStatus(r, today) !== "lapsed"
     };
@@ -176,6 +220,9 @@ export function searchBusinesses(vendors, query, { today, seed = today, pageSize
     if (allBut("cat", "sub") && r.sector) countInto(facets.categories, r.sector);
     if (query.cat && allBut("sub") && r.subsector) countInto(facets.subcategories, r.subsector);
     if (allBut("boro")) countInto(facets.boroughs, boroughOf(r));
+    if (allBut("bond") && r.bonding) countTiers(facets.bond, r.bonding);
+    if (allBut("contract") && r.largestContract) countTiers(facets.contract, r.largestContract);
+    if (allBut("union") && r.union) facets.union++;
     if (allBut("lapsed") && !ok.lapsed) facets.lapsed++;
     if (allBut()) matches.push({ record: r, match });
   }
@@ -185,7 +232,7 @@ export function searchBusinesses(vendors, query, { today, seed = today, pageSize
   const pages = Math.max(1, Math.ceil(ranked.length / pageSize));
   const page = Math.min(query.page ?? 1, pages);
 
-  const kpis = { total: matches.length, wbe: 0, mbe: 0, both: 0, outside: 0 };
+  const kpis = { total: matches.length, wbe: 0, mbe: 0, both: 0, outside: 0, bonding: 0, union: 0 };
   for (const { record: r } of matches) {
     const certs = r.certs ?? [];
     const w = certs.includes("WBE"), m = certs.includes("MBE");
@@ -193,6 +240,8 @@ export function searchBusinesses(vendors, query, { today, seed = today, pageSize
     if (m) kpis.mbe++;
     if (w && m) kpis.both++;
     if (!r.borough) kpis.outside++;
+    if (r.bonding) kpis.bonding++;
+    if (r.union) kpis.union++;
   }
 
   return {
@@ -207,6 +256,9 @@ export function searchBusinesses(vendors, query, { today, seed = today, pageSize
       categories: sortedCounts(facets.categories),
       subcategories: sortedCounts(facets.subcategories),
       boroughs: BOROUGHS.map((b) => ({ ...b, count: facets.boroughs.get(b.label) ?? 0 })),
+      bond: AMOUNT_TIERS.map((t, j) => ({ value: t.value, label: t.label, count: facets.bond[j] })),
+      contract: AMOUNT_TIERS.map((t, j) => ({ value: t.value, label: t.label, count: facets.contract[j] })),
+      union: facets.union,
       lapsed: facets.lapsed
     },
     kpis

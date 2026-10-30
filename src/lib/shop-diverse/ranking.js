@@ -1,6 +1,6 @@
 /*
- * The "Recommended" order for Shop Diverse NYC, plus the A–Z and
- * establishment-date sorts. Pure functions; tests in tests/shop-diverse.test.js.
+ * The "Recommended" order for Shop Diverse NYC, plus the A–Z,
+ * establishment-date, bonding-limit and largest-contract sorts. Pure functions; tests in tests/shop-diverse.test.js.
  *
  * A business's score is the sum of the points below (the README and the
  * page's "Why this order?" note describe the same rules in plain words).
@@ -169,10 +169,16 @@ const byDate = (dir) => (a, b) => {
   return dir * (x < y ? -1 : 1);
 };
 
+// Largest first; firms that give no amount sort last.
+const byAmount = (field) => (a, b) => {
+  const x = a.record[field] ?? 0, y = b.record[field] ?? 0;
+  return y - x || byName(a, b);
+};
+
 /*
  * items: [{ record, match }] (match from keywordMatch, or null). Returns a new
  * array, sorted. Lapsed certifications sort last in every order.
- *   sort: "recommended" | "az" | "newest" | "oldest"
+ *   sort: "recommended" | "az" | "newest" | "oldest" | "bonding" | "contract"
  *   ctx:  as for scoreBusiness, plus seed (today's date) for ties
  */
 export function rankBusinesses(items, { sort = "recommended", today, query = {}, zipBorough = null, seed = today }) {
@@ -186,7 +192,9 @@ export function rankBusinesses(items, { sort = "recommended", today, query = {},
     recommended: (a, b) => b.score - a.score || a.tie - b.tie || a.record.id.localeCompare(b.record.id),
     az: byName,
     newest: byDate(-1),
-    oldest: byDate(1)
+    oldest: byDate(1),
+    bonding: byAmount("bonding"),
+    contract: byAmount("largestContract")
   }[sort] ?? byName;
   return rows.sort((a, b) => (a.lapsed - b.lapsed) || compare(a, b));
 }

@@ -2,7 +2,7 @@
 
 **asknycdata.com** · NYC's public data, made easy to understand.
 
-Interactive dashboards for NYC residents and businesses, built on public [NYC Open Data](https://opendata.cityofnewyork.us/): a landing page plus ten dashboards (restaurant inspections, restaurant leads, 311 complaints, city payroll spending, what city jobs pay, drinking water, women- and minority-owned businesses, school quality, street closures, help near me).
+Interactive dashboards for NYC residents and businesses, built on public [NYC Open Data](https://opendata.cityofnewyork.us/): a landing page plus ten dashboards (restaurant inspections, restaurant leads, 311 complaints, city payroll spending, what city jobs pay, drinking water, certified M/WBE firms, school quality, street closures, help near me).
 
 Built with [Astro](https://docs.astro.build) and deployed to Cloudflare Workers. The page's interactivity is plain vanilla JavaScript. Most pages are prerendered; pages and API routes that read live NYC Open Data run in the Worker (`export const prerender = false`).
 
@@ -21,16 +21,16 @@ src/pages/restaurant-leads/   Restaurant Leads by Service Type, from the same in
 src/pages/311-complaints/  311 Complaints in My Neighborhood (rendered on demand)
 src/pages/drinking-water/  NYC Drinking Water Quality, one page per section (rendered on demand)
 src/components/drinking-water/  WaterPage.astro (heading, section nav, context box, method notes) and the sections
-src/pages/shop-diverse/    Women- and Minority-Owned Businesses (rendered on demand)
+src/pages/shop-diverse/    Find Certified Women- and Minority-Owned Firms (rendered on demand)
 src/pages/school-quality/  NYC School Quality Explorer: browse page and /school-quality/<DBN>/ (rendered on demand)
 src/components/school-quality/  Finder, the school page's "now" and "over time" sections, method notes
-src/components/shop-diverse/  The finder (filters, results, detail panel) and method notes
+src/components/shop-diverse/  The finder (filters, results, detail panel, shortlist) and method notes
 src/pages/street-closures/  Street Closures Near You (rendered on demand)
 src/components/street-closures/  The finder (search, window tabs, map + cards, breakdown) and method notes
 src/pages/api/            API routes (Worker): /api/restaurants/search, /api/restaurants/:camis, /api/311/*, /api/water/stations, /api/shop-diverse/*, /api/schools/search, /api/street-closures/search
 src/lib/restaurants/      Restaurant logic: SoQL builders, inspection rules, violation categories, rendering
 src/lib/complaints311/    311 logic: config, SoQL, share math, labels, input parsing, geocoding, rendering
-src/lib/shop-diverse/     Women- and minority-owned businesses logic: cleaning, ranking, filters, rendering
+src/lib/shop-diverse/     Certified women- and minority-owned firms logic: cleaning, ranking, filters, rendering, CSV export
 src/lib/schools/          School Quality Explorer logic: curated metrics (metrics.js), values, search, charts, maps
 src/lib/street-closures/  Street closures logic: street names, purposes, blocks, windows and status, URL state, rendering, map
 src/lib/water/            Drinking water logic: reference values (config.js), lab value parser, SoQL, stats, charts, map
@@ -62,7 +62,7 @@ Production build: `npm run build` (output in `dist/`), preview with `npm run pre
 Live data needs no setup locally (Socrata allows anonymous requests at low volume). To use a token, copy `.dev.vars.example` to `.dev.vars` and fill in `SOCRATA_APP_TOKEN`.
 
 ```sh
-npm test             # restaurant, 311, drinking water, women- and minority-owned businesses, school quality and street closures logic tests
+npm test             # restaurant, 311, drinking water, certified M/WBE firms, school quality and street closures logic tests
 ```
 
 ## Deploy (Cloudflare Workers)
@@ -315,13 +315,13 @@ The old `/drinking-water/history/` URL redirects to `/drinking-water/#history` (
 
 **Station locations** come from DEP's 2021 sampling site spreadsheet, converted to `src/data/water-sites.json` (State Plane EPSG:2263 → lat/lon, borough by point-in-polygon), with ZIP points in `src/data/zip-centroids.json`. Rebuild both with `npm run data:water-sites`; it also lists dataset site codes missing from the spreadsheet.
 
-## Women- and Minority-Owned Businesses
+## Find Certified Women- and Minority-Owned Firms
 
-`/shop-diverse/` helps residents find and support Women-owned (WBE) and Minority-owned (MBE) businesses from NYC Small Business Services' [SBS Certified Business List](https://data.cityofnewyork.us/d/ci93-uc8s) (`ci93-uc8s`, ~11,850 rows, updated about every two weeks).
+`/shop-diverse/` helps contractors and agency buyers find certified Women-owned (WBE) and Minority-owned (MBE) firms to meet M/WBE goals, from NYC Small Business Services' [SBS Certified Business List](https://data.cityofnewyork.us/d/ci93-uc8s) (`ci93-uc8s`, ~11,850 rows, updated about every two weeks). About 55% of firms with a sector are in professional services or construction, and about 5% in retail or food, so the page is a procurement directory: filters for NAICS/NIGP code, bonding limit, largest past contract and union status, and a shortlist to download as CSV. The header links residents to the retail and food sectors (`CONSUMER_SECTORS` in `config.js`).
 
-**Architecture.** A job (`shop-diverse:vendors:v3`, rebuilt when the list changes, in `src/lib/server/shop-diverse.js`) pages through the dataset with SoQL, cleans every row (`src/lib/shop-diverse/clean.js`) and keeps a slim index in KV (about 7 MB): the fields search, ranking and cards use, each industry name once in a shared table, and each description reduced to its card excerpt plus, for keyword search, the other words it holds (each once, without filler words or words the name and industry already hold). It also stores the share of businesses outside NYC for the About section. `/api/shop-diverse/search` filters, ranks and pages that index in the Worker and caches each view at the edge for an hour (keyed by query, NYC date, data version and deploy version), with `SHOP_SEARCH_RATE_LIMITER` on misses. It never calls Socrata per request. Ranking has to run over every match before a page is cut, which SoQL can't do here: renewal dates are text, and ties use a seeded hash. `/api/shop-diverse/business/:id` reads one vendor live by `account_number` (edge-cached 6 h per deploy, `SHOP_DETAIL_RATE_LIMITER` on misses). Shop Diverse has its own rate limiters, so busy use doesn't block the other dashboards. The page script's URL, form and history decisions are in `src/lib/shop-diverse/page-state.js`, with tests. The page renders the first view on the server, so shared links and the form work without JavaScript; it's cached for an hour only when that view (and any `?biz=` business) loaded.
+**Architecture.** A job (`shop-diverse:vendors:v4`, rebuilt when the list changes, in `src/lib/server/shop-diverse.js`) pages through the dataset with SoQL, cleans every row (`src/lib/shop-diverse/clean.js`) and keeps a slim index in KV (about 7 MB): the fields search, ranking and cards use, each industry name once in a shared table, and each description reduced to its card excerpt plus, for keyword search, the other words it holds (each once, without filler words or words the name and industry already hold). The index also keeps each firm's NAICS code, NIGP codes (one space-separated string), bonding limit, largest contract and whether it names a union. The job also stores the share of businesses outside NYC and how many firms give each capacity field, for the About section. `/api/shop-diverse/search` filters, ranks and pages that index in the Worker and caches each view at the edge for an hour (keyed by query, NYC date, data version and deploy version), with `SHOP_SEARCH_RATE_LIMITER` on misses. It never calls Socrata per request. Ranking has to run over every match before a page is cut, which SoQL can't do here: renewal dates are text, and ties use a seeded hash. `/api/shop-diverse/business/:id` reads one vendor live by `account_number` (edge-cached 6 h per deploy, `SHOP_DETAIL_RATE_LIMITER` on misses). Shop Diverse has its own rate limiters, so busy use doesn't block the other dashboards. `/api/shop-diverse/export` returns a CSV (`src/lib/shop-diverse/export.js`) for `?ids=` (the shortlist, up to 100, in order) or for a search's query (its first 100 results); it reads those vendors live by `account_number` in chunks of 50, uncached, on `SHOP_DETAIL_RATE_LIMITER`. Fields starting with `= + - @` get a leading apostrophe so spreadsheets don't run them as formulas. The shortlist itself is `[{ id, name }]` in the visitor's `localStorage` (`shop-diverse:shortlist`) and appears only with JavaScript. The page script's URL, form, history and shortlist decisions are in `src/lib/shop-diverse/page-state.js`, with tests. The page renders the first view on the server, so shared links and the form work without JavaScript; it's cached for an hour only when that view (and any `?biz=` business) loaded.
 
-**URL state** (`src/lib/shop-diverse/filter.js`): `who=wbe,mbe`, `match=all` (both, default either), `eth=black,asian` (narrows the MBE side), `cat`/`sub` (NAICS sector/subsector as spelled in the data), `q`, `boro` (`manhattan` … `staten-island`, `outside`), `zip`, `sort` (`recommended`, `az`, `newest`, `oldest`), `lapsed=1`, `page`, and `biz=<account>` for the open business.
+**URL state** (`src/lib/shop-diverse/filter.js`): `who=wbe,mbe`, `match=all` (both, default either), `eth=black,asian` (narrows the MBE side), `cat`/`sub` (NAICS sector/subsector as spelled in the data), `q`, `code=238210,914` (NAICS or NIGP codes, any of, each matching the start of the firm's NAICS code or any of its NIGP codes), `bond`/`contract` (a minimum: `100k`, `500k`, `1m`, `5m`, `10m`, `25m`; firms that give none drop out), `union=1`, `boro` (`manhattan` … `staten-island`, `outside`), `zip`, `sort` (`recommended`, `az`, `newest`, `oldest`, `bonding`, `contract`; blanks sort last), `lapsed=1`, `page`, and `biz=<account>` for the open business.
 
 **Fields used.** `account_number`, `vendor_formal_name`, `vendor_dba`, `certification`, `cert_renewal_date`, `ethnicity`, `naics_sector`/`naics_subsector`/`naics_title`/`id6_digit_naics_code`, `nigp_codes`, `business_description`, `first_name`/`last_name`, `telephone`, `website`, address fields, `borough`, `date_of_establishment`, `aggregate_bonding_limit`, `signatory_to_union_contracts`, `largest_value_of_contract`, the three past-job blocks, `enrolled_in_passport`.
 

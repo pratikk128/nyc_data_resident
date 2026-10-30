@@ -1,8 +1,9 @@
 ---
 /*
- * The Shop Diverse NYC finder: a filter panel above the results (ownership,
- * products and services, location), summary chips, ranked result cards and
- * the business detail panel.
+ * The Shop Diverse NYC finder, for contractors and agency buyers: a filter
+ * panel above the results (certification, scope of work, capacity,
+ * location), summary chips, ranked result cards, the business detail panel
+ * and a shortlist to download as CSV.
  *
  * The first view is rendered here on the server from the URL's query (see
  * src/lib/shop-diverse/filter.js for the parameters), so shared links and the
@@ -12,15 +13,22 @@
  * full-screen sheet on phones) and adds ?biz=<id> to the URL. A shared ?biz=
  * link arrives with that panel rendered here, shown without script by the
  * <noscript> style and opened as a modal by the script.
+ *
+ * The shortlist lives in the visitor's browser (localStorage, page-state.js)
+ * and needs the script, so its buttons and bar show only once it runs
+ * (.has-shortlist). Its CSV comes from /api/shop-diverse/export?ids=.
  */
 import { CERTS, SORTS, MAX_KEYWORD_LENGTH } from '../../lib/shop-diverse/config.js';
 import { queryToParams } from '../../lib/shop-diverse/filter.js';
-import { pageUrl, activeFilters } from '../../lib/shop-diverse/page-state.js';
+import { pageUrl, activeFilters, searchExportUrl } from '../../lib/shop-diverse/page-state.js';
 import { POINTS } from '../../lib/shop-diverse/ranking.js';
 import {
-  kpisHtml, cardsHtml, pagerHtml, statusText, categoryOptionsHtml, boroughOptionsHtml,
-  ethnicityChipsHtml, activeFiltersHtml, detailHtml, zipHint, showResultsLabel, UPSTREAM_TEXT, ZIP_ERROR, NOT_FOUND_TEXT, DETAIL_LABEL
+  kpisHtml, cardsHtml, pagerHtml, statusText, categoryOptionsHtml, boroughOptionsHtml, amountOptionsHtml,
+  ethnicityChipsHtml, activeFiltersHtml, detailHtml, zipHint, showResultsLabel, UPSTREAM_TEXT, ZIP_ERROR, CODE_ERROR,
+  NOT_FOUND_TEXT, DETAIL_LABEL
 } from '../../lib/shop-diverse/render.js';
+import { codesValid } from '../../lib/shop-diverse/filter.js';
+import { MAX_EXPORT } from '../../lib/shop-diverse/config.js';
 import { count } from '../../lib/format.js';
 
 interface Props {
@@ -48,6 +56,9 @@ const status = inputError ?? (initial ? statusText(initial) : UPSTREAM_TEXT);
 // Recommended order); keep what was typed, and say so if it's malformed.
 const rawZip = Astro.url.searchParams.get('zip')?.trim() ?? '';
 const zipInvalid = Boolean(rawZip) && !/^\d{5}$/.test(rawZip);
+// The same for codes: normalizeQuery() keeps only the parts that are codes.
+const rawCode = Astro.url.searchParams.get('code')?.trim() ?? '';
+const codeInvalid = !codesValid(rawCode);
 const listHref = pageHref(query.page);
 const showResultsText = initial ? showResultsLabel(initial.total) : 'Show results';
 const detail = business && !business.missing ? business : null;
@@ -56,7 +67,7 @@ const chips = activeFilters(query);
 const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: detail }).replace(/</g, '\\u003c');
 ---
 
-<section class="dash-section sd-finder" aria-labelledby="sd-find-title">
+<section class="dash-section sd-finder" aria-labelledby="sd-find-title" data-finder>
   <h2 class="sr-only" id="sd-find-title">Find a business</h2>
 
   <div class="sd-layout">
@@ -69,7 +80,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
       <form class="sd-filters" id="sd-filters" action={base} method="get" novalidate data-filters>
         <div class="sd-filter-grid">
           <fieldset class="sd-step" data-tone="pink">
-            <legend class="sd-step-title">Ownership</legend>
+            <legend class="sd-step-title">Certification</legend>
             <div class="sd-who">
               {(['WBE', 'MBE'] as const).map((c) => (
                 <label class="sd-who-chip" data-tone={CERTS[c].tone}>
@@ -97,7 +108,15 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
           </fieldset>
 
           <fieldset class="sd-step" data-tone="purple">
-            <legend class="sd-step-title">Products and services</legend>
+            <legend class="sd-step-title">Scope of work</legend>
+            <div class="field">
+              <label class="filter-label" for="sd-code">NAICS or NIGP codes <span class="field-optional">(optional, any of)</span></label>
+              <input class="search-input" id="sd-code" name="code" type="text" inputmode="numeric" value={query.code.join(', ') || rawCode}
+                autocomplete="off" enterkeyhint="search" placeholder="e.g. 238210, 914" aria-describedby="sd-code-error sd-code-hint"
+                aria-invalid={codeInvalid ? 'true' : undefined} data-code />
+              <p class="field-error" id="sd-code-error" data-code-error hidden={!codeInvalid}>{CODE_ERROR}</p>
+              <p class="field-hint" id="sd-code-hint">A code’s first digits find everything under it: 2382 finds every building equipment contractor, 914 every NIGP 914 item.</p>
+            </div>
             <div class="field">
               <label class="filter-label" for="sd-cat">Category</label>
               <select class="filter-select" id="sd-cat" name="cat" data-cat
@@ -111,9 +130,31 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
             <div class="field">
               <label class="filter-label" for="sd-q">Keyword</label>
               <input class="search-input" id="sd-q" name="q" type="search" maxlength={MAX_KEYWORD_LENGTH} value={query.q}
-                autocomplete="off" enterkeyhint="search" placeholder="Try “catering” or “bakery”" aria-describedby="sd-q-hint" data-q />
+                autocomplete="off" enterkeyhint="search" placeholder="Try “electrical” or “asbestos”" aria-describedby="sd-q-hint" data-q />
               <p class="field-hint" id="sd-q-hint">Searches names, descriptions and industries.</p>
             </div>
+          </fieldset>
+
+          <fieldset class="sd-step" data-tone="orange">
+            <legend class="sd-step-title">Capacity</legend>
+            <div class="field">
+              <label class="filter-label" for="sd-bond">Bonding limit</label>
+              <select class="filter-select" id="sd-bond" name="bond" aria-describedby="sd-capacity-hint" data-bond
+                set:html={facets ? amountOptionsHtml(facets.bond, query.bond) : '<option value="">Any amount</option>'}></select>
+            </div>
+            <div class="field">
+              <label class="filter-label" for="sd-contract">Largest past contract</label>
+              <select class="filter-select" id="sd-contract" name="contract" aria-describedby="sd-capacity-hint" data-contract
+                set:html={facets ? amountOptionsHtml(facets.contract, query.contract) : '<option value="">Any amount</option>'}></select>
+            </div>
+            <label class="sd-check">
+              <input type="checkbox" name="union" value="1" checked={query.union} data-union />
+              Signatory to union contracts <span class="sd-count" data-union-count>{facets ? count(facets.union) : ''}</span>
+            </label>
+            <p class="field-hint" id="sd-capacity-hint">
+              Reported by each firm to SBS. Firms that leave a field blank drop out when you set it: few give a bonding
+              limit or name a union, mostly construction firms.
+            </p>
           </fieldset>
 
           <fieldset class="sd-step" data-tone="green">
@@ -154,6 +195,22 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
     <div class="sd-results-col">
       <div class="sd-active" hidden={!chips.length} data-active set:html={activeFiltersHtml(chips, pageUrl, base)}></div>
 
+      <section class="sd-shortlist" aria-labelledby="sd-shortlist-title" data-shortlist-bar hidden>
+        <h2 class="sd-shortlist-title" id="sd-shortlist-title">Your shortlist</h2>
+        <p class="sd-shortlist-count" data-shortlist-count></p>
+        <ul class="sd-shortlist-names" data-shortlist-names></ul>
+        <div class="sd-shortlist-actions">
+          <a class="near-btn" href="#" data-shortlist-csv>Download shortlist (CSV)</a>
+          <button type="button" class="sd-clear sd-link-btn" data-shortlist-clear>Clear shortlist</button>
+          <span class="sd-copy-status" role="status" data-shortlist-status></span>
+        </div>
+        <p class="field-hint">
+          Saved in this browser only, up to {MAX_EXPORT} businesses. The file has each firm’s contact, certifications,
+          codes, bonding limit, largest contract and union contracts. Confirm certifications in the SBS directory before
+          you count a firm toward a goal.
+        </p>
+      </section>
+
       <ul class="sd-kpis" aria-label="Matching businesses" data-kpis set:html={initial ? kpisHtml(initial.kpis, query) : ''}></ul>
 
       <div class="sd-results-head">
@@ -191,6 +248,12 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
       </div>
 
       <nav class="pager sd-pager" aria-label="Result pages" data-pager set:html={initial ? pagerHtml(initial, pageHref) : ''}></nav>
+
+      <p class="sd-export" data-export-wrap hidden={!initial?.total}>
+        <a class="download-link" href={searchExportUrl(query)} download data-export>Download these results (CSV)</a>
+        <span class="field-hint">The first {MAX_EXPORT}, in this order.</span>
+        <span class="sd-copy-status" role="status" data-export-status></span>
+      </p>
     </div>
   </div>
 </section>
@@ -212,15 +275,17 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
 <script type="application/json" id="sd-initial" set:html={initialJson}></script>
 
 <script>
-  import { normalizeQuery, queryToParams } from '../../lib/shop-diverse/filter.js';
+  import { normalizeQuery, queryToParams, codesValid } from '../../lib/shop-diverse/filter.js';
   import {
-    BASE, pageUrl, formQuery, startQuery, popstateAction, closeAction, activeFilters, plainClick
+    BASE, pageUrl, formQuery, startQuery, popstateAction, closeAction, activeFilters, plainClick,
+    SHORTLIST_KEY, parseShortlist, toggleShortlist, shortlistExportUrl, searchExportUrl
   } from '../../lib/shop-diverse/page-state.js';
   import {
-    kpisHtml, cardsHtml, skeletonCards, pagerHtml, statusText, categoryOptionsHtml,
+    kpisHtml, cardsHtml, skeletonCards, pagerHtml, statusText, categoryOptionsHtml, amountOptionsHtml,
     boroughOptionsHtml, ethnicityChipsHtml, activeFiltersHtml, detailHtml, contactText, zipHint, showResultsLabel, UPSTREAM_TEXT, LOADING_TEXT,
     NOT_FOUND_TEXT, DETAIL_LABEL
   } from '../../lib/shop-diverse/render.js';
+  import { MAX_EXPORT } from '../../lib/shop-diverse/config.js';
   import { count } from '../../lib/format.js';
 
   const DEBOUNCE_MS = 350;
@@ -238,6 +303,11 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
   const zipInput = $<HTMLInputElement>('[data-zip]');
   const zipError = $('[data-zip-error]');
   const zipHintText = $('[data-zip-hint]');
+  const codeInput = $<HTMLInputElement>('[data-code]');
+  const codeError = $('[data-code-error]');
+  const bondSelect = $<HTMLSelectElement>('[data-bond]');
+  const contractSelect = $<HTMLSelectElement>('[data-contract]');
+  const unionBox = $<HTMLInputElement>('[data-union]');
   const sortSelect = $<HTMLSelectElement>('[data-sort]');
   const lapsedWrap = $('[data-lapsed-wrap]');
   const lapsedBox = $<HTMLInputElement>('[data-lapsed]');
@@ -255,6 +325,15 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
   const showResults = $<HTMLButtonElement>('[data-show-results]');
   const dialog = $<HTMLDialogElement>('[data-detail]');
   const detailBody = $('[data-detail-body]');
+  const finder = $('[data-finder]');
+  const shortlistBar = $('[data-shortlist-bar]');
+  const shortlistCount = $('[data-shortlist-count]');
+  const shortlistNames = $<HTMLUListElement>('[data-shortlist-names]');
+  const shortlistCsv = $<HTMLAnchorElement>('[data-shortlist-csv]');
+  const shortlistStatus = $('[data-shortlist-status]');
+  const exportWrap = $('[data-export-wrap]');
+  const exportLink = $<HTMLAnchorElement>('[data-export]');
+  const exportStatus = $('[data-export-status]');
 
   const initial = JSON.parse(document.getElementById('sd-initial')!.textContent || '{}');
   let query: any = initial.query;
@@ -280,10 +359,13 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
     form.querySelectorAll<HTMLInputElement>('input[name="match"]').forEach((b) => { b.checked = b.value === q.match; });
     qInput.value = q.q;
     zipInput.value = q.zip;
+    codeInput.value = q.code.join(', ');
+    unionBox.checked = q.union;
     sortSelect.value = q.sort;
     lapsedBox.checked = q.lapsed;
     showZipError(false);
-    // Category, subcategory, borough and ethnicity options come back with the results.
+    showCodeError(false);
+    // Category, subcategory, borough, amount and ethnicity options come back with the results.
     syncVisibility(q);
   }
 
@@ -301,6 +383,13 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
     if (show) zipInput.setAttribute('aria-invalid', 'true'); else zipInput.removeAttribute('aria-invalid');
   }
 
+  // The same for codes: "plumbing" or a half-typed "2" waits.
+  const codeIsValid = () => codesValid(codeInput.value);
+  function showCodeError(show: boolean) {
+    codeError.hidden = !show;
+    if (show) codeInput.setAttribute('aria-invalid', 'true'); else codeInput.removeAttribute('aria-invalid');
+  }
+
   // ---------- Render ----------
   function render(data: any) {
     const f = data.facets;
@@ -310,13 +399,19 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
     subSelect.innerHTML = categoryOptionsHtml(f.subcategories, query.sub, 'All subcategories');
     subField.hidden = !query.cat || !f.subcategories.length;
     boroSelect.innerHTML = boroughOptionsHtml(f.boroughs, query.boro);
+    bondSelect.innerHTML = amountOptionsHtml(f.bond, query.bond);
+    contractSelect.innerHTML = amountOptionsHtml(f.contract, query.contract);
+    $('[data-union-count]').textContent = count(f.union);
     lapsedWrap.hidden = !query.lapsed && !f.lapsed;
     $('[data-lapsed-count]').textContent = count(f.lapsed);
 
     kpis.innerHTML = kpisHtml(data.kpis, query);
 
-    list.innerHTML = cardsHtml(data.results, (id: string) => pageUrl(query, { biz: id }));
+    list.innerHTML = cardsHtml(data.results, (id: string) => pageUrl(query, { biz: id }), shortlistIds());
     empty.hidden = data.total > 0;
+    exportLink.href = searchExportUrl(query);
+    exportWrap.hidden = !data.total;
+    exportStatus.textContent = '';
     pager.innerHTML = pagerHtml(data, (page: number) => pageUrl({ ...query, page }));
     status.textContent = statusText(data);
     showResults.textContent = showResultsLabel(data.total);
@@ -336,6 +431,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
     list.replaceChildren();
     pager.replaceChildren();
     kpis.replaceChildren();
+    exportWrap.hidden = true;
     form.querySelectorAll('.sd-count').forEach((el) => { el.textContent = ''; });
     form.querySelectorAll<HTMLInputElement>('input[name="eth"]').forEach((b) => { b.disabled = false; });
     form.querySelectorAll('select option').forEach((o) => { o.textContent = o.textContent!.replace(/ \([\d,]+\)$/, ''); });
@@ -409,7 +505,8 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
   form.addEventListener('change', (e) => {
     const target = e.target as HTMLElement;
     if (target === zipInput) showZipError(!zipIsValid());
-    if (target === zipInput || target === qInput) return endTyping(); // searched on input
+    if (target === codeInput) showCodeError(!codeIsValid());
+    if (target === zipInput || target === qInput || target === codeInput) return endTyping(); // searched on input
     if (target === catSelect) subSelect.value = '';
     applyForm();
   });
@@ -417,10 +514,11 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     showZipError(!zipIsValid());
+    showCodeError(!codeIsValid());
     applyForm();
   });
-  for (const input of [qInput, zipInput]) {
-    // With two text fields and no submit button the browser won't submit on
+  for (const input of [qInput, codeInput, zipInput]) {
+    // With several text fields and no submit button the browser won't submit on
     // Enter, so do it here. On phones the Search key also closes the keyboard.
     input.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter' || e.isComposing) return;
@@ -433,6 +531,10 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
         // Wait for 5 digits, without cancelling a keyword search that's pending.
         if (!zipIsValid()) return;
         showZipError(false);
+      }
+      if (input === codeInput) {
+        if (!codeIsValid()) return;
+        showCodeError(false);
       }
       clearTimeout(typingTimer);
       typingTimer = window.setTimeout(() => applyForm({ typing: true }), DEBOUNCE_MS);
@@ -531,7 +633,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
       if (res.status === 429 && typeof data?.error === 'string') return showDetailMessage(data.error);
       if (!res.ok || !data) throw new Error('upstream');
       current = data;
-      detailBody.innerHTML = detailHtml(data);
+      detailBody.innerHTML = detailHtml(data, shortlistIds());
       nameDetail();
       $('#sd-detail-title', detailBody).focus();
     } catch (err: any) {
@@ -586,6 +688,109 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
     copyTimer = window.setTimeout(() => { copyStatus.textContent = ''; }, ok ? 2500 : 8000);
   });
 
+  // ---------- Shortlist ----------
+  // In localStorage, which can be missing or throw (private windows, blocked
+  // storage): then the shortlist lasts until the page is left.
+  let shortlist = (() => {
+    try { return parseShortlist(localStorage.getItem(SHORTLIST_KEY)); } catch { return []; }
+  })();
+  const shortlistIds = () => new Set(shortlist.map((i) => i.id));
+
+  function saveShortlist() {
+    try { localStorage.setItem(SHORTLIST_KEY, JSON.stringify(shortlist)); } catch { /* kept for this visit */ }
+  }
+
+  function renderShortlist() {
+    const ids = shortlistIds();
+    document.querySelectorAll<HTMLButtonElement>('[data-shortlist]').forEach((b) => {
+      b.setAttribute('aria-pressed', String(ids.has(b.dataset.shortlist!)));
+    });
+    shortlistBar.hidden = !shortlist.length;
+    shortlistCount.textContent = `${count(shortlist.length)} ${shortlist.length === 1 ? 'business' : 'businesses'}`;
+    shortlistNames.replaceChildren(...shortlist.map((i) => {
+      const li = document.createElement('li');
+      const a = document.createElement('a');
+      a.href = pageUrl(query, { biz: i.id });
+      a.dataset.open = i.id;
+      a.textContent = i.name;
+      const x = document.createElement('button');
+      x.type = 'button';
+      x.className = 'sd-shortlist-remove';
+      x.dataset.shortlist = i.id;
+      x.dataset.name = i.name;
+      x.setAttribute('aria-label', `Remove ${i.name} from shortlist`);
+      x.textContent = '×';
+      li.append(a, x);
+      return li;
+    }));
+    shortlistCsv.href = shortlistExportUrl(shortlist);
+  }
+
+  // Any [data-shortlist] button: on a card, in the panel or in the bar.
+  function onShortlistClick(e: Event) {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-shortlist]');
+    if (!btn) return false;
+    const { list: next, full } = toggleShortlist(shortlist, { id: btn.dataset.shortlist!, name: btn.dataset.name! });
+    if (full) {
+      shortlistStatus.textContent = `Your shortlist is full (${MAX_EXPORT}). Download it, then clear it to start another.`;
+      return true;
+    }
+    const removing = btn.classList.contains('sd-shortlist-remove');
+    shortlist = next;
+    saveShortlist();
+    renderShortlist();
+    shortlistStatus.textContent = '';
+    // The bar's × button is gone once its business is; keep focus in the bar.
+    if (removing) {
+      const next = shortlistNames.querySelector<HTMLElement>('.sd-shortlist-remove');
+      if (next) next.focus(); else focusFilters();
+    }
+    return true;
+  }
+  list.addEventListener('click', onShortlistClick);
+  detailBody.addEventListener('click', onShortlistClick);
+  shortlistBar.addEventListener('click', (e) => {
+    if (onShortlistClick(e)) return;
+    const link = (e.target as HTMLElement).closest<HTMLAnchorElement>('a[data-open]');
+    if (!link || !plainClick(e)) return;
+    e.preventDefault();
+    openBusiness(link.dataset.open!, { push: true });
+  });
+  $('[data-shortlist-clear]').addEventListener('click', () => {
+    shortlist = [];
+    saveShortlist();
+    renderShortlist();
+    focusFilters();
+  });
+
+  // Fetched rather than followed, so an error (rate limit, Socrata down) is
+  // said beside the link instead of downloading as a file.
+  async function download(link: HTMLAnchorElement, statusEl: HTMLElement, e: MouseEvent) {
+    if (!plainClick(e)) return;
+    e.preventDefault();
+    statusEl.textContent = 'Preparing the file…';
+    try {
+      const res = await fetch(link.href);
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        statusEl.textContent = typeof data?.error === 'string' && data.error !== 'upstream' ? data.error : UPSTREAM_TEXT;
+        return;
+      }
+      const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '')?.[1] ?? 'mwbe-businesses.csv';
+      const url = URL.createObjectURL(await res.blob());
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      statusEl.textContent = 'Downloaded';
+    } catch {
+      statusEl.textContent = UPSTREAM_TEXT;
+    }
+  }
+  shortlistCsv.addEventListener('click', (e) => download(shortlistCsv, shortlistStatus, e));
+  exportLink.addEventListener('click', (e) => download(exportLink, exportStatus, e));
+
   // ---------- Back / forward ----------
   window.addEventListener('popstate', () => {
     const action = popstateAction(location.search, { query, currentId: current?.id ?? null, dialogOpen: dialog.open });
@@ -602,7 +807,10 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
   // Phones: collapse the filters into the drawer (left open without script).
   form.classList.add('is-collapsible');
   filterToggle.hidden = false;
+  finder.classList.add('has-shortlist');
+  dialog.classList.add('has-shortlist');
   renderActive();
+  renderShortlist();
   // The browser may have kept edited fields (back/forward cache, autofill).
   const startWith = startQuery(initial, readForm().query ?? null);
   if (startWith) {

@@ -1,7 +1,9 @@
 ---
 /*
- * Shop Diverse NYC: find and support women- and minority-owned businesses
- * certified by NYC Small Business Services. Rendered on demand so a shared
+ * Shop Diverse NYC: for contractors and agency buyers, find women- and
+ * minority-owned businesses certified by NYC Small Business Services (by
+ * code, capacity and place) and download a shortlist. Residents get a link to
+ * the retail and food businesses, the small part of the list that sells to them. Rendered on demand so a shared
  * link (?who=wbe&cat=Construction&boro=brooklyn) shows its results on first
  * paint, from the daily vendor list in KV (src/lib/server/shop-diverse.js).
  * ?biz=<account> also renders that business's detail panel and puts its
@@ -13,6 +15,8 @@ import AboutSection from '../../components/shop-diverse/AboutSection.astro';
 import { getMetadata, getVendors, loadSearch, loadBusiness, isAccount } from '../../lib/server/shop-diverse.js';
 import { RateLimited } from '../../lib/server/rate-limit.js';
 import { normalizeQuery } from '../../lib/shop-diverse/filter.js';
+import { pageUrl } from '../../lib/shop-diverse/page-state.js';
+import { CONSUMER_SECTORS } from '../../lib/shop-diverse/config.js';
 import { businessMeta } from '../../lib/shop-diverse/render.js';
 import { date } from '../../lib/format.js';
 
@@ -32,12 +36,15 @@ const [meta, initial, shared] = await Promise.allSettled([
 if (meta.status === 'rejected') console.error(meta.reason);
 for (const r of [initial, shared]) if (r.status === 'rejected' && !(r.reason instanceof RateLimited)) console.error(r.reason);
 // Computed by the daily job; the list is in memory once loadSearch has run.
-const share = await getVendors().then((v) => v.outsideShare ?? null, () => null);
+const stored = await getVendors().catch(() => null);
+const share = stored?.outsideShare ?? null;
+const coverage = stored?.coverage ?? null;
 const metaValue = meta.status === 'fulfilled' ? meta.value : null;
 // A business detail, { missing: true }, or null (no ?biz=, or it couldn't load: the script retries)
 const business = shared.status === 'fulfilled' ? shared.value : null;
 const bizMeta = business && !business.missing ? businessMeta(business) : null;
-const pageTitle = 'Women- and Minority-Owned Businesses';
+const pageTitle = 'Find Certified Women- and Minority-Owned Firms';
+const consumerHref = (cat: string) => pageUrl(normalizeQuery(new URLSearchParams({ cat })).query!);
 // Production only: in dev a cached page hides edits for an hour. A page whose
 // results or shared business failed to load isn't cached, so a visitor
 // without script isn't stuck on the error.
@@ -49,18 +56,24 @@ if (import.meta.env.PROD && initial.status === 'fulfilled' && shared.status === 
 <DashboardLayout
   title={bizMeta ? `${bizMeta.title} | ${pageTitle}` : pageTitle}
   description={bizMeta?.description ??
-    'Find and support women- and minority-owned businesses certified by NYC Small Business Services, by what you need and where.'}
+    'Find NYC-certified women- and minority-owned firms to meet M/WBE goals: search by NAICS or NIGP code, bonding limit, past contract size and union status, and download a shortlist.'}
   path={bizMeta ? `/shop-diverse/?biz=${bizId}` : '/shop-diverse/'}
   category="Business"
   lastRefreshed={metaValue?.rowsUpdatedAt ? date(metaValue.rowsUpdatedAt) : undefined}
   dataUpdated={metaValue?.rowsUpdatedAt ?? undefined}
 >
   <header class="page-head sd-head">
-    <p class="sd-eyebrow">Certified by NYC Small Business Services</p>
+    <p class="sd-eyebrow">For contractors and agency buyers</p>
     <h1>{pageTitle}</h1>
     <p>
-      New York’s women- and minority-owned businesses build, cater, design and supply across the city. Browse the firms
-      the city has certified by ownership, what you need and where, and find the right one for your next job.
+      Every women- and minority-owned business certified by NYC Small Business Services, most of them in professional
+      services and construction. Find subcontractors and suppliers for your M/WBE (minority- and women-owned business
+      enterprise) goals by NAICS or NIGP code, bonding limit, past contract size and union status, then download a
+      shortlist.
+    </p>
+    <p class="sd-consumer">
+      Shopping or eating out? Only a small part of the list sells to the public:
+      see <a href={consumerHref(CONSUMER_SECTORS[0])}>stores</a> and <a href={consumerHref(CONSUMER_SECTORS[1])}>restaurants and caterers</a>.
     </p>
   </header>
 
@@ -71,5 +84,5 @@ if (import.meta.env.PROD && initial.status === 'fulfilled' && shared.status === 
     business={business}
   />
 
-  <AboutSection meta={metaValue} outsideShare={share} />
+  <AboutSection meta={metaValue} outsideShare={share} coverage={coverage} />
 </DashboardLayout>

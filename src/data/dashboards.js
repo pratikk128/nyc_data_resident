@@ -72,11 +72,11 @@ export const dashboards = [
   },
   {
     id: "shop-diverse",
-    title: "Women- and Minority-Owned Businesses",
-    description: "Find and support women- and minority-owned businesses certified by the city, by what you need and where.",
+    title: "Find Certified Women- and Minority-Owned Firms",
+    description: "For contractors and agency buyers: city-certified women- and minority-owned firms by NAICS or NIGP code, bonding limit, past contract size and union status, with a shortlist to download.",
     category: "Business",
     url: "/shop-diverse/",
-    audience: ["resident", "business"]
+    audience: ["business"]
   },
   {
     id: "school-quality",

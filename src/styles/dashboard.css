@@ -2010,6 +2010,7 @@ a.rank-name { justify-self: start; }
   color: var(--ink-soft);
 }
 .page-head .sd-eyebrow { margin-top: 0; font-size: .8125rem; }
+.page-head .sd-consumer { margin-top: var(--space-2); font-size: .9375rem; color: var(--ink-soft); }
 
 /* ---------- Filters: a panel above the results ---------- */
 .sd-layout { display: flex; flex-direction: column; gap: var(--space-5); }
@@ -2027,8 +2028,11 @@ a.rank-name { justify-self: start; }
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
   gap: var(--space-5) var(--space-6);
 }
-@media (min-width: 1024px) {
-  .sd-filter-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (min-width: 768px) {
+  .sd-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1200px) {
+  .sd-filter-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 /* The script adds .is-collapsible, so without script the filters stay open */
 @media (min-width: 768px) {
@@ -2114,6 +2118,9 @@ a.rank-name { justify-self: start; }
 .sd-filter-foot .sd-lapsed[hidden] + .sd-filter-actions { margin-left: auto; }
 .sd-lapsed { display: flex; align-items: center; gap: var(--space-2); min-height: 44px; font-size: .9375rem; font-weight: 600; cursor: pointer; }
 .sd-lapsed input { width: 18px; height: 18px; margin: 0; accent-color: var(--ink); }
+.sd-check { display: flex; align-items: center; gap: var(--space-2); min-height: 44px; font-size: .9375rem; font-weight: 600; cursor: pointer; }
+.sd-check input { width: 18px; height: 18px; margin: 0; accent-color: var(--ink); }
+.sd-check .sd-count { margin-left: auto; }
 .sd-filter-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
 .sd-clear { display: inline-flex; align-items: center; min-height: 44px; font-weight: 700; }
 
@@ -2217,6 +2224,7 @@ a.sd-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
 .sd-card-badges { display: flex; flex-wrap: wrap; gap: var(--space-1); }
 .sd-card-name { font-size: 1.125rem; font-weight: 800; line-height: 1.25; overflow-wrap: anywhere; }
 .sd-card-category { font-size: .875rem; font-weight: 600; color: var(--ink-soft); }
+.sd-card-facts { font-size: .875rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .sd-card-excerpt {
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -2237,6 +2245,76 @@ a.sd-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
   font-size: .75rem;
   font-weight: 800;
 }
+
+/* Shortlist toggle: in the card's bottom-right corner, shown once the script runs */
+.sd-card-item { position: relative; }
+.sd-pin { display: none; }
+.has-shortlist .sd-pin { display: inline-flex; }
+.has-shortlist .sd-card { padding-bottom: calc(var(--space-4) + 40px); }
+.sd-card-item .sd-pin {
+  position: absolute;
+  right: var(--space-4);
+  bottom: var(--space-3);
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  background: var(--card);
+  color: var(--ink);
+  font-size: .875rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.sd-card-item .sd-pin:hover { border-color: var(--ink); }
+.sd-pin:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
+.sd-pin[aria-pressed="true"] { background: var(--accent); border-color: var(--ink); color: var(--ink); }
+.sd-pin[aria-pressed="true"] svg { fill: currentColor; }
+.sd-detail-pin { margin-top: var(--space-3); }
+
+.sd-shortlist {
+  display: grid;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border: 1.5px solid var(--ink);
+  border-radius: var(--radius-lg);
+  background: var(--yellow-tint);
+}
+.sd-shortlist[hidden] { display: none; }
+.sd-shortlist-title { font-size: 1.0625rem; font-weight: 800; }
+.sd-shortlist-count { font-weight: 700; font-variant-numeric: tabular-nums; }
+.sd-shortlist-names { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.sd-shortlist-names li {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  background: var(--card);
+  font-size: .875rem;
+  font-weight: 600;
+}
+.sd-shortlist-names a { padding: var(--space-1) 0 var(--space-1) var(--space-3); overflow-wrap: anywhere; }
+.sd-shortlist-remove {
+  display: inline-grid;
+  place-items: center;
+  min-width: 32px;
+  min-height: 32px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--ink);
+  font-size: 1.125rem;
+  cursor: pointer;
+}
+.sd-shortlist-remove:hover { background: var(--yellow-tint); }
+.sd-shortlist-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); }
+.sd-shortlist-actions .near-btn { text-decoration: none; }
+.sd-link-btn { padding: 0; border: 0; background: none; color: var(--link); text-decoration: underline; cursor: pointer; font: inherit; font-weight: 700; }
+.sd-export { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); margin-top: var(--space-4); }
+.sd-export[hidden] { display: none; }
 
 .sd-badge {
   display: inline-flex;

@@ -10,7 +10,8 @@
  * Searches filter and rank that copy in the
  * Worker, because the "Recommended" order has to rank every match before a
  * page is cut, which SoQL can't do (the renewal dates are text, and ties are
- * broken by a seeded hash). The detail view reads one vendor live by id.
+ * broken by a seeded hash). The detail view reads one vendor live by id, and
+ * the shortlist CSV reads its vendors live the same way.
  */
 import { env } from "cloudflare:workers";
 import { soql, datasetMetadata } from "./socrata.js";
@@ -18,10 +19,11 @@ import { dailyValue, edgeCached } from "./cache.js";
 import { requestMaxAgeHours } from "../etl/cadence.js";
 import { checkRateLimit } from "./rate-limit.js";
 import { nycToday } from "../format.js";
-import { DATASET_ID } from "../shop-diverse/config.js";
+import { DATASET_ID, MAX_EXPORT } from "../shop-diverse/config.js";
 import { cleanVendor, indexRecord, packIndex, unpackIndex } from "../shop-diverse/clean.js";
 import { searchBusinesses, queryToParams, outsideShare } from "../shop-diverse/filter.js";
 import { certStatus, yearsInBusiness } from "../shop-diverse/ranking.js";
+import { vendorsCsv } from "../shop-diverse/export.js";
 
 export const SEARCH_TTL = 3600;
 export const DETAIL_TTL = 6 * 3600;
@@ -35,7 +37,8 @@ const QUERY_TIMEOUT_MS = 60000;
 const INDEX_COLUMNS = [
   "account_number", "vendor_formal_name", "vendor_dba", "certification", "cert_renewal_date", "ethnicity",
   "naics_sector", "naics_subsector", "naics_title", "business_description", "telephone", "website",
-  "city", "state", "zip", "borough", "date_of_establishment"
+  "city", "state", "zip", "borough", "date_of_establishment",
+  "id6_digit_naics_code", "nigp_codes", "aggregate_bonding_limit", "largest_value_of_contract", "signatory_to_union_contracts"
 ].join(",");
 
 export const metadataJob = {
@@ -46,8 +49,9 @@ export const metadataJob = {
 
 export const vendorsJob = {
   // v2: excerpt and search words in place of the description; v3: industry
-  // table, fewer search words, outsideShare
-  key: "shop-diverse:vendors:v3",
+  // table, fewer search words, outsideShare; v4: NAICS and NIGP codes,
+  // bonding, largest contract, union, coverage
+  key: "shop-diverse:vendors:v4",
   maxAgeHours: MAX_AGE_HOURS,
   async run() {
     const today = nycToday();
@@ -72,7 +76,14 @@ export const vendorsJob = {
       vendors.push(indexRecord(v));
     }
     if (!vendors.length) throw new Error("SBS Certified Business List returned no vendors");
-    return { computedAt: new Date().toISOString(), outsideShare: outsideShare(vendors), ...packIndex(vendors) };
+    // How many firms give each procurement field, for the About section
+    const coverage = {
+      total: vendors.length,
+      bonding: vendors.filter((v) => v.bonding).length,
+      union: vendors.filter((v) => v.union).length,
+      largestContract: vendors.filter((v) => v.largestContract).length
+    };
+    return { computedAt: new Date().toISOString(), outsideShare: outsideShare(vendors), coverage, ...packIndex(vendors) };
   }
 };
 
@@ -87,14 +98,17 @@ export const shopDiverseDataset = {
 
 export const getMetadata = () => dailyValue(metadataJob);
 
-// → { computedAt, outsideShare, vendors }, the vendors unpacked once per
+// → { computedAt, outsideShare, coverage, vendors }, the vendors unpacked once per
 // stored value (per isolate), so filter.js's haystacks are built once too.
 const unpacked = new WeakMap();
 export async function getVendors() {
   const stored = await dailyValue(vendorsJob);
   let value = unpacked.get(stored);
   if (!value) {
-    value = { computedAt: stored.computedAt, outsideShare: stored.outsideShare, vendors: unpackIndex(stored) };
+    value = {
+      computedAt: stored.computedAt, outsideShare: stored.outsideShare, coverage: stored.coverage ?? null,
+      vendors: unpackIndex(stored)
+    };
     unpacked.set(stored, value);
   }
   return value;
@@ -142,4 +156,35 @@ export async function loadBusiness(id, requestUrl, ctx, clientAddress) {
     return (await businessDetail(id)) ?? { missing: true };
   }, ctx);
   return data.missing ? null : data;
+}
+
+const EXPORT_CHUNK = 50;
+
+// The shortlist CSV: { ids } (isAccount-checked account numbers, in that
+// order) or { query } (that search's first MAX_EXPORT results, in its
+// order). Vendors are read live in chunks so the URL stays short; firms no
+// longer on the list are left out. Not cached: shortlists rarely repeat.
+// Rate limited per client on the detail limiter, since it reads Socrata.
+// Throws RateLimited.
+export async function loadExport({ ids, query }, clientAddress) {
+  await checkRateLimit("SHOP_DETAIL_RATE_LIMITER", clientAddress);
+  const today = nycToday();
+  let wanted = ids;
+  if (query) {
+    const { vendors } = await getVendors();
+    wanted = searchBusinesses(vendors, { ...query, page: 1 }, { today, pageSize: MAX_EXPORT }).results.map((r) => r.id);
+  }
+  wanted = wanted.filter(isAccount).slice(0, MAX_EXPORT);
+  const chunks = [];
+  for (let i = 0; i < wanted.length; i += EXPORT_CHUNK) chunks.push(wanted.slice(i, i + EXPORT_CHUNK));
+  const pages = await Promise.all(chunks.map((chunk) => soql(DATASET_ID, {
+    $where: `account_number in (${chunk.map((id) => `'${id}'`).join(",")})`,
+    $limit: String(EXPORT_CHUNK * 2)
+  }, { timeoutMs: QUERY_TIMEOUT_MS })));
+  const byId = new Map();
+  for (const row of pages.flat()) {
+    const v = cleanVendor(row, today);
+    if (v && !byId.has(v.id)) byId.set(v.id, v);
+  }
+  return vendorsCsv(wanted.map((id) => byId.get(id)).filter(Boolean));
 }

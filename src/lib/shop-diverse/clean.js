@@ -13,6 +13,8 @@
  *     WBE-only firms have none.
  *   - Dates of establishment run up to the year 2996.
  *   - Borough is blank outside NYC and for some NYC addresses that didn't geocode.
+ *   - Union names look like "<union> <local>" joined, so a blank pair reads
+ *     "N/A N/A" or "None None", sometimes beside a real one ("N/A N/A, Local 580").
  */
 
 const KEEP_UPPER = new Set([
@@ -164,6 +166,14 @@ export function ethnicity(value) {
   return titleCase(s);
 }
 
+// "N/A N/A, Local 580" → "Local 580"; "None None" → "".
+export function unions(value) {
+  return text(value).split(",")
+    .map((part) => part.replace(/\b(n\/a|none)\b/gi, "").replace(/\s+/g, " ").trim())
+    .filter((part) => /[a-z]/i.test(part))
+    .join(", ");
+}
+
 const positive = (value) => {
   const n = Number(value);
   return Number.isFinite(n) && n > 0 ? n : null;
@@ -228,7 +238,7 @@ export function cleanVendor(row, today) {
     borough: borough(row, cleanZip),
     established: pastDate(row.date_of_establishment, today),
     bonding: positive(row.aggregate_bonding_limit),
-    union: text(row.signatory_to_union_contracts),
+    union: unions(row.signatory_to_union_contracts),
     largestContract: positive(row.largest_value_of_contract),
     jobs: [1, 2, 3].map((i) => job(row, i, today)).filter(Boolean),
     passport: text(row.enrolled_in_passport).toUpperCase() === "YES" || null
@@ -249,14 +259,19 @@ export function excerpt(description) {
 // only these in KV. The detail view loads the whole record by id. The full
 // description stays out: the index keeps its excerpt, for the cards and the
 // ranking, and its other words, for the keyword search (descriptionHaystack).
+// NIGP codes are kept as one space-separated string, and union as true when
+// the firm names one (the card says "Union"; the detail has the names).
 const INDEX_FIELDS = [
   "id", "name", "dba", "certs", "renewals", "ethnicity", "sector", "subsector", "title",
-  "phone", "website", "city", "state", "zip", "borough", "established"
+  "phone", "website", "city", "state", "zip", "borough", "established",
+  "naics", "bonding", "largestContract"
 ];
 export function indexRecord(vendor) {
   const out = {};
   for (const k of INDEX_FIELDS) if (vendor[k] !== undefined) out[k] = vendor[k];
   if (out.phone) out.phone = { tel: out.phone.tel ?? null };
+  if (vendor.nigp?.length) out.nigp = vendor.nigp.join(" ");
+  if (vendor.union) out.union = true;
   out.excerpt = excerpt(vendor.description);
   // Words the name and industry hold don't need repeating: keyword search
   // scores a match spread across them like one in the description (ranking.js).

@@ -9,16 +9,19 @@ import assert from "node:assert/strict";
 
 import {
   titleCase, businessName, phone, website, zip, boroughFromZip, certifications, renewalDates, pastDate, ethnicity,
-  cleanVendor, indexRecord, keywordWords, extraWords, excerpt, packIndex, unpackIndex
+  cleanVendor, indexRecord, keywordWords, extraWords, excerpt, packIndex, unpackIndex, unions
 } from "../src/lib/shop-diverse/clean.js";
 import {
   POINTS, certStatus, yearsInBusiness, haystack, keywordMatch, scoreBusiness, tieBreak, rankBusinesses
 } from "../src/lib/shop-diverse/ranking.js";
 import { normalizeQuery, queryToParams, searchBusinesses, outsideShare } from "../src/lib/shop-diverse/filter.js";
-import { contactText, mapsUrl, detailHtml, kpisHtml, activeFiltersHtml } from "../src/lib/shop-diverse/render.js";
+import { contactText, mapsUrl, detailHtml, kpisHtml, activeFiltersHtml, cardsHtml } from "../src/lib/shop-diverse/render.js";
 import {
-  pageUrl, formQuery, startQuery, popstateAction, closeAction, activeFilters, plainClick
+  pageUrl, formQuery, startQuery, popstateAction, closeAction, activeFilters, plainClick,
+  parseShortlist, toggleShortlist, shortlistExportUrl, searchExportUrl
 } from "../src/lib/shop-diverse/page-state.js";
+import { vendorsCsv, csvField, parseIds } from "../src/lib/shop-diverse/export.js";
+import { MAX_EXPORT } from "../src/lib/shop-diverse/config.js";
 
 const TODAY = "2026-10-28";
 const q = (s = "") => normalizeQuery(new URLSearchParams(s)).query;
@@ -129,6 +132,18 @@ test("indexRecord keeps only what search and cards need", () => {
   assert.equal(idx.description, undefined, "the full description stays out of the index");
   assert.equal(idx.excerpt, "000 Architecture PLLC is an architectural studio.");
   assert.equal(idx.keywords, undefined, "every word is in the excerpt");
+  assert.equal(idx.naics, "541310");
+  assert.equal(idx.nigp, "90600 90700", "NIGP codes as one string");
+  assert.equal(idx.largestContract, 140000);
+  assert.equal(idx.union, undefined);
+  assert.equal(indexRecord(cleanVendor({ ...ROW, signatory_to_union_contracts: "IBEW 3" }, TODAY)).union, true);
+});
+
+test("union names: blank pairs (\"N/A N/A\", \"None None\") are dropped", () => {
+  assert.equal(unions("N/A N/A, Local 580"), "Local 580");
+  assert.equal(unions("None None"), "");
+  assert.equal(unions("IBEW 3, Teamsters 282"), "IBEW 3, Teamsters 282");
+  assert.equal(cleanVendor({ ...ROW, signatory_to_union_contracts: "N/A N/A" }, TODAY).union, undefined);
 });
 
 test("a long description is searchable past its excerpt, each extra word kept once", () => {
@@ -345,7 +360,111 @@ test("keyword, borough and outside NYC", () => {
 
 test("summary numbers", () => {
   const data = searchBusinesses(VENDORS, q(""), { today: TODAY });
-  assert.deepEqual(data.kpis, { total: 4, wbe: 2, mbe: 2, both: 1, outside: 1 });
+  assert.deepEqual(data.kpis, { total: 4, wbe: 2, mbe: 2, both: 1, outside: 1, bonding: 0, union: 0 });
+});
+
+// Firms with procurement fields, as indexRecord() keeps them
+const BUYERS = [
+  biz({ id: "1", name: "Sparks Electric", naics: "238210", nigp: "91448 91400", bonding: 5e6, largestContract: 2e6, union: true }),
+  biz({ id: "2", name: "Pipe Pros", naics: "238220", nigp: "91464", bonding: 5e5, largestContract: 3e5 }),
+  biz({ id: "3", name: "Design Co", naics: "541310", nigp: "90600 90700", largestContract: 1.4e5 }),
+  biz({ id: "4", name: "No Codes" })
+];
+
+test("codes: a NAICS or NIGP prefix, any of; invalid parts in a link are dropped", () => {
+  const run = (s) => ids(searchBusinesses(BUYERS, q(s), { today: TODAY }));
+  assert.equal(run("code=2382"), "12", "NAICS prefix");
+  assert.equal(run("code=238210"), "1");
+  assert.equal(run("code=914"), "12", "NIGP class finds its items");
+  assert.equal(run("code=90700"), "3");
+  assert.equal(run("code=238210,906"), "13", "any of");
+  assert.equal(run("code=99"), "");
+  assert.deepEqual(q("code=238210, x, 7, 238210").code, ["238210"]);
+  assert.equal(queryToParams(q("code=914 2382")).toString(), "code=914%2C2382");
+});
+
+test("bonding, largest contract and union: minimums, with counts per tier", () => {
+  const run = (s) => searchBusinesses(BUYERS, q(s), { today: TODAY });
+  assert.equal(ids(run("bond=1m")), "1");
+  assert.equal(ids(run("bond=500k")), "12");
+  assert.equal(ids(run("contract=100k")), "123");
+  assert.equal(ids(run("union=1")), "1");
+  assert.equal(q("bond=7m").bond, "", "a value not in the tiers is dropped");
+  const f = run("bond=1m").facets;
+  assert.deepEqual(f.bond.slice(0, 4).map((t) => t.count), [2, 2, 1, 1], "bonding tiers ignore their own filter");
+  assert.deepEqual(f.contract.slice(0, 3).map((t) => t.count), [1, 1, 1], "contract tiers follow the bonding filter");
+  assert.equal(f.union, 1);
+  assert.deepEqual(run("").kpis, { total: 4, wbe: 4, mbe: 0, both: 0, outside: 4, bonding: 2, union: 1 });
+});
+
+test("sorts: highest bonding and largest contract first, blanks last", () => {
+  const items = BUYERS.map((record) => ({ record, match: null }));
+  const order = (sort) => rankBusinesses(items, { sort, today: TODAY }).map((r) => r.record.id).join("");
+  assert.equal(order("bonding"), "1234", "no bonding: by name (Design Co, No Codes)");
+  assert.equal(order("contract"), "1234");
+});
+
+test("cards show the capacity facts and a shortlist toggle", () => {
+  const data = searchBusinesses(BUYERS, q("code=2382"), { today: TODAY });
+  const html = cardsHtml(data.results, (id) => `/shop-diverse/?biz=${id}`, new Set(["1"]));
+  assert.match(html, /Bonding \$5M · Largest contract \$2M · Union/);
+  assert.match(html, /NAICS 238210/);
+  assert.match(html, /data-shortlist="1" data-name="Sparks Electric" aria-pressed="true"/);
+  assert.match(html, /data-shortlist="2" data-name="Pipe Pros" aria-pressed="false"/);
+});
+
+test("capacity chips: one per filter, removable", () => {
+  assert.deepEqual(activeFilters(q("code=2382,914&bond=1m&contract=500k&union=1")).map((f) => f.label),
+    ["Code 2382", "Code 914", "Bonding $1M+", "Past contract $500K+", "Union signatory"]);
+  const url = (s, label) => pageUrl(activeFilters(q(s)).find((f) => f.label === label).query);
+  assert.equal(url("code=2382,914&union=1", "Code 2382"), "/shop-diverse/?code=914&union=1");
+  assert.equal(url("bond=1m&union=1", "Union signatory"), "/shop-diverse/?bond=1m");
+});
+
+test("form: codes wait until every part is a code", () => {
+  assert.deepEqual(formQuery([["code", "2382, 914"]], "recommended").query.code, ["2382", "914"]);
+  assert.deepEqual(formQuery([["code", "2"]], "recommended").query.code, []);
+  assert.deepEqual(formQuery([["code", "plumbing"]], "recommended").query.code, []);
+});
+
+// ---------- Shortlist ----------
+
+test("shortlist: stored text is checked, toggling adds and removes, full at MAX_EXPORT", () => {
+  assert.deepEqual(parseShortlist(null), []);
+  assert.deepEqual(parseShortlist("not json"), []);
+  assert.deepEqual(parseShortlist('{"id":"1"}'), []);
+  assert.deepEqual(parseShortlist('[{"id":"1","name":"A"},{"id":"1","name":"A"},{"id":"x","name":"B"},{"id":"2"}]'),
+    [{ id: "1", name: "A" }]);
+  let { list } = toggleShortlist([], { id: "1", name: "A" });
+  assert.deepEqual(list, [{ id: "1", name: "A" }]);
+  ({ list } = toggleShortlist(list, { id: "1", name: "A" }));
+  assert.deepEqual(list, []);
+  const full = Array.from({ length: MAX_EXPORT }, (_, i) => ({ id: String(i + 1), name: `F${i}` }));
+  const r = toggleShortlist(full, { id: "999", name: "Z" });
+  assert.equal(r.full, true);
+  assert.equal(r.list, full);
+  assert.equal(toggleShortlist(full, { id: "1", name: "F0" }).list.length, MAX_EXPORT - 1, "removing works when full");
+});
+
+test("export URLs: the shortlist's ids, or the search without its page", () => {
+  assert.equal(shortlistExportUrl([{ id: "1" }, { id: "22" }]), "/api/shop-diverse/export?ids=1,22");
+  assert.equal(searchExportUrl(q("code=2382&bond=1m&page=3")), "/api/shop-diverse/export?code=2382&bond=1m");
+  assert.equal(searchExportUrl(q("")), "/api/shop-diverse/export");
+  assert.deepEqual(parseIds("3, 1,x,3,", 10), ["3", "1"]);
+  assert.deepEqual(parseIds("1,2,3", 2), ["1", "2"]);
+});
+
+test("CSV: a header, one row per vendor in order, quoting, and no live formulas", () => {
+  const v = { ...cleanVendor({ ...ROW, signatory_to_union_contracts: "IBEW 3, Teamsters 282", aggregate_bonding_limit: "5000000" }, TODAY) };
+  const lines = vendorsCsv([v, { ...v, id: "2", name: "=HYPERLINK(\"x\")" }]).trim().split("\r\n");
+  assert.equal(lines.length, 3);
+  assert.match(lines[0], /^business_name,legal_name,certifications,.*,nigp_codes,bonding_limit,largest_contract,union_contracts,/);
+  assert.match(lines[1], /^000 Architecture PLLC,000 Architecture PLLC,MBE,Minority-owned Business Enterprise,2030-03-31,Asian,541310,/);
+  assert.match(lines[1], /,90600 90700,5000000,140000,"IBEW 3, Teamsters 282",yes,/);
+  assert.match(lines[1], /"616 E9th Street, Storefront East, New York, NY 10009",Manhattan,377031$/);
+  assert.match(lines[2], /^"'=HYPERLINK\(""x""\)"/);
+  assert.equal(csvField("-1"), "'-1");
+  assert.equal(csvField(""), "");
 });
 
 test("summary chips: \"both\" only without a single certification, \"outside NYC\" only without a borough", () => {
@@ -511,6 +630,7 @@ test("detail: contact text, maps link, and no empty rows", () => {
   const html = detailHtml(v);
   assert.match(html, /href="tel:\+12012561092"/);
   assert.doesNotMatch(html, /Website|Bonding|null|undefined|N\/A/);
+  assert.match(detailHtml(v, new Set([v.id])), /data-shortlist="377031" data-name="000 Architecture PLLC" aria-pressed="true"/);
   assert.match(html, /3 years in business/);
 });
 

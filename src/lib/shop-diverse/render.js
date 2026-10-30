@@ -15,6 +15,7 @@ export const LOADING_TEXT = "Loading businesses…";
 // The detail panel's name until a business heading is in it
 export const DETAIL_LABEL = "Business details";
 export const ZIP_ERROR = "Enter a 5-digit ZIP code, like 11216.";
+export const CODE_ERROR = "Enter codes as numbers, like 238210 (NAICS) or 91448 (NIGP), separated by commas.";
 export const NOT_FOUND_TEXT = "This business is no longer on the list. It may have left since the link was shared.";
 
 // The ZIP only moves businesses up in the Recommended order.
@@ -62,6 +63,14 @@ export function boroughOptionsHtml(rows, selected) {
       .map((r) => option(r.slug, `${r.label} (${count(r.count)})`, r.slug === selected)).join("");
 }
 
+// Minimum bonding limit or past contract: each tier with how many firms
+// reach it. Tiers no firm reaches are hidden, except the selected one.
+export function amountOptionsHtml(rows, selected) {
+  return option("", "Any amount", !selected) +
+    rows.filter((r) => r.count > 0 || r.value === selected)
+      .map((r) => option(r.value, `${r.label} (${count(r.count)})`, r.value === selected)).join("");
+}
+
 export function ethnicityChipsHtml(rows, selected) {
   return rows.map((r) => `
     <label class="pay-chip sd-eth-chip">
@@ -85,7 +94,8 @@ export function activeFiltersHtml(filters, hrefFor, clearHref) {
 
 // The chips that say something the filters don't: "both" only when neither
 // or both certifications are picked (with one, it repeats the other chip),
-// and "outside NYC" only when no borough is picked.
+// "outside NYC" only when no borough is picked, and the bonding and union
+// counts only when those filters are off.
 export function kpisHtml(k, query) {
   const chip = (value, label, tone) =>
     `<li class="sd-kpi"${tone ? ` data-tone="${tone}"` : ""}><span class="sd-kpi-value">${value}</span> <span class="sd-kpi-label">${label}</span></li>`;
@@ -94,7 +104,9 @@ export function kpisHtml(k, query) {
     chip(count(k.wbe), "women-owned", CERTS.WBE.tone),
     chip(count(k.mbe), "minority-owned", CERTS.MBE.tone),
     query.who.length !== 1 ? chip(count(k.both), "both") : "",
-    k.outside && !query.boro ? chip(count(k.outside), "outside NYC") : ""
+    k.outside && !query.boro ? chip(count(k.outside), "outside NYC") : "",
+    k.bonding && !query.bond ? chip(count(k.bonding), "list a bonding limit") : "",
+    k.union && !query.union ? chip(count(k.union), "union signatory") : ""
   ].join("");
 }
 
@@ -110,16 +122,36 @@ export const showResultsLabel = (total) => (total ? `Show ${plural(total, "busin
 
 // ---------- Results ----------
 
-export function cardsHtml(results, hrefFor) {
+// "Bonding $5M · Largest contract $1.2M · Union": what a buyer checks first.
+function factsHtml(r) {
+  const facts = [
+    r.bonding ? `Bonding ${money(r.bonding)}` : "",
+    r.largestContract ? `Largest contract ${money(r.largestContract)}` : "",
+    r.union ? "Union" : ""
+  ].filter(Boolean);
+  return facts.length ? `<span class="sd-card-facts">${facts.join(" · ")}</span>` : "";
+}
+
+// The shortlist toggle; shown only once the script runs (.has-shortlist).
+// The business name is in the label, so the pressed state alone says "on it".
+export function shortlistButton(id, name, on, { detail = false } = {}) {
+  const icon = `<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4z"/></svg>`;
+  return `<button type="button" class="sd-pin${detail ? " near-btn" : ""}" data-shortlist="${escape(id)}" data-name="${escape(name)}" aria-pressed="${on ? "true" : "false"}">${icon}<span>Shortlist</span><span class="sr-only"> ${escape(name)}</span></button>`;
+}
+
+// shortlisted: a Set of ids already on the visitor's shortlist.
+export function cardsHtml(results, hrefFor, shortlisted = new Set()) {
   return results.map((r) => `
-    <li>
+    <li class="sd-card-item">
       <a class="sd-card" href="${escape(hrefFor(r.id))}" data-id="${escape(r.id)}">
         <span class="sd-card-badges">${certBadges(r.certs)}${r.lapsed ? `<span class="sd-badge sd-badge-lapsed">Renewal date passed</span>` : ""}</span>
         <span class="sd-card-name">${escape(r.name)}</span>
-        ${r.category ? `<span class="sd-card-category">${escape(r.category)}</span>` : ""}
+        ${r.category ? `<span class="sd-card-category">${escape(r.category)}${r.naics ? ` <span class="sd-code">NAICS ${escape(r.naics)}</span>` : ""}</span>` : ""}
+        ${factsHtml(r)}
         ${r.excerpt ? `<span class="sd-card-excerpt">${escape(r.excerpt)}</span>` : ""}
         ${placeHtml(r.place)}
       </a>
+      ${shortlistButton(r.id, r.name, shortlisted.has(r.id))}
     </li>`).join("");
 }
 
@@ -239,7 +271,7 @@ export function businessMeta(v) {
   };
 }
 
-export function detailHtml(v) {
+export function detailHtml(v, shortlisted = new Set()) {
   const name = v.dba || v.name;
   const lines = addressLines(v);
   const maps = mapsUrl(v);
@@ -257,13 +289,14 @@ export function detailHtml(v) {
       <h2 id="sd-detail-title" tabindex="-1">${escape(name)}</h2>
       ${v.dba ? `<p class="sd-muted">Legal name: ${escape(v.name)}</p>` : ""}
       ${v.title || v.sector ? `<p class="sd-detail-category">${escape(v.title || v.sector)}</p>` : ""}
+      <div class="sd-detail-pin">${shortlistButton(v.id, name, shortlisted.has(v.id), { detail: true })}</div>
     </header>
+    ${block("Capacity", capacityBlock(v))}
+    ${block("What they’re listed under", industryBlock(v))}
     ${block("About", paragraphs(v.description))}
     ${block("Get in touch", contact + (contact ? `<div class="sd-copy-row"><button type="button" class="near-btn" data-copy>Copy contact info</button><span class="sd-copy-status" role="status" data-copy-status></span></div>` : ""))}
     ${block("Certification", certificationBlock(v))}
     ${block("Experience", est)}
-    ${block("What they’re listed under", industryBlock(v))}
-    ${block("Capacity", capacityBlock(v))}
     <p class="sd-detail-verify">
       Certification status comes from NYC Small Business Services. Confirm details with the business, and check the
       <a href="${LINKS.sbsDirectory}" target="_blank" rel="noopener noreferrer">SBS Online Directory</a> to verify a certification.
