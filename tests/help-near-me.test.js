@@ -51,6 +51,9 @@ test("names: all caps get title case (ordinals and acronyms kept); mixed case st
   assert.equal(tidy("221 WEST 107TH STREET"), "221 West 107th Street");
   assert.equal(tidy("Grant Sq OAC"), "Grant Sq OAC");
   assert.equal(tidy("  "), null);
+  assert.equal(tidy("MCDONALD HOUSES"), "McDonald Houses");
+  assert.equal(tidy("PS 123 JOHN TYLER"), "PS 123 John Tyler");
+  assert.equal(tidy("THIS IS HOME"), "This Is Home", "a prefix only before a number");
 });
 
 test("addresses: the same building however it's written; a P.O. box isn't a place", () => {
@@ -90,6 +93,7 @@ test("a week of hours: runs of the same hours joined; days not listed left out",
   const nineToFive = "9 AM – 5 PM";
   assert.equal(weekHours([nineToFive, nineToFive, nineToFive, nineToFive, nineToFive, "Closed", "Closed"]), "Mon–Fri 9 AM – 5 PM · Sat–Sun Closed");
   assert.equal(weekHours(Array(7).fill(nineToFive)), "Every day 9 AM – 5 PM");
+  assert.equal(weekHours(Array(7).fill("Closed")), null, "closed every day means no hours listed");
   assert.equal(weekHours(["A", "B", "A", null, null, null, null]), "Mon A · Tue B · Wed A");
   assert.equal(weekHours(Array(7).fill(null)), null);
 });
@@ -284,6 +288,11 @@ test("byDistance: nearest first, ties by name, sites with no point left out", ()
   assert.ok(Math.abs(sorted[1].miles - 0.691) < 0.01);
 });
 
+test("selectView: temporarily closed sites after the open ones", () => {
+  const sorted = byDistance([{ ...at("shut", "snap", 0.001), closed: true }, at("open", "snap", 0.01)], SPOT);
+  assert.deepEqual(selectView(sorted, { categories: [], radius: 2 }).list.map((s) => s.id), ["open", "shut"]);
+});
+
 test("selectView: nearest per category within the radius, capped, with Show more", () => {
   const sites = [
     ...Array.from({ length: 7 }, (_, i) => at(`o${i}`, "older", 0.001 * (i + 1))),
@@ -357,7 +366,7 @@ test("chips: 'All' clears; toggling every kind on, or the last one off, is 'All'
 test("words: summary, widening and how far the nearest missing kind is", () => {
   const sorted = byDistance([at("d1", "dropin", 0.02), at("s1", "snap", 0.001)], SPOT);
   const v = selectView(sorted, { categories: [], radius: 0.5 });
-  assert.equal(summaryText(v, { r: 0.5 }, "350 5th Avenue"), "1 place within ½ mi near 350 5th Avenue.");
+  assert.equal(summaryText(v, { r: 0.5 }, "350 5th Avenue"), "1 place within ½ mi of 350 5th Avenue.");
   const notes = missingNotes(v);
   const drop = notes.find((n) => n.key === "dropin");
   assert.equal(drop.text, "No Drop-In Centers within ½ mi. The nearest is 1.4 mi away.");
@@ -365,7 +374,7 @@ test("words: summary, widening and how far the nearest missing kind is", () => {
   assert.equal(radiusFor(12), null);
 
   const widened = selectView(sorted, { categories: ["dropin"], radius: 0.5 });
-  assert.equal(summaryText(widened, { r: 0.5 }, ""), "Nothing within ½ mi, so we looked farther: 1 place within 2 mi near the spot you picked.");
+  assert.equal(summaryText(widened, { r: 0.5 }, ""), "Nothing within ½ mi, so we looked farther: 1 place within 2 mi of the spot you picked.");
 });
 
 test("card: hours and phone fall back to plain words; tap-to-call and directions links", () => {

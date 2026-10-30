@@ -2920,16 +2920,6 @@ a.sd-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
 /* Chips use the category tones ([data-tone] in landing.css); map pins use the fixed
    colors in src/lib/help-near-me/config.js (the basemap is light in both themes). */
 .hn-find { padding-top: var(--space-4); }
-/* The search row stays in reach while scrolling the results */
-.hn-search {
-  position: sticky;
-  top: var(--header-h);
-  z-index: 20;
-  margin: 0 calc(-1 * var(--space-2));
-  padding: var(--space-2);
-  border-radius: var(--radius-md);
-  background: var(--card);
-}
 .hn-search-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
@@ -3012,10 +3002,10 @@ a.sd-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
   align-items: start;
 }
 .hn-layout[hidden] { display: none; }
-.hn-map-col { order: 2; position: sticky; top: calc(var(--header-h) + 88px); }
+.hn-map-col { order: 2; position: sticky; top: calc(var(--header-h) + var(--space-4)); }
 .hn-list-col { order: 1; min-width: 0; }
 .hn-map-toggle { display: none; }
-.hn-map { height: min(600px, calc(100vh - var(--header-h) - 180px)); margin-top: 0; isolation: isolate; }
+.hn-map { height: min(600px, calc(100vh - var(--header-h) - 100px)); margin-top: 0; isolation: isolate; }
 .hn-legend { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2); font-size: .8125rem; color: var(--ink-soft); }
 .hn-legend .scl-key-you { flex: none; }
 
@@ -3119,10 +3109,10 @@ a.hn-directions:hover { background: var(--accent-deep); }
 
 @media (max-width: 1023px) {
   .hn-layout { grid-template-columns: 1fr; }
-  .hn-map-col { order: 0; position: static; scroll-margin-top: calc(var(--header-h) + 120px); }
+  .hn-map-col { order: 0; position: static; scroll-margin-top: calc(var(--header-h) + var(--space-4)); }
   .hn-map-toggle { display: inline-flex; width: auto; margin-bottom: var(--space-2); }
   .hn-map { height: min(360px, 50vh); }
-  #results { scroll-margin-top: calc(var(--header-h) + 120px); }
+  #results { scroll-margin-top: calc(var(--header-h) + var(--space-4)); }
 }
 @media (max-width: 639px) {
   .hn-search-row { grid-template-columns: 1fr 1fr; }

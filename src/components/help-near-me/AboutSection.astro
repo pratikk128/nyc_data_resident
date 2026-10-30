@@ -55,8 +55,10 @@ const stale = (d: string | null) => Boolean(d) && now - Date.parse(d!) > STALE_D
       </p>
       <p>
         We show the nearest 5 of each kind within your radius first. If nothing is within it, we look farther and
-        say so. Your location never leaves your browser except as a rounded spot (about a block) used to find
-        places nearby, and a typed address never goes in the page link.
+        say so. What you type in the address box is sent to NYC Planning's GeoSearch as you type, to suggest
+        addresses. We only get a rounded spot (about a block), never the address or your exact location. That
+        spot goes in the page link, so anyone you share the link with sees roughly where you searched. The
+        Directions button opens Google Maps with the place's address.
       </p>
     </div>
   </details>

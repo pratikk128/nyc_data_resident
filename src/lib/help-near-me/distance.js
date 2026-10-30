@@ -54,7 +54,7 @@ export const radiusText = (r) => (r === 0.5 ? "½ mi" : r === 0.25 ? "¼ mi" : `
  * → {
  *     radius     the radius used: the chosen one, or the next wider one with something in it
  *     widened    null | "radius" (nothing inside the chosen radius) | "anywhere" (nothing within MAX_RADIUS)
- *     list       nearest perCategory × pages per category, nearest first
+ *     list       nearest perCategory × pages per category, nearest first (temporarily closed last)
  *     counts     { [category]: sites within the radius used }, for the chips
  *     inRadius   every site of the chosen categories within the radius used
  *     missing    [{ key, miles }] chosen categories with nothing within the radius used, and how far the nearest is
@@ -85,7 +85,8 @@ export function selectView(sorted, { categories, radius, pages = 1, perCategory 
     list.push(...ofKind.slice(0, take));
     if (ofKind.length > take) more = true;
   }
-  list.sort((a, b) => a.miles - b.miles || String(a.name).localeCompare(String(b.name)));
+  // Temporarily closed sites after the open ones.
+  list.sort((a, b) => (a.closed ? 1 : 0) - (b.closed ? 1 : 0) || a.miles - b.miles || String(a.name).localeCompare(String(b.name)));
 
   const missing = [...chosen]
     .filter((k) => !list.some((s) => s.category === k))

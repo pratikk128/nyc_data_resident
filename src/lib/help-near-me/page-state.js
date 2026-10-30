@@ -6,7 +6,7 @@
  * URL: ?lat=40.846&lon=-73.895&r=2&cat=snap,older (no cat: every category).
  * The spot is rounded to about a block; a typed address never goes in the URL.
  */
-import { RADII, DEFAULT_RADIUS, CATEGORY_KEYS, categoryOf } from "./config.js";
+import { RADII, DEFAULT_RADIUS, MAX_RADIUS, CATEGORY_KEYS, categoryOf } from "./config.js";
 import { milesText, radiusText } from "./distance.js";
 import { inNyc } from "../complaints311/location-input.js";
 import { count } from "../format.js";
@@ -44,16 +44,16 @@ export function toggleCategory(cats, key) {
 }
 
 const plural = (n, one, many = `${one}s`) => `${count(n)} ${n === 1 ? one : many}`;
-const where = (label) => (label ? `near ${label}` : "near the spot you picked");
+const where = (label) => (label ? `of ${label}` : "of the spot you picked");
 
 /*
  * The line above the list, from selectView()'s answer:
  *   "12 places within 2 mi of 350 5th Avenue. Showing the nearest 5 of each kind."
- *   "Nothing within ½ mi, so we looked within 1 mi: 4 places near …"
+ *   "Nothing within ½ mi, so we looked farther: 4 places within 1 mi of …"
  */
 export function summaryText(view, query, placeLabel) {
   if (view.widened === "anywhere") {
-    return `Nothing within ${radiusText(query.r)} ${where(placeLabel)}, or within 5 mi. These are the nearest anywhere in the city.`;
+    return `Nothing within ${radiusText(query.r)} ${where(placeLabel)}, or within ${radiusText(MAX_RADIUS)}. These are the nearest anywhere in the city.`;
   }
   const n = view.inRadius.length;
   const found = `${plural(n, "place")} within ${radiusText(view.radius)} ${where(placeLabel)}`;

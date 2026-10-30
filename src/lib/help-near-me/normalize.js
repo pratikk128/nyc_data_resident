@@ -32,14 +32,17 @@ import { inNyc, isNycZip } from "../complaints311/location-input.js";
 const clean = (s) => String(s ?? "").replace(/Â(?=[\s\u00a0])/g, "").replace(/\s+/g, " ").trim();
 const blank = (s) => clean(s) || null;
 
-// All-caps text ("RISEBORO COMMUNITY PARTNERSHIP INC") → "Riseboro Community Partnership Inc";
+// All-caps text ("RISEBORO COMMUNITY PARTNERSHIP INC") → "Riseboro Community Partnership Inc",
+// "PS 123" and "McDonald" kept;
 // mixed case is left as written.
 export function tidy(s) {
   const t = clean(s);
   if (!t || /[a-z]/.test(t) || !/[A-Z]{3}/.test(t)) return t || null;
   return t.toLowerCase().replace(/(^|[\s\-/(&])([a-z])/g, (m, a, b) => a + b.toUpperCase())
     .replace(/\b(\d+)(St|Nd|Rd|Th)\b/g, (m, n, s2) => n + s2.toLowerCase())
-    .replace(/\b(Norc|Oac|Nyc|Nycha|Ymca|Ywca|Ymha|Ny|Ii|Iii|Iv|Llc)\b/g, (m) => m.toUpperCase());
+    .replace(/\b(Norc|Oac|Nyc|Nycha|Ymca|Ywca|Ymha|Ny|Ii|Iii|Iv|Llc)\b/g, (m) => m.toUpperCase())
+    .replace(/\b(Ps|Is|Ms|Jhs|Hs)(?=\s+\d)/g, (m) => m.toUpperCase())
+    .replace(/\bMc([a-z])/g, (m, c) => `Mc${c.toUpperCase()}`);
 }
 
 const BOROUGH_NAMES = {
@@ -149,7 +152,8 @@ export function dayText(raw) {
 
 /*
  * Seven days' text (Mon first, null for not listed) → "Mon–Fri 9 AM – 5 PM · Sat–Sun Closed",
- * runs of the same hours joined. Days not listed are left out; none listed → null.
+ * runs of the same hours joined. Days not listed are left out; none listed, or
+ * every listed day "Closed", → null.
  */
 export function weekHours(days) {
   const runs = [];
@@ -158,6 +162,8 @@ export function weekHours(days) {
     if (last && last.text === text && last.end === i - 1) last.end = i;
     else runs.push({ text, start: i, end: i });
   });
+  // NYC Aging writes "00:00" every day when it has no hours: not listed, not closed.
+  if (runs.every((r) => !r.text || r.text === "Closed")) return null;
   const parts = runs.filter((r) => r.text).map((r) =>
     `${DAYS[r.start]}${r.end > r.start ? `–${DAYS[r.end]}` : ""} ${r.text}`);
   if (!parts.length) return null;

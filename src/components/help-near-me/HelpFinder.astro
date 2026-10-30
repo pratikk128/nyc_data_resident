@@ -76,17 +76,17 @@ const all = query.cats.length === 0;
     <ul class="hn-missing" data-missing hidden></ul>
 
     <div class="hn-layout" data-layout hidden>
+      <div class="hn-list-col">
+        <ol class="hn-cards" data-cards aria-label="Help sites, nearest first"></ol>
+        <div class="scl-empty" data-empty hidden></div>
+        <button type="button" class="pager-btn scl-more" data-more hidden></button>
+      </div>
       <div class="hn-map-col">
         <button type="button" class="copy-link hn-map-toggle" data-map-toggle aria-expanded="true" aria-controls="hn-map-wrap">Hide map</button>
         <div id="hn-map-wrap">
           <div class="c311-map-frame hn-map" data-map role="region" aria-label="Map of help sites. Each pin is also in the list."></div>
           <p class="hn-legend"><span class="scl-key-you"></span>Your spot and radius. Pins match the colors and icons of the kinds of help above.</p>
         </div>
-      </div>
-      <div class="hn-list-col">
-        <ol class="hn-cards" data-cards aria-label="Help sites, nearest first"></ol>
-        <div class="scl-empty" data-empty hidden></div>
-        <button type="button" class="pager-btn scl-more" data-more hidden></button>
       </div>
     </div>
   </section>
@@ -147,7 +147,7 @@ const all = query.cats.length === 0;
     query = next;
     const qs = queryToParams(query).toString();
     const url = `${location.pathname}${qs ? `?${qs}` : ''}`;
-    const state = { placeLabel };
+    const state = { placeLabel, text: input.value };
     if (push) history.pushState(state, '', url); else history.replaceState(state, '', url);
     if (reload || spotKey() !== loadedFor) pages = 1;
     update();
@@ -156,6 +156,8 @@ const all = query.cats.length === 0;
   window.addEventListener('popstate', () => {
     query = normalizeQuery(new URLSearchParams(location.search));
     placeLabel = history.state?.placeLabel || '';
+    input.value = history.state?.text || '';
+    closeOptions();
     pages = 1;
     update();
   });
@@ -168,6 +170,7 @@ const all = query.cats.length === 0;
   let active = -1;
   let timer = 0;
   let suggestAbort: AbortController | null = null;
+  let lookup = 0; // bumped by every search, so only the latest one's answer counts
 
   function renderOptions(next: Option[]) {
     options = next;
@@ -236,6 +239,11 @@ const all = query.cats.length === 0;
 
   // ---------- Search ----------
   function usePoint(lat: number, lon: number, label: string) {
+    // A suggestion or address lookup still in flight must not reopen the list or replace this spot.
+    ++lookup;
+    clearTimeout(timer);
+    suggestAbort?.abort();
+    closeOptions();
     choices.hidden = true;
     status.textContent = '';
     placeLabel = label;
@@ -244,7 +252,6 @@ const all = query.cats.length === 0;
     if (narrow.matches) document.getElementById('results')!.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  let lookup = 0;
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     clearTimeout(timer);
@@ -317,16 +324,18 @@ const all = query.cats.length === 0;
     go({ ...query, r: Number(b.dataset.radius) }, { push: false });
   }));
   missing.addEventListener('click', (e) => {
-    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-widen]');
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-widen], [data-only]');
     if (!b) return;
     pages = 1;
-    go({ ...query, r: Number(b.dataset.widen) }, { push: false });
+    if (b.dataset.only) go({ ...query, cats: [b.dataset.only] }, { push: false });
+    else go({ ...query, r: Number(b.dataset.widen) }, { push: false });
   });
   more.addEventListener('click', () => {
-    const first = cards.children.length;
+    const before = new Set([...cards.children].map((el) => (el as HTMLElement).dataset.id));
     pages += 1;
     render({ refit: false });
-    cards.children[first]?.querySelector<HTMLButtonElement>('[data-locate]')?.focus();
+    const added = [...cards.children].find((el) => !before.has((el as HTMLElement).dataset.id));
+    added?.querySelector<HTMLButtonElement>('[data-locate]')?.focus();
   });
 
   mapToggle.addEventListener('click', () => {
@@ -334,7 +343,7 @@ const all = query.cats.length === 0;
     mapWrap.hidden = !open;
     mapToggle.setAttribute('aria-expanded', String(open));
     mapToggle.textContent = open ? 'Hide map' : 'Show map';
-    if (open) map.invalidate();
+    if (open && data && spotKey() === loadedFor) render({ refit: true });
   });
 
   // ---------- Map and list in sync ----------
@@ -460,7 +469,9 @@ const all = query.cats.length === 0;
       broken.map((s: any) => `<li class="hn-missing-error">${escape(CATEGORIES.find((c) => c.key === s.key)!.label)} couldn’t load right now. Try again later.</li>`).join('') +
       notes.filter((n: any) => !broken.some((s: any) => s.key === n.key)).map((n: any) => {
         const r = n.miles != null ? radiusFor(n.miles) : null;
-        const btn = r && r > view.radius ? ` <button type="button" class="copy-link" data-widen="${r}">Widen to ${radiusText(r)}</button>` : '';
+        const label = CATEGORIES.find((c) => c.key === n.key)!.short;
+        const btn = r && r > view.radius ? ` <button type="button" class="copy-link" data-widen="${r}">Widen to ${radiusText(r)}</button>`
+          : n.miles != null && !r && query.cats.length !== 1 ? ` <button type="button" class="copy-link" data-only="${n.key}">Show the nearest ${escape(label.toLowerCase())}</button>` : '';
         return `<li>${escape(n.text)}${btn}</li>`;
       }).join('');
     missing.hidden = !missing.innerHTML;

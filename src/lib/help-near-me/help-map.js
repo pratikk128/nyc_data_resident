@@ -1,9 +1,9 @@
 /*
  * Map of help sites, on the shared near-a-spot map (src/lib/maps/nearby-map.js).
  * Browser only. Each site is a round pin in its category's color with the
- * category's icon inside, so color is never alone; pins are keyboard
- * reachable (Tab, then Enter picks one) and named for screen readers. The
- * list is the non-map alternative (DESIGN.md "Maps").
+ * category's icon inside, so color is never alone. Pins are out of the Tab
+ * order: every pin is a card in the list, which is the keyboard and screen
+ * reader way through the results (DESIGN.md "Maps").
  *
  * mountHelpMap(canvas, { onPick(id) }) →
  *   update({ sites, point, radiusMeters, refit, fitTo })  draws the sites, the spot and its radius
@@ -31,10 +31,11 @@ export function mountHelpMap(canvas, { onPick }) {
     draw(s, { L, layer }) {
       const icon = L.divIcon({ className: "hn-pin-wrap", html: pinHtml(s.category), iconSize: [30, 30], iconAnchor: [15, 15] });
       const label = pinLabel(s);
-      const m = L.marker([s.lat, s.lon], { icon, title: label, alt: label, keyboard: true, riseOnHover: true })
+      const m = L.marker([s.lat, s.lon], { icon, title: label, alt: label, keyboard: false, riseOnHover: true })
         .bindTooltip(escape(s.name), { direction: "top", offset: [0, -14] })
         .on("click", () => onPick(s.id))
-        .on("add", () => m.getElement()?.setAttribute("aria-label", label))
+        // e.target, not m: Leaflet fires "add" inside addTo(), before m is assigned.
+        .on("add", (e) => e.target.getElement()?.setAttribute("aria-label", label))
         .addTo(layer);
       markers.set(s.id, m);
       return [[s.lat, s.lon]];
