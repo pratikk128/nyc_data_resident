@@ -20,6 +20,7 @@ import {
   normalizeQuery, queryToParams, toggleCategory, summaryText, missingNotes, radiusFor, moreText, radiusNote, lowerFirst
 } from "../src/lib/help-near-me/page-state.js";
 import { cardHtml, directionsUrl } from "../src/lib/help-near-me/render.js";
+import { inCityLimits } from "../src/lib/help-near-me/in-city.js";
 import { CATEGORIES, HOURS_MISSING } from "../src/lib/help-near-me/config.js";
 
 const FX = JSON.parse(readFileSync(new URL("./fixtures/help-near-me.json", import.meta.url)));
@@ -358,6 +359,23 @@ test("URL: spot rounded and kept in NYC, radius from the list, categories valida
   assert.equal(queryToParams(q).toString(), "lat=40.847&lon=-73.895&r=5&cat=snap%2Colder");
   assert.deepEqual(normalizeQuery(new URLSearchParams("lat=34&lon=-118&r=3")), { lat: null, lon: null, r: 2, cats: [] });
   assert.equal(queryToParams(normalizeQuery(new URLSearchParams(""))).toString(), "");
+});
+
+test("in the city: the outline, not the box, so New Jersey and Nassau are out", () => {
+  const inside = {
+    "Times Square": [40.758, -73.9855], "Battery Park": [40.7033, -74.017], "Chelsea Piers": [40.7466, -74.009],
+    "Roosevelt Island": [40.7614, -73.951], "Riverdale": [40.89, -73.912], "City Island": [40.8468, -73.7868],
+    "Glen Oaks": [40.747, -73.711], "Rosedale": [40.662, -73.735], "Far Rockaway": [40.605, -73.755],
+    "Tottenville": [40.509, -74.24]
+  };
+  const outside = {
+    "Jersey City": [40.7178, -74.0431], "Hoboken": [40.744, -74.0324], "Fort Lee": [40.8509, -73.9701],
+    "Bayonne": [40.6687, -74.1143], "Valley Stream": [40.6643, -73.7085], "Floral Park": [40.7237, -73.7051],
+    "Great Neck": [40.8007, -73.7285], "Yonkers": [40.9312, -73.8988], "Los Angeles": [34, -118]
+  };
+  for (const [name, [lat, lon]] of Object.entries(inside)) assert.ok(inCityLimits(lat, lon), name);
+  for (const [name, [lat, lon]] of Object.entries(outside)) assert.ok(!inCityLimits(lat, lon), name);
+  assert.deepEqual(normalizeQuery(new URLSearchParams("lat=40.7178&lon=-74.0431")), { lat: null, lon: null, r: 2, cats: [] }, "Jersey City in the URL");
 });
 
 test("chips: 'All' clears; toggling every kind on, or the last one off, is 'All' again", () => {

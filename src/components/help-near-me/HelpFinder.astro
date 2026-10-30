@@ -108,7 +108,8 @@ const all = query.cats.length === 0;
     normalizeQuery, queryToParams, pointQuery, toggleCategory, summaryText, missingNotes, radiusFor, chipLabel, moreText, radiusNote, lowerFirst, pendingText
   } from '../../lib/help-near-me/page-state.js';
   import { nearSearch, addressOutcome } from '../../lib/location/near-search.js';
-  import { parseLocationInput, inNyc, isNycZip } from '../../lib/complaints311/location-input.js';
+  import { parseLocationInput, isNycZip } from '../../lib/complaints311/location-input.js';
+  import { inCityLimits } from '../../lib/help-near-me/in-city.js';
   import { resolveLocation, suggest } from '../../lib/complaints311/geocode.js';
   import { boroughLabel } from '../../lib/complaints311/config.js';
   import { count } from '../../lib/format.js';
@@ -311,7 +312,7 @@ const all = query.cats.length === 0;
         locateBtn.disabled = false;
         if (id !== lookup) return;
         const { latitude: lat, longitude: lon } = pos.coords;
-        if (!inNyc(lat, lon)) { status.textContent = 'You seem to be outside NYC. Type an address or ZIP code instead.'; return; }
+        if (!inCityLimits(lat, lon)) { status.textContent = 'You seem to be outside NYC. Type an address or ZIP code instead.'; return; }
         input.value = '';
         usePoint(lat, lon, 'your location');
       },

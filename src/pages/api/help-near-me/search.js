@@ -11,7 +11,7 @@
  * cache are rate limited per client (HELP_RATE_LIMITER).
  */
 import { loadSearch, SEARCH_TTL } from "../../../lib/server/help-near-me.js";
-import { inNyc } from "../../../lib/complaints311/location-input.js";
+import { inCityLimits } from "../../../lib/help-near-me/in-city.js";
 import { json, upstreamError } from "../../../lib/server/json.js";
 import { RateLimited, RATE_LIMITED_TEXT } from "../../../lib/server/rate-limit.js";
 
@@ -20,7 +20,7 @@ export const prerender = false;
 export async function GET({ url, locals, clientAddress }) {
   const lat = Number(url.searchParams.get("lat"));
   const lon = Number(url.searchParams.get("lon"));
-  if (!Number.isFinite(lat) || !Number.isFinite(lon) || !inNyc(lat, lon)) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || !inCityLimits(lat, lon)) {
     return json({ error: "Pick a spot in New York City." }, { status: 400 });
   }
   try {

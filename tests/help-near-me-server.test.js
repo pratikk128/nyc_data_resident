@@ -95,8 +95,8 @@ test("a client over its limit gets a 429 with words to show", async () => {
   assert.deepEqual(await res.json(), { error: RATE_LIMITED_TEXT });
 });
 
-test("a spot outside NYC, or no spot, is a 400", async () => {
-  for (const [lat, lon] of [[42.65, -73.75], ["", ""], ["abc", "-73.9"]]) {
+test("a spot outside NYC (Albany, Hoboken), or no spot, is a 400", async () => {
+  for (const [lat, lon] of [[42.65, -73.75], [40.744, -74.0324], ["", ""], ["abc", "-73.9"]]) {
     const res = await search(lat, lon);
     assert.equal(res.status, 400);
     assert.deepEqual(await res.json(), { error: "Pick a spot in New York City." });

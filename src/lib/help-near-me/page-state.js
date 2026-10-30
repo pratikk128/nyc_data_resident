@@ -8,14 +8,14 @@
  */
 import { RADII, DEFAULT_RADIUS, MAX_RADIUS, CATEGORY_KEYS, categoryOf } from "./config.js";
 import { milesText, radiusText } from "./distance.js";
-import { inNyc } from "../complaints311/location-input.js";
+import { inCityLimits } from "./in-city.js";
 import { count } from "../format.js";
 
 const round3 = (n) => Math.round(n * 1e3) / 1e3;
 
 export function normalizeQuery(params) {
   const lat = Number(params.get("lat")), lon = Number(params.get("lon"));
-  const hasPoint = params.has("lat") && params.has("lon") && Number.isFinite(lat) && Number.isFinite(lon) && inNyc(lat, lon);
+  const hasPoint = params.has("lat") && params.has("lon") && Number.isFinite(lat) && Number.isFinite(lon) && inCityLimits(lat, lon);
   const r = Number(params.get("r"));
   const cats = String(params.get("cat") ?? "").split(",").filter((k) => CATEGORY_KEYS.includes(k));
   return {

@@ -38,6 +38,15 @@ export const SNAPSHOTS = [
       { datasetId: "wh2p-dxnf" }, // Borough Boundaries, quarterly
       { datasetId: "pri4-ifjk" }  // MODZCTA, as needed
     ]
+  },
+  {
+    id: "nyc-outline",
+    dashboard: "help-near-me",
+    files: ["src/data/nyc-outline.json"],
+    command: "npm run data:nyc-outline",
+    sources: [
+      { datasetId: "wh2p-dxnf" } // Borough Boundaries (water areas included), quarterly
+    ]
   }
 ];
 
