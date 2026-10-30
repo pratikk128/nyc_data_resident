@@ -133,19 +133,21 @@ test("the detail says when a newer visit wasn't scored", () => {
   assert.doesNotMatch(detailHtml(detail()), /A newer/);
 });
 
-test("the detail lists critical violations and puts every violation behind Show all", () => {
+test("the detail lists critical violations and puts the non-critical ones behind a toggle", () => {
   const violations = [
-    { code: "04L", description: "Evidence of mice.", critical: "Critical" },
-    { code: "10F", description: "Non-food contact surface.", critical: "Not Critical" }
+    { code: "04L", description: "Evidence of mice.", critical: "Critical", category: "contamination-pests" },
+    { code: "10F", description: "Non-food contact surface.", critical: "Not Critical", category: "maintenance" }
   ];
   const html = detailHtml(detail({ latest: { ...detail().latest, violations } }));
-  const shown = html.slice(0, html.indexOf("Show all"));
-  assert.match(shown, /Evidence of mice/);
+  const shown = html.slice(0, html.indexOf("non-critical violation"));
+  assert.match(shown, /violation-cat">Contamination and pests<\/p><p class="violation-text">Evidence of mice/);
   assert.doesNotMatch(shown, /Non-food contact/);
-  assert.match(html, /<summary>Show all 2 violations<\/summary>/);
-  assert.match(html, /Not critical<\/p><p class="violation-text">Non-food contact surface/);
+  assert.match(html, /<summary>Show 1 non-critical violation<\/summary>/);
+  assert.match(html, /violation-cat">Facility maintenance<\/p><p class="violation-text">Non-food contact surface/);
+  // The toggle doesn't repeat the critical ones
+  assert.equal(html.match(/Evidence of mice/g).length, 1);
   // All critical: nothing more to show
-  assert.doesNotMatch(detailHtml(detail({ latest: { ...detail().latest, violations: violations.slice(0, 1) } })), /Show all/);
+  assert.doesNotMatch(detailHtml(detail({ latest: { ...detail().latest, violations: violations.slice(0, 1) } })), /non-critical/);
 });
 
 test("search results date the grade next to the badge", () => {

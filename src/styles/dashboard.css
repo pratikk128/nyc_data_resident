@@ -1023,7 +1023,7 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
 }
 .violation.is-critical { border-left-color: var(--critical); background: var(--critical-wash); }
 .violation-text { max-width: 75ch; }
-.violation-flag { font-size: .8125rem; font-weight: 700; color: var(--ink-soft); }
+.violation-cat { font-size: .8125rem; font-weight: 700; color: var(--ink-soft); }
 .all-violations { max-width: none; }
 .all-violations .violations { color: var(--ink); }
 

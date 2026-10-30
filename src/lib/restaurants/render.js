@@ -6,6 +6,7 @@
  */
 import { date, count } from "../format.js";
 import { gradeInfo, SCORE_BANDS, MIN_REPEAT_INSPECTIONS } from "./inspections.js";
+import { categoryLabel } from "./violation-categories.js";
 
 export const escape = (str) => String(str ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
@@ -70,25 +71,27 @@ function typeLabel(type) {
   return escape(type).replace(/ \/ /g, " · ");
 }
 
+// The category label ("Food temperature") ties each violation to the Problem areas below.
 function violationItemHtml(v) {
   const critical = v.critical === "Critical";
   return `<li class="violation${critical ? " is-critical" : ""}">` +
-    (critical ? "" : `<p class="violation-flag">Not critical</p>`) +
+    `<p class="violation-cat">${escape(categoryLabel(v.category))}</p>` +
     `<p class="violation-text">${escape(v.description)}</p></li>`;
 }
 
-function criticalViolationsHtml(latest) {
+function latestViolationsHtml(latest) {
   const critical = latest.violations.filter((v) => v.critical === "Critical");
+  const other = latest.violations.filter((v) => v.critical !== "Critical");
   const list = critical.length
     ? `<ul class="violations">${critical.map(violationItemHtml).join("")}</ul>`
     : `<p class="insp-summary">No critical violations were cited at the latest inspection.</p>`;
-  // Everything else cited that day, behind a toggle (violations are sorted critical first).
-  const all = latest.violations.length > critical.length
-    ? `<details class="cat-more all-violations"><summary>Show all ${count(latest.violations.length)} ` +
-      `${latest.violations.length === 1 ? "violation" : "violations"}</summary>` +
-      `<ul class="violations">${latest.violations.map(violationItemHtml).join("")}</ul></details>`
+  // The rest cited that day, behind a toggle.
+  const more = other.length
+    ? `<details class="cat-more all-violations"><summary>Show ${count(other.length)} non-critical ` +
+      `${other.length === 1 ? "violation" : "violations"}</summary>` +
+      `<ul class="violations">${other.map(violationItemHtml).join("")}</ul></details>`
     : "";
-  return list + all;
+  return list + more;
 }
 
 // ---------- Category list ----------
@@ -311,7 +314,7 @@ export function detailHtml(d, { benchmark = "citywide" } = {}) {
     `<section class="rest-block" aria-labelledby="latest-title">` +
       `<h3 class="chart-title" id="latest-title">Violations at the latest inspection</h3>` +
       newerUnscoredNote(d) +
-      criticalViolationsHtml(latest) +
+      latestViolationsHtml(latest) +
     `</section>`;
 
   const toggle = similarOk
