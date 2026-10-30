@@ -2993,7 +2993,7 @@ a.sd-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
 .hn-missing .copy-link { margin-left: var(--space-1); }
 .hn-missing-error { font-weight: 600; }
 
-/* Map beside the list on wide screens, above it on narrow ones (like Street Closures) */
+/* Map beside the list on wide screens; on narrow ones, the list or the map (List / Map) */
 .hn-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
@@ -3004,7 +3004,7 @@ a.sd-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
 .hn-layout[hidden] { display: none; }
 .hn-map-col { order: 2; position: sticky; top: calc(var(--header-h) + var(--space-4)); }
 .hn-list-col { order: 1; min-width: 0; }
-.hn-map-toggle { display: none; }
+.hn-view-switch, .hn-picked { display: none; }
 .hn-map { height: min(600px, calc(100vh - var(--header-h) - 100px)); margin-top: 0; isolation: isolate; }
 .hn-legend { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2); font-size: .8125rem; color: var(--ink-soft); }
 .hn-legend .scl-key-you { flex: none; }
@@ -3108,10 +3108,13 @@ a.hn-directions:hover { background: var(--accent-deep); }
 .hn-stale { font-weight: 600; color: var(--callout-heads-up-deep); }
 
 @media (max-width: 1023px) {
-  .hn-layout { grid-template-columns: 1fr; }
-  .hn-map-col { order: 0; position: static; scroll-margin-top: calc(var(--header-h) + var(--space-4)); }
-  .hn-map-toggle { display: inline-flex; width: auto; margin-bottom: var(--space-2); }
-  .hn-map { height: min(360px, 50vh); }
+  /* One at a time, list first (the page order), switched with List / Map */
+  .hn-layout { grid-template-columns: 1fr; gap: var(--space-3); scroll-margin-top: calc(var(--header-h) + var(--space-4)); }
+  .hn-map-col { position: static; }
+  .hn-view-switch { display: inline-flex; justify-self: start; }
+  .hn-layout[data-view="list"] .hn-map-col, .hn-layout[data-view="map"] .hn-list-col { display: none; }
+  .hn-map { height: min(520px, 65vh); }
+  .hn-picked:not([hidden]) { display: block; margin: var(--space-2) 0 0; }
   #results { scroll-margin-top: calc(var(--header-h) + var(--space-4)); }
 }
 @media (max-width: 639px) {

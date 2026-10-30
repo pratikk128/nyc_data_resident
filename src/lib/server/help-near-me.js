@@ -9,12 +9,12 @@
  * in KV. The few rows with no lat/lon, or a lat/lon far from their ZIP, are
  * geocoded with NYC GeoSearch inside that job, never on a request
  * (geocode-sites.js); ones that don't geocode are logged.
- * A search (a rounded spot) reads all seven from KV, keeps what's near, and is
+ * A search (a rounded spot) reads all seven from KV (never builds one), keeps what's near, and is
  * cached at the edge for an hour, so requests never wait on Socrata.
  */
 import { env } from "cloudflare:workers";
 import { soql, datasetMetadata } from "./socrata.js";
-import { dailyValue, edgeCached } from "./cache.js";
+import { dailyValue, storedValue, edgeCached } from "./cache.js";
 import { requestMaxAgeHours } from "../etl/cadence.js";
 import { checkRateLimit } from "./rate-limit.js";
 import { CATEGORIES, datasetUrl } from "../help-near-me/config.js";
@@ -114,7 +114,12 @@ const round3 = (n) => Math.round(n * 1e3) / 1e3;
  */
 export async function loadSearch(lat, lon, requestUrl, ctx, clientAddress) {
   const point = { lat: round3(lat), lon: round3(lon) };
-  const loaded = await Promise.allSettled(CATEGORIES.map((c) => dailyValue(byKey.get(c.key).jobs[0])));
+  // What the ETL last stored, never a build on the request (a directory not built yet counts as failed).
+  const loaded = await Promise.allSettled(CATEGORIES.map(async (c) => {
+    const value = await storedValue(byKey.get(c.key).jobs[0]);
+    if (!value) throw new Error("not built yet");
+    return value;
+  }));
   const versions = loaded.map((r) => (r.status === "fulfilled" ? r.value.computedAt : "x")).join(",");
   const key = `help-near-me/search/${codeVersion()}/${versions}/${point.lat},${point.lon}`;
   return edgeCached(requestUrl, key, SEARCH_TTL, async () => {

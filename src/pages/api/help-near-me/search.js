@@ -24,7 +24,9 @@ export async function GET({ url, locals, clientAddress }) {
     return json({ error: "Pick a spot in New York City." }, { status: 400 });
   }
   try {
-    return json(await loadSearch(lat, lon, url, locals.cfContext, clientAddress), { maxAge: SEARCH_TTL });
+    const body = await loadSearch(lat, lon, url, locals.cfContext, clientAddress);
+    // A directory that failed shouldn't stay missing in the browser's cache once it's back.
+    return json(body, { maxAge: body.sources.some((s) => s.error) ? 0 : SEARCH_TTL });
   } catch (err) {
     if (err instanceof RateLimited) return json({ error: RATE_LIMITED_TEXT }, { status: 429 });
     return upstreamError(err);

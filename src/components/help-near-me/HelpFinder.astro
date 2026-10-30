@@ -75,18 +75,21 @@ const all = query.cats.length === 0;
 
     <ul class="hn-missing" data-missing hidden></ul>
 
-    <div class="hn-layout" data-layout hidden>
+    <div class="hn-layout" data-layout data-view="list" hidden>
+      <!-- Narrow screens show the list or the map, one at a time (list first, in page order). -->
+      <div class="toggle hn-view-switch" role="group" aria-label="Show the places as">
+        <button type="button" class="toggle-btn" data-show="list" aria-pressed="true">List</button>
+        <button type="button" class="toggle-btn" data-show="map" aria-pressed="false">Map</button>
+      </div>
       <div class="hn-list-col">
         <ol class="hn-cards" data-cards aria-label="Help sites, nearest first"></ol>
         <div class="scl-empty" data-empty hidden></div>
         <button type="button" class="pager-btn scl-more" data-more hidden></button>
       </div>
       <div class="hn-map-col">
-        <button type="button" class="copy-link hn-map-toggle" data-map-toggle aria-expanded="true" aria-controls="hn-map-wrap">Hide map</button>
-        <div id="hn-map-wrap">
-          <div class="c311-map-frame hn-map" data-map role="region" aria-label="Map of help sites. Each pin is also in the list."></div>
-          <p class="hn-legend"><span class="scl-key-you"></span>Your spot and radius. Pins match the colors and icons of the kinds of help above.</p>
-        </div>
+        <div class="c311-map-frame hn-map" data-map role="region" aria-label="Map of help sites. Each pin is also in the list."></div>
+        <p class="hn-picked" data-picked aria-live="polite" hidden></p>
+        <p class="hn-legend"><span class="scl-key-you"></span>Your spot and radius. Pins match the colors and icons of the kinds of help above.</p>
       </div>
     </div>
   </section>
@@ -94,7 +97,7 @@ const all = query.cats.length === 0;
 
 <script>
   import { CATEGORIES, ERROR_TEXT, METERS_PER_MILE } from '../../lib/help-near-me/config.js';
-  import { selectView, radiusText } from '../../lib/help-near-me/distance.js';
+  import { selectView, radiusText, milesText } from '../../lib/help-near-me/distance.js';
   import { cardHtml, skeletonHtml, escape } from '../../lib/help-near-me/render.js';
   import { mountHelpMap } from '../../lib/help-near-me/help-map.js';
   import {
@@ -124,9 +127,7 @@ const all = query.cats.length === 0;
   const empty = $('[data-empty]');
   const more = $<HTMLButtonElement>('[data-more]');
   const missing = $('[data-missing]');
-  const mapWrap = $('#hn-map-wrap');
-  const mapToggle = $<HTMLButtonElement>('[data-map-toggle]');
-  const mapCol = $('.hn-map-col');
+  const picked = $('[data-picked]');
   const narrow = matchMedia('(max-width: 1023px)'); // matches the CSS breakpoint
 
   const map = mountHelpMap($('[data-map]'), { onPick: (id: string) => select(id, { fromMap: true }) });
@@ -139,6 +140,7 @@ const all = query.cats.length === 0;
   let pages = 1;
   let selected: string | null = null;
   let view: any = null;
+  let shown: 'list' | 'map' = 'list'; // on narrow screens
   let request = 0;
   const cache = new Map<string, any>();
 
@@ -247,6 +249,8 @@ const all = query.cats.length === 0;
     choices.hidden = true;
     status.textContent = '';
     placeLabel = label;
+    selected = null;
+    show('list');
     go(pointQuery(query, lat, lon), { reload: true });
     // On a phone the results are below the fold.
     if (narrow.matches) document.getElementById('results')!.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -338,25 +342,53 @@ const all = query.cats.length === 0;
     added?.querySelector<HTMLButtonElement>('[data-locate]')?.focus();
   });
 
-  mapToggle.addEventListener('click', () => {
-    const open = mapWrap.hidden;
-    mapWrap.hidden = !open;
-    mapToggle.setAttribute('aria-expanded', String(open));
-    mapToggle.textContent = open ? 'Hide map' : 'Show map';
-    if (open && data && spotKey() === loadedFor) render({ refit: true });
+  // ---------- List or map (narrow screens show one at a time) ----------
+  const showsMap = () => !narrow.matches || shown === 'map';
+  const cardFor = (id: string) => cards.querySelector<HTMLElement>(`[data-id="${CSS.escape(id)}"]`);
+
+  function show(next: 'list' | 'map', { focus = false } = {}) {
+    shown = next;
+    layout.dataset.view = next;
+    root.querySelectorAll<HTMLButtonElement>('[data-show]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.show === next)));
+    if (!narrow.matches || !data || spotKey() !== loadedFor) return;
+    // The map isn't drawn while it's hidden (Leaflet can't size it), so draw it now, on the picked place.
+    if (next === 'map') { render({ refit: true })?.then(() => map.highlight(selected, { pan: true })); return; }
+    const card = selected ? cardFor(selected) : null;
+    card?.scrollIntoView({ block: 'center' });
+    if (focus) card?.querySelector<HTMLButtonElement>('[data-locate]')?.focus({ preventScroll: true });
+  }
+  root.querySelectorAll<HTMLButtonElement>('[data-show]').forEach((b) =>
+    b.addEventListener('click', () => show(b.dataset.show as 'list' | 'map')));
+  picked.addEventListener('click', (e) => {
+    if ((e.target as HTMLElement).closest('[data-to-list]')) show('list', { focus: true });
   });
+  narrow.addEventListener('change', () => { if (data && spotKey() === loadedFor) render({ refit: true }); });
+
+  // Under the map on narrow screens: which place is picked, and the way back to its card.
+  function showPicked() {
+    const s = selected ? view?.list.find((x: any) => x.id === selected) : null;
+    picked.hidden = !s;
+    picked.innerHTML = s
+      ? `<strong>${escape(s.name)}</strong>, ${milesText(s.miles)} away. <button type="button" class="copy-link" data-to-list>See it in the list</button>`
+      : '';
+  }
 
   // ---------- Map and list in sync ----------
   function select(id: string | null, { fromMap = false } = {}) {
     selected = id;
     cards.querySelectorAll('.hn-card.is-selected').forEach((el) => el.classList.remove('is-selected'));
-    map.highlight(id, { pan: !fromMap });
-    if (!id) return;
-    // Below the two-column layout the map sits above the list, out of view.
-    if (!fromMap && narrow.matches && !mapWrap.hidden) mapCol.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    const card = cards.querySelector<HTMLElement>(`[data-id="${CSS.escape(id)}"]`);
+    const card = id ? cardFor(id) : null;
     card?.classList.add('is-selected');
-    if (fromMap && card) {
+    showPicked();
+    if (id && !fromMap && narrow.matches) {
+      // The list's hidden once the map shows, so focus goes to the way back.
+      show('map');
+      picked.querySelector<HTMLButtonElement>('[data-to-list]')?.focus({ preventScroll: true });
+      layout.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    map.highlight(id, { pan: !fromMap });
+    if (fromMap && card && !narrow.matches) {
       card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       card.querySelector<HTMLButtonElement>('[data-locate]')?.focus({ preventScroll: true });
     }
@@ -391,8 +423,25 @@ const all = query.cats.length === 0;
     const res = await fetch(`/api/help-near-me/search?${key}`);
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error && body.error !== 'upstream' ? body.error : ERROR_TEXT);
-    cache.set(key, body);
+    // A directory that couldn't load gets another try on the next visit to this spot.
+    if (!body.sources?.some((s: any) => s.error)) cache.set(key, body);
     return body;
+  }
+
+  // The chips without counts, until the spot's sites are in.
+  function clearCounts() {
+    root.querySelectorAll<HTMLElement>('[data-count]').forEach((el) => {
+      el.hidden = true;
+      el.textContent = '';
+      el.closest('button')!.removeAttribute('aria-label');
+    });
+  }
+
+  // Only while it's on screen: Leaflet can't size a hidden map (show() draws it when it appears).
+  function drawMap(sites: any[], { radius, refit, fitTo = null }: { radius: number; refit: boolean; fitTo?: any }) {
+    if (!showsMap()) return null;
+    const point = { lat: query.lat, lon: query.lon };
+    return map.update({ sites, point, radiusMeters: radius * METERS_PER_MILE, refit, fitTo });
   }
 
   async function update() {
@@ -401,6 +450,7 @@ const all = query.cats.length === 0;
       layout.hidden = true;
       missing.hidden = true;
       summary.textContent = pendingText;
+      clearCounts();
       return;
     }
     const key = spotKey();
@@ -412,6 +462,11 @@ const all = query.cats.length === 0;
     empty.hidden = true;
     more.hidden = true;
     missing.hidden = true;
+    // Nothing from the last spot while this one loads (or fails): its counts and pins would read as this one's.
+    selected = null;
+    picked.hidden = true;
+    clearCounts();
+    drawMap([], { radius: query.r, refit: true });
     root.setAttribute('aria-busy', 'true');
     try {
       const body = await load();
@@ -477,15 +532,17 @@ const all = query.cats.length === 0;
     missing.hidden = !missing.innerHTML;
 
     cards.innerHTML = view.list.map(cardHtml).join('');
-    if (selected) cards.querySelector(`[data-id="${CSS.escape(selected)}"]`)?.classList.add('is-selected');
+    if (selected && !view.list.some((s: any) => s.id === selected)) selected = null;
+    if (selected) cardFor(selected)?.classList.add('is-selected');
+    showPicked();
     more.hidden = !view.more;
     more.textContent = moreText;
     empty.hidden = view.list.length > 0;
     if (!view.list.length) empty.innerHTML = '<p><strong>We couldn’t find any of these places in the city’s lists.</strong> Call 311 and ask for help finding services near you.</p>';
 
-    const point = { lat: query.lat, lon: query.lon };
     const fitTo = view.widened === 'anywhere' ? view.list.slice(0, 6).map((s: any) => [s.lat, s.lon]) : null;
-    map.update({ sites: view.list, point, radiusMeters: view.radius * METERS_PER_MILE, refit, fitTo });
+    // Redrawing clears the halo; the picked place keeps it.
+    return drawMap(view.list, { radius: view.radius, refit, fitTo })?.then(() => map.highlight(selected));
   }
 
   update();
