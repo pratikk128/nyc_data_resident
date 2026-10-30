@@ -246,7 +246,7 @@ test("filters: window, borough, search by name or ZIP, urgent only", () => {
   assert.deepEqual(ids({ urgentOnly: true }), ["b", "c"]);
 });
 
-test("filters: hide low scores drops a latest score of 3 or less, keeps no score", () => {
+test("low scores: a latest score of 3 or less is always left out, no score stays in", () => {
   const all = [
     lead("a", { violations: pests(1), latest: { date: "2026-10-10", score: 3 } }),
     lead("b", { violations: pests(1), latest: { date: "2026-10-10", score: 4 } }),
@@ -255,8 +255,7 @@ test("filters: hide low scores drops a latest score of 3 or less, keeps no score
     lead("e", { violations: pests(1), latest: null })
   ];
   const ids = (opts) => rankLeads(all, "pest-control", { since: "2026-09-25", ...opts }).map((l) => l.camis).sort();
-  assert.deepEqual(ids({}), ["a", "b", "c", "d", "e"]);
-  assert.deepEqual(ids({ hideLowScores: true }), ["b", "d", "e"]);
+  assert.deepEqual(ids({}), ["b", "d", "e"]);
 });
 
 test("summary counts restaurants, violations, closures and likely re-inspections", () => {

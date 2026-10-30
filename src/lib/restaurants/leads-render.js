@@ -97,10 +97,10 @@ export function skeletonCardsHtml(n = 6) {
   ).join("");
 }
 
-// days: the window. filtered: borough, search, "urgent only" or "hide low scores" is on.
+// days: the window. filtered: borough, search or "urgent only" is on.
 export function emptyStateText(group, days, { filtered = false } = {}) {
   const longest = Math.max(...LEADS_CONFIG.windows);
-  if (filtered) return "No restaurants match these filters. Try all boroughs, clear the search or turn off “Urgent only” or “Hide low scores.”";
+  if (filtered) return "No restaurants match these filters. Try all boroughs, clear the search or turn off “Urgent only.”";
   if (days < longest) return `No critical ${group.short} violations in the last ${days} days. Try ${longest} days.`;
   return `No critical ${group.short} violations in the last ${days} days. Even the inspectors are surprised.`;
 }

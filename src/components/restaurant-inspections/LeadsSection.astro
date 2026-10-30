@@ -5,9 +5,9 @@
  * by how many they had. The mapping is src/lib/restaurants/business-groups.js.
  *
  * The data is one daily snapshot from /api/restaurants/leads (the last 30
- * days of the data); the group, window, borough, search, "urgent only" and
- * "hide low scores" filters run in the browser and live in the URL
- * (?group=&days=&boro=&q=&urgent=1&low=1; low=1 shows low scores, which are hidden by default).
+ * days of the data); the group, window, borough, search and "urgent only"
+ * filters run in the browser and live in the URL (?group=&days=&boro=&q=&urgent=1).
+ * Restaurants whose latest score is lowScoreMax or less are always left out.
  * Each filter change is a history entry, so Back undoes it; typing in the
  * search box replaces the current entry instead of adding one per keystroke.
  */
@@ -73,8 +73,6 @@ const { windows, defaultWindow, reinspectionScore, lowScoreMax, includeNonCritic
     <div class="leads-control leads-urgent">
       <button type="button" class="job-chip" aria-pressed="false" data-urgent aria-describedby="leads-urgent-hint">Urgent only</button>
       <span class="sr-only" id="leads-urgent-hint">Only restaurants closed by the Health Department or likely to be re-inspected after an initial inspection</span>
-      <button type="button" class="job-chip" aria-pressed="true" data-hide-low aria-describedby="leads-low-hint">Hide low scores</button>
-      <span class="sr-only" id="leads-low-hint">Hide restaurants whose latest score is {lowScoreMax} points or less</span>
     </div>
   </div>
 
@@ -127,8 +125,8 @@ const { windows, defaultWindow, reinspectionScore, lowScoreMax, includeNonCritic
       <p>
         <strong>Scores.</strong> Visits that aren't full inspections, such as administrative, calorie posting or smoke-free
         checks, aren't scored, so the score and grade on a card come from the latest scored inspection, which can be older
-        than the latest visit shown on the back. “Hide low scores” (on by default) leaves out restaurants whose latest
-        score was {lowScoreMax} points or less; restaurants without a score yet stay in.
+        than the latest visit shown on the back. Restaurants whose latest score was {lowScoreMax} points or less aren't
+        listed; restaurants without a score yet stay in.
       </p>
       <p>
         <strong>Ranking.</strong> Most violations in the service type first, then closed restaurants, then likely
@@ -179,7 +177,6 @@ const { windows, defaultWindow, reinspectionScore, lowScoreMax, includeNonCritic
   const boroSelect = root.querySelector<HTMLSelectElement>('#leads-boro')!;
   const searchInput = root.querySelector<HTMLInputElement>('#leads-q')!;
   const urgentBtn = root.querySelector<HTMLButtonElement>('[data-urgent]')!;
-  const hideLowBtn = root.querySelector<HTMLButtonElement>('[data-hide-low]')!;
   const blurb = root.querySelector<HTMLElement>('[data-group-blurb]')!;
   const through = root.querySelector<HTMLElement>('[data-through]')!;
   const status = root.querySelector<HTMLElement>('[data-status]')!;
@@ -189,7 +186,7 @@ const { windows, defaultWindow, reinspectionScore, lowScoreMax, includeNonCritic
   const moreBtn = root.querySelector<HTMLButtonElement>('[data-more]')!;
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 
-  type State = { group: string; days: number; boro: string; q: string; urgent: boolean; hideLow: boolean };
+  type State = { group: string; days: number; boro: string; q: string; urgent: boolean };
   let data: any = null;
   let leads: any[] = [];
   let shown = 0;
@@ -204,8 +201,7 @@ const { windows, defaultWindow, reinspectionScore, lowScoreMax, includeNonCritic
       days: LEADS_CONFIG.windows.includes(days) ? days : LEADS_CONFIG.defaultWindow,
       boro: BOROUGHS.includes(p.get('boro') ?? '') ? p.get('boro')! : '',
       q: (p.get('q') ?? '').slice(0, 80),
-      urgent: p.get('urgent') === '1',
-      hideLow: p.get('low') !== '1'
+      urgent: p.get('urgent') === '1'
     };
   }
   let state = readUrl();
@@ -218,7 +214,7 @@ const { windows, defaultWindow, reinspectionScore, lowScoreMax, includeNonCritic
     set('boro', state.boro || null);
     set('q', state.q.trim() || null);
     set('urgent', state.urgent ? '1' : null);
-    set('low', state.hideLow ? null : '1');
+    url.searchParams.delete('low');
     if (url.href === location.href) return;
     if (push) history.pushState(null, '', url);
     else history.replaceState(history.state, '', url);
@@ -230,14 +226,13 @@ const { windows, defaultWindow, reinspectionScore, lowScoreMax, includeNonCritic
     boroSelect.value = state.boro;
     if (searchInput.value !== state.q) searchInput.value = state.q;
     urgentBtn.setAttribute('aria-pressed', String(state.urgent));
-    hideLowBtn.setAttribute('aria-pressed', String(state.hideLow));
     blurb.textContent = businessGroup(state.group)!.description;
   }
 
   // ---------- Render ----------
   const filters = () => ({
     since: windowRange(data.referenceDate, state.days).since,
-    boro: state.boro, search: state.q, urgentOnly: state.urgent, hideLowScores: state.hideLow
+    boro: state.boro, search: state.q, urgentOnly: state.urgent
   });
 
   function setStat(name: string, value: string, context?: string) {
@@ -281,7 +276,7 @@ const { windows, defaultWindow, reinspectionScore, lowScoreMax, includeNonCritic
 
     list.replaceChildren();
     if (!leads.length) {
-      const filtered = Boolean(state.boro || state.q.trim() || state.urgent || state.hideLow);
+      const filtered = Boolean(state.boro || state.q.trim() || state.urgent);
       status.textContent = '';
       list.innerHTML = `<li class="leads-empty"></li>`;
       list.firstElementChild!.textContent = emptyStateText(group, state.days, { filtered });
@@ -324,7 +319,6 @@ const { windows, defaultWindow, reinspectionScore, lowScoreMax, includeNonCritic
   dayBtns.forEach((b) => b.addEventListener('click', () => update({ days: Number(b.dataset.days) })));
   boroSelect.addEventListener('change', () => update({ boro: boroSelect.value }));
   urgentBtn.addEventListener('click', () => update({ urgent: !state.urgent }));
-  hideLowBtn.addEventListener('click', () => update({ hideLow: !state.hideLow }));
   searchInput.addEventListener('input', () => {
     clearTimeout(searchTimer);
     searchTimer = window.setTimeout(() => update({ q: searchInput.value }, { push: false }), SEARCH_DEBOUNCE_MS);

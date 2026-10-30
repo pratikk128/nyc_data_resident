@@ -16,7 +16,7 @@ export const LEADS_CONFIG = {
   defaultWindow: 7,
   // NYC re-inspects a restaurant whose initial inspection scores 14 or more (B/C range).
   reinspectionScore: 14,
-  // "Hide low scores" (on by default) drops restaurants whose latest score is this or lower.
+  // Leads always leave out restaurants whose latest score is this or lower.
   lowScoreMax: 3,
   pageSize: 24,
   // Non-critical codes to treat as leads too (e.g. "10B" back-flow for plumbers).
