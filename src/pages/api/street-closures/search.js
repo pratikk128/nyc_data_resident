@@ -3,7 +3,7 @@
  * Every closed block for the place with its upcoming permits (ended ones
  * left out), nearest first for a spot. Parameters are described in
  * src/lib/street-closures/filter.js.
- * → { today, computedAt, blocks: [{ seg, on, from, to, boro, onKey, lines, permits, meters? }] } or { error }
+ * → { today, computedAt, postedThrough, blocks: [{ seg, on, from, to, boro, onKey, lines, permits, meters? }] } or { error }
  *
  * Reads the block index in KV, so requests don't reach Socrata. Misses on the
  * edge cache are rate limited per client (CLOSURES_RATE_LIMITER).

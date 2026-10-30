@@ -34,7 +34,7 @@ export const metadataJob = {
 };
 
 export const blocksJob = {
-  key: "street-closures:blocks:v2", // v2: segments of one block merged
+  key: "street-closures:blocks:v3", // v3: only touching segments merged; cross streets in the street list; postedThrough
   maxAgeHours: MAX_AGE_HOURS,
   async run() {
     const rows = [];
@@ -75,7 +75,7 @@ const slim = ({ fromKey, toKey, segs, ...b }) => b;
  * The blocks for one place (filter.js normalizeQuery()), with their upcoming
  * permits. Cached at the edge per place, NYC date, data version and code
  * version; misses are rate limited per client. Throws RateLimited.
- * → { today, computedAt, blocks }
+ * → { today, computedAt, postedThrough, blocks }
  */
 export async function loadSearch(query, requestUrl, ctx, clientAddress) {
   const index = await getIndex();
@@ -83,6 +83,6 @@ export async function loadSearch(query, requestUrl, ctx, clientAddress) {
   const key = `street-closures/search/${codeVersion()}/${index.computedAt}/${today}/${searchParams(query)}`;
   return edgeCached(requestUrl, key, SEARCH_TTL, async () => {
     await checkRateLimit("CLOSURES_RATE_LIMITER", clientAddress);
-    return { today, computedAt: index.computedAt, blocks: selectBlocks(index.blocks, selection(query), today).map(slim) };
+    return { today, computedAt: index.computedAt, postedThrough: index.postedThrough, blocks: selectBlocks(index.blocks, selection(query), today).map(slim) };
   }, ctx);
 }

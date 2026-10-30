@@ -52,7 +52,7 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
             placeholder="Try “Broadway” or “W 8th St”" value={query.street ? streetLabel(query.street) : ''} data-street />
           <ul class="c311-suggest" id="scl-street-list" role="listbox" aria-label="Streets with closures" hidden data-street-list></ul>
         </div>
-        <p class="field-hint" id="scl-street-hint">Finds blocks on the street and blocks it crosses. Only streets with a closure are suggested.</p>
+        <p class="field-hint" id="scl-street-hint">Finds blocks on the street and blocks it crosses. Only streets with a closure on or across them are suggested.</p>
       </div>
       <div class="field">
         <label class="filter-label" for="scl-street-boro">Borough <span class="field-optional">(optional)</span></label>
@@ -118,6 +118,7 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
         </button>
       ))}
     </div>
+    <p class="scl-window-note" data-window-note hidden></p>
 
     <p class="scl-filter-chip" data-purpose-chip hidden>
       Only <strong data-purpose-name></strong>
@@ -163,7 +164,7 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
       </div>
       <div class="scl-panel scl-panel-wide">
         <h3 class="chart-title">Closed blocks per day, next 60 days</h3>
-        <p class="chart-subtitle">Days in the time window you picked are darker. <span class="scl-readout" data-readout aria-live="polite"></span></p>
+        <p class="chart-subtitle">Days in the time window you picked are darker. <span data-strip-note></span> <span class="scl-readout" data-readout aria-live="polite"></span></p>
         <div data-strip></div>
       </div>
     </div>
@@ -177,14 +178,14 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
     windowRange, windowCounts, blocksInView, purposeCounts, dailyCounts, topStreets, sortBlocks
   } from '../../lib/street-closures/closures.js';
   import {
-    cardHtml, purposeBarsHtml, stripHtml, stripReadout, topStreetsHtml, placeText, blockTitle, escape
+    cardHtml, purposeBarsHtml, stripHtml, stripReadout, postedNote, topStreetsHtml, placeText, blockTitle, escape
   } from '../../lib/street-closures/render.js';
   import { groupLabel } from '../../lib/street-closures/purposes.js';
   import { mountClosureMap } from '../../lib/street-closures/closure-map.js';
   import { WINDOWS, PAGE_SIZE, ERROR_TEXT, METERS_PER_MILE } from '../../lib/street-closures/config.js';
   import { parseLocationInput, inNyc } from '../../lib/complaints311/location-input.js';
   import { resolveLocation } from '../../lib/complaints311/geocode.js';
-  import { count } from '../../lib/format.js';
+  import { count, date } from '../../lib/format.js';
   import zipFile from '../../data/zip-centroids.json';
 
   const root = document.querySelector<HTMLElement>('[data-closures]')!;
@@ -210,6 +211,8 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
   const mapToggle = $<HTMLButtonElement>('[data-map-toggle]');
   const strip = $('[data-strip]');
   const readout = $('[data-readout]');
+  const windowNote = $('[data-window-note]');
+  const stripNote = $('[data-strip-note]');
 
   const map = mountClosureMap($('[data-map]'), { onPick: (seg: string) => select(seg, { fromMap: true }) });
 
@@ -217,7 +220,7 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
   let mode: string = query.mode === 'city' ? 'borough' : query.mode;
   // The spot's name: never in the URL, so a shared or reloaded link just says "the spot you picked".
   let placeLabel = '';
-  let data: { today: string; blocks: any[] } | null = null;
+  let data: { today: string; postedThrough: string | null; blocks: any[] } | null = null;
   let loadedFor = '';
   let shown = PAGE_SIZE;
   let selected: string | null = null;
@@ -547,8 +550,11 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
   const plural = (n: number, one: string, many = `${one}s`) => `${count(n)} ${n === 1 ? one : many}`;
 
   function render({ refit }: { refit: boolean }) {
-    const { today, blocks } = data!;
+    const { today, blocks, postedThrough } = data!;
     const range = windowRange(query.when, today);
+    const note = postedNote(range, postedThrough);
+    windowNote.hidden = !note;
+    windowNote.textContent = note ?? '';
     const counts = windowCounts(blocks, today, query.purpose);
     root.querySelectorAll<HTMLButtonElement>('[data-when]').forEach((b) => {
       b.setAttribute('aria-pressed', String(b.dataset.when === query.when));
@@ -575,8 +581,11 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
     $('[data-purposes]').innerHTML = purposeBarsHtml(purposeCounts(blocks, range), query.purpose);
     $('[data-top-streets]').innerHTML = topStreetsHtml(topStreets(view), query);
     days = dailyCounts(blocks, today, query.purpose);
-    strip.innerHTML = stripHtml(days, range);
-    readout.textContent = stripReadout(days[0]);
+    strip.innerHTML = stripHtml(days, range, postedThrough);
+    stripNote.textContent = postedThrough && days[days.length - 1].day > postedThrough
+      ? `Hatched days come after ${date(postedThrough)}, the latest start DOT has posted, so they'll fill in as permits are added.`
+      : '';
+    readout.textContent = stripReadout(days[0], postedThrough);
   }
 
   function drawCards() {
@@ -609,9 +618,9 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
   // Hovering a day of the strip shows its count.
   strip.addEventListener('mouseover', (e) => {
     const col = (e.target as HTMLElement).closest<HTMLElement>('[data-i]');
-    if (col) readout.textContent = stripReadout(days[Number(col.dataset.i)]);
+    if (col) readout.textContent = stripReadout(days[Number(col.dataset.i)], data?.postedThrough);
   });
-  strip.addEventListener('mouseleave', () => { if (days.length) readout.textContent = stripReadout(days[0]); });
+  strip.addEventListener('mouseleave', () => { if (days.length) readout.textContent = stripReadout(days[0], data?.postedThrough); });
 
   fillForm();
   update();

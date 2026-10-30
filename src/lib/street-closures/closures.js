@@ -11,14 +11,17 @@
  * A block is one street between two cross streets, in one borough. DOT's
  * street map often splits a block into several segments (segmentid), each
  * with its own copy of the same permit, so segments with the same street,
- * cross streets and borough are one block, and the same work (dates and
- * purpose) on it is one permit. Several permits can close the same block, so
+ * cross streets and borough that touch are one block, and the same work
+ * (dates and purpose) on it is one permit. They must touch because the names
+ * alone can repeat far apart: DOT writes "BEND" or "PEDESTRIAN OVERPASS" for
+ * a cross street that isn't a street, and some segments carry the wrong
+ * borough. Several permits can close the same block, so
  * the page shows one card per block with its permits listed. Rows also repeat
  * word for word under the same uniqueid (about 4% of them); those are dropped.
  */
-import { WINDOWS, SOON_DAYS, LONG_DAYS, STRIP_DAYS, TOP_STREETS } from "./config.js";
+import { WINDOWS, SOON_DAYS, LONG_DAYS, STRIP_DAYS, TOP_STREETS, MERGE_METERS } from "./config.js";
 import { describePurpose, GROUPS } from "./purposes.js";
-import { streetKey, streetLabel } from "./streets.js";
+import { streetKey, streetLabel, isStreetName } from "./streets.js";
 import { distanceToLine } from "./geo.js";
 
 // ---------- Dates ----------
@@ -74,20 +77,35 @@ function lines(geom) {
     .filter((line) => line.length >= 2);
 }
 
+// Two sets of lines touch: an end of one is within MERGE_METERS of the other.
+const ends = (ls) => ls.flatMap((l) => [l[0], l[l.length - 1]]).map(([lat, lon]) => ({ lat, lon }));
+const touches = (a, b) =>
+  ends(a).some((p) => b.some((l) => distanceToLine(p, l) <= MERGE_METERS)) ||
+  ends(b).some((p) => a.some((l) => distanceToLine(p, l) <= MERGE_METERS));
+
+const samePermit = (p, q) => p.start === q.start && p.end === q.end && p.purpose === q.purpose;
+function addPermit(block, permit) {
+  if (!block.permits.some((p) => samePermit(p, permit))) block.permits.push(permit);
+}
+
 /*
- * Raw rows → { blocks, streets }
- *   blocks   [{ seg, segs, on, from, to, boro, onKey, fromKey, toKey, lines, permits: [{ id, start, end, purpose }] }]
- *            seg is the block's id (its lowest segmentid); permits sorted by
- *            start; rows without dates or a line are dropped
- *   streets  [{ key, label, blocks }] the closed streets, for the autocomplete
+ * Raw rows → { blocks, streets, postedThrough }
+ *   blocks         [{ seg, segs, on, from, to, boro, onKey, fromKey, toKey, lines, permits: [{ id, start, end, purpose }] }]
+ *                  seg is the block's id (its lowest segmentid); permits sorted by
+ *                  start; rows without dates or a line are dropped
+ *   streets        [{ key, label, blocks }] every street a search can find (closed,
+ *                  or a cross street of a closed block), for the autocomplete
+ *   postedThrough  the latest start date of any permit: DOT posts permits only
+ *                  shortly before work starts, so later days look emptier than they'll be
  * Permits that ended before `today` are dropped (they're in the data for a
  * few days after they end).
  */
 export function buildIndex(rows, today) {
   const seenIds = new Set();
-  const seenSegs = new Set();
-  const byBlock = new Map();
+  const groups = new Map(); // block names → the blocks with those names (apart from each other)
+  const bySeg = new Map(); // block names#segmentid → its block
   const clean = (s) => String(s ?? "").replace(/\s+/g, " ").trim();
+  let postedThrough = null;
   for (const row of rows) {
     const id = row.uniqueid;
     const start = calendarDate(row.work_start_date);
@@ -96,40 +114,51 @@ export function buildIndex(rows, today) {
     const geometry = lines(row.the_geom);
     if (!geometry.length) continue;
     seenIds.add(id);
+    if (!postedThrough || start > postedThrough) postedThrough = start;
     const seg = String(row.segmentid ?? id);
     const on = clean(row.onstreetname), from = clean(row.fromstreetname), to = clean(row.tostreetname);
     const onKey = streetKey(on), fromKey = streetKey(from), toKey = streetKey(to);
     const boro = row.borough_code ?? null;
     // Cross streets in either order; a block with no street name stays its own segment.
     const key = onKey ? [boro, onKey, ...[fromKey, toKey].sort()].join("|") : `seg|${seg}`;
-    let block = byBlock.get(key);
+    let block = bySeg.get(`${key}#${seg}`);
     if (!block) {
-      block = { seg, segs: [], on, from, to, boro, onKey, fromKey, toKey, lines: [], permits: [] };
-      byBlock.set(key, block);
-    }
-    const segKey = `${key}#${seg}`;
-    if (!seenSegs.has(segKey)) {
-      seenSegs.add(segKey);
+      // A new segment joins every block with these names that it touches (merging them, if it bridges two).
+      const group = groups.get(key) ?? [];
+      groups.set(key, group);
+      const hits = group.filter((b) => touches(b.lines, geometry));
+      block = hits[0] ?? { seg, segs: [], on, from, to, boro, onKey, fromKey, toKey, lines: [], permits: [] };
+      if (!hits.length) group.push(block);
+      for (const other of hits.slice(1)) {
+        block.segs.push(...other.segs);
+        block.lines.push(...other.lines);
+        for (const p of other.permits) addPermit(block, p);
+        if (Number(other.seg) < Number(block.seg)) block.seg = other.seg;
+        for (const s of other.segs) bySeg.set(`${key}#${s}`, block);
+        group.splice(group.indexOf(other), 1);
+      }
       block.segs.push(seg);
       block.lines.push(...geometry);
       if (Number(seg) < Number(block.seg)) block.seg = seg;
+      bySeg.set(`${key}#${seg}`, block);
     }
-    const purpose = clean(row.purpose);
-    if (!block.permits.some((p) => p.start === start && p.end === end && p.purpose === purpose)) {
-      block.permits.push({ id, start, end, purpose });
-    }
+    addPermit(block, { id, start, end, purpose: clean(row.purpose) });
   }
-  const blocks = [...byBlock.values()];
+  const blocks = [...groups.values()].flat();
   for (const b of blocks) b.permits.sort((x, y) => x.start.localeCompare(y.start) || x.end.localeCompare(y.end));
 
+  // A street search finds a block on the street or crossing it, so both count.
   const streets = new Map();
   for (const b of blocks) {
-    if (!b.onKey) continue;
-    const s = streets.get(b.onKey) ?? { key: b.onKey, label: streetLabel(b.on), blocks: 0 };
-    s.blocks++;
-    streets.set(b.onKey, s);
+    const names = new Map([[b.toKey, b.to], [b.fromKey, b.from], [b.onKey, b.on]]); // the closed street's spelling wins
+    for (const [key, name] of names) {
+      if (!key || !isStreetName(key)) continue;
+      const s = streets.get(key) ?? { key, label: streetLabel(name), blocks: 0 };
+      s.blocks++;
+      streets.set(key, s);
+    }
   }
-  return { blocks, streets: [...streets.values()].sort((a, b) => a.label.localeCompare(b.label)) };
+  return { blocks, streets: [...streets.values()].sort((a, b) => a.label.localeCompare(b.label)), postedThrough };
 }
 
 /*
@@ -200,13 +229,16 @@ const purposeGroup = (p) => (p.group ??= describePurpose(p.purpose).group);
 
 /*
  * The blocks with a permit active in the window (and of the purpose group,
- * when one is picked), each with only those permits as `inView`.
+ * when one is picked). With a purpose picked, `permits` keeps only that kind
+ * of work, so the card's status, dates and map color follow the filter;
+ * `inView` is the permits in the window too.
  */
 export function blocksInView(blocks, range, purpose = null) {
   const out = [];
   for (const b of blocks) {
-    const inView = b.permits.filter((p) => overlaps(p, range) && (!purpose || purposeGroup(p) === purpose));
-    if (inView.length) out.push({ ...b, inView });
+    const permits = purpose ? b.permits.filter((p) => purposeGroup(p) === purpose) : b.permits;
+    const inView = permits.filter((p) => overlaps(p, range));
+    if (inView.length) out.push({ ...b, permits, inView });
   }
   return out;
 }

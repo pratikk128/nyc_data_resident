@@ -28,7 +28,8 @@ const { meta } = Astro.props;
       <p>
         Each closure is one block of one street, between two cross streets, that a DOT construction permit lets
         someone close. DOT's street map sometimes splits a block into several pieces, each listed with its own copy of
-        the permit; we put the pieces back together and count that permit once. A block can have several permits at
+        the permit; we put touching pieces back together and count that permit once. (The names alone aren’t enough: DOT
+        writes “Bend” or “Dead End” for a cross street that isn’t one, so the same names turn up far apart.) A block can have several permits at
         once (a crane and a debris container, say), so we show one card per block with every permit on it. Searching
         for a street finds blocks on that street and blocks where it's one of the cross streets.
       </p>

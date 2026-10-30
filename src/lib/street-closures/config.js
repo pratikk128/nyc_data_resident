@@ -44,6 +44,7 @@ export const LONG_DAYS = 90;      // "Long-running": more than this many days in
 export const STRIP_DAYS = 60;     // the closures-per-day strip
 export const TOP_STREETS = 8;     // "Most affected streets"
 export const PAGE_SIZE = 25;      // cards shown before "Show more"
+export const MERGE_METERS = 60;   // segments with the same names are one block only when they touch (within this)
 
 // The Film Permits dashboard, once it's in the registry. Cards link to it
 // filtered to the same street; until it exists the link is left out.

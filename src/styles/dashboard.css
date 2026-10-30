@@ -2750,6 +2750,8 @@ a.sd-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
 .scl-window[aria-pressed="true"] { --ink: var(--ink-on-fill); background: var(--accent); border-color: var(--ink); color: var(--ink); }
 .scl-window-label { font-size: .875rem; font-weight: 600; }
 .scl-window-count { font-size: 1.375rem; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.scl-window-note { max-width: 75ch; margin-top: var(--space-2); font-size: .875rem; color: var(--ink-soft); }
+.scl-window-note[hidden] { display: none; }
 .scl-filter-chip { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin-top: var(--space-3); font-size: .9375rem; }
 .scl-filter-chip[hidden] { display: none; }
 
@@ -2894,6 +2896,9 @@ a.sd-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
 .scl-strip-col:hover .scl-strip-bar { background: var(--ink); }
 .scl-strip-bar { width: 100%; border-radius: 3px 3px 0 0; background: var(--blue); }
 .scl-strip-col.is-in .scl-strip-bar { background: var(--blue-deep); }
+/* Not all posted yet: a hatch behind a lighter bar */
+.scl-strip-col.is-unposted { background: repeating-linear-gradient(135deg, var(--line) 0 2px, transparent 2px 6px); }
+.scl-strip-col.is-unposted .scl-strip-bar { opacity: .55; }
 .scl-strip-tick {
   position: absolute;
   top: calc(100% + 4px);

@@ -49,6 +49,10 @@ export function streetKey(name) {
   }).join(" ");
 }
 
+// DOT's stand-ins for a cross street that isn't a street ("BEND", "DEAD END",
+// "WASHINGTON CEMETERY BOUNDARY"); left out of the autocomplete.
+export const isStreetName = (key) => !/^(?:BEND|DEAD END|PEDESTRIAN OVERPASS|BODY OF WATER)$|BOUNDARY$/.test(key);
+
 // Without spaces, so "MCDONALD AVE" finds "MC DONALD AVENUE".
 const compact = (key) => key.replace(/ /g, "");
 

@@ -95,12 +95,16 @@ export function purposeBarsHtml(counts, selected) {
 
 const dayLabel = (iso) => date(iso).replace(/, \d{4}$/, "");
 
+// Days after the latest posted start date: DOT hasn't posted all their permits yet.
+const unposted = (d, postedThrough) => Boolean(postedThrough) && d.day > postedThrough;
+
 /*
  * Blocks closed each day, as columns. The days in the picked window are
- * darker. data-i lets the page show a day's count on hover; the table under
- * it is the non-chart version.
+ * darker; days after `postedThrough` are hatched, since closures starting
+ * then aren't posted yet. data-i lets the page show a day's count on hover;
+ * the table under it is the non-chart version.
  */
-export function stripHtml(days, range) {
+export function stripHtml(days, range, postedThrough) {
   const max = Math.max(1, ...days.map((d) => d.blocks));
   const inWindow = (d) => d.day >= range.from && (range.to == null || d.day <= range.to);
   const cols = days.map((d, i) => {
@@ -108,16 +112,25 @@ export function stripHtml(days, range) {
     // Today, then each month's 1st (unless it's too close to today's label to fit).
     const tick = i === 0 ? "Today" : d.day.endsWith("-01") && i >= 7 ? dayLabel(d.day) : "";
     const month = tick ? `<span class="scl-strip-tick">${tick}</span>` : "";
-    return `<span class="scl-strip-col${inWindow(d) ? " is-in" : ""}" data-i="${i}"><span class="scl-strip-bar" style="height:${h.toFixed(1)}%"></span>${month}</span>`;
+    const cls = `${inWindow(d) ? " is-in" : ""}${unposted(d, postedThrough) ? " is-unposted" : ""}`;
+    return `<span class="scl-strip-col${cls}" data-i="${i}"><span class="scl-strip-bar" style="height:${h.toFixed(1)}%"></span>${month}</span>`;
   }).join("");
-  const rows = days.map((d) => `<tr><th scope="row">${date(d.day)}</th><td>${count(d.blocks)}</td></tr>`).join("");
-  return `<div class="scl-strip" role="img" aria-label="Closed blocks per day from ${date(days[0].day)} to ${date(days[days.length - 1].day)}: from ${count(Math.min(...days.map((d) => d.blocks)))} to ${count(max)} a day">${cols}</div>
+  const rows = days.map((d) => `<tr><th scope="row">${date(d.day)}</th><td>${count(d.blocks)}${unposted(d, postedThrough) ? " (not all posted yet)" : ""}</td></tr>`).join("");
+  const partial = unposted(days[days.length - 1], postedThrough) ? `; days after ${date(postedThrough)} aren't fully posted yet` : "";
+  return `<div class="scl-strip" role="img" aria-label="Closed blocks per day from ${date(days[0].day)} to ${date(days[days.length - 1].day)}: from ${count(Math.min(...days.map((d) => d.blocks)))} to ${count(max)} a day${partial}">${cols}</div>
     <details class="scl-table-toggle"><summary>View as table</summary>
       <div class="table-scroll"><table><thead><tr><th scope="col">Day</th><th scope="col">Closed blocks</th></tr></thead><tbody>${rows}</tbody></table></div>
     </details>`;
 }
 
-export const stripReadout = (d) => `${date(d.day)}: ${plural(d.blocks, "block")} closed`;
+export const stripReadout = (d, postedThrough) =>
+  `${date(d.day)}: ${plural(d.blocks, "block")} closed${unposted(d, postedThrough) ? " so far (not all posted yet)" : ""}`;
+
+// Under the tabs when the window runs past the latest posted start, or null.
+export function postedNote(range, postedThrough) {
+  if (!postedThrough || (range.to != null && range.to <= postedThrough)) return null;
+  return `DOT posts permits shortly before work starts. The latest one posted starts ${date(postedThrough)}, so closures starting after that aren’t listed yet.`;
+}
 
 // The streets with the most closed blocks; each links to that street's view.
 export function topStreetsHtml(streets, query) {
