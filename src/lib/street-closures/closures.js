@@ -44,22 +44,18 @@ export const addDays = (iso, days) => isoDay(dayNumber(iso) + days);
 export const daysBetween = (from, to) => dayNumber(to) - dayNumber(from);
 
 /*
- * The first and last day of a window, both included. "This week" runs
- * through Sunday (today, if today is Sunday), "This month" through the
- * month's last day, "Next 90 days" is today plus 89 more. "All upcoming" has
+ * The first and last day of a window, both included. Weeks run Monday to
+ * Sunday: "This week" is today through Sunday (just today, if today is
+ * Sunday), "Next week" the Monday to Sunday after that. "All upcoming" has
  * no end (null).
  */
 export function windowRange(key, today) {
   if (key === "today") return { from: today, to: today };
-  if (key === "week") {
-    const weekday = new Date(dayNumber(today) * DAY_MS).getUTCDay(); // 0 = Sunday
-    return { from: today, to: addDays(today, (7 - weekday) % 7) };
-  }
-  if (key === "month") {
-    const [y, m] = today.split("-").map(Number);
-    return { from: today, to: isoDay(Date.UTC(y, m, 0) / DAY_MS) }; // day 0 of next month
-  }
-  if (key === "90d") return { from: today, to: addDays(today, 89) };
+  if (key === "tomorrow") { const day = addDays(today, 1); return { from: day, to: day }; }
+  const weekday = new Date(dayNumber(today) * DAY_MS).getUTCDay(); // 0 = Sunday
+  const sunday = addDays(today, (7 - weekday) % 7);
+  if (key === "week") return { from: today, to: sunday };
+  if (key === "next-week") return { from: addDays(sunday, 1), to: addDays(sunday, 7) };
   return { from: today, to: null };
 }
 

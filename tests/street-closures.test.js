@@ -200,14 +200,16 @@ test("near me: blocks within the radius, nearest first, distance to the line not
 
 // ---------- Windows ----------
 
-test("windows: today, through Sunday, through month's end, 90 days, and open-ended", () => {
+test("windows: today, tomorrow, through Sunday, the week after, and open-ended", () => {
   assert.deepEqual(windowRange("today", TODAY), { from: TODAY, to: TODAY });
+  assert.deepEqual(windowRange("tomorrow", TODAY), { from: "2026-10-31", to: "2026-10-31" });
+  assert.deepEqual(windowRange("tomorrow", "2026-12-31"), { from: "2027-01-01", to: "2027-01-01" });
   assert.deepEqual(windowRange("week", TODAY), { from: TODAY, to: "2026-11-01" });
   assert.deepEqual(windowRange("week", "2026-11-01"), { from: "2026-11-01", to: "2026-11-01" }, "on Sunday the week is today");
   assert.deepEqual(windowRange("week", "2026-11-02"), { from: "2026-11-02", to: "2026-11-08" });
-  assert.deepEqual(windowRange("month", TODAY), { from: TODAY, to: "2026-10-31" });
-  assert.deepEqual(windowRange("month", "2026-02-10"), { from: "2026-02-10", to: "2026-02-28" });
-  assert.deepEqual(windowRange("90d", TODAY), { from: TODAY, to: "2027-01-27" });
+  assert.deepEqual(windowRange("next-week", TODAY), { from: "2026-11-02", to: "2026-11-08" });
+  assert.deepEqual(windowRange("next-week", "2026-11-01"), { from: "2026-11-02", to: "2026-11-08" }, "on Sunday next week starts tomorrow");
+  assert.deepEqual(windowRange("next-week", "2026-11-02"), { from: "2026-11-09", to: "2026-11-15" });
   assert.deepEqual(windowRange("all", TODAY), { from: TODAY, to: null });
 });
 
@@ -219,6 +221,7 @@ test("edge days: a permit that starts today or ends today is active today", () =
   assert.equal(overlaps({ start: "2026-10-01", end: "2026-10-29" }, today), false);
   assert.equal(overlaps({ start: "2026-10-31", end: "2026-11-02" }, today), false);
   assert.equal(overlaps({ start: "2026-10-31", end: "2026-11-02" }, windowRange("week", TODAY)), true);
+  assert.equal(overlaps({ start: "2026-10-01", end: TODAY }, windowRange("tomorrow", TODAY)), false, "ends today, so not tomorrow");
 });
 
 // ---------- Status ----------
@@ -272,8 +275,8 @@ const VIEW_BLOCKS = [
 ];
 
 test("counts per window, and with a purpose picked", () => {
-  assert.deepEqual(windowCounts(VIEW_BLOCKS, TODAY), { today: 1, week: 1, month: 1, "90d": 4, all: 4 });
-  assert.deepEqual(windowCounts(VIEW_BLOCKS, TODAY, "gas"), { today: 0, week: 0, month: 0, "90d": 2, all: 2 });
+  assert.deepEqual(windowCounts(VIEW_BLOCKS, TODAY), { today: 1, tomorrow: 0, week: 1, "next-week": 1, all: 4 });
+  assert.deepEqual(windowCounts(VIEW_BLOCKS, TODAY, "gas"), { today: 0, tomorrow: 0, week: 0, "next-week": 1, all: 2 });
   const view = blocksInView(VIEW_BLOCKS, windowRange("all", TODAY), "gas");
   assert.deepEqual(view.find((b) => b.seg === "b").inView.map((p) => p.purpose), ["REPAIR GAS"], "only the picked kind of work");
   // Block b: gas Nov 2–4 and a crane through Nov 20. With gas picked, the card is about the gas work.
@@ -289,12 +292,12 @@ test("not posted yet: days past the latest posted start are marked, and windows 
   assert.ok(html.includes("aren't fully posted yet"));
   assert.ok(!stripHtml(days, windowRange("today", TODAY), "2026-12-31").includes("is-unposted"));
   assert.equal(postedNote(windowRange("week", TODAY), "2026-11-06"), null, "this week ends Nov 1");
-  assert.match(postedNote(windowRange("90d", TODAY), "2026-11-06"), /starts Nov 6, 2026/);
+  assert.match(postedNote(windowRange("next-week", TODAY), "2026-11-06"), /starts Nov 6, 2026/);
   assert.match(postedNote(windowRange("all", TODAY), "2026-11-06"), /aren’t listed yet/);
 });
 
 test("purpose bars count blocks, a block with two kinds of work in each", () => {
-  assert.deepEqual(purposeCounts(VIEW_BLOCKS, windowRange("90d", TODAY)),
+  assert.deepEqual(purposeCounts(VIEW_BLOCKS, windowRange("all", TODAY)),
     [{ group: "paving", blocks: 2 }, { group: "gas", blocks: 2 }, { group: "equipment", blocks: 1 }], "ties in the groups' order");
 });
 
@@ -430,7 +433,9 @@ test("words around the results", () => {
   assert.equal(summaryText(q("street=BROADWAY&boro=M"), 1, ""), "1 block closed today on or crossing Broadway in Manhattan.");
   assert.equal(summaryText(q("boro=Q&when=week&purpose=gas"), 1200, ""), "1,200 blocks closed at some point this week in Queens, for gas lines.");
   assert.equal(summaryText(q("when=all"), 0, ""), "0 blocks closed now or coming up across all five boroughs.");
-  assert.equal(breakdownIntro(q("boro=Q&when=90d"), ""), "Closed blocks in Queens, next 90 days.");
+  assert.equal(summaryText(q("when=tomorrow"), 3, ""), "3 blocks closed tomorrow across all five boroughs.");
+  assert.equal(summaryText(q("when=next-week"), 2, ""), "2 blocks closed at some point next week across all five boroughs.");
+  assert.equal(breakdownIntro(q("boro=Q&when=next-week"), ""), "Closed blocks in Queens, next week.");
   assert.equal(windowLabel("Today", 1), "Today: 1 closed block");
   assert.match(topNote(q("lat=40.712&lon=-74.006")), /within your radius/);
   assert.doesNotMatch(topNote(q("")), /radius/);

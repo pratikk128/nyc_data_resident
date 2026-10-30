@@ -6,7 +6,7 @@
  *   ?boro=Q                        a whole borough
  *   ?lat=40.712&lon=-74.006&r=0.25 near a spot (rounded to about a block; r: 0.25, 0.5 or 1 mile, default 0.5)
  *   (none)                         all five boroughs
- * plus &when=today|week|month|90d|all (default today) and &purpose=<group>.
+ * plus &when=today|tomorrow|week|next-week|all (default today) and &purpose=<group>.
  * A spot wins over a street or borough. A typed address never goes in the
  * URL (it would sit in browser history and shared links), only its spot.
  */

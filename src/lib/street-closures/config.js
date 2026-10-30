@@ -30,9 +30,9 @@ export const METERS_PER_MILE = 1609.344;
 // Time windows. A closure counts in a window when it's active on any day of it.
 export const WINDOWS = [
   { key: "today", label: "Today" },
+  { key: "tomorrow", label: "Tomorrow" },
   { key: "week", label: "This week" },
-  { key: "month", label: "This month" },
-  { key: "90d", label: "Next 90 days" },
+  { key: "next-week", label: "Next week" },
   { key: "all", label: "All upcoming" }
 ];
 export const DEFAULT_WINDOW = "today";

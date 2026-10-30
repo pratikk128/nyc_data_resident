@@ -140,7 +140,7 @@ const windowName = (when) => WINDOWS.find((w) => w.key === when).label.toLowerCa
 
 // "3 blocks closed today on or crossing Broadway, for gas lines."
 export function summaryText(query, n, placeLabel) {
-  const when = query.when === "all" ? "now or coming up" : query.when === "today" ? "today" : `at some point ${windowName(query.when)}`;
+  const when = query.when === "all" ? "now or coming up" : ["today", "tomorrow"].includes(query.when) ? query.when : `at some point ${windowName(query.when)}`;
   const purpose = query.purpose ? `, for ${groupLabel(query.purpose).toLowerCase()}` : "";
   return `${plural(n, "block")} closed ${when} ${placeText(query, placeLabel)}${purpose}.`;
 }
