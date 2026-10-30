@@ -1,10 +1,12 @@
 ---
 /*
  * The address report: an address (with suggestions), a ZIP or "Use my
- * location", then one short card per dashboard that works by location,
- * each loading on its own from that dashboard's API and linking to it with
- * the same spot. What each card shows is decided in
- * src/lib/address-report/report.js; its HTML in render.js.
+ * location". Once there's a spot the search folds away behind "Change
+ * address", and the report shows the place, an "At a glance" line per topic,
+ * then the topics in three groups (right now, your block, around you). Each
+ * topic loads on its own from its dashboard's API and links to it with the
+ * same spot. What each shows is decided in src/lib/address-report/report.js;
+ * its wording and HTML in render.js.
  *
  * The spot is in the URL (?lat=&lon=, about a block); the typed address
  * isn't. The landing page's box hands over the typed text as #q=… (a hash
@@ -19,14 +21,31 @@ interface Props {
 }
 const { stations, waterError } = Astro.props;
 
-const CARDS = [
-  { key: 'water', title: 'Drinking water', link: 'See the full results' },
-  { key: 'complaints', title: '311 issues nearby', link: 'See all 311 requests here' },
-  { key: 'closures', title: 'Street closures', link: 'See every closure nearby' },
-  { key: 'help', title: 'Nearest help', link: 'See all help nearby' },
-  { key: 'schools', title: 'Nearest public schools', link: 'Explore school quality' },
-  { key: 'restaurants', title: 'Restaurant grades nearby', link: 'Look up any restaurant' }
+// Topics in the order a resident asks about them: what affects today, then
+// the block itself, then what's around. Each has a line in "At a glance".
+const ICONS: Record<string, string> = {
+  water: '<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>',
+  closures: '<path d="M3 10h18v5H3zM6 15v5M18 15v5M7 10l3 5M12 10l3 5"/>',
+  complaints: '<path d="M4 5h16v11H9l-5 4z"/>',
+  restaurants: '<path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M17 3c-2 2-3 5-3 8h3v10"/>',
+  help: '<path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/>',
+  schools: '<path d="M2 9l10-5 10 5-10 5zM6 11v5c3 2.5 9 2.5 12 0v-5"/>'
+};
+const GROUPS = [
+  { key: 'now', title: 'Right now', intro: 'What could change your day.', topics: [
+    { key: 'water', title: 'Drinking water', glance: 'Water', link: 'See the full results' },
+    { key: 'closures', title: 'Street closures', glance: 'Streets', link: 'See every closure nearby' }
+  ] },
+  { key: 'block', title: 'Your block', intro: 'What neighbors call 311 about, within about a 5-minute walk.', topics: [
+    { key: 'complaints', title: '311 requests', glance: '311', link: 'See all 311 requests here' }
+  ] },
+  { key: 'around', title: 'Around you', intro: 'Places nearby, when you need them.', topics: [
+    { key: 'restaurants', title: 'Restaurant grades', glance: 'Restaurants', link: 'Look up any restaurant' },
+    { key: 'help', title: 'Nearest help', glance: 'Help', link: 'See all help nearby' },
+    { key: 'schools', title: 'Nearest public schools', glance: 'Schools', link: 'Explore school quality' }
+  ] }
 ];
+const TOPICS = GROUPS.flatMap((g) => g.topics);
 ---
 
 <div class="ar" data-report data-stations={JSON.stringify(stations)} data-water-error={waterError ? '1' : undefined}>
@@ -53,22 +72,63 @@ const CARDS = [
   </section>
 
   <section class="ar-results" id="report" aria-labelledby="ar-report-title" data-results hidden>
-    <h2 class="ar-place" id="ar-report-title" tabindex="-1">Near <span data-place>the spot you picked</span></h2>
-    <div class="ar-cards">
-      {CARDS.map((c) => (
-        <article class="ar-card" data-card={c.key} aria-labelledby={`ar-${c.key}-title`} aria-busy="true">
-          <h3 class="ar-card-title" id={`ar-${c.key}-title`}>{c.title}</h3>
-          <div class="ar-body" data-body></div>
-          <a class="ar-more" data-link href="#">{c.link} <span aria-hidden="true">→</span></a>
-        </article>
-      ))}
-    </div>
+    <header class="ar-head">
+      <div class="ar-head-text">
+        <h2 class="ar-place" id="ar-report-title" tabindex="-1" data-place>The spot in this link</h2>
+        <p class="ar-scope">Within about a 5-minute walk, unless a section says otherwise.</p>
+      </div>
+      <div class="ar-actions">
+        <button type="button" class="near-btn" data-change>Change address</button>
+        <button type="button" class="near-btn" data-copy>Copy link</button>
+      </div>
+    </header>
+
+    <nav class="ar-glance" aria-labelledby="ar-glance-title">
+      <h3 class="ar-glance-title" id="ar-glance-title">At a glance</h3>
+      <ul class="ar-glance-list">
+        {TOPICS.map((t) => (
+          <li>
+            <a class="ar-glance-item" href={`#ar-${t.key}`} data-glance={t.key} data-tone="loading">
+              <span class="ar-glance-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" set:html={ICONS[t.key]} /></span>
+              <span class="ar-glance-words">
+                <span class="ar-glance-topic">{t.glance}</span>
+                <span class="ar-glance-text" data-glance-text>Checking…</span>
+              </span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+
+    {GROUPS.map((g) => (
+      <section class="ar-group" data-group={g.key} aria-labelledby={`ar-group-${g.key}`}>
+        <header class="ar-group-head">
+          <h3 class="ar-group-title" id={`ar-group-${g.key}`}>{g.title}</h3>
+          <p class="ar-group-intro">{g.intro}</p>
+        </header>
+        <div class="ar-cards">
+          {g.topics.map((t) => (
+            <article class="ar-card" id={`ar-${t.key}`} data-card={t.key} aria-labelledby={`ar-${t.key}-title`} aria-busy="true">
+              <h4 class="ar-card-title" id={`ar-${t.key}-title`}>
+                <span class="ar-card-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" set:html={ICONS[t.key]} /></span>
+                {t.title}
+              </h4>
+              <div class="ar-body" data-body></div>
+              <a class="ar-more" data-link href="#">{t.link} <span aria-hidden="true">→</span></a>
+            </article>
+          ))}
+        </div>
+      </section>
+    ))}
   </section>
 </div>
 
 <script>
-  import { spotFromParams, spotToParams, dashboardLinks, complaintsCard, closuresCard, helpCard, nearestStation, restaurantsCard, nearestSchools } from '../../lib/address-report/report.js';
-  import { waterHtml, complaintsHtml, closuresHtml, helpHtml, schoolsHtml, restaurantsHtml, escape } from '../../lib/address-report/render.js';
+  import { spotFromParams, spotToParams, dashboardLinks, complaintsCard, complaintsStandouts, closuresCard, helpCard, nearestStation, restaurantsCard, nearestSchools } from '../../lib/address-report/report.js';
+  import {
+    waterHtml, waterGlance, complaintsHtml, complaintsGlance, standoutsHtml, closuresHtml, closuresGlance,
+    helpHtml, helpGlance, schoolsHtml, schoolsGlance, restaurantsHtml, restaurantsGlance, escape
+  } from '../../lib/address-report/render.js';
   import { nearSearch, addressOutcome } from '../../lib/location/near-search.js';
   import { parseLocationInput, isNycZip } from '../../lib/complaints311/location-input.js';
   import { inCityLimits } from '../../lib/in-city.js';
@@ -85,12 +145,14 @@ const CARDS = [
   const choices = $('[data-address-choices]');
   const locateBtn = $<HTMLButtonElement>('[data-locate-me]');
   const status = $('[data-status]');
+  const find = $('#find');
   const results = $('[data-results]');
   const placeEl = $('[data-place]');
+  const copyBtn = $<HTMLButtonElement>('[data-copy]');
   const stations = JSON.parse(root.dataset.stations!);
   const waterError = root.dataset.waterError === '1';
 
-  // The spot's name: never in the URL, so a shared or reloaded link says "the spot you picked".
+  // The spot's name: never in the URL, so a shared or reloaded link says "the spot in this link".
   let placeLabel = (history.state?.placeLabel as string) || '';
   let run = 0; // bumped by every report, so a slow card can't fill in an older one
   let lookup = 0; // bumped by every search, so only the latest address lookup counts
@@ -104,16 +166,29 @@ const CARDS = [
     return data;
   }
 
-  // Each card loads on its own: a slow one doesn't hold up the rest.
-  function card(key: string, href: string, load: () => Promise<string>, id: number) {
+  type Glance = { tone: string; text: string };
+
+  function setGlance(key: string, g: Glance) {
+    const el = root.querySelector<HTMLElement>(`[data-glance="${key}"]`)!;
+    el.dataset.tone = g.tone;
+    el.querySelector('[data-glance-text]')!.textContent = g.text;
+  }
+
+  // Each card loads on its own: a slow one doesn't hold up the rest. Resolves once its body is drawn.
+  function card(key: string, href: string, load: () => Promise<{ html: string; glance: Glance }>, id: number) {
     const el = root.querySelector<HTMLElement>(`[data-card="${key}"]`)!;
     const body = el.querySelector<HTMLElement>('[data-body]')!;
     el.querySelector<HTMLAnchorElement>('[data-link]')!.href = href;
     el.setAttribute('aria-busy', 'true');
     body.innerHTML = '<span class="sk-line"></span><span class="sk-line sk-short"></span><span class="sk-line"></span>';
-    load().then(
-      (html) => { if (id === run) body.innerHTML = html; },
-      (err) => { if (id === run) body.innerHTML = `<p class="ar-error">${escape(err?.message || ERROR_TEXT)}</p>`; }
+    setGlance(key, { tone: 'loading', text: 'Checking…' });
+    return load().then(
+      ({ html, glance }) => { if (id === run) { body.innerHTML = html; setGlance(key, glance); } },
+      (err) => {
+        if (id !== run) return;
+        body.innerHTML = `<p class="ar-error">${escape(err?.message || ERROR_TEXT)}</p>`;
+        setGlance(key, { tone: 'none', text: 'Couldn’t load this' });
+      }
     ).finally(() => { if (id === run) el.removeAttribute('aria-busy'); });
   }
 
@@ -122,24 +197,73 @@ const CARDS = [
     const at = `lat=${spot.lat}&lon=${spot.lon}`;
     const station = nearestStation(stations, spot);
     const links = dashboardLinks(spot, { waterSite: station?.site });
-    placeEl.textContent = placeLabel || 'the spot you picked';
+    // A heading on its own: "your location" → "Your location".
+    placeEl.textContent = placeLabel ? placeLabel[0].toUpperCase() + placeLabel.slice(1) : 'The spot in this link';
+    find.hidden = true;
     results.hidden = false;
 
     card('water', links.water, async () => {
       if (waterError) throw new Error('Drinking water results aren’t available right now. Try again later.');
-      return waterHtml(station, station ? await getJson(`/api/water/stations?sites=${encodeURIComponent(station.site)}`) : null);
+      const data = station ? await getJson(`/api/water/stations?sites=${encodeURIComponent(station.site)}`) : null;
+      return { html: waterHtml(station, data), glance: waterGlance(station, data) };
     }, id);
-    card('complaints', links.complaints, async () =>
-      complaintsHtml(complaintsCard(await getJson(`/api/311/area?${at}&area=immediate&window=12m`))), id);
-    card('closures', links.closures, async () =>
-      closuresHtml(closuresCard(await getJson(`/api/street-closures/search?${at}&r=0.25`))), id);
-    card('help', links.help, async () =>
-      helpHtml(helpCard((await getJson(`/api/help-near-me/search?${at}`)).sites)), id);
-    card('schools', links.schools, async () =>
-      schoolsHtml(nearestSchools((await getJson('/api/schools/search?view=map')).points, spot)), id);
-    card('restaurants', links.restaurants, async () =>
-      restaurantsHtml(restaurantsCard(await getJson(`/api/restaurants/search?lat=${spot.lat}&lng=${spot.lon}`))), id);
+    card('closures', links.closures, async () => {
+      const c = closuresCard(await getJson(`/api/street-closures/search?${at}&r=0.25`));
+      return { html: closuresHtml(c), glance: closuresGlance(c) };
+    }, id);
+
+    // 311 draws first; the comparison with the city fills in when its numbers arrive (they can be slow after a deploy).
+    const area = getJson(`/api/311/area?${at}&area=immediate&window=12m`);
+    const city = getJson('/api/311/baseline?window=12m');
+    const drawn = card('complaints', links.complaints, async () => {
+      const c = complaintsCard(await area);
+      return { html: complaintsHtml(c), glance: complaintsGlance(c) };
+    }, id);
+    Promise.all([area, city, drawn]).then(
+      ([a, b]) => {
+        const slot = root.querySelector('[data-standouts]');
+        if (id !== run || !slot) return;
+        const s = complaintsStandouts(a, b.city);
+        slot.innerHTML = standoutsHtml(s);
+        setGlance('complaints', complaintsGlance(complaintsCard(a), s));
+      },
+      () => {
+        const slot = root.querySelector('[data-standouts]');
+        if (id === run && slot) slot.innerHTML = standoutsHtml(null);
+      }
+    );
+
+    card('restaurants', links.restaurants, async () => {
+      const c = restaurantsCard(await getJson(`/api/restaurants/search?lat=${spot.lat}&lng=${spot.lon}`));
+      return { html: restaurantsHtml(c), glance: restaurantsGlance(c) };
+    }, id);
+    card('help', links.help, async () => {
+      const sites = helpCard((await getJson(`/api/help-near-me/search?${at}`)).sites);
+      return { html: helpHtml(sites), glance: helpGlance(sites) };
+    }, id);
+    card('schools', links.schools, async () => {
+      const schools = nearestSchools((await getJson('/api/schools/search?view=map')).points, spot);
+      return { html: schoolsHtml(schools), glance: schoolsGlance(schools) };
+    }, id);
   }
+
+  function showSearch() {
+    find.hidden = false;
+    input.focus();
+    input.select();
+  }
+
+  $('[data-change]').addEventListener('click', showSearch);
+
+  copyBtn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(location.href);
+      copyBtn.textContent = 'Link copied';
+    } catch {
+      copyBtn.textContent = 'Copy it from the address bar';
+    }
+    setTimeout(() => { copyBtn.textContent = 'Copy link'; }, 2500);
+  });
 
   function useSpot(lat: number, lon: number, label: string) {
     ++lookup;
@@ -158,7 +282,7 @@ const CARDS = [
     placeLabel = history.state?.placeLabel || '';
     input.value = history.state?.text || '';
     const spot = spotFromParams(new URLSearchParams(location.search));
-    if (spot) report(spot); else { ++run; results.hidden = true; }
+    if (spot) report(spot); else { ++run; results.hidden = true; find.hidden = false; }
   });
 
   // ---------- Address box with suggestions ----------

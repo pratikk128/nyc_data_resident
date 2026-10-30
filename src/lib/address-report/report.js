@@ -8,7 +8,9 @@
  * never goes in the URL (it would sit in browser history and shared links).
  */
 import { inCityLimits } from "../in-city.js";
-import { topTypes, openShare } from "../complaints311/stats.js";
+import { topTypes, openShare, compareShares } from "../complaints311/stats.js";
+import { typeLabel } from "../complaints311/labels.js";
+import { MIN_IMMEDIATE_REQUESTS } from "../complaints311/config.js";
 import { WINDOWS as CLOSURE_WINDOWS } from "../street-closures/config.js";
 import { windowRange, blocksInView, sortBlocks } from "../street-closures/closures.js";
 import { CATEGORIES as HELP_CATEGORIES } from "../help-near-me/config.js";
@@ -45,6 +47,18 @@ export function dashboardLinks({ lat, lon }, { waterSite = null } = {}) {
 // /api/311/area (¼ mile, last 12 months) → { total, top: [{ key, label, count }], openShare }
 export function complaintsCard(area, n = 3) {
   return { total: area.total, top: topTypes(area.types ?? {}, n), openShare: openShare(area.status) };
+}
+
+/*
+ * What's more common within the ¼ mile than across the city, as on the 311
+ * dashboard: area and city are { total, types }; city is /api/311/baseline's
+ * .city. → { enough, above: up to n of [{ key, label, count, ratio }], highest first }.
+ * Under MIN_IMMEDIATE_REQUESTS requests the shares are too noisy to compare.
+ */
+export function complaintsStandouts(area, city, n = 3) {
+  if (!(area.total >= MIN_IMMEDIATE_REQUESTS) || !city?.types) return { enough: false, above: [] };
+  const { above } = compareShares(area.types ?? {}, city.types);
+  return { enough: true, above: above.slice(0, n).map((r) => ({ key: r.key, label: typeLabel(r.key), count: r.count, ratio: r.ratio })) };
 }
 
 // ---------- Street closures ----------

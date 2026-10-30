@@ -28,6 +28,7 @@
 
   var links = Array.prototype.slice.call(categoryList.querySelectorAll(".category-btn"));
   var cards = Array.prototype.slice.call(cardGrid.children);
+  var heroAddress = document.getElementById("hero-address");
   var audienceBtns = Array.prototype.slice.call(audienceToggle.querySelectorAll(".audience-btn"));
   var DEFAULT_AUDIENCE = audienceBtns[0].getAttribute("data-audience");
   var audience = DEFAULT_AUDIENCE;
@@ -81,6 +82,8 @@
   // ---------- Filtering ----------
   function applyAudience(id) {
     audience = id;
+    // The address report is about where you live, so it's for residents only.
+    if (heroAddress) heroAddress.hidden = id !== DEFAULT_AUDIENCE;
     audienceBtns.forEach(function (btn) {
       btn.setAttribute("aria-pressed", String(btn.getAttribute("data-audience") === id));
     });

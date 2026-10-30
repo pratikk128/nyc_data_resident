@@ -494,7 +494,7 @@ svg { flex-shrink: 0; }
   white-space: nowrap;
   cursor: pointer;
 }
-.hero-address-go:hover { background: var(--yellow-hover); }
+.hero-address-go:hover { background: var(--accent-deep); }
 @media (max-width: 639px) {
   .hero-address-row { grid-template-columns: 1fr; }
 }

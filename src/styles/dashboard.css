@@ -3610,19 +3610,105 @@ a.hn-directions:hover { background: var(--accent-deep); }
 
 /* =========================================================
    Address report (/address/)
-   One card per dashboard; each card's body fills in on its own.
+   The place, "At a glance" (one line per topic, colored by how it looks),
+   then the topics in groups. Each topic fills in on its own.
    ========================================================= */
-.ar-results { margin-top: var(--space-7); scroll-margin-top: calc(var(--header-h) + var(--space-4)); }
+.ar [hidden] { display: none !important; }
+.ar-results { margin-top: var(--space-6); scroll-margin-top: calc(var(--header-h) + var(--space-4)); }
+
+/* The place, and what you can do with the report */
+.ar-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-5);
+}
+.ar-head-text { min-width: 0; }
 .ar-place {
-  font-size: clamp(1.375rem, 1.15rem + 1vw, 1.75rem);
+  font-size: clamp(1.625rem, 1.3rem + 1.4vw, 2.25rem);
   font-weight: 800;
+  line-height: 1.15;
   letter-spacing: -0.02em;
   overflow-wrap: anywhere;
 }
 .ar-place:focus { outline: none; }
+.ar-scope { margin-top: var(--space-1); color: var(--ink-soft); }
+.ar-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+/* At a glance */
+.ar-glance { margin-top: var(--space-5); }
+.ar-glance-title {
+  font-size: .8125rem;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.ar-glance-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.ar-glance-list li { display: flex; }
+.ar-glance-item {
+  display: flex;
+  flex: 1;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-left: 6px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  color: var(--ink);
+  text-decoration: none;
+  transition: border-color var(--speed) var(--ease), box-shadow var(--speed) var(--ease);
+}
+.ar-glance-item:hover { box-shadow: var(--shadow-hover); }
+.ar-glance-item:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
+.ar-glance-icon {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--line);
+  color: var(--ink);
+}
+.ar-glance-words { display: grid; gap: 2px; min-width: 0; }
+.ar-glance-topic {
+  font-size: .75rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.ar-glance-text { font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
+.ar-glance-item[data-tone="loading"] .ar-glance-text,
+.ar-glance-item[data-tone="none"] .ar-glance-text { font-weight: 400; color: var(--ink-soft); }
+.ar-glance-item[data-tone="good"] { border-left-color: var(--status-green-deep); background: var(--status-green); }
+.ar-glance-item[data-tone="good"] .ar-glance-icon { background: var(--status-green-deep); color: var(--on-deep); }
+.ar-glance-item[data-tone="warn"] { border-left-color: var(--accent-deep); background: var(--status-amber); }
+.ar-glance-item[data-tone="warn"] .ar-glance-icon { --ink: var(--ink-on-fill); background: var(--yellow); }
+.ar-glance-item[data-tone="bad"] { border-left-color: var(--status-red-deep); background: var(--status-red); }
+.ar-glance-item[data-tone="bad"] .ar-glance-icon { background: var(--status-red-deep); color: var(--on-deep); }
+.ar-glance-item[data-tone="info"] { border-left-color: var(--link); }
+.ar-glance-item[data-tone="info"] .ar-glance-icon { background: var(--link-tint); color: var(--link); }
+
+/* Groups and their topics */
+.ar-group { margin-top: var(--space-7); }
+.ar-group-head { padding-bottom: var(--space-3); border-bottom: 2px solid var(--line); }
+.ar-group-title { font-size: clamp(1.25rem, 1.1rem + .6vw, 1.5rem); font-weight: 800; letter-spacing: -0.01em; }
+.ar-group-intro { margin-top: 2px; color: var(--ink-soft); }
 .ar-cards {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
   gap: var(--space-5);
   margin-top: var(--space-4);
 }
@@ -3635,13 +3721,32 @@ a.hn-directions:hover { background: var(--accent-deep); }
   border-radius: var(--radius-lg);
   background: var(--card);
   box-shadow: var(--shadow);
+  scroll-margin-top: calc(var(--header-h) + var(--space-4));
 }
-.ar-card-title { font-size: 1.1875rem; font-weight: 800; }
+.ar-card-title { display: flex; align-items: center; gap: var(--space-2); font-size: 1.125rem; font-weight: 800; }
+.ar-card-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--link-tint);
+  color: var(--link);
+}
 .ar-body { flex: 1; margin-top: var(--space-3); }
 .ar-more { align-self: flex-start; margin-top: var(--space-4); font-weight: 700; }
 .ar-lead { max-width: 60ch; }
 .ar-note { margin-top: var(--space-3); font-size: .875rem; color: var(--ink-soft); }
 .ar-error { color: var(--ink-soft); }
+.ar-sub {
+  margin-top: var(--space-4);
+  font-size: .8125rem;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.ar-sub + .sk-line { margin-top: var(--space-3); }
 
 .ar-list { display: grid; gap: var(--space-3); margin: var(--space-3) 0 0; padding: 0; list-style: none; }
 .ar-list li {
@@ -3663,6 +3768,40 @@ a.hn-directions:hover { background: var(--accent-deep); }
   text-transform: uppercase;
   color: var(--ink-soft);
 }
+
+/* 311: the most common types as bars, beside what stands out against the city */
+.ar-split { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 var(--space-6); }
+.ar-bars { display: grid; gap: var(--space-3); margin: var(--space-3) 0 0; padding: 0; list-style: none; }
+.ar-bars li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px var(--space-3); }
+.ar-bar { grid-column: 1 / -1; height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.ar-bar span { display: block; height: 100%; border-radius: 4px; background: var(--link); }
+
+/* Restaurants: the grade mix as one bar */
+.ar-mix {
+  display: flex;
+  gap: 2px;
+  height: 14px;
+  margin-top: var(--space-3);
+  border-radius: 7px;
+  overflow: hidden;
+}
+.ar-mix span, .ar-mix-dot { background: var(--grade-pending); }
+.ar-mix [data-tone="a"], .ar-mix-dot[data-tone="a"] { background: var(--grade-a); }
+.ar-mix [data-tone="b"], .ar-mix-dot[data-tone="b"] { background: var(--grade-b); }
+.ar-mix [data-tone="c"], .ar-mix-dot[data-tone="c"] { background: var(--grade-c); }
+.ar-mix-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: .875rem;
+  color: var(--ink-soft);
+}
+.ar-mix-key li { display: inline-flex; align-items: center; gap: var(--space-1); }
+.ar-mix-dot { width: 10px; height: 10px; border-radius: 50%; box-shadow: inset 0 0 0 1px var(--line-strong); }
+
 .ar-grade {
   --ink: var(--ink-on-fill);
   display: inline-grid;
@@ -3684,8 +3823,18 @@ a.hn-directions:hover { background: var(--accent-deep); }
 .ar-sources { display: grid; gap: var(--space-2); max-width: 75ch; margin-top: var(--space-4); padding-left: var(--space-5); }
 
 @media (max-width: 899px) {
-  .ar-cards { grid-template-columns: 1fr; }
+  .ar-glance-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ar-split { grid-template-columns: 1fr; }
 }
 @media (max-width: 639px) {
   .ar-card { padding: var(--space-4); }
+  .ar-glance-item { padding: var(--space-3); gap: var(--space-2); }
+  .ar-glance-icon { width: 30px; height: 30px; }
+  .ar-group { margin-top: var(--space-6); }
+}
+@media (max-width: 419px) {
+  .ar-glance-list { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ar-glance-item { transition: none; }
 }

@@ -1,17 +1,19 @@
 /*
  * The address report (/address/): the URL spot, the links into each
- * dashboard, what each card picks from its dashboard's API, and the cards'
- * wording.
+ * dashboard, what each topic picks from its dashboard's API, and its
+ * wording, in its section and in "At a glance".
  *   npm test
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  spotFromParams, spotToParams, dashboardLinks, complaintsCard, closuresCard, helpCard, nearestStation, restaurantsCard, nearestSchools, milesText
+  spotFromParams, spotToParams, dashboardLinks, complaintsCard, complaintsStandouts, closuresCard, helpCard, nearestStation, restaurantsCard,
+  nearestSchools, milesText
 } from "../src/lib/address-report/report.js";
 import {
-  complaintsHtml, closuresHtml, helpHtml, schoolsHtml, restaurantsHtml, waterHtml
+  complaintsHtml, complaintsGlance, standoutsHtml, closuresHtml, closuresGlance, helpHtml, helpGlance, schoolsHtml, schoolsGlance,
+  restaurantsHtml, restaurantsGlance, waterHtml, waterGlance
 } from "../src/lib/address-report/render.js";
 
 const TODAY = "2026-10-30"; // a Friday
@@ -47,7 +49,26 @@ test("311: total, top three types, share still open", () => {
   const html = complaintsHtml(c);
   assert.match(html, /100 requests/);
   assert.match(html, /25% are still open/);
-  assert.match(complaintsHtml(complaintsCard({ total: 0, types: {}, status: { open: 0, closed: 0 } })), /No 311 requests/);
+  assert.match(html, /data-standouts/); // the city comparison fills in later
+  assert.deepEqual(complaintsGlance(c), { tone: "info", text: "Most common 311 request: Noise from homes" });
+  const none = complaintsCard({ total: 0, types: {}, status: { open: 0, closed: 0 } });
+  assert.match(complaintsHtml(none), /No 311 requests/);
+  assert.equal(complaintsGlance(none).tone, "good");
+});
+
+test("311: what's more common here than across the city", () => {
+  const area = { total: 200, types: { "NOISE - RESIDENTIAL": 120, "HEAT/HOT WATER": 40, "ILLEGAL PARKING": 40 } };
+  const city = { types: { "NOISE - RESIDENTIAL": 200, "HEAT/HOT WATER": 400, "ILLEGAL PARKING": 400 } };
+  const s = complaintsStandouts(area, city);
+  assert.equal(s.enough, true);
+  assert.deepEqual(s.above.map((r) => r.key), ["NOISE - RESIDENTIAL"]);
+  assert.ok(Math.abs(s.above[0].ratio - 3) < 1e-9);
+  assert.match(standoutsHtml(s), /3\.0× the city/);
+  assert.match(complaintsGlance(complaintsCard({ ...area, status: {} }), s).text, /Stands out on 311: .+ \(3\.0× the city\)/);
+  // Too few requests to compare, nothing standing out, and no city numbers.
+  assert.match(standoutsHtml(complaintsStandouts({ ...area, total: 50 }, city)), /Too few requests/);
+  assert.match(standoutsHtml(complaintsStandouts(area, { types: area.types })), /Nothing stands out/);
+  assert.match(standoutsHtml(null), /isn’t available/);
 });
 
 // ---------- Street closures ----------
@@ -67,6 +88,9 @@ test("closures: closed today, closed this week, nearest first", () => {
   assert.match(closuresHtml(c), /1 block<\/strong> closed today within ¼ mile, and 1 block later this week\./);
   assert.match(closuresHtml({ ...c, week: 1 }), /closed today within ¼ mile\.<\/p>/);
   assert.match(closuresHtml(closuresCard({ today: TODAY, blocks: [] })), /No street closures/);
+  assert.deepEqual(closuresGlance(c), { tone: "warn", text: "1 block closed today" });
+  assert.deepEqual(closuresGlance({ today: 0, week: 2 }), { tone: "info", text: "2 blocks closing later this week" });
+  assert.equal(closuresGlance({ today: 0, week: 0 }).tone, "good");
 });
 
 // ---------- Help ----------
@@ -84,6 +108,7 @@ test("help: the nearest open site of each kind within 2 miles", () => {
   assert.equal(picked[1].kind, "Food & cash benefits");
   assert.match(helpHtml(picked), /Directions/);
   assert.match(helpHtml([]), /No city help sites/);
+  assert.equal(helpGlance(picked).text, "Free computers & internet: 0.2 mi away");
 });
 
 // ---------- Water ----------
@@ -95,6 +120,7 @@ test("water: the nearest station, and a card with no samples says so", () => {
   assert.equal(nearestStation([], EMPIRE), null);
   assert.match(waterHtml(null, null), /No active sampling station/);
   assert.match(waterHtml({ ...s, borough: null }, { months: [], stations: {} }), /no routine samples/);
+  assert.deepEqual(waterGlance(null, null), { tone: "info", text: "No recent water samples nearby" });
 });
 
 // ---------- Restaurants ----------
@@ -105,9 +131,11 @@ test("restaurants: grade mix and the nearest few", () => {
   assert.deepEqual(c.grades, { A: 2, B: 1, C: 1, other: 2 });
   assert.equal(c.nearest.length, 5);
   const html = restaurantsHtml(c);
-  assert.match(html, /6 restaurants within about half a mile: 2 A, 1 B, 1 C, 2 not graded yet or pending/);
+  assert.match(html, /Of 6 restaurants within about half a mile, <strong>2<\/strong> have an A\./);
+  assert.match(html, /Not graded yet: 2/);
   assert.match(html, /href="\/restaurant-inspections\/\?camis=1"/);
-  assert.match(restaurantsHtml(restaurantsCard({ results: [r("1", "A", 0.1)], more: true })), /The 1 nearest restaurants/);
+  assert.match(restaurantsHtml(restaurantsCard({ results: [r("1", "A", 0.1)], more: true })), /Of the 1 nearest restaurants, <strong>1<\/strong> has an A/);
+  assert.equal(restaurantsGlance(c).text, "2 of 6 nearby restaurants have an A");
 });
 
 // ---------- Schools ----------
@@ -125,6 +153,7 @@ test("schools: nearest three, with the zoning caveat", () => {
   const html = schoolsHtml(s);
   assert.match(html, /Elementary/);
   assert.match(html, /may not be the nearest one/);
+  assert.equal(schoolsGlance(s).text, `Nearest public school: ${milesText(s[0].miles)}`);
 });
 
 test("miles wording", () => {
