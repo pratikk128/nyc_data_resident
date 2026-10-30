@@ -2748,7 +2748,10 @@ a.sd-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
 }
 .scl-window:hover { background: var(--yellow-tint); color: var(--ink); }
 .scl-window[aria-pressed="true"] { --ink: var(--ink-on-fill); background: var(--accent); border-color: var(--ink); color: var(--ink); }
+.scl-window-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-2); }
 .scl-window-label { font-size: .875rem; font-weight: 600; }
+.scl-window-date { font-size: .75rem; font-weight: 400; opacity: .75; font-variant-numeric: tabular-nums; }
+.scl-window-date:empty { display: none; }
 .scl-window-count { font-size: 1.375rem; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .scl-window-note { max-width: 75ch; margin-top: var(--space-2); font-size: .875rem; color: var(--ink-soft); }
 .scl-window-note[hidden] { display: none; }

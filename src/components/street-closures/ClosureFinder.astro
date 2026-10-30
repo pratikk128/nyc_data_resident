@@ -114,7 +114,10 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
     <div class="scl-windows" role="group" aria-label="Time window">
       {WINDOWS.map((w) => (
         <button type="button" class="scl-window" data-when={w.key} aria-pressed={query.when === w.key ? 'true' : 'false'}>
-          <span class="scl-window-label">{w.label}</span>
+          <span class="scl-window-head">
+            <span class="scl-window-label">{w.label}</span>
+            {(w.key === 'today' || w.key === 'tomorrow') && <span class="scl-window-date" data-date></span>}
+          </span>
           <span class="scl-window-count" data-count={w.key}>–</span>
         </button>
       ))}
@@ -186,7 +189,7 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
   } from '../../lib/street-closures/page-state.js';
   import { parseLocationInput, inNyc } from '../../lib/complaints311/location-input.js';
   import { resolveLocation } from '../../lib/complaints311/geocode.js';
-  import { count, nycToday } from '../../lib/format.js';
+  import { count, nycToday, shortDate } from '../../lib/format.js';
   import zipFile from '../../data/zip-centroids.json';
 
   // The decisions about modes, searches, widening and wording are in page-state.js, with tests.
@@ -565,7 +568,12 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
       b.setAttribute('aria-pressed', String(b.dataset.when === query.when));
       const n = counts[b.dataset.when!];
       b.querySelector('[data-count]')!.textContent = count(n);
-      b.setAttribute('aria-label', windowLabel(b.querySelector('.scl-window-label')!.textContent!, n));
+      // Today and Tomorrow show their date, so stale data is visible at a glance.
+      const dateEl = b.querySelector('[data-date]');
+      const day = dateEl ? shortDate(windowRange(b.dataset.when!, today).from) : '';
+      if (dateEl) dateEl.textContent = day;
+      const label = b.querySelector('.scl-window-label')!.textContent!;
+      b.setAttribute('aria-label', windowLabel(day ? `${label}, ${day}` : label, n));
     });
 
     const view = blocksInView(blocks, range, query.purpose);

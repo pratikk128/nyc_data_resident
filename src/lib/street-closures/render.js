@@ -8,7 +8,7 @@ import { describePurpose, groupLabel } from "./purposes.js";
 import { streetLabel } from "./streets.js";
 import { mergeSpans } from "./closures.js";
 import { queryToParams } from "./filter.js";
-import { date, count } from "../format.js";
+import { date, shortDate, count } from "../format.js";
 
 export const escape = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
@@ -18,7 +18,7 @@ const plural = (n, one, many = `${one}s`) => `${count(n)} ${n === 1 ? one : many
 export function rangeLabel(start, end) {
   if (start === end) return date(start);
   const first = date(start);
-  return start.slice(0, 4) === end.slice(0, 4) ? `${first.replace(/, \d{4}$/, "")} – ${date(end)}` : `${first} – ${date(end)}`;
+  return start.slice(0, 4) === end.slice(0, 4) ? `${shortDate(start)} – ${date(end)}` : `${first} – ${date(end)}`;
 }
 
 // "Murray Street between Broadway and Church Street, Manhattan"

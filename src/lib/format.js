@@ -34,6 +34,11 @@ export function date(iso) {
   });
 }
 
+// "2026-10-27" → "Oct 27"
+export function shortDate(iso) {
+  return date(iso).replace(/, \d{4}$/, "");
+}
+
 const NYC_DATE = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" });
 
 // The calendar date in New York, as YYYY-MM-DD. NYC Open Data dates are New
