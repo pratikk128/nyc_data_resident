@@ -2,32 +2,11 @@
 /*
  * The address report: your address → drinking water, 311, street closures,
  * help, schools and restaurant grades near it, each from its own dashboard.
- * Rendered on demand for the water station list (active stations only, from
- * the daily stations job in KV, as on /drinking-water/near-me); everything
- * else loads in the browser (AddressReport.astro).
+ * A static page: everything loads in the browser (AddressReport.astro).
  */
 import DashboardLayout from '../../layouts/DashboardLayout.astro';
 import AddressReport from '../../components/address-report/AddressReport.astro';
-import { getStations } from '../../lib/server/water.js';
-import { plainDescription } from '../../lib/water/stats.js';
 import { ALL } from '../../data/dashboards.js';
-import sitesFile from '../../data/water-sites.json';
-
-export const prerender = false;
-
-let stations: { site: string; place: string; borough: string | null; lat: number; lon: number }[] = [];
-let waterError = false;
-try {
-  const active = new Set(Object.keys((await getStations()).totals ?? {}));
-  stations = sitesFile.sites
-    .filter((s) => active.has(s.site) && s.lat != null && s.lon != null)
-    .map((s) => ({ site: s.site, place: plainDescription(s.description), borough: s.borough, lat: s.lat!, lon: s.lon! }));
-} catch (err) {
-  console.error(err);
-  waterError = true;
-}
-
-if (import.meta.env.PROD && !waterError) Astro.response.headers.set('Cache-Control', 'public, max-age=300');
 ---
 
 <DashboardLayout
@@ -44,7 +23,7 @@ if (import.meta.env.PROD && !waterError) Astro.response.headers.set('Cache-Contr
     </p>
   </header>
 
-  <AddressReport stations={stations} waterError={waterError} />
+  <AddressReport />
 
   <section class="dash-section" aria-labelledby="ar-about-title">
     <header class="section-head">

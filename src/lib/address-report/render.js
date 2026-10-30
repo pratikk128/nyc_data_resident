@@ -170,7 +170,7 @@ export function helpHtml(sites) {
   return lead("The nearest open site for each kind of help.") + list(sites.map((s) => row(
     `<span class="ar-kind">${escape(s.kind)}</span> ${escape(s.name)}`,
     escape(milesText(s.miles)),
-    `${escape(fullAddress(s))} · <a href="${escape(directionsUrl(s))}" target="_blank" rel="noopener">Directions</a>`
+    `${escape(fullAddress(s))}<span class="ar-directions"> · <a href="${escape(directionsUrl(s))}" target="_blank" rel="noopener">Directions</a></span>`
   )));
 }
 

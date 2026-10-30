@@ -11,15 +11,11 @@
  * The spot is in the URL (?lat=&lon=, about a block); the typed address
  * isn't. The landing page's box hands over the typed text as #q=… (a hash
  * never reaches the server) or, without JavaScript, ?q=….
+ *
+ * Printing (or saving as PDF) drops the search and buttons, prints in the
+ * light theme and adds the date and the link back to the report.
  */
 import { MAX_INPUT_LENGTH } from '../../lib/complaints311/location-input.js';
-
-interface Props {
-  // Active water sampling stations: { site, place, borough, lat, lon }.
-  stations: { site: string; place: string; borough: string | null; lat: number; lon: number }[];
-  waterError: boolean;
-}
-const { stations, waterError } = Astro.props;
 
 // Topics in the order a resident asks about them: what affects today, then
 // the block itself, then what's around. Each has a line in "At a glance",
@@ -49,7 +45,7 @@ const GROUPS = [
 const TOPICS = GROUPS.flatMap((g) => g.topics);
 ---
 
-<div class="ar" data-report data-stations={JSON.stringify(stations)} data-water-error={waterError ? '1' : undefined}>
+<div class="ar" data-report>
   <section class="dash-section hn-find" id="find" aria-labelledby="ar-find-title">
     <h2 class="sr-only" id="ar-find-title">Search</h2>
     <form class="hn-search" data-form novalidate role="search" aria-label="Get the report for an address">
@@ -78,10 +74,12 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
       <div class="ar-head-text">
         <h2 class="ar-place" id="ar-report-title" tabindex="-1" data-place>The spot in this link</h2>
         <p class="ar-scope">Each section says how far around this spot it looks.</p>
+        <p class="ar-print-meta" data-print-meta></p>
       </div>
       <div class="ar-actions">
         <button type="button" class="near-btn" data-change>Change address</button>
         <button type="button" class="near-btn" data-copy>Copy link</button>
+        <button type="button" class="near-btn" data-print>Print or save as PDF</button>
       </div>
     </header>
 
@@ -127,7 +125,7 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
 </div>
 
 <script>
-  import { spotFromParams, spotToParams, dashboardLinks, complaintsCard, complaintsStandouts, closuresCard, helpCard, nearestStation, restaurantsCard, nearestSchools, neighborhoodName } from '../../lib/address-report/report.js';
+  import { spotFromParams, spotToParams, dashboardLinks, complaintsCard, complaintsStandouts, closuresCard, restaurantsCard, neighborhoodName } from '../../lib/address-report/report.js';
   import {
     waterHtml, waterGlance, complaintsHtml, complaintsGlance, standoutsHtml, closuresHtml, closuresGlance,
     helpHtml, helpGlance, schoolsHtml, schoolsGlance, restaurantsHtml, restaurantsGlance, escape
@@ -159,8 +157,8 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
   const copyBtn = $<HTMLButtonElement>('[data-copy]');
   const changeBtn = $<HTMLButtonElement>('[data-change]');
   const cancelBtn = $<HTMLButtonElement>('[data-cancel]');
-  const stations = JSON.parse(root.dataset.stations!);
-  const waterError = root.dataset.waterError === '1';
+  const printBtn = $<HTMLButtonElement>('[data-print]');
+  const printMeta = $('[data-print-meta]');
 
   // The spot's name: never in the URL. A shared or reloaded link (no name) and "your location"
   // get their neighborhood from GeoSearch instead ("Near Midtown West, Manhattan").
@@ -202,7 +200,7 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
     el.querySelector('[data-glance-text]')!.textContent = g.text;
   }
 
-  type Loaded = { html: string; glance: Glance };
+  type Loaded = { html: string; glance: Glance; href?: string }; // href: a better "See more" link, once the data names one
 
   /*
    * Each card loads on its own: a slow one doesn't hold up the rest. `after`
@@ -212,21 +210,23 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
   function card(key: string, href: string, load: () => Promise<Loaded>, id: number, after?: () => void) {
     const el = root.querySelector<HTMLElement>(`[data-card="${key}"]`)!;
     const body = el.querySelector<HTMLElement>('[data-body]')!;
-    el.querySelector<HTMLAnchorElement>('[data-link]')!.href = href;
+    const link = el.querySelector<HTMLAnchorElement>('[data-link]')!;
+    link.href = href;
     el.setAttribute('aria-busy', 'true');
     body.innerHTML = '<span class="sk-line"></span><span class="sk-line sk-short"></span><span class="sk-line"></span>';
     setGlance(key, { tone: 'loading', text: 'Checking…' });
     load().then(
-      ({ html, glance }) => {
+      ({ html, glance, href: better }) => {
         if (id !== run) return;
         body.innerHTML = html;
+        if (better) link.href = better;
         setGlance(key, glance);
         after?.();
       },
       (err) => {
         if (id !== run || err?.name === 'AbortError') return;
         body.innerHTML = `<p class="ar-error">${escape(err?.message || ERROR_TEXT)}</p>` +
-          (err?.final ? '' : '<button type="button" class="near-btn ar-retry" data-retry>Try again</button>');
+          '<button type="button" class="near-btn ar-retry" data-retry>Try again</button>';
         body.querySelector('[data-retry]')?.addEventListener('click', () => {
           card(key, href, load, id, after);
           el.focus({ preventScroll: true });
@@ -264,8 +264,7 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
     const get = (url: string, ms?: number) => getJson(url, signal, ms);
     shown = `${spot.lat},${spot.lon}`;
     const at = `lat=${spot.lat}&lon=${spot.lon}`;
-    const station = nearestStation(stations, spot);
-    const links = dashboardLinks(spot, { waterSite: station?.site });
+    const links = dashboardLinks(spot);
     if (!placeLabel || placeLabel === YOUR_LOCATION) {
       placeEl.textContent = headingFor(neighborhoods.get(shown) ?? null);
       nameSpot(spot, id, signal);
@@ -274,10 +273,27 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
     find.hidden = true;
     results.hidden = false;
 
+    // Water, help and schools share one small request: the server picks the nearest of each.
+    // A failure clears it, so "Try again" asks again.
+    let nearest: Promise<any> | null = null;
+    const nearestPart = async (key: string) => {
+      const asked = (nearest ??= get(`/api/address/nearest?${at}`));
+      try {
+        const part = (await asked)[key];
+        if (part.failed) throw new Error(part.error || ERROR_TEXT);
+        return part;
+      } catch (err) {
+        if (nearest === asked) nearest = null;
+        throw err;
+      }
+    };
+
     card('water', links.water, async () => {
-      if (waterError) throw Object.assign(new Error('Drinking water results aren’t available right now. Try again later.'), { final: true });
-      const data = station ? await get(`/api/water/stations?sites=${encodeURIComponent(station.site)}`) : null;
-      return { html: waterHtml(station, data), glance: waterGlance(station, data) };
+      const { station, data } = await nearestPart('water');
+      return {
+        html: waterHtml(station, data), glance: waterGlance(station, data),
+        href: station ? dashboardLinks(spot, { waterSite: station.site }).water : undefined
+      };
     }, id);
     card('closures', links.closures, async () => {
       const c = closuresCard(await get(`/api/street-closures/search?${at}&r=0.25`));
@@ -312,11 +328,11 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
       return { html: restaurantsHtml(c), glance: restaurantsGlance(c) };
     }, id);
     card('help', links.help, async () => {
-      const sites = helpCard((await get(`/api/help-near-me/search?${at}`)).sites);
+      const { sites } = await nearestPart('help');
       return { html: helpHtml(sites), glance: helpGlance(sites) };
     }, id);
     card('schools', links.schools, async () => {
-      const schools = nearestSchools((await get('/api/schools/search?view=map')).points, spot);
+      const { schools } = await nearestPart('schools');
       return { html: schoolsHtml(schools), glance: schoolsGlance(schools) };
     }, id);
   }
@@ -357,6 +373,20 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
   find.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !e.defaultPrevented && !results.hidden) { e.preventDefault(); hideSearch(); }
   });
+
+  // Paper is light: print in the light theme, then put the reader's back.
+  // The printout says when it was made and links back to the report.
+  let themeBeforePrint = '';
+  window.addEventListener('beforeprint', () => {
+    const today = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    printMeta.textContent = `Ask NYC Data address report, printed ${today}. ${location.origin}${location.pathname}${location.search}`;
+    themeBeforePrint = document.documentElement.dataset.theme || '';
+    document.documentElement.dataset.theme = 'light';
+  });
+  window.addEventListener('afterprint', () => {
+    if (themeBeforePrint) document.documentElement.dataset.theme = themeBeforePrint;
+  });
+  printBtn.addEventListener('click', () => window.print());
 
   copyBtn.addEventListener('click', async () => {
     try {

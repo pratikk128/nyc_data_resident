@@ -3845,3 +3845,35 @@ a.hn-directions:hover { background: var(--accent-deep); }
 @media (prefers-reduced-motion: reduce) {
   .ar-glance-item { transition: none; }
 }
+
+/* Printed or saved as PDF: the report itself, on white, without the search,
+   buttons or links that only work on screen. Cards and groups don't split
+   across pages where they fit, and the glance colors print. The page script
+   switches to the light theme and fills .ar-print-meta (date and link). */
+.ar-print-meta { display: none; }
+@media print {
+  @page { margin: 14mm 12mm; }
+  /* Everything is sized in rem: about 10pt body text on paper */
+  html:has(.ar) { font-size: 13px; }
+  body:has(.ar) { background: #fff; }
+  body:has(.ar) :is(.site-header, .skip-link, .dash-topbar, .theme-toggle) { display: none !important; }
+  body:has(.ar) .dash-main { padding: 0; }
+  body:has(.ar) .page-head { margin-top: 0; }
+
+  .ar #find, .ar-actions, .ar-more, .ar-retry, .ar-directions { display: none !important; }
+  .ar-results { margin-top: 0; }
+  .ar-print-meta { display: block; margin-top: var(--space-1); font-size: 9pt; color: var(--ink-soft); overflow-wrap: anywhere; }
+
+  .ar-glance-list { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); }
+  .ar-glance-item, .ar-mix, .ar-mix-dot, .ar-grade, .ar-bar, .ar-kind, .ar-card-icon,
+  .water-card-verdict, .water-status-icon { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .ar-glance-item { padding: var(--space-2) var(--space-3); box-shadow: none; break-inside: avoid; }
+
+  .ar-group { margin-top: var(--space-5); }
+  .ar-group-head { break-inside: avoid; break-after: avoid; }
+  .ar-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); break-before: avoid; }
+  .ar-card:only-child { grid-column: 1 / -1; }
+  .ar-card { padding: var(--space-3) var(--space-4); box-shadow: none; break-inside: avoid; }
+  .ar-split { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ar a { color: inherit; text-decoration: none; }
+}
