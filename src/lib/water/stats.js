@@ -53,6 +53,12 @@ export function monthsBetween(a, b) {
 export const STALE_AFTER_MONTHS = 2;
 export const isStale = (month, today) => monthsBetween(month, today.slice(0, 7)) > STALE_AFTER_MONTHS;
 
+// How old the report card's month is, for the line under the heading: "last month", "3 months ago".
+export function monthAge(month, today) {
+  const k = monthsBetween(month, today.slice(0, 7));
+  return k <= 0 ? "this month" : k === 1 ? "last month" : `${k} months ago`;
+}
+
 const daysInMonth = (key) => {
   const [y, m] = key.split("-").map(Number);
   return new Date(Date.UTC(y, m, 0)).getUTCDate();

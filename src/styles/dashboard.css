@@ -1775,6 +1775,9 @@ a.rank-name { justify-self: start; }
 .water-verdict[data-status="red"] .water-status-icon { background: var(--status-red-deep); color: var(--on-deep); }
 
 .water-note { margin-top: var(--space-4); }
+.water-asof { margin-top: var(--space-1); color: var(--ink-soft); }
+.water-asof strong { color: var(--ink); }
+.water-asof[data-stale] strong { color: var(--status-red-deep); }
 .water-empty { margin-top: var(--space-4); color: var(--ink-soft); }
 .water-h3 { font-size: 1.125rem; font-weight: 800; }
 .water-h4 { font-size: .9375rem; font-weight: 700; }

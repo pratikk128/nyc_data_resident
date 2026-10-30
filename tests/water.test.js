@@ -11,7 +11,7 @@ import { parseMeasurement, isDetected, measurementText } from "../src/lib/water/
 import { meaningText, stationVerdict } from "../src/lib/water/near-me.js";
 import {
   normalizeMonth, latestCompleteMonth, missingMonths, reportCard, verdict, historyTakeaway, summerShare, sharePct, tileStatus,
-  nearestSites, addMonths, monthLabel, monthsBetween, isStale, normalizeDetection, hasEcoli, plainDescription, completeMonths,
+  nearestSites, addMonths, monthLabel, monthsBetween, isStale, monthAge, normalizeDetection, hasEcoli, plainDescription, completeMonths,
   laterSamples, followUpText, ecoliAgain
 } from "../src/lib/water/stats.js";
 import { historySeries, historyCsvHref } from "../src/lib/water/history.js";
@@ -432,4 +432,10 @@ test("State Plane (EPSG:2263) feet convert to lat/lon", () => {
 test("plainDescription expands DEP's surveyor shorthand", () => {
   assert.equal(plainDescription("SS - IFO 127-11 E/S Farmers Blvd (Keyspan), 2nd SS N/O Merrick Blvd"),
     "In front of 127-11 on the east side of Farmers Blvd (Keyspan), 2nd station north of Merrick Blvd");
+});
+
+test("the report card says how old its month is", () => {
+  assert.equal(monthAge("2026-10", "2026-10-30"), "this month");
+  assert.equal(monthAge("2026-09", "2026-10-30"), "last month");
+  assert.equal(monthAge("2026-07", "2026-10-30"), "3 months ago");
 });

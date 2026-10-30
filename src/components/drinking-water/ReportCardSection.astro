@@ -5,8 +5,8 @@
  * from the daily monthly and detections jobs (src/lib/server/water.js).
  */
 import HistorySection from './HistorySection.astro';
-import { reportCard, verdict, monthLabel, hasEcoli, isResample, resampleEcoli, ecoliAgain, followUpText, isStale, STATUS_TEXT, STATUS_ICON as ICON } from '../../lib/water/stats.js';
-import { boroughLabel, ERROR_TEXT, RESAMPLE_NOTE } from '../../lib/water/config.js';
+import { reportCard, verdict, monthLabel, hasEcoli, isResample, resampleEcoli, ecoliAgain, followUpText, isStale, monthAge, STATUS_TEXT, STATUS_ICON as ICON } from '../../lib/water/stats.js';
+import { boroughLabel, ERROR_TEXT, RESAMPLE_NOTE, LINKS } from '../../lib/water/config.js';
 import { SITES, siteDescription } from '../../lib/water/sites.js';
 import { measurementText } from '../../lib/water/parse.js';
 import { count, date, nycToday } from '../../lib/format.js';
@@ -36,12 +36,19 @@ const loading: string[] = month ? monthly.months.map((m: any) => m.month).filter
 const ecoliLoading = ecoliAll.filter((d: any) => d.date.slice(0, 7) > (month?.month ?? '9999'));
 const lastEcoliBorough = lastEcoli ? SITES.get(lastEcoli.site)?.borough : null;
 // DEP hasn't posted a newer full month in a while: "right now" is older than it looks.
-const stale = month ? isStale(month.month, nycToday()) : false;
+const today = nycToday();
+const stale = month ? isStale(month.month, today) : false;
 ---
 
 <section class="dash-section" id="now" aria-labelledby="now-title">
   <header class="section-head">
-    <h2 id="now-title">Is my water safe right now?</h2>
+    <h2 id="now-title">{stale ? 'Is my water safe? These results are old' : 'Is my water safe right now?'}</h2>
+    {month && (
+      <p class="water-asof" data-stale={stale ? '' : undefined}>
+        Latest full month: <strong>{monthLabel(month.month)}</strong> ({monthAge(month.month, today)}).
+        {monthly.latestDate && <> Newest sample in the data: {date(monthly.latestDate)}.</>}
+      </p>
+    )}
   </header>
 
   {error && (
@@ -55,9 +62,11 @@ const stale = month ? isStale(month.month, nycToday()) : false;
   {month && (
     <>
       {stale && (
-        <p class="callout callout-heads-up" role="note">
-          These are the newest full month of results DEP has published, from {monthLabel(month.month)}. Newer samples
-          haven't been posted yet, so today's water could differ.
+        <p class="callout callout-heads-up" role="alert">
+          <strong>Heads up: these results are from {monthLabel(month.month)}, {monthAge(month.month, today)}.</strong> NYC usually posts each month's
+          samples within a few weeks, but nothing newer than {monthLabel(month.month)} has arrived
+          {monthly.latestDate && <> (the newest sample is from {date(monthly.latestDate)})</>}. Today's water could
+          differ. For the city's official word, see <a href={LINKS.annualReport}>DEP's annual water quality report</a>.
         </p>
       )}
 
