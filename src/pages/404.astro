@@ -1,5 +1,7 @@
 ---
 import '../styles/landing.css';
+import ThemeInit from '../components/ThemeInit.astro';
+import ThemeToggle from '../components/ThemeToggle.astro';
 ---
 
 <!doctype html>
@@ -9,7 +11,7 @@ import '../styles/landing.css';
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Page not found | Ask NYC Data</title>
   <meta name="robots" content="noindex">
-  <meta name="theme-color" content="#D6E6FF">
+  <ThemeInit />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 </head>
 <body>
@@ -18,6 +20,7 @@ import '../styles/landing.css';
       <span class="wordmark">Ask <span class="wordmark-accent">NYC</span> Data</span>
     </a>
     <p class="tagline">NYC's public data, made easy to understand.</p>
+    <ThemeToggle />
   </header>
 
   <main class="main not-found" id="main">
@@ -47,7 +50,7 @@ import '../styles/landing.css';
     padding: var(--space-3) var(--space-5);
     border-radius: var(--radius-pill);
     background: var(--accent);
-    color: var(--ink);
+    color: var(--ink-on-fill);
     font-weight: 700;
     text-decoration: none;
   }

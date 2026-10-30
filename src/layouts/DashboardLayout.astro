@@ -6,6 +6,8 @@
  */
 import '../styles/landing.css';
 import '../styles/dashboard.css';
+import ThemeInit from '../components/ThemeInit.astro';
+import ThemeToggle from '../components/ThemeToggle.astro';
 import { date } from '../lib/format.js';
 import { categoryHref, categoryTone } from '../data/dashboards.js';
 
@@ -31,7 +33,7 @@ const canonical = new URL(path, 'https://asknycdata.com').href;
   <title>{fullTitle}</title>
   <meta name="description" content={description}>
   <meta name="application-name" content="Ask NYC Data">
-  <meta name="theme-color" content="#D6E6FF">
+  <ThemeInit />
   <link rel="canonical" href={canonical}>
 
   <meta property="og:type" content="website">
@@ -51,6 +53,7 @@ const canonical = new URL(path, 'https://asknycdata.com').href;
       <span class="wordmark">Ask <span class="wordmark-accent">NYC</span> Data</span>
     </a>
     <p class="tagline">NYC's public data, made easy to understand.</p>
+    <ThemeToggle />
   </header>
 
   <main class="main dash-main" id="main" tabindex="-1">

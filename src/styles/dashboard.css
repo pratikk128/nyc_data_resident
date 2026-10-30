@@ -12,8 +12,26 @@
   --pay-other: #DDE3EC;
   --pay-other-hatch: #A3AFC4;
 
-  --callout-heads-up: #FFEEDF;
-  --callout-heads-up-deep: #A14A0C;
+  --callout-heads-up: var(--orange-tint);
+  --callout-heads-up-deep: var(--orange-deep);
+}
+
+:root[data-theme="dark"] {
+  /* Keeps the light / mid / dark + hatch order now that overtime is light */
+  --pay-regular: #5D6B87;
+  --pay-other: #36425C;
+  --pay-other-hatch: #6E7B96;
+  --critical-wash: #2A1F2A;
+  --band-none-tint: #243049;
+  --sq-city: #9AA6BC;
+}
+
+/* Pastel fills keep navy ink in both themes (see landing.css) */
+.toggle-btn[aria-pressed="true"], .section-bullet, .job-chip[aria-pressed="true"],
+.near-btn[aria-pressed="true"], .grade-badge, .c311-go, .leads-group-icon,
+.water-status-icon, .water-pin, .sd-show-results, .sd-boro-bullet, .sq-boro-bullet {
+  --ink: var(--ink-on-fill);
+  color: var(--ink);
 }
 
 /* ---------- Page ---------- */
@@ -419,7 +437,7 @@ details[open] > summary::before { transform: rotate(45deg); }
   font-weight: 700;
 }
 .table-scroll th:first-child { text-align: left; }
-.table-scroll tbody tr:nth-child(even) { background: #FAFBFE; }
+.table-scroll tbody tr:nth-child(even) { background: var(--row-alt); }
 .table-scroll tbody th { font-weight: 600; }
 
 /* About this data */
@@ -683,7 +701,7 @@ th[aria-sort="none"] .sort-btn:hover .sort-icon::after { content: "↕"; color: 
 
 /* Zebra striping by row pair, since each job has a hidden detail row */
 .jobs-table tbody tr:nth-child(even) { background: none; }
-.jobs-table tbody tr.job-row:nth-child(4n + 3) { background: #FAFBFE; }
+.jobs-table tbody tr.job-row:nth-child(4n + 3) { background: var(--row-alt); }
 .job-row { cursor: pointer; }
 .job-row:hover, .job-row.is-open { background: var(--yellow-tint) !important; }
 .jobs-table tbody th { white-space: normal; }
@@ -820,13 +838,14 @@ th[aria-sort="none"] .sort-btn:hover .sort-icon::after { content: "↕"; color: 
 :root {
   /* Grade badges: Health tone pastels with ink letters (≥ 8.4:1); the letter
      or words are always shown, so color is never the only cue. */
-  --grade-a: #A8E6B8;      /* green */
-  --grade-b: #FFE27A;      /* amber */
-  --grade-c: #FFB3AE;      /* red */
+  --grade-a: var(--green);   /* green */
+  --grade-b: var(--yellow);  /* amber */
+  --grade-c: var(--red);     /* red */
   --grade-pending: #DDE3EC;
 
-  --critical: #B3261E;     /* on --critical-tint 5.6:1 */
-  --critical-tint: #FFE8E6;
+  --critical: var(--red-deep);     /* on --critical-tint 5.6:1 */
+  --critical-tint: var(--red-tint);
+  --critical-wash: #FFFBFA;
 
   /* Violation categories at least twice the average (orange) */
   --cat-above: var(--callout-heads-up-deep);
@@ -912,7 +931,7 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
 /* Loading skeletons: same shape as a card */
 .rest-card.is-skeleton { border-color: var(--line); }
 .is-skeleton .grade-badge, .sk-line, .sk-block {
-  background: linear-gradient(90deg, var(--line) 0%, #F1F5FB 50%, var(--line) 100%) 0 0 / 200% 100%;
+  background: linear-gradient(90deg, var(--line) 0%, var(--shimmer) 50%, var(--line) 100%) 0 0 / 200% 100%;
   animation: sk-shimmer 1.2s ease-in-out infinite;
 }
 .sk-line { display: block; width: 12rem; max-width: 100%; height: 14px; border-radius: 7px; }
@@ -1002,7 +1021,7 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
   border-radius: var(--radius-sm);
   background: var(--card);
 }
-.violation.is-critical { border-left-color: var(--critical); background: #FFFBFA; }
+.violation.is-critical { border-left-color: var(--critical); background: var(--critical-wash); }
 .violation-text { max-width: 75ch; }
 .violation-flag { font-size: .8125rem; font-weight: 700; color: var(--ink-soft); }
 .all-violations { max-width: none; }
@@ -1036,7 +1055,7 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
   padding: 2px var(--space-2);
   border-radius: var(--radius-sm);
   background: var(--cat-above);
-  color: #fff;
+  color: var(--on-deep);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
@@ -1104,12 +1123,12 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
   --c311-place-other: #a3a7ae;
   --c311-open: var(--callout-heads-up-deep);
   /* More / less common: the red and green category tones. Each column is titled, so color is never the only cue. */
-  --c311-more: #FFB3AE;
-  --c311-more-tint: #FFE8E6;
-  --c311-more-deep: #B3261E;
-  --c311-less: #A8E6B8;
-  --c311-less-tint: #E5F7EA;
-  --c311-less-deep: #1E7A3C;
+  --c311-more: var(--red);
+  --c311-more-tint: var(--red-tint);
+  --c311-more-deep: var(--red-deep);
+  --c311-less: var(--green);
+  --c311-less-tint: var(--green-tint);
+  --c311-less-deep: var(--green-deep);
 }
 
 [class*="c311-"][hidden] { display: none !important; }
@@ -1704,12 +1723,12 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
 :root {
   /* Report card status: Health-tone tints with deep text (≥ 4.8:1). Every tile
      also says its status in words and an icon, so color is never the only cue. */
-  --status-green: #E5F7EA;
-  --status-green-deep: #1E7A3C;
+  --status-green: var(--green-tint);
+  --status-green-deep: var(--green-deep);
   --status-amber: var(--yellow-tint);
   --status-amber-deep: var(--yellow-deep);
-  --status-red: #FFE8E6;
-  --status-red-deep: #B3261E;
+  --status-red: var(--red-tint);
+  --status-red-deep: var(--red-deep);
   --water-line: var(--blue-deep);
 }
 
@@ -1739,11 +1758,11 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
 }
 .water-verdict .water-status-icon { width: 32px; height: 32px; font-size: 1.125rem; flex-shrink: 0; }
 .water-verdict[data-status="green"] { border-left-color: var(--status-green-deep); background: var(--status-green); }
-.water-verdict[data-status="green"] .water-status-icon { background: var(--status-green-deep); color: #fff; }
+.water-verdict[data-status="green"] .water-status-icon { background: var(--status-green-deep); color: var(--on-deep); }
 .water-verdict[data-status="amber"] { border-left-color: var(--accent-deep); background: var(--status-amber); }
 .water-verdict[data-status="amber"] .water-status-icon { background: var(--yellow); }
 .water-verdict[data-status="red"] { border-left-color: var(--status-red-deep); background: var(--status-red); }
-.water-verdict[data-status="red"] .water-status-icon { background: var(--status-red-deep); color: #fff; }
+.water-verdict[data-status="red"] .water-status-icon { background: var(--status-red-deep); color: var(--on-deep); }
 
 .water-note { margin-top: var(--space-4); }
 .water-empty { margin-top: var(--space-4); color: var(--ink-soft); }
@@ -1798,11 +1817,11 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
   font-weight: 800;
 }
 .water-tile[data-status="green"] .water-tile-status { background: var(--status-green); color: var(--status-green-deep); }
-.water-tile[data-status="green"] .water-status-icon { background: var(--status-green-deep); color: #fff; }
+.water-tile[data-status="green"] .water-status-icon { background: var(--status-green-deep); color: var(--on-deep); }
 .water-tile[data-status="amber"] .water-tile-status { background: var(--status-amber); color: var(--status-amber-deep); }
 .water-tile[data-status="amber"] .water-status-icon { background: var(--yellow); }
 .water-tile[data-status="red"] .water-tile-status { background: var(--status-red); color: var(--status-red-deep); }
-.water-tile[data-status="red"] .water-status-icon { background: var(--status-red-deep); color: #fff; }
+.water-tile[data-status="red"] .water-status-icon { background: var(--status-red-deep); color: var(--on-deep); }
 .water-tile-label { margin-top: var(--space-1); font-size: 1rem; font-weight: 700; color: var(--ink-soft); }
 .water-tile-value {
   font-size: clamp(1.75rem, 1.4rem + 1.5vw, 2.25rem);
@@ -1855,7 +1874,7 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
 .water-search-label { font-size: 1rem; }
 .water-search-btns { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .water-go { min-height: 44px; white-space: nowrap; }
-.water-go-primary { background: var(--link); color: #fff; }
+.water-go-primary { background: var(--link); color: var(--on-deep); }
 .water-go-primary:hover { background: var(--ink); border-color: var(--ink); }
 /* Secondary path: a quieter box under the search. */
 .water-browse {
@@ -1877,7 +1896,7 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
 .water-map { height: min(420px, 60vh); }
 .water-map-legend { display: flex; flex-wrap: wrap; gap: var(--space-4); margin-top: var(--space-2); font-size: .8125rem; color: var(--ink-soft); }
 .water-key { display: inline-flex; align-items: center; gap: var(--space-2); }
-.water-key-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--blue-deep); box-shadow: 0 0 0 1.5px #fff, 0 0 0 2.5px var(--line-strong); }
+.water-key-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--blue-deep); box-shadow: 0 0 0 1.5px var(--card), 0 0 0 2.5px var(--line-strong); }
 .water-key-you { width: 12px; height: 12px; border-radius: 50%; background: var(--ink); box-shadow: 0 0 0 3px var(--yellow); }
 
 /* Picked station: a yellow route bullet with its number. Also used on the map (divIcon). */
@@ -1931,11 +1950,11 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
 }
 .water-card-verdict .water-status-icon { flex-shrink: 0; }
 .water-card-verdict[data-status="green"] { border-left-color: var(--status-green-deep); background: var(--status-green); }
-.water-card-verdict[data-status="green"] .water-status-icon { background: var(--status-green-deep); color: #fff; }
+.water-card-verdict[data-status="green"] .water-status-icon { background: var(--status-green-deep); color: var(--on-deep); }
 .water-card-verdict[data-status="amber"] { border-left-color: var(--accent-deep); background: var(--status-amber); }
 .water-card-verdict[data-status="amber"] .water-status-icon { background: var(--yellow); }
 .water-card-verdict[data-status="red"] { border-left-color: var(--status-red-deep); background: var(--status-red); }
-.water-card-verdict[data-status="red"] .water-status-icon { background: var(--status-red-deep); color: #fff; }
+.water-card-verdict[data-status="red"] .water-status-icon { background: var(--status-red-deep); color: var(--on-deep); }
 .water-card-meta { font-size: .8125rem; color: var(--ink-soft); }
 .water-card-place { margin-top: var(--space-1); font-size: .875rem; overflow-wrap: anywhere; }
 .water-remove {
@@ -2323,6 +2342,7 @@ a.sd-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
 :root {
   --sq-line: var(--blue-deep);
   --sq-city: #7A869C;
+  --band-none-tint: #F3F5F9;
 }
 .sq-eyebrow {
   margin-bottom: var(--space-1);
@@ -2336,11 +2356,11 @@ a.sd-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
 .sq-muted { color: var(--ink-soft); }
 
 /* Bands and trend chips (also used in the about text) */
-[data-band="green"]  { --band-tint: #E5F7EA; --band-deep: #1E7A3C; }
+[data-band="green"]  { --band-tint: var(--green-tint); --band-deep: var(--green-deep); }
 [data-band="blue"]   { --band-tint: var(--blue-tint); --band-deep: var(--blue-deep); }
 [data-band="yellow"] { --band-tint: var(--yellow-tint); --band-deep: var(--yellow-deep); }
-[data-band="orange"] { --band-tint: #FFEEDF; --band-deep: #A14A0C; }
-[data-band="none"]   { --band-tint: #F3F5F9; --band-deep: var(--ink-soft); }
+[data-band="orange"] { --band-tint: var(--orange-tint); --band-deep: var(--orange-deep); }
+[data-band="none"]   { --band-tint: var(--band-none-tint); --band-deep: var(--ink-soft); }
 .sq-band {
   display: inline-flex;
   align-items: center;
@@ -2363,8 +2383,8 @@ a.sd-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
   font-weight: 700;
   white-space: nowrap;
 }
-.sq-trend[data-dir="improving"] { background: #E5F7EA; color: #1E7A3C; }
-.sq-trend[data-dir="declining"] { background: #FFEEDF; color: #A14A0C; }
+.sq-trend[data-dir="improving"] { background: var(--green-tint); color: var(--green-deep); }
+.sq-trend[data-dir="declining"] { background: var(--orange-tint); color: var(--orange-deep); }
 .sq-trend[data-dir="steady"] { background: var(--blue-tint); color: var(--blue-deep); }
 .sq-trend[data-dir="none"] { padding: 0; font-weight: 600; color: var(--ink-soft); }
 
@@ -2594,9 +2614,9 @@ a.sd-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
 .sq-context strong { color: var(--ink); }
 
 /* Better / about the same / worse than the NYC average */
-[data-verdict="better"]  { --verdict-tint: #E5F7EA; --verdict-deep: #1E7A3C; }
+[data-verdict="better"]  { --verdict-tint: var(--green-tint); --verdict-deep: var(--green-deep); }
 [data-verdict="similar"] { --verdict-tint: var(--blue-tint); --verdict-deep: var(--blue-deep); }
-[data-verdict="worse"]   { --verdict-tint: #FFEEDF; --verdict-deep: #A14A0C; }
+[data-verdict="worse"]   { --verdict-tint: var(--orange-tint); --verdict-deep: var(--orange-deep); }
 .sq-verdict {
   display: inline-flex;
   align-items: center;

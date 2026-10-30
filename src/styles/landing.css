@@ -26,6 +26,21 @@
   --accent-deep: #FFD23F;
   --link: var(--blue-deep);   /* links, focus, active text */
   --link-tint: var(--blue-tint);
+  --ink-on-fill: #1C2A44;     /* text on pastel fills: navy in both themes */
+  --on-deep: #FFFFFF;         /* text on deep-shade fills */
+  --header-hover: rgba(255, 255, 255, .55);
+  --header-divider: rgba(28, 42, 68, .18);
+  --row-alt: #FAFBFE;         /* zebra rows */
+  --shimmer: #F1F5FB;         /* loading skeleton highlight */
+
+  /* Category tones: pastel fill, light tint, and a deep shade for text (AA on the tint) */
+  --green: #A8E6B8;  --green-tint: #E5F7EA;  --green-deep: #1E7A3C;
+  --teal: #9EE3DC;   --teal-tint: #E2F7F4;   --teal-deep: #0F6E66;
+  --orange: #FFC79A; --orange-tint: #FFEEDF; --orange-deep: #A14A0C;
+  --red: #FFB3AE;    --red-tint: #FFE8E6;    --red-deep: #B3261E;
+  --purple: #CDBDFF; --purple-tint: #F0EBFF; --purple-deep: #5B3FC4;
+  --lime: #D4EE9A;   --lime-tint: #F3FADF;   --lime-deep: #4D6B0A;
+  --pink: #FFBADB;   --pink-tint: #FFEAF4;   --pink-deep: #B0306E;
 
   /* Spacing (4px base) */
   --space-1: 4px;
@@ -54,6 +69,47 @@
   --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --ease: cubic-bezier(.2, .7, .2, 1);
   --speed: 220ms;
+}
+
+/* Dark theme: deep navy page, pastels kept as fills, tints darkened and deep
+   shades lightened so text stays AA. data-theme is set before first paint by
+   ThemeInit.astro (saved choice, else the system setting). */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #F2F5FB;
+  --ink-soft: #B4BED0;
+  --paper: #121A2B;
+  --card: #1A2438;
+  --line: #2A3650;
+  --line-strong: #3A4866;
+
+  --blue-tint: #1F3358;
+  --blue-deep: #9DBEFF;
+  --yellow-tint: #3A3218;
+  --yellow-deep: #FFD86B;
+  --header-bg: linear-gradient(100deg, #1C2C4C 0%, #172238 50%, #33301E 100%);
+  --on-deep: #121A2B;
+  --header-hover: rgba(255, 255, 255, .08);
+  --header-divider: rgba(242, 245, 251, .18);
+  --row-alt: #1E293F;
+  --shimmer: #34415C;
+
+  --green-tint: #173A26;  --green-deep: #86DCA0;
+  --teal-tint: #133A37;   --teal-deep: #7FDDD3;
+  --orange-tint: #402A17; --orange-deep: #FFB680;
+  --red-tint: #45201F;    --red-deep: #FF9F98;
+  --purple-tint: #2D2652; --purple-deep: #C3B2FF;
+  --lime-tint: #2C3814;   --lime-deep: #C4E585;
+  --pink-tint: #432034;   --pink-deep: #FFA3CF;
+
+  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 4px 16px rgba(0, 0, 0, .25);
+  --shadow-hover: 0 2px 4px rgba(0, 0, 0, .3), 0 12px 28px rgba(0, 0, 0, .4);
+}
+
+/* Pastel fills keep navy ink in both themes */
+.skip-link, .wordmark-accent, .card-icon {
+  --ink: var(--ink-on-fill);
+  color: var(--ink);
 }
 
 /* ---------- Base ---------- */
@@ -128,7 +184,36 @@ svg { flex-shrink: 0; }
   color: var(--header-ink);
   cursor: pointer;
 }
-.menu-toggle:hover { background: rgba(255, 255, 255, .55); }
+.menu-toggle:hover,
+.theme-toggle:hover { background: var(--header-hover); }
+
+.theme-toggle {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--header-ink);
+  cursor: pointer;
+}
+.theme-toggle svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* Show the icon for the theme you'd switch to */
+.theme-toggle .icon-sun,
+:root[data-theme="dark"] .theme-toggle .icon-moon { display: none; }
+:root[data-theme="dark"] .theme-toggle .icon-sun { display: block; }
 .menu-toggle svg {
   width: 24px;
   height: 24px;
@@ -158,7 +243,7 @@ svg { flex-shrink: 0; }
 .tagline {
   margin-left: var(--space-2);
   padding-left: var(--space-4);
-  border-left: 1px solid rgba(28, 42, 68, .18);
+  border-left: 1px solid var(--header-divider);
   font-size: .9375rem;
   color: var(--header-ink-soft);
   white-space: nowrap;
@@ -421,13 +506,13 @@ svg { flex-shrink: 0; }
 /* Category tones: pastel fill, light tint, and a deep shade for text (AA on the tint) */
 [data-tone="blue"]   { --tone: var(--blue);   --tone-tint: var(--blue-tint);   --tone-deep: var(--blue-deep); }
 [data-tone="yellow"] { --tone: var(--yellow); --tone-tint: var(--yellow-tint); --tone-deep: var(--yellow-deep); }
-[data-tone="green"]  { --tone: #A8E6B8; --tone-tint: #E5F7EA; --tone-deep: #1E7A3C; }
-[data-tone="teal"]   { --tone: #9EE3DC; --tone-tint: #E2F7F4; --tone-deep: #0F6E66; }
-[data-tone="orange"] { --tone: #FFC79A; --tone-tint: #FFEEDF; --tone-deep: #A14A0C; }
-[data-tone="red"]    { --tone: #FFB3AE; --tone-tint: #FFE8E6; --tone-deep: #B3261E; }
-[data-tone="purple"] { --tone: #CDBDFF; --tone-tint: #F0EBFF; --tone-deep: #5B3FC4; }
-[data-tone="lime"]   { --tone: #D4EE9A; --tone-tint: #F3FADF; --tone-deep: #4D6B0A; }
-[data-tone="pink"]   { --tone: #FFBADB; --tone-tint: #FFEAF4; --tone-deep: #B0306E; }
+[data-tone="green"]  { --tone: var(--green); --tone-tint: var(--green-tint); --tone-deep: var(--green-deep); }
+[data-tone="teal"]   { --tone: var(--teal); --tone-tint: var(--teal-tint); --tone-deep: var(--teal-deep); }
+[data-tone="orange"] { --tone: var(--orange); --tone-tint: var(--orange-tint); --tone-deep: var(--orange-deep); }
+[data-tone="red"]    { --tone: var(--red); --tone-tint: var(--red-tint); --tone-deep: var(--red-deep); }
+[data-tone="purple"] { --tone: var(--purple); --tone-tint: var(--purple-tint); --tone-deep: var(--purple-deep); }
+[data-tone="lime"]   { --tone: var(--lime); --tone-tint: var(--lime-tint); --tone-deep: var(--lime-deep); }
+[data-tone="pink"]   { --tone: var(--pink); --tone-tint: var(--pink-tint); --tone-deep: var(--pink-deep); }
 .card:hover { border-color: var(--tone, var(--line-strong)); }
 
 .card-link {

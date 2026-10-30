@@ -1,0 +1,32 @@
+---
+/*
+ * Sets data-theme on <html> before first paint: the saved choice from
+ * ThemeToggle, else the system setting (followed live until you pick one).
+ * Goes in <head>, in place of the theme-color meta.
+ */
+---
+
+<meta name="theme-color" content="#D6E6FF">
+<script is:inline>
+  (function () {
+    var KEY = "anycd-theme";
+    var media = window.matchMedia("(prefers-color-scheme: dark)");
+    function saved() {
+      try { return localStorage.getItem(KEY); } catch (e) { return null; }
+    }
+    function apply(theme) {
+      document.documentElement.dataset.theme = theme;
+      var meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.content = theme === "dark" ? "#1C2C4C" : "#D6E6FF";
+    }
+    window.anycdSetTheme = function (theme) {
+      try { localStorage.setItem(KEY, theme); } catch (e) {}
+      apply(theme);
+    };
+    var s = saved();
+    apply(s === "dark" || s === "light" ? s : media.matches ? "dark" : "light");
+    media.addEventListener("change", function (e) {
+      if (!saved()) apply(e.matches ? "dark" : "light");
+    });
+  })();
+</script>

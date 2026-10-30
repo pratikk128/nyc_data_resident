@@ -132,7 +132,7 @@ The mapping lives in `CATEGORIES` in `src/data/dashboards.js`; a new category ne
 - Status colors (green/orange/red deep shades) always paired with an icon or text label, never color alone.
 - Max **three** non-neutral colors visible in a single chart.
 - Shadows are tinted navy/blue (`rgba(28,42,68,…)`), never gray-black.
-- Dark mode: optional for v1. If built, use a deep navy page (`--paper: #121A2B`, `--card: #1A2438`, `--ink: #F2F5FB`), keep pastels as fills, and lighten deep shades for contrast.
+- Dark mode: deep navy page (`--paper: #121A2B`, `--card: #1A2438`, `--ink: #F2F5FB`), pastels kept as fills, tints darkened and deep shades lightened for contrast. Tokens live in `:root[data-theme="dark"]` in `landing.css` (and `dashboard.css` for dashboard-only tokens). Text on a pastel fill uses `--ink-on-fill` (navy in both themes); text on a deep-shade fill uses `--on-deep`. The header toggle saves the choice; otherwise the system setting is used.
 
 **Contrast:** all text/background pairs must meet **WCAG AA** (4.5:1 body, 3:1 large text and UI). Verified: ink on every pastel fill ≥ 8.4:1; blue-deep on white 7.3:1; each deep shade on its tint ≥ 4.8:1; ink-soft on the header gradient ≥ 5.2:1. `--ink-faint` is only for non-essential captions; verify.
 

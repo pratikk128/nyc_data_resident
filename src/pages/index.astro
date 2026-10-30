@@ -1,5 +1,7 @@
 ---
 import '../styles/landing.css';
+import ThemeInit from '../components/ThemeInit.astro';
+import ThemeToggle from '../components/ThemeToggle.astro';
 import { dashboards, ALL, CATEGORIES, categorySlug, categoryHref, categoryTone, categoryIcon } from '../data/dashboards.js';
 
 // Cards and the sidebar are rendered here; public/js/app.js only filters them.
@@ -16,7 +18,7 @@ const plural = (n: number) => `${n} ${n === 1 ? 'dashboard' : 'dashboards'}`;
   <title>Ask NYC Data | Interactive Dashboards for NYC Residents</title>
   <meta name="description" content="Explore interactive dashboards and visualizations on NYC restaurant inspections, 311 complaints, city spending, and more, built on public NYC Open Data.">
   <meta name="application-name" content="Ask NYC Data">
-  <meta name="theme-color" content="#D6E6FF">
+  <ThemeInit />
   <link rel="canonical" href="https://asknycdata.com/">
 
   <!-- Open Graph / social -->
@@ -53,6 +55,7 @@ const plural = (n: number) => `${n} ${n === 1 ? 'dashboard' : 'dashboards'}`;
       <span class="wordmark">Ask <span class="wordmark-accent">NYC</span> Data</span>
     </a>
     <p class="tagline">NYC's public data, made easy to understand.</p>
+    <ThemeToggle />
   </header>
 
   <div class="layout">
