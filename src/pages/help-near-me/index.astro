@@ -11,7 +11,6 @@ import HelpFinder from '../../components/help-near-me/HelpFinder.astro';
 import AboutSection from '../../components/help-near-me/AboutSection.astro';
 import { getSources } from '../../lib/server/help-near-me.js';
 import { normalizeQuery } from '../../lib/help-near-me/page-state.js';
-import { date } from '../../lib/format.js';
 
 export const prerender = false;
 
@@ -28,7 +27,7 @@ if (import.meta.env.PROD && sources.every((s) => s.updatedAt)) Astro.response.he
   description="Find the nearest SNAP centers, Homebase offices, drop-in centers, free computer centers, youth programs, older adult centers and NYCHA community centers in NYC."
   path="/help-near-me/"
   category="Social Services"
-  lastRefreshed={newest ? date(newest) : undefined}
+  dataUpdated={newest}
 >
   <header class="page-head">
     <h1>Where can I get help near me?</h1>

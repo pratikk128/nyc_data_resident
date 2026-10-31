@@ -98,6 +98,16 @@
       link.querySelector(".category-count").textContent = n;
       link.setAttribute("aria-label", link.querySelector(".category-label").textContent + ", " + plural(n));
       link.setAttribute("href", urlFor(slug));
+      link.setAttribute("data-count", n);
+    });
+  }
+
+  // Hide categories with no dashboards for this audience, except the one being
+  // viewed (a shared ?category= link), so its "Coming soon" still has a home.
+  function hideEmptyCategories(active) {
+    links.forEach(function (link) {
+      link.parentNode.hidden = link !== active && link.getAttribute("data-category") !== "" &&
+        link.getAttribute("data-count") === "0";
     });
   }
 
@@ -107,6 +117,7 @@
       if (link === active) link.setAttribute("aria-current", "page");
       else link.removeAttribute("aria-current");
     });
+    hideEmptyCategories(active);
 
     var shown = 0;
     cards.forEach(function (card) {

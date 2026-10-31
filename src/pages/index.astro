@@ -30,12 +30,17 @@ const plural = (n: number) => `${n} ${n === 1 ? 'dashboard' : 'dashboards'}`;
   <meta property="og:title" content="Ask NYC Data | Interactive Dashboards for NYC Residents">
   <meta property="og:description" content="Explore interactive dashboards and visualizations on NYC restaurant inspections, 311 complaints, city spending, and more, built on public NYC Open Data.">
   <meta property="og:url" content="https://asknycdata.com/">
-  <meta name="twitter:card" content="summary">
+  <meta property="og:image" content="https://asknycdata.com/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Ask NYC Data: NYC's public data, made easy to understand.">
+  <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Ask NYC Data">
   <meta name="twitter:description" content="NYC's public data, made easy to understand.">
 
   <!-- Favicon: map pin on a pastel blue tile -->
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 
   <!-- Apply the saved sidebar state and audience before first paint to avoid a flash -->
   <script is:inline define:vars={{ audiences: AUDIENCES.map((a) => a.id) }}>
@@ -83,8 +88,9 @@ const plural = (n: number) => `${n} ${n === 1 ? 'dashboard' : 'dashboards'}`;
         <ul class="category-list" id="category-list">
           {CATEGORIES.map(({ name, tone, icon }) => {
             const n = countFor(name);
+            // Categories with nothing for this audience stay out of the list (app.js keeps this up).
             return (
-              <li>
+              <li hidden={n === 0 && name !== ALL}>
                 <a class="category-btn" href={categoryHref(name)} data-category={name === ALL ? '' : categorySlug(name)}
                    data-tone={tone} title={name} aria-label={`${name}, ${plural(n)}`}
                    aria-current={name === ALL ? 'page' : undefined}>
@@ -154,7 +160,7 @@ const plural = (n: number) => `${n} ${n === 1 ? 'dashboard' : 'dashboards'}`;
 
   <footer class="site-footer">
     <p class="footer-brand">Ask NYC Data · <a href="https://asknycdata.com">asknycdata.com</a></p>
-    <p class="footer-note">Data sourced from NYC Open Data. Not affiliated with the City of New York.</p>
+    <p class="footer-note">Built with public data from NYC Open Data. Not affiliated with or endorsed by the City of New York.</p>
   </footer>
 
   <!-- Plain script served from public/js; edit src/data/dashboards.js to add dashboards -->

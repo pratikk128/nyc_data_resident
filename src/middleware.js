@@ -18,8 +18,22 @@ function addHeaders(headers) {
   }
 }
 
-export const onRequest = defineMiddleware(async (_context, next) => {
-  let response = await next();
+// Pages live at their trailing-slash URL (the canonical); "/city-jobs" sends
+// you there. API routes, files ("/sitemap.xml") and Astro's own "/_" routes
+// keep their paths. Static pages get the same from Cloudflare's assets.
+export function slashRedirect(url, method) {
+  if (method !== "GET" && method !== "HEAD") return null;
+  const path = url.pathname;
+  if (path.endsWith("/") || path.startsWith("/api/") || path.startsWith("/_")) return null;
+  if (path.slice(path.lastIndexOf("/")).includes(".")) return null;
+  return path + "/" + url.search;
+}
+
+export const onRequest = defineMiddleware(async (context, next) => {
+  const to = slashRedirect(context.url, context.request.method);
+  let response = to
+    ? new Response(null, { status: 301, headers: { Location: to } })
+    : await next();
   try {
     addHeaders(response.headers);
   } catch {
