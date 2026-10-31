@@ -1,0 +1,68 @@
+---
+/*
+ * NYC Crash Lookup: where the data comes from, how matching works, its
+ * limits, and how to confirm a crash with the NYPD (DESIGN.md §7).
+ */
+import { DATASETS, DATE_RANGE, SYNC_DAYS, sourceUrl } from '../../lib/crashes/config.js';
+import { date } from '../../lib/format.js';
+
+interface Props {
+  dataThrough: string | null;
+  lastSync: string | null;
+}
+const { dataThrough, lastSync } = Astro.props;
+---
+
+<section class="dash-section" id="cl-about" aria-labelledby="cl-about-title">
+  <header class="section-head">
+    <h2 id="cl-about-title">How this works</h2>
+  </header>
+  <div class="about-body cl-about">
+    <h3>Where this comes from</h3>
+    <p>
+      NYPD crash reports (form MV-104AN) published on NYC Open Data, in three tables:
+      {Object.entries(DATASETS).map(([t, d], i, all) => <><a href={sourceUrl(t)} rel="noopener">{d.name}</a> ({d.id}){i < all.length - 1 ? ', ' : '.'}</>)}
+      This lookup has crashes from {date(DATE_RANGE.from)}{DATE_RANGE.to ? ` to ${date(DATE_RANGE.to)}` : dataThrough ? ` to ${date(dataThrough)}` : ''}.
+      {lastSync && <> We check for new and changed reports from the last {SYNC_DAYS} days every day (last on {date(lastSync.slice(0, 10))}), and reload everything about once a month.</>}
+    </p>
+
+    <h3>How matches are ranked</h3>
+    <p>
+      Each crash in your date range gets points for every detail it shares with what you entered: more for an exact
+      match than a close one, and more for details that set a crash apart (a make and model year on the same vehicle,
+      both streets of an intersection) than for common ones (a borough, a sex). The match percentage is its points out of
+      the most the details you gave could earn. Vehicle details are checked against one vehicle at a time, and person
+      details against one person, so a 2019 Toyota won’t match a crash with a 2019 Honda and a 2015 Toyota.
+    </p>
+    <p>
+      “Close” means near, not the same: a model year or a time of day a little off, a street without its East or West,
+      a back seat on the other side. Street names are matched after spelling them one way (“W 72nd St” and “WEST 72 STREET”
+      are the same street). Makes are matched from the police’s four-letter codes (“TOYT” is Toyota).
+    </p>
+
+    <h3>Limits</h3>
+    <ul>
+      <li>Only crashes the police reported are here: ones where someone was hurt or killed, or with at least $1,000 of damage.</li>
+      <li>Reports can be late or amended. A crash from the last few days may not be in yet.</li>
+      <li>About 3 in 10 crashes have no street name or borough on the report, and some have no map point. Searching near a spot finds crashes with a map point even when the street is missing.</li>
+      <li>The data has no vehicle model, so only make, model year and kind of vehicle can be searched.</li>
+      <li>“No injury recorded” means the report doesn’t list one, not that the person was checked and fine.</li>
+      <li>Registered owners, witnesses and people the police notified appear on many reports. They aren’t counted or matched, and they’re listed apart in a crash’s details.</li>
+    </ul>
+
+    <h3>Privacy</h3>
+    <p>
+      The city removes names, plates, license numbers and addresses before publishing this data. This lookup doesn’t add
+      them back or connect this data to anything that could identify someone.
+    </p>
+
+    <h3>To confirm a crash</h3>
+    <p>
+      A match here is a possible match only. To confirm one, contact the NYPD precinct where it happened
+      (<a href="https://www.nyc.gov/site/nypd/bureaus/patrol/find-your-precinct.page" rel="noopener">find a precinct</a>) or
+      request the police crash report (<a href="https://portal.311.nyc.gov/article/?kanumber=KA-03073" rel="noopener">how, on NYC311</a>):
+      from the precinct within 30 days of the crash, from the state DMV after that.
+      Give them the date, time and place; the collision ID here is the open data’s own and won’t be on their report.
+    </p>
+  </div>
+</section>

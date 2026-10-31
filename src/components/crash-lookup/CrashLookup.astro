@@ -1,0 +1,491 @@
+---
+/*
+ * The crash lookup: "What do you know?" (where, when, the vehicle, the
+ * person; every field optional), then the possible matches, best first,
+ * each with the details that matched, then one crash's deep dive
+ * (recognition details first, what happened behind a toggle).
+ *
+ * The search runs on POST /api/crashes/search and a deep dive on
+ * GET /api/crashes/:id. The form and the open crash live in the URL
+ * (src/lib/crashes/page-state.js), so reload and Back work and a crash can
+ * be linked to.
+ */
+import { BOROUGHS } from '../../lib/complaints311/config.js';
+import { VEHICLE_TYPES } from '../../lib/crashes/vehicle-types.js';
+import { MAKES } from '../../lib/crashes/makes.js';
+import { POSITIONS, ROLE_LABELS, INVOLVED_ROLES } from '../../lib/crashes/normalize.js';
+import { RADIUS_CHOICES, DEFAULT_RADIUS, TIME_WINDOWS, DIRECTIONS } from '../../lib/crashes/query.js';
+import { DATE_RANGE } from '../../lib/crashes/config.js';
+
+interface Props {
+  dataThrough: string | null; // newest crash date in the database
+}
+const { dataThrough } = Astro.props;
+const maxDate = DATE_RANGE.to ?? dataThrough ?? undefined;
+const STATES = ['NY', 'NJ', 'CT', 'PA', 'FL', 'MA', 'TX', 'CA', 'NC', 'GA', 'VA', 'MD', 'OH', 'IL', 'DE', 'RI', 'VT', 'NH', 'ME', 'SC', 'MI', 'IN', 'TN', 'AZ', 'WA', 'CO', 'OR', 'MN', 'WI', 'MO', 'AL', 'LA', 'KY', 'OK', 'IA', 'UT', 'NV', 'AR', 'MS', 'KS', 'NM', 'NE', 'ID', 'WV', 'HI', 'AK', 'SD', 'ND', 'MT', 'WY', 'DC'];
+const roleLabel = (r: string) => (ROLE_LABELS as Record<string, string>)[r];
+const windowLabel = (m: number) => (m < 60 ? `${m} minutes` : m === 60 ? '1 hour' : `${m / 60} hours`);
+const radiusLabel = (m: number) => (m < 1000 ? `${m} m (about ${Math.max(1, Math.round(m / 80))} block${m < 160 ? '' : 's'})` : '1 km (about ½ mile)');
+---
+
+<div class="cl" data-crash-lookup data-max-date={maxDate ?? ''}>
+  <section class="dash-section" id="cl-find" aria-labelledby="cl-find-title">
+    <header class="section-head">
+      <h2 id="cl-find-title">What do you know?</h2>
+      <p class="section-intro">Fill in whatever you have. Every field is optional, and a few good details beat many guesses: a cross street, the car’s make and year, or a date.</p>
+    </header>
+
+    <form class="cl-form" novalidate role="search" aria-label="Look up a crash" data-form>
+      <fieldset class="cl-fieldset">
+        <legend>Where</legend>
+        <div class="cl-grid">
+          <div class="field cl-wide">
+            <label class="filter-label" for="cl-where">Street, intersection or address</label>
+            <div class="c311-combo">
+              <input class="search-input" id="cl-where" name="where" type="text" role="combobox" aria-autocomplete="list"
+                aria-expanded="false" aria-controls="cl-where-list" aria-describedby="cl-where-hint"
+                autocomplete="off" spellcheck="false" maxlength="120" placeholder="Try “Broadway & W 72 St”" />
+              <ul class="c311-suggest" id="cl-where-list" role="listbox" aria-label="Places" hidden data-suggest></ul>
+            </div>
+            <p class="field-hint" id="cl-where-hint">Matches the street names on the police report. Pick a suggestion to also find crashes near that spot.</p>
+          </div>
+          <div class="field">
+            <label class="filter-label" for="cl-boro">Borough <span class="field-optional">(optional)</span></label>
+            <select class="filter-select" id="cl-boro" name="boro">
+              <option value="">Any borough</option>
+              {BOROUGHS.map((b) => <option value={b.value}>{b.label}</option>)}
+            </select>
+          </div>
+          <div class="field">
+            <label class="filter-label" for="cl-zip">ZIP code <span class="field-optional">(optional)</span></label>
+            <input class="search-input" id="cl-zip" name="zip" type="text" inputmode="numeric" maxlength="5" pattern="\d{5}" autocomplete="postal-code" />
+          </div>
+        </div>
+        <div class="cl-spot" data-spot hidden>
+          <p class="cl-spot-text">Also searching near <strong data-spot-label></strong>
+            <button type="button" class="cl-link-btn" data-spot-clear>Don’t search near this spot</button></p>
+          <div class="field cl-spot-radius">
+            <label class="filter-label" for="cl-r">Within</label>
+            <select class="filter-select" id="cl-r" name="r">
+              {RADIUS_CHOICES.map((m) => <option value={m} selected={m === DEFAULT_RADIUS}>{radiusLabel(m)}</option>)}
+            </select>
+          </div>
+          <input type="hidden" name="lat" /><input type="hidden" name="lon" /><input type="hidden" name="place" />
+        </div>
+      </fieldset>
+
+      <fieldset class="cl-fieldset">
+        <legend>When</legend>
+        <div class="cl-grid">
+          <div class="field">
+            <label class="filter-label" for="cl-from">From</label>
+            <input class="search-input" id="cl-from" name="from" type="date" min={DATE_RANGE.from} max={maxDate} />
+          </div>
+          <div class="field">
+            <label class="filter-label" for="cl-to">To</label>
+            <input class="search-input" id="cl-to" name="to" type="date" min={DATE_RANGE.from} max={maxDate} />
+          </div>
+          <div class="field">
+            <label class="filter-label" for="cl-at">Around what time? <span class="field-optional">(optional)</span></label>
+            <input class="search-input" id="cl-at" name="at" type="time" />
+          </div>
+          <div class="field">
+            <label class="filter-label" for="cl-within">Give or take</label>
+            <select class="filter-select" id="cl-within" name="within">
+              {TIME_WINDOWS.map((m) => <option value={m} selected={m === 60}>{windowLabel(m)}</option>)}
+            </select>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset class="cl-fieldset">
+        <legend>Vehicle</legend>
+        <div class="cl-grid">
+          <div class="field">
+            <label class="filter-label" for="cl-make">Make</label>
+            <input class="search-input" id="cl-make" name="make" type="text" list="cl-makes" autocomplete="off" spellcheck="false" maxlength="40" placeholder="Toyota, Honda, Ford…" />
+            <datalist id="cl-makes">{MAKES.map((m) => <option value={m.label} />)}</datalist>
+          </div>
+          <div class="field">
+            <label class="filter-label" for="cl-yfrom">Model year</label>
+            <input class="search-input" id="cl-yfrom" name="yfrom" type="number" inputmode="numeric" min="1900" max={new Date().getUTCFullYear() + 1} placeholder="2019" aria-describedby="cl-year-hint" />
+          </div>
+          <div class="field">
+            <label class="filter-label" for="cl-yto">to <span class="field-optional">(for a range)</span></label>
+            <input class="search-input" id="cl-yto" name="yto" type="number" inputmode="numeric" min="1900" max={new Date().getUTCFullYear() + 1} aria-describedby="cl-year-hint" />
+          </div>
+          <div class="field">
+            <label class="filter-label" for="cl-type">Kind of vehicle</label>
+            <select class="filter-select" id="cl-type" name="type">
+              <option value="">Any</option>
+              {VEHICLE_TYPES.map((t) => <option value={t.key}>{t.label}</option>)}
+            </select>
+          </div>
+          <div class="field">
+            <label class="filter-label" for="cl-state">Plate state</label>
+            <input class="search-input" id="cl-state" name="state" type="text" list="cl-states" maxlength="2" autocomplete="off" placeholder="NY" />
+            <datalist id="cl-states">{STATES.map((s) => <option value={s} />)}</datalist>
+          </div>
+          <div class="field">
+            <label class="filter-label" for="cl-dir">Heading</label>
+            <select class="filter-select" id="cl-dir" name="dir">
+              <option value="">Any direction</option>
+              {DIRECTIONS.map((d) => <option value={d}>{d}</option>)}
+            </select>
+          </div>
+        </div>
+        <p class="field-hint" id="cl-year-hint">A year a model year off still counts, for less. The police data doesn’t record the model (Camry, Civic), so there’s no field for it.</p>
+      </fieldset>
+
+      <fieldset class="cl-fieldset">
+        <legend>Person</legend>
+        <div class="cl-grid">
+          <div class="field">
+            <label class="filter-label" for="cl-role">They were</label>
+            <select class="filter-select" id="cl-role" name="role">
+              <option value="">Any</option>
+              {INVOLVED_ROLES.map((r) => <option value={r}>{r === 'other-motorized' ? 'On an e-scooter, skateboard or similar' : `A ${roleLabel(r).toLowerCase()}`}</option>)}
+            </select>
+          </div>
+          <div class="field">
+            <label class="filter-label" for="cl-sex">Sex</label>
+            <select class="filter-select" id="cl-sex" name="sex">
+              <option value="">Any</option><option value="F">Female</option><option value="M">Male</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="filter-label" for="cl-afrom">Age</label>
+            <input class="search-input" id="cl-afrom" name="afrom" type="number" inputmode="numeric" min="0" max="110" placeholder="34" aria-describedby="cl-age-hint" />
+          </div>
+          <div class="field">
+            <label class="filter-label" for="cl-ato">to <span class="field-optional">(for a range)</span></label>
+            <input class="search-input" id="cl-ato" name="ato" type="number" inputmode="numeric" min="0" max="110" aria-describedby="cl-age-hint" />
+          </div>
+          <div class="field">
+            <label class="filter-label" for="cl-hurt">Hurt?</label>
+            <select class="filter-select" id="cl-hurt" name="hurt">
+              <option value="">Don’t know</option><option value="yes">Injured or killed</option><option value="no">No injury recorded</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="filter-label" for="cl-seat">Where they sat</label>
+            <select class="filter-select" id="cl-seat" name="seat">
+              <option value="">Any</option>
+              <option value="rear">Back seat (anywhere)</option>
+              {POSITIONS.map((p) => <option value={p.key}>{p.label}</option>)}
+            </select>
+          </div>
+        </div>
+        <p class="field-hint" id="cl-age-hint">Ages a couple of years off still count, for less.</p>
+      </fieldset>
+
+      <ul class="cl-problems" data-problems role="alert" hidden></ul>
+      <div class="cl-actions">
+        <button type="submit" class="c311-go">Find possible matches</button>
+        <button type="reset" class="cl-link-btn" data-clear>Clear the form</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="dash-section" id="cl-results" aria-labelledby="cl-results-title" data-results hidden>
+    <header class="section-head">
+      <h2 id="cl-results-title" tabindex="-1">Possible matches</h2>
+      <p class="section-intro" data-summary aria-live="polite"></p>
+    </header>
+    <div data-broad></div>
+    <ol class="cl-cards" data-cards></ol>
+    <nav class="pager" aria-label="More results" data-pager hidden>
+      <button type="button" class="pager-btn" data-page="-1">Previous</button>
+      <p class="pager-title" data-page-text aria-live="polite"></p>
+      <button type="button" class="pager-btn" data-page="1">Next</button>
+    </nav>
+  </section>
+
+  <section class="dash-section" id="cl-crash" data-detail hidden></section>
+</div>
+
+<script>
+  import { valuesToParams, paramsToValues, paramsToBody, hasSearch, openCrash, resultsSummary, FIELDS } from '../../lib/crashes/page-state.js';
+  import { normalizeSearch } from '../../lib/crashes/query.js';
+  import { cardHtml, broadHtml, emptyHtml, detailHtml, escape } from '../../lib/crashes/render.js';
+  import { mountCrashMap } from '../../lib/crashes/crash-map.js';
+  import { suggest } from '../../lib/complaints311/geocode.js';
+
+  const PAGE_SIZE = 10;
+  const ERROR_TEXT = 'We couldn’t load that. Check your connection and try again.';
+
+  // The API's own sentences (rate limited, data not loaded, no such crash) are shown as is;
+  // "upstream" and network failures get ERROR_TEXT.
+  class ShownError extends Error {
+    constructor(text?: string) { super(text && text !== 'upstream' ? text : ERROR_TEXT); }
+  }
+  const shownText = (err: unknown) => (err instanceof ShownError ? err.message : ERROR_TEXT);
+
+  const root = document.querySelector<HTMLElement>('[data-crash-lookup]')!;
+  const form = root.querySelector<HTMLFormElement>('[data-form]')!;
+  const $ = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+  const problemsEl = $<HTMLUListElement>('[data-problems]');
+  const resultsEl = $<HTMLElement>('[data-results]');
+  const detailEl = $<HTMLElement>('[data-detail]');
+  const whereInput = $<HTMLInputElement>('#cl-where');
+  const suggestEl = $<HTMLUListElement>('[data-suggest]');
+  const spotEl = $<HTMLElement>('[data-spot]');
+  const field = (name: string) => form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement | null;
+
+  let results: any[] = [];
+  let page = 0;
+  let lastSearch = '';
+  let searchRequest = 0;
+  let detailRequest = 0;
+
+  // ---------- Form ⇄ URL ----------
+
+  function readForm() {
+    const values: Record<string, string> = {};
+    for (const k of FIELDS) values[k] = field(k)?.value ?? '';
+    return values;
+  }
+
+  function fillForm(values: Record<string, string>) {
+    for (const k of FIELDS) {
+      const el = field(k);
+      if (!el) continue;
+      // Selects keep their default (radius, give or take) when the URL has none.
+      if (values[k] || el.tagName !== 'SELECT' || !['r', 'within'].includes(k)) el.value = values[k] ?? '';
+    }
+    showSpot(values.lat && values.lon ? values.place || 'the spot you picked' : null);
+  }
+
+  function showSpot(label: string | null) {
+    spotEl.hidden = !label;
+    $<HTMLElement>('[data-spot-label]').textContent = label ?? '';
+  }
+
+  function clearSpot() {
+    for (const k of ['lat', 'lon', 'place']) field(k)!.value = '';
+    showSpot(null);
+  }
+
+  function showProblems(list: string[]) {
+    problemsEl.innerHTML = list.map((p) => `<li>${escape(p)}</li>`).join('');
+    problemsEl.hidden = !list.length;
+  }
+
+  // ---------- Search ----------
+
+  async function runSearch(params: URLSearchParams) {
+    const key = new URLSearchParams([...params].filter(([k]) => k !== 'crash')).toString();
+    if (key === lastSearch && results.length) return;
+    lastSearch = key;
+    const id = ++searchRequest;
+    resultsEl.hidden = false;
+    $<HTMLElement>('[data-summary]').textContent = 'Checking the police reports…';
+    $<HTMLElement>('[data-cards]').innerHTML = '';
+    $<HTMLElement>('[data-broad]').innerHTML = '';
+    $<HTMLElement>('[data-pager]').hidden = true;
+    let data: any;
+    try {
+      const res = await fetch('/api/crashes/search', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(paramsToBody(params))
+      });
+      data = await res.json();
+      if (id !== searchRequest) return;
+      if (res.status === 400) { showProblems(data.problems ?? []); resultsEl.hidden = true; lastSearch = ''; return; }
+      if (!res.ok) throw new ShownError(data.error);
+    } catch (err) {
+      if (id !== searchRequest) return;
+      $<HTMLElement>('[data-summary]').textContent = shownText(err);
+      lastSearch = '';
+      return;
+    }
+    results = data.results;
+    page = 0;
+    $<HTMLElement>('[data-summary]').textContent = resultsSummary(data);
+    $<HTMLElement>('[data-broad]').innerHTML = data.broad && !data.dateOnly ? broadHtml(data.total) : '';
+    if (!results.length) $<HTMLElement>('[data-cards]').innerHTML = emptyHtml();
+    renderPage();
+  }
+
+  function renderPage() {
+    const start = page * PAGE_SIZE;
+    const cards = $<HTMLOListElement>('[data-cards]');
+    cards.start = start + 1;
+    cards.innerHTML = results.slice(start, start + PAGE_SIZE).map((r, i) => cardHtml(r, start + i + 1)).join('');
+    const pages = Math.ceil(results.length / PAGE_SIZE);
+    const pager = $<HTMLElement>('[data-pager]');
+    pager.hidden = pages <= 1;
+    $<HTMLElement>('[data-page-text]').textContent = `Page ${page + 1} of ${pages}`;
+    pager.querySelector<HTMLButtonElement>('[data-page="-1"]')!.disabled = page === 0;
+    pager.querySelector<HTMLButtonElement>('[data-page="1"]')!.disabled = page >= pages - 1;
+  }
+
+  // ---------- Deep dive ----------
+
+  async function showCrash(id: string | null) {
+    const req = ++detailRequest;
+    if (!id) {
+      detailEl.hidden = true;
+      detailEl.innerHTML = '';
+      return;
+    }
+    detailEl.hidden = false;
+    detailEl.innerHTML = '<p class="cl-loading">Pulling up the report…</p>';
+    detailEl.scrollIntoView({ block: 'start' });
+    let d: any;
+    try {
+      const res = await fetch(`/api/crashes/${id}`);
+      d = await res.json();
+      if (req !== detailRequest) return;
+      if (!res.ok) throw new ShownError(d.error);
+    } catch (err) {
+      if (req !== detailRequest) return;
+      detailEl.innerHTML = `<p class="cl-back"><a href="#cl-results" data-close>← Back to results</a></p><p class="cl-error">${escape(shownText(err))}</p>`;
+      return;
+    }
+    detailEl.innerHTML = detailHtml(d);
+    detailEl.querySelector<HTMLElement>('#cl-detail-title')?.focus();
+    const mapEl = detailEl.querySelector<HTMLElement>('[data-crash-map]');
+    if (mapEl && d.recognize.point) {
+      const v = paramsToValues(new URLSearchParams(location.search));
+      const spot = v.lat && v.lon ? { lat: Number(v.lat), lon: Number(v.lon), radius: Number(v.r) || 250 } : null;
+      mountCrashMap(mapEl)(d.recognize.point, spot);
+    }
+  }
+
+  // ---------- Wiring ----------
+
+  function syncFromUrl() {
+    const params = new URLSearchParams(location.search);
+    fillForm(paramsToValues(params));
+    if (hasSearch(params)) runSearch(params); else { resultsEl.hidden = true; results = []; lastSearch = ''; }
+    showCrash(openCrash(params));
+  }
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const values = readForm();
+    const params = valuesToParams(values);
+    const { problems } = normalizeSearch(paramsToBody(params), { dataThrough: root.dataset.maxDate || undefined });
+    showProblems(problems);
+    if (problems.length) { problemsEl.focus?.(); return; }
+    if (!hasSearch(params)) { showProblems(['Add at least one detail: a place, a date, the vehicle or the person.']); return; }
+    history.pushState(null, '', `?${params}`);
+    showCrash(null);
+    runSearch(params).then(() => $<HTMLElement>('#cl-results-title').focus());
+  });
+
+  form.addEventListener('reset', () => {
+    setTimeout(() => {
+      clearSpot();
+      showProblems([]);
+      history.pushState(null, '', location.pathname);
+      syncFromUrl();
+    });
+  });
+
+  root.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    const open = target.closest<HTMLAnchorElement>('[data-open]');
+    if (open) {
+      e.preventDefault();
+      const params = new URLSearchParams(location.search);
+      params.set('crash', open.dataset.open!);
+      history.pushState({ fromResults: true }, '', `?${params}`);
+      showCrash(open.dataset.open!);
+      return;
+    }
+    if (target.closest('[data-close]')) {
+      e.preventDefault();
+      if (history.state?.fromResults) history.back();
+      else {
+        const params = new URLSearchParams(location.search);
+        params.delete('crash');
+        history.pushState(null, '', params.size ? `?${params}` : location.pathname);
+        syncFromUrl();
+      }
+      return;
+    }
+    const toggle = target.closest<HTMLButtonElement>('[data-details-toggle]');
+    if (toggle) {
+      const open = toggle.getAttribute('aria-expanded') !== 'true';
+      toggle.setAttribute('aria-expanded', String(open));
+      toggle.textContent = open ? 'Hide crash details' : 'Show crash details';
+      document.getElementById(toggle.getAttribute('aria-controls')!)!.hidden = !open;
+      return;
+    }
+    const pageBtn = target.closest<HTMLButtonElement>('[data-page]');
+    if (pageBtn && !pageBtn.disabled) {
+      page += Number(pageBtn.dataset.page);
+      renderPage();
+      $<HTMLElement>('#cl-results-title').focus();
+      return;
+    }
+    if (target.closest('[data-spot-clear]')) clearSpot();
+  });
+
+  window.addEventListener('popstate', syncFromUrl);
+
+  // ---------- Place suggestions (NYC GeoSearch) ----------
+
+  let suggestTimer = 0;
+  let suggestRequest: AbortController | null = null;
+  let places: any[] = [];
+  let active = -1;
+
+  function closeSuggest() {
+    suggestEl.hidden = true;
+    whereInput.setAttribute('aria-expanded', 'false');
+    whereInput.removeAttribute('aria-activedescendant');
+    active = -1;
+  }
+
+  function pick(i: number) {
+    const p = places[i];
+    if (!p) return;
+    whereInput.value = p.label.split(',')[0]; // "350 5th Avenue", without the borough and ZIP
+    field('lat')!.value = String(p.lat);
+    field('lon')!.value = String(p.lon);
+    field('place')!.value = p.label;
+    if (p.borough && !field('boro')!.value) field('boro')!.value = p.borough;
+    showSpot(p.label);
+    closeSuggest();
+  }
+
+  whereInput.addEventListener('input', () => {
+    if (field('lat')!.value) clearSpot(); // the text changed, so the picked spot no longer fits it
+    clearTimeout(suggestTimer);
+    const text = whereInput.value.trim();
+    if (text.length < 4 || /\s(?:&|and|at|\/)\s/i.test(text)) { closeSuggest(); return; }
+    suggestTimer = window.setTimeout(async () => {
+      suggestRequest?.abort();
+      suggestRequest = new AbortController();
+      try {
+        places = await suggest(text, { signal: suggestRequest.signal });
+      } catch { places = []; }
+      if (!places.length || whereInput.value.trim() !== text) { closeSuggest(); return; }
+      suggestEl.innerHTML = places.map((p, i) => `<li class="c311-option" id="cl-place-${i}" role="option" aria-selected="false" data-i="${i}">${escape(p.label)}</li>`).join('');
+      suggestEl.hidden = false;
+      whereInput.setAttribute('aria-expanded', 'true');
+    }, 250);
+  });
+
+  whereInput.addEventListener('keydown', (e) => {
+    if (suggestEl.hidden) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      active = (active + (e.key === 'ArrowDown' ? 1 : -1) + places.length) % places.length;
+      suggestEl.querySelectorAll('[role=option]').forEach((li, i) => li.setAttribute('aria-selected', String(i === active)));
+      whereInput.setAttribute('aria-activedescendant', `cl-place-${active}`);
+    } else if (e.key === 'Enter' && active >= 0) {
+      e.preventDefault();
+      pick(active);
+    } else if (e.key === 'Escape') closeSuggest();
+  });
+  suggestEl.addEventListener('mousedown', (e) => {
+    const li = (e.target as HTMLElement).closest<HTMLElement>('[data-i]');
+    if (li) { e.preventDefault(); pick(Number(li.dataset.i)); }
+  });
+  whereInput.addEventListener('blur', () => setTimeout(closeSuggest, 100));
+
+  syncFromUrl();
+</script>

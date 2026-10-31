@@ -95,6 +95,14 @@ export const dashboards = [
     audience: ["resident", "business"]
   },
   {
+    id: "crash-lookup",
+    title: "NYC Crash Lookup",
+    description: "Think a car, bike or person you know was in a crash? Enter what you know and see police-reported crashes since 2024 that could match.",
+    category: "Public Safety",
+    url: "/crash-lookup/",
+    audience: ["resident"]
+  },
+  {
     id: "help-near-me",
     title: "Where Can I Get Help Near Me?",
     description: "Find the nearest food benefits office, homelessness help, free computers, youth and older adult programs, with hours and directions.",

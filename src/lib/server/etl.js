@@ -22,6 +22,7 @@
  *     rolling    true when a job's window ends "today", so it rebuilds daily
  *     snapshots  ids of bundled snapshots a job joins in (snapshots.js)
  *     jobs       [{ key, maxAgeHours, run, after? }], read with dailyValue()
+ *     attention  optional async (now) → [sentence], upkeep for the status page
  */
 import { env } from "cloudflare:workers";
 import { refreshDaily } from "./cache.js";
@@ -37,8 +38,9 @@ import { schoolsDataset } from "./schools.js";
 import { payrollDataset } from "./payroll.js";
 import { streetClosuresDataset } from "./street-closures.js";
 import { helpNearMeDatasets } from "./help-near-me.js";
+import { crashesDataset } from "./crashes.js";
 
-export const DATASETS = [restaurantsDataset, complaints311Dataset, waterDataset, shopDiverseDataset, schoolsDataset, payrollDataset, streetClosuresDataset, ...helpNearMeDatasets];
+export const DATASETS = [restaurantsDataset, complaints311Dataset, waterDataset, shopDiverseDataset, schoolsDataset, payrollDataset, streetClosuresDataset, ...helpNearMeDatasets, crashesDataset];
 
 const STATE_KEY = "etl:state";
 const iso = (ms) => new Date(ms).toISOString();
@@ -182,6 +184,8 @@ export async function etlStatus(now = Date.now()) {
       jobs
     };
   });
+  // Datasets with upkeep the cron can't do say so themselves (crashes: the monthly full rebuild).
+  for (const ds of DATASETS) if (ds.attention) attention.push(...await ds.attention(now));
   const snapshots = SNAPSHOTS.map((snap) => {
     const s = state.snapshots?.[snap.id] ?? {};
     const changes = s.changes ?? [];

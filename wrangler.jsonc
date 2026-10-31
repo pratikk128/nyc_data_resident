@@ -13,6 +13,12 @@
   // No "id": wrangler creates the namespace on first deploy.
   "kv_namespaces": [{ "binding": "DATA_CACHE" }],
 
+  // NYC Crash Lookup's crash, vehicle and person tables (src/lib/server/crashes.js).
+  // Loaded by `npm run data:crashes` + `npm run data:crashes:push -- --local|--remote`;
+  // the hourly cron keeps recent weeks current. No "database_id": wrangler
+  // creates the database on first deploy (push --remote after that).
+  "d1_databases": [{ "binding": "CRASHES_DB", "database_name": "asknycdata-crashes" }],
+
   // Per-client limits on searches, restaurant lookups and 311 areas that miss the cache
   // (src/lib/server/rate-limit.js). namespace_id is any number unique to each
   // limiter within the account.
@@ -31,7 +37,9 @@
     // Street closures: KV only, but one search per place change and per radius
     { "name": "CLOSURES_RATE_LIMITER", "namespace_id": "1007", "simple": { "limit": 60, "period": 60 } },
     // Help near me: KV only, one search per spot (radius and categories switch in the browser)
-    { "name": "HELP_RATE_LIMITER", "namespace_id": "1008", "simple": { "limit": 60, "period": 60 } }
+    { "name": "HELP_RATE_LIMITER", "namespace_id": "1008", "simple": { "limit": 60, "period": 60 } },
+    // Crash lookup: D1 only, one search per form submit, one per deep dive opened
+    { "name": "CRASHES_RATE_LIMITER", "namespace_id": "1009", "simple": { "limit": 60, "period": 60 } }
   ],
 
   // The deploy's version id, part of the Shop Diverse, Street Closures and Help Near Me edge cache keys

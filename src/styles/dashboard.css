@@ -3877,3 +3877,98 @@ a.hn-directions:hover { background: var(--accent-deep); }
   .ar-split { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ar a { color: inherit; text-decoration: none; }
 }
+
+/* ---------- NYC Crash Lookup (src/components/crash-lookup/) ---------- */
+.cl-heads-up { max-width: 72ch; }
+.cl-heads-up p, .cl-broad p { margin: 0; }
+.cl-form { display: flex; flex-direction: column; gap: var(--space-5); margin-top: var(--space-5); }
+.cl-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+.cl-fieldset legend { padding: 0 var(--space-2); font-weight: 800; font-size: 1.0625rem; }
+.cl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: var(--space-3) var(--space-4); }
+.cl-wide { grid-column: 1 / -1; }
+.cl-grid .search-input, .cl-grid .filter-select { width: 100%; }
+.cl-fieldset > .field-hint { margin-top: var(--space-3); }
+.cl-spot {
+  display: flex; flex-wrap: wrap; align-items: end; gap: var(--space-3) var(--space-5);
+  margin-top: var(--space-4); padding: var(--space-3); border-radius: var(--radius-md); background: var(--blue-tint);
+}
+.cl-spot-text { margin: 0; flex: 1 1 18rem; }
+.cl-spot-radius { flex: 0 1 16rem; }
+.cl-link-btn {
+  min-height: 44px; padding: 0 var(--space-2); border: 0; background: none;
+  color: var(--link); font: inherit; font-weight: 600; text-decoration: underline; cursor: pointer;
+}
+.cl-link-btn:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
+.cl-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.cl-problems { margin: 0; padding: var(--space-3) var(--space-4) var(--space-3) var(--space-6); border-left: 4px solid var(--critical); background: var(--critical-tint); color: var(--ink); }
+
+.cl-cards { list-style: none; margin: var(--space-4) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+.cl-card { padding: var(--space-4); border: 1px solid var(--line-strong); border-radius: var(--radius-md); background: var(--card); }
+.cl-card-top { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); }
+.cl-rank { margin: 0; font-size: .875rem; color: var(--ink-soft); }
+.cl-score { margin: 0; font-size: .9375rem; }
+.cl-score strong { font-size: 1.25rem; }
+.cl-card-title { margin: var(--space-1) 0 0; font-size: 1.125rem; font-weight: 800; }
+.cl-card-place { margin: var(--space-1) 0 0; font-weight: 600; }
+.cl-card-line, .cl-missed { margin: var(--space-2) 0 0; }
+.cl-card-key { display: inline-block; min-width: 5.5rem; font-size: .8125rem; font-weight: 700; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .04em; }
+.cl-missed { color: var(--ink-soft); font-size: .9375rem; }
+.cl-card-open { margin: var(--space-3) 0 0; }
+.cl-open { display: inline-flex; align-items: center; min-height: 44px; font-weight: 700; color: var(--link); }
+
+.cl-chips { list-style: none; display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-3) 0 0; padding: 0; }
+.cl-chip {
+  padding: 2px var(--space-3); border-radius: var(--radius-pill); font-size: .875rem; font-weight: 600;
+  color: var(--ink-on-fill); border: 1.5px solid var(--blue-deep);
+}
+.cl-chip-exact { background: var(--blue); }
+.cl-chip-close { background: var(--blue-tint); }
+.cl-chip-partial { background: transparent; color: var(--ink); border-style: dashed; }
+.cl-chip-how { font-weight: 400; font-size: .75rem; }
+
+.cl-empty { margin-top: var(--space-4); padding: var(--space-4); border-radius: var(--radius-md); background: var(--yellow-tint); color: var(--ink-on-fill); }
+.cl-empty p + p { margin-top: var(--space-2); }
+
+.cl-detail h2 { font-size: clamp(1.375rem, 1.1rem + 1vw, 1.75rem); font-weight: 800; }
+.cl-back { margin: 0 0 var(--space-3); }
+.cl-back a { display: inline-flex; align-items: center; min-height: 44px; font-weight: 700; color: var(--link); }
+.cl-possible { margin-top: var(--space-2); color: var(--ink-soft); }
+.cl-part { margin-top: var(--space-5); }
+.cl-part > h3 { font-size: 1.25rem; font-weight: 800; }
+.cl-group { margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--line); }
+.cl-group h4 { font-size: 1.0625rem; font-weight: 800; }
+.cl-group h5 { margin-top: var(--space-3); font-size: 1rem; font-weight: 700; }
+.cl-where { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); margin-top: var(--space-3); }
+@media (min-width: 768px) { .cl-where { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.cl-map { min-height: 240px; border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--line-strong); }
+.cl-vehicle { margin-top: var(--space-3); padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); background: var(--card); border: 1px solid var(--line-strong); }
+.cl-dl { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: var(--space-2) var(--space-4); margin: var(--space-2) 0 0; }
+.cl-dl dt { font-size: .8125rem; color: var(--ink-soft); }
+.cl-dl dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.cl-missing { color: var(--ink-soft); font-weight: 400; font-style: italic; }
+.cl-people, .cl-person-list { margin: var(--space-2) 0 0; padding-left: var(--space-5); }
+.cl-person-list li + li { margin-top: var(--space-3); }
+.cl-note { margin-top: var(--space-2); font-size: .875rem; color: var(--ink-soft); }
+.cl-toggle-row { margin-top: var(--space-5); }
+.cl-toggle {
+  min-height: 44px; padding: 0 var(--space-4); border: 1.5px solid var(--blue-deep); border-radius: var(--radius-md);
+  background: var(--card); color: var(--blue-deep); font: inherit; font-weight: 700; cursor: pointer;
+}
+.cl-toggle:hover { background: var(--yellow-tint); }
+.cl-toggle:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
+.cl-counts { margin-top: var(--space-2); }
+.cl-detail-foot { margin-top: var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--line); font-size: .875rem; color: var(--ink-soft); }
+.cl-detail-foot code { overflow-wrap: anywhere; }
+.cl-loading, .cl-error { margin-top: var(--space-3); }
+.cl-error { font-weight: 600; }
+.cl-about h3 { margin-top: var(--space-5); font-size: 1.125rem; font-weight: 800; }
+.cl-about h3:first-child { margin-top: 0; }
+.cl-about ul { margin-top: var(--space-2); padding-left: var(--space-5); }
+.cl-about li + li { margin-top: var(--space-1); }

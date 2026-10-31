@@ -2,7 +2,7 @@
 
 **asknycdata.com** · NYC's public data, made easy to understand.
 
-Interactive dashboards for NYC residents and businesses, built on public [NYC Open Data](https://opendata.cityofnewyork.us/): a landing page plus ten dashboards (restaurant inspections, restaurant leads, 311 complaints, city payroll spending, what city jobs pay, drinking water, certified M/WBE firms, school quality, street closures, help near me).
+Interactive dashboards for NYC residents and businesses, built on public [NYC Open Data](https://opendata.cityofnewyork.us/): a landing page plus eleven dashboards (restaurant inspections, restaurant leads, 311 complaints, city payroll spending, what city jobs pay, drinking water, certified M/WBE firms, school quality, street closures, help near me, crash lookup).
 
 Built with [Astro](https://docs.astro.build) and deployed to Cloudflare Workers. The page's interactivity is plain vanilla JavaScript. Most pages are prerendered; pages and API routes that read live NYC Open Data run in the Worker (`export const prerender = false`).
 
@@ -27,6 +27,9 @@ src/components/school-quality/  Finder, the school page's "now" and "over time" 
 src/components/shop-diverse/  The finder (filters, results, detail panel, shortlist) and method notes
 src/pages/street-closures/  Street Closures Near You (rendered on demand)
 src/components/street-closures/  The finder (search, window tabs, map + cards, breakdown) and method notes
+src/pages/crash-lookup/    NYC Crash Lookup (rendered on demand)
+src/components/crash-lookup/  The lookup form, results and deep dive; method notes
+src/lib/crashes/          Crash lookup logic: config (date range), schema, normalizing, form, scoring, search SQL, deep dive, rendering
 src/pages/api/            API routes (Worker): /api/restaurants/search, /api/restaurants/:camis, /api/311/*, /api/water/stations, /api/shop-diverse/*, /api/schools/search, /api/street-closures/search
 src/lib/restaurants/      Restaurant logic: SoQL builders, inspection rules, violation categories, rendering
 src/lib/complaints311/    311 logic: config, SoQL, share math, labels, input parsing, geocoding, rendering
@@ -108,6 +111,7 @@ Each dashboard's data reaches the site one of two ways, and both are tracked in 
 | School Quality | `dnpx-dfnc` (+ `school-locations.json`) | yearly | no | 30 days |
 | City Payroll | `k397-673e` | yearly | no | 30 days |
 | Street Closures | `i6b5-j7bu` | weekly | no | 7 days |
+| Crash Lookup (D1, not KV: see below) | `h9gi-nx95` (+ `bm4k-52h4`, `f55k-p6yu`) | daily | yes | 24 h |
 
 Cadences are `daily`, `weekly`, `biweekly`, `monthly`, `quarterly`, `yearly` and `as-needed`. Each also sets when the source counts as **late** (`overdueDays`: 3 days for daily data, 45 for monthly, 400 for yearly, never for as-needed), which is logged and reported. Every source is checked hourly whatever its cadence, so an off-schedule or as-needed update is picked up within the hour.
 
@@ -389,6 +393,47 @@ Ethnicity and gender never score. **No renewal date scores the same as a current
 - Street names are matched in one spelling (`streetKey()` in `streets.js`): padding collapsed, `W 8th St` → `WEST 8 STREET`, ordinals dropped, Saint as `ST`. A street search matches the closed street or either cross street, so the autocomplete lists both (minus DOT's stand-ins such as `BEND` and cemetery boundaries).
 - Purposes (58 DOT permit types, some cut at 40 characters, some with a `-PROTECTED` suffix) get a plain label and one of 10 groups in `purposes.js`.
 - Radius search uses the distance from the spot to the nearest point of the block's line (`geo.js`); checked against SoQL `intersects()` with a buffer polygon.
+
+## NYC Crash Lookup
+
+`/crash-lookup/`: for someone checking whether a person or vehicle they know may have been in a police-reported crash. Enter any mix of place, date and time, vehicle and person details; get crashes ranked by how well they fit, each with chips for what matched; open one for a deep dive (what helps recognize it first, what happened behind "Show crash details").
+
+**Data.** The three NYPD tables on NYC Open Data: crashes (`h9gi-nx95`, key `collision_id`), vehicles (`bm4k-52h4`, key `unique_id`) and persons (`f55k-p6yu`, key `unique_id`). Things the column names don't tell you:
+
+- `persons.vehicle_id` points at **`vehicles.unique_id`**, not `vehicles.vehicle_id` (a UUID nothing joins on).
+- About 4 in 10 person rows aren't people in the crash: registered owners, witnesses, people notified. They're stored with `involved = 0`, left out of matching and counts, and listed apart in the deep dive.
+- `vehicle_model` is empty or junk ("-", "0") from 2024 on, so the form has no model field.
+- Makes are NCIC codes with a body class (`TOYT -CAR/SUV`, `FORD-TRUCK/BUS`); `src/lib/crashes/makes.js` maps them. Vehicle types are free text (`Sedan`, `4 dr sedan`, `PK`, `subn`); `vehicle-types.js` groups them.
+- `person_injury` is only Injured / Killed / Unspecified, so "not hurt" is "No injury recorded".
+- The city republishes every row daily (`:updated_at` moves on all of them), so it can't drive an incremental sync.
+
+**Why D1.** Ranking fuzzy matches across three tables is much easier in SQL over a local copy than through SoQL, and the site already runs on Cloudflare Workers, so the copy lives in D1 (SQLite) and the lookup is one more dashboard here rather than a separate server. The same SQL runs on the local SQLite build in tests. Searches pick candidates with indexed SQL (`src/lib/crashes/search-sql.js`), then re-rank the top 400 in JavaScript (`score.js`), which also decides the chips.
+
+**Set up and load the data** (Node 22.5+ for `node:sqlite`):
+
+```sh
+npm run data:crashes                       # fetch from NYC Open Data, build .data/crashes/crashes.sqlite
+npm run data:crashes:push -- --local       # load it into the local D1 that `npm run dev` reads
+npm run dev                                # http://localhost:4321/crash-lookup/
+```
+
+`SOCRATA_APP_TOKEN` (optional, in `.dev.vars` or the environment) raises Socrata's rate limits; without one the first fetch (about 1.6 million rows) can take a couple of hours. A stopped fetch picks up after the tables it finished; `-- --refetch` starts over. The fetch is kept in `.data/crashes/raw/` (gitignored), so changing a normalizer only needs `npm run data:crashes` again, not a new fetch. The build prints rows per table, orphans (vehicles or persons whose crash isn't in the crash table, persons whose vehicle is missing; kept, not dropped) and the most common makes and vehicle types the maps don't know yet.
+
+**Production.** After the first deploy creates the D1 database (`asknycdata-crashes`, binding `CRASHES_DB`): `npm run data:crashes:push -- --remote`. A push replaces the tables in one go (built as `*_next`, then swapped in) and keeps `ingest_log`.
+
+**Keeping it current.** The hourly cron (as dataset `crashes` in `etl.js`) runs `src/lib/server/crashes-sync.js` when the crash table changes: it re-reads the last 45 days (`SYNC_DAYS`) of all three tables, writes only rows whose hash changed, and deletes rows the city dropped from that window. It refuses to delete anything if the source suddenly has far fewer crashes than the database. Older amendments need a full rebuild, about monthly (`npm run data:crashes -- --refetch`, then `push -- --remote`); `/api/etl/status` says when one is due (`REBUILD_DUE_DAYS`).
+
+**Change the date range.** Edit `DATE_RANGE` in `src/lib/crashes/config.js` (`{ from: "2024-01-01", to: null }`; `to: null` means through the latest data), then do a full rebuild and push. The form's date limits, the page copy and every query follow it.
+
+**API.**
+- `POST /api/crashes/search` with `{ location, date, time, vehicle, person }` (all optional; `src/lib/crashes/query.js`) → `{ dataThrough, total, broad, dateOnly, results }`, the best 50; `400 { problems }` for input it can't use.
+- `GET /api/crashes/:collision_id` → the deep dive (`src/lib/crashes/detail.js`).
+
+Both read D1 only, are cached at the edge for an hour per query and data version, and are rate limited per client (`CRASHES_RATE_LIMITER`, 60 a minute).
+
+**Tests.** `tests/crashes.test.js` (normalizers, form, scoring, the search on a small in-memory database, the sync diff, rendering) runs with `npm test`. `tests/crashes-e2e.test.js` searches the real build in `.data/crashes/` with partial details of known crashes and checks each ranks at or near the top; it skips when there's no build.
+
+**Privacy.** The data has no names, plates or license numbers. Don't add anything that joins it to other sources to identify people.
 
 ## Theme
 

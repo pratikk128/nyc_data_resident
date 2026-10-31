@@ -17,6 +17,8 @@
     "data:water-sites": "node scripts/refresh-water-sites.mjs",
     "data:school-locations": "node scripts/refresh-school-locations.mjs",
     "data:nyc-outline": "node scripts/refresh-nyc-outline.mjs",
+    "data:crashes": "node --env-file-if-exists=.dev.vars scripts/ingest-crashes.mjs",
+    "data:crashes:push": "node scripts/ingest-crashes.mjs --push",
     "data:check": "node scripts/check-snapshots.mjs"
   },
   "dependencies": {
