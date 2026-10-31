@@ -56,8 +56,11 @@ const radiusLabel = (m: number) => (m < 1000 ? `${m} m (about ${Math.max(1, Math
               {BOROUGHS.map((b) => <option value={b.value}>{b.label}</option>)}
             </select>
           </div>
+        </div>
+        <button type="button" class="cl-link-btn cl-more-toggle" aria-expanded="false" aria-controls="cl-more-where" data-more-toggle data-label="place details">More place details</button>
+        <div class="cl-grid cl-more" id="cl-more-where" hidden>
           <div class="field">
-            <label class="filter-label" for="cl-zip">ZIP code <span class="field-optional">(optional)</span></label>
+            <label class="filter-label" for="cl-zip">ZIP code</label>
             <input class="search-input" id="cl-zip" name="zip" type="text" inputmode="numeric" maxlength="5" pattern="\d{5}" autocomplete="postal-code" />
           </div>
         </div>
@@ -85,8 +88,11 @@ const radiusLabel = (m: number) => (m < 1000 ? `${m} m (about ${Math.max(1, Math
             <label class="filter-label" for="cl-to">To</label>
             <input class="search-input" id="cl-to" name="to" type="date" min={DATE_RANGE.from} max={maxDate} />
           </div>
+        </div>
+        <button type="button" class="cl-link-btn cl-more-toggle" aria-expanded="false" aria-controls="cl-more-when" data-more-toggle data-label="time details">More time details</button>
+        <div class="cl-grid cl-more" id="cl-more-when" hidden>
           <div class="field">
-            <label class="filter-label" for="cl-at">Around what time? <span class="field-optional">(optional)</span></label>
+            <label class="filter-label" for="cl-at">Around what time?</label>
             <input class="search-input" id="cl-at" name="at" type="time" />
           </div>
           <div class="field">
@@ -121,6 +127,9 @@ const radiusLabel = (m: number) => (m < 1000 ? `${m} m (about ${Math.max(1, Math
               {VEHICLE_TYPES.map((t) => <option value={t.key}>{t.label}</option>)}
             </select>
           </div>
+        </div>
+        <button type="button" class="cl-link-btn cl-more-toggle" aria-expanded="false" aria-controls="cl-more-vehicle" data-more-toggle data-label="vehicle details">More vehicle details</button>
+        <div class="cl-grid cl-more" id="cl-more-vehicle" hidden>
           <div class="field">
             <label class="filter-label" for="cl-state">Plate state</label>
             <input class="search-input" id="cl-state" name="state" type="text" list="cl-states" maxlength="2" autocomplete="off" placeholder="NY" />
@@ -161,6 +170,9 @@ const radiusLabel = (m: number) => (m < 1000 ? `${m} m (about ${Math.max(1, Math
             <label class="filter-label" for="cl-ato">to <span class="field-optional">(for a range)</span></label>
             <input class="search-input" id="cl-ato" name="ato" type="number" inputmode="numeric" min="0" max="110" aria-describedby="cl-age-hint" />
           </div>
+        </div>
+        <button type="button" class="cl-link-btn cl-more-toggle" aria-expanded="false" aria-controls="cl-more-person" data-more-toggle data-label="person details">More person details</button>
+        <div class="cl-grid cl-more" id="cl-more-person" hidden>
           <div class="field">
             <label class="filter-label" for="cl-hurt">Hurt?</label>
             <select class="filter-select" id="cl-hurt" name="hurt">
@@ -254,6 +266,26 @@ const radiusLabel = (m: number) => (m < 1000 ? `${m} m (about ${Math.max(1, Math
       if (values[k] || el.tagName !== 'SELECT' || !['r', 'within'].includes(k)) el.value = values[k] ?? '';
     }
     showSpot(values.lat && values.lon ? values.place || 'the spot you picked' : null);
+    // A folded-away section opens when the URL fills any of its fields, and folds back when it fills none.
+    for (const btn of moreToggles) setMore(btn, filledIn(morePanel(btn)) > 0);
+  }
+
+  // ---------- More details (the rarer fields, folded away until asked for) ----------
+
+  const moreToggles = [...root.querySelectorAll<HTMLButtonElement>('[data-more-toggle]')];
+  const morePanel = (btn: HTMLButtonElement) => document.getElementById(btn.getAttribute('aria-controls')!)!;
+  const defaultOf = (el: HTMLInputElement | HTMLSelectElement) =>
+    el instanceof HTMLSelectElement ? ([...el.options].find((o) => o.defaultSelected) ?? el.options[0])?.value ?? '' : '';
+  const filledIn = (panel: HTMLElement) =>
+    [...panel.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input, select')].filter((el) => el.value !== defaultOf(el)).length;
+
+  // Folded, the button says how many of its fields are still filled in, since they still count in the search.
+  function setMore(btn: HTMLButtonElement, open: boolean) {
+    const panel = morePanel(btn);
+    const n = filledIn(panel);
+    panel.hidden = !open;
+    btn.setAttribute('aria-expanded', String(open));
+    btn.textContent = `${open ? 'Fewer' : 'More'} ${btn.dataset.label}${!open && n ? ` (${n} filled in)` : ''}`;
   }
 
   function showSpot(label: string | null) {
@@ -403,6 +435,13 @@ const radiusLabel = (m: number) => (m < 1000 ? `${m} m (about ${Math.max(1, Math
         history.pushState(null, '', params.size ? `?${params}` : location.pathname);
         syncFromUrl();
       }
+      return;
+    }
+    const moreBtn = target.closest<HTMLButtonElement>('[data-more-toggle]');
+    if (moreBtn) {
+      const open = moreBtn.getAttribute('aria-expanded') !== 'true';
+      setMore(moreBtn, open);
+      if (open) morePanel(moreBtn).querySelector<HTMLElement>('input, select')?.focus();
       return;
     }
     const toggle = target.closest<HTMLButtonElement>('[data-details-toggle]');
