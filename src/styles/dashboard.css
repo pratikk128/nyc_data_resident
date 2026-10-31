@@ -3891,7 +3891,10 @@ a.hn-directions:hover { background: var(--accent-deep); }
   background: var(--card);
 }
 .cl-fieldset legend { padding: 0 var(--space-2); font-weight: 800; font-size: 1.0625rem; }
-.cl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: var(--space-3) var(--space-4); }
+/* Location or time, vehicle, person: side by side when there's room, each two fields wide */
+.cl-panels { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
+@media (min-width: 1024px) { .cl-panels { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.cl-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3) var(--space-4); }
 .cl-wide { grid-column: 1 / -1; }
 .cl-grid .search-input, .cl-grid .filter-select { width: 100%; }
 .cl-fieldset > .field-hint { margin-top: var(--space-3); }

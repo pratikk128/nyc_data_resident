@@ -1,7 +1,7 @@
 ---
 /*
- * The crash lookup: "What do you know?" (where, when, the vehicle, the
- * person; every field optional), then the possible matches, best first,
+ * The crash lookup: "What do you know?" (location or time, the vehicle, the
+ * person, side by side; every field optional), then the possible matches, best first,
  * each with the details that matched, then one crash's deep dive
  * (recognition details first, what happened behind a toggle).
  *
@@ -33,164 +33,157 @@ const radiusLabel = (m: number) => (m < 1000 ? `${m} m (about ${Math.max(1, Math
   <section class="dash-section" id="cl-find" aria-labelledby="cl-find-title">
     <header class="section-head">
       <h2 id="cl-find-title">What do you know?</h2>
-      <p class="section-intro">Fill in whatever you have. Every field is optional, and a few good details beat many guesses: a cross street, the car’s make and year, or a date.</p>
+      <p class="section-intro">Fill in any or all three: where and when, the vehicle, the person. Every field is optional, and a few good details beat many guesses: a cross street, the car’s make and year, or a date.</p>
     </header>
 
     <form class="cl-form" novalidate role="search" aria-label="Look up a crash" data-form>
-      <fieldset class="cl-fieldset">
-        <legend>Where</legend>
-        <div class="cl-grid">
-          <div class="field cl-wide">
-            <label class="filter-label" for="cl-where">Street, intersection or address</label>
-            <div class="c311-combo">
-              <input class="search-input" id="cl-where" name="where" type="text" role="combobox" aria-autocomplete="list"
-                aria-expanded="false" aria-controls="cl-where-list" aria-describedby="cl-where-hint"
-                autocomplete="off" spellcheck="false" maxlength="120" placeholder="Try “Broadway & W 72 St”" />
-              <ul class="c311-suggest" id="cl-where-list" role="listbox" aria-label="Places" hidden data-suggest></ul>
+      <div class="cl-panels">
+        <fieldset class="cl-fieldset">
+          <legend>Location or time</legend>
+          <div class="cl-grid">
+            <div class="field cl-wide">
+              <label class="filter-label" for="cl-where">Street, intersection or address</label>
+              <div class="c311-combo">
+                <input class="search-input" id="cl-where" name="where" type="text" role="combobox" aria-autocomplete="list"
+                  aria-expanded="false" aria-controls="cl-where-list" aria-describedby="cl-where-hint"
+                  autocomplete="off" spellcheck="false" maxlength="120" placeholder="Try “Broadway & W 72 St”" />
+                <ul class="c311-suggest" id="cl-where-list" role="listbox" aria-label="Places" hidden data-suggest></ul>
+              </div>
+              <p class="field-hint" id="cl-where-hint">Matches the street names on the police report. Pick a suggestion to also find crashes near that spot.</p>
             </div>
-            <p class="field-hint" id="cl-where-hint">Matches the street names on the police report. Pick a suggestion to also find crashes near that spot.</p>
+            <div class="field cl-wide">
+              <label class="filter-label" for="cl-boro">Borough</label>
+              <select class="filter-select" id="cl-boro" name="boro">
+                <option value="">Any borough</option>
+                {BOROUGHS.map((b) => <option value={b.value}>{b.label}</option>)}
+              </select>
+            </div>
+            <div class="field">
+              <label class="filter-label" for="cl-from">From</label>
+              <input class="search-input" id="cl-from" name="from" type="date" min={range.from} max={maxDate} />
+            </div>
+            <div class="field">
+              <label class="filter-label" for="cl-to">To</label>
+              <input class="search-input" id="cl-to" name="to" type="date" min={range.from} max={maxDate} />
+            </div>
           </div>
-          <div class="field">
-            <label class="filter-label" for="cl-boro">Borough <span class="field-optional">(optional)</span></label>
-            <select class="filter-select" id="cl-boro" name="boro">
-              <option value="">Any borough</option>
-              {BOROUGHS.map((b) => <option value={b.value}>{b.label}</option>)}
-            </select>
+          <div class="cl-spot" data-spot hidden>
+            <p class="cl-spot-text">Also searching near <strong data-spot-label></strong>
+              <button type="button" class="cl-link-btn" data-spot-clear>Don’t search near this spot</button></p>
+            <div class="field cl-spot-radius">
+              <label class="filter-label" for="cl-r">Within</label>
+              <select class="filter-select" id="cl-r" name="r">
+                {RADIUS_CHOICES.map((m) => <option value={m} selected={m === DEFAULT_RADIUS}>{radiusLabel(m)}</option>)}
+              </select>
+            </div>
+            <input type="hidden" name="lat" /><input type="hidden" name="lon" /><input type="hidden" name="place" />
           </div>
-        </div>
-        <button type="button" class="cl-link-btn cl-more-toggle" aria-expanded="false" aria-controls="cl-more-where" data-more-toggle data-label="place details">More place details</button>
-        <div class="cl-grid cl-more" id="cl-more-where" hidden>
-          <div class="field">
-            <label class="filter-label" for="cl-zip">ZIP code</label>
-            <input class="search-input" id="cl-zip" name="zip" type="text" inputmode="numeric" maxlength="5" pattern="\d{5}" autocomplete="postal-code" />
+          <button type="button" class="cl-link-btn cl-more-toggle" aria-expanded="false" aria-controls="cl-more-where" data-more-toggle data-label="place and time details">More place and time details</button>
+          <div class="cl-grid cl-more" id="cl-more-where" hidden>
+            <div class="field cl-wide">
+              <label class="filter-label" for="cl-zip">ZIP code</label>
+              <input class="search-input" id="cl-zip" name="zip" type="text" inputmode="numeric" maxlength="5" pattern="\d{5}" autocomplete="postal-code" />
+            </div>
+            <div class="field">
+              <label class="filter-label" for="cl-at">Around what time?</label>
+              <input class="search-input" id="cl-at" name="at" type="time" />
+            </div>
+            <div class="field">
+              <label class="filter-label" for="cl-within">Give or take</label>
+              <select class="filter-select" id="cl-within" name="within">
+                {TIME_WINDOWS.map((m) => <option value={m} selected={m === 60}>{windowLabel(m)}</option>)}
+              </select>
+            </div>
           </div>
-        </div>
-        <div class="cl-spot" data-spot hidden>
-          <p class="cl-spot-text">Also searching near <strong data-spot-label></strong>
-            <button type="button" class="cl-link-btn" data-spot-clear>Don’t search near this spot</button></p>
-          <div class="field cl-spot-radius">
-            <label class="filter-label" for="cl-r">Within</label>
-            <select class="filter-select" id="cl-r" name="r">
-              {RADIUS_CHOICES.map((m) => <option value={m} selected={m === DEFAULT_RADIUS}>{radiusLabel(m)}</option>)}
-            </select>
-          </div>
-          <input type="hidden" name="lat" /><input type="hidden" name="lon" /><input type="hidden" name="place" />
-        </div>
-      </fieldset>
+        </fieldset>
 
-      <fieldset class="cl-fieldset">
-        <legend>When</legend>
-        <div class="cl-grid">
-          <div class="field">
-            <label class="filter-label" for="cl-from">From</label>
-            <input class="search-input" id="cl-from" name="from" type="date" min={range.from} max={maxDate} />
+        <fieldset class="cl-fieldset">
+          <legend>Vehicle</legend>
+          <div class="cl-grid">
+            <div class="field cl-wide">
+              <label class="filter-label" for="cl-make">Make</label>
+              <input class="search-input" id="cl-make" name="make" type="text" list="cl-makes" autocomplete="off" spellcheck="false" maxlength="40" placeholder="Toyota, Honda, Ford…" />
+              <datalist id="cl-makes">{MAKES.map((m) => <option value={m.label} />)}</datalist>
+            </div>
+            <div class="field">
+              <label class="filter-label" for="cl-yfrom">Model year</label>
+              <input class="search-input" id="cl-yfrom" name="yfrom" type="number" inputmode="numeric" min="1900" max={new Date().getUTCFullYear() + 1} placeholder="2019" aria-describedby="cl-year-hint" />
+            </div>
+            <div class="field">
+              <label class="filter-label" for="cl-yto">to <span class="field-optional">(for a range)</span></label>
+              <input class="search-input" id="cl-yto" name="yto" type="number" inputmode="numeric" min="1900" max={new Date().getUTCFullYear() + 1} aria-describedby="cl-year-hint" />
+            </div>
+            <div class="field cl-wide">
+              <label class="filter-label" for="cl-type">Kind of vehicle</label>
+              <select class="filter-select" id="cl-type" name="type">
+                <option value="">Any</option>
+                {VEHICLE_TYPES.map((t) => <option value={t.key}>{t.label}</option>)}
+              </select>
+            </div>
           </div>
-          <div class="field">
-            <label class="filter-label" for="cl-to">To</label>
-            <input class="search-input" id="cl-to" name="to" type="date" min={range.from} max={maxDate} />
+          <button type="button" class="cl-link-btn cl-more-toggle" aria-expanded="false" aria-controls="cl-more-vehicle" data-more-toggle data-label="vehicle details">More vehicle details</button>
+          <div class="cl-grid cl-more" id="cl-more-vehicle" hidden>
+            <div class="field">
+              <label class="filter-label" for="cl-state">Plate state</label>
+              <input class="search-input" id="cl-state" name="state" type="text" list="cl-states" maxlength="2" autocomplete="off" placeholder="NY" />
+              <datalist id="cl-states">{STATES.map((s) => <option value={s} />)}</datalist>
+            </div>
+            <div class="field">
+              <label class="filter-label" for="cl-dir">Heading</label>
+              <select class="filter-select" id="cl-dir" name="dir">
+                <option value="">Any direction</option>
+                {DIRECTIONS.map((d) => <option value={d}>{d}</option>)}
+              </select>
+            </div>
           </div>
-        </div>
-        <button type="button" class="cl-link-btn cl-more-toggle" aria-expanded="false" aria-controls="cl-more-when" data-more-toggle data-label="time details">More time details</button>
-        <div class="cl-grid cl-more" id="cl-more-when" hidden>
-          <div class="field">
-            <label class="filter-label" for="cl-at">Around what time?</label>
-            <input class="search-input" id="cl-at" name="at" type="time" />
-          </div>
-          <div class="field">
-            <label class="filter-label" for="cl-within">Give or take</label>
-            <select class="filter-select" id="cl-within" name="within">
-              {TIME_WINDOWS.map((m) => <option value={m} selected={m === 60}>{windowLabel(m)}</option>)}
-            </select>
-          </div>
-        </div>
-      </fieldset>
+          <p class="field-hint" id="cl-year-hint">A year a model year off still counts, for less. The police data doesn’t record the model (Camry, Civic), so there’s no field for it.</p>
+        </fieldset>
 
-      <fieldset class="cl-fieldset">
-        <legend>Vehicle</legend>
-        <div class="cl-grid">
-          <div class="field">
-            <label class="filter-label" for="cl-make">Make</label>
-            <input class="search-input" id="cl-make" name="make" type="text" list="cl-makes" autocomplete="off" spellcheck="false" maxlength="40" placeholder="Toyota, Honda, Ford…" />
-            <datalist id="cl-makes">{MAKES.map((m) => <option value={m.label} />)}</datalist>
+        <fieldset class="cl-fieldset">
+          <legend>Person</legend>
+          <div class="cl-grid">
+            <div class="field cl-wide">
+              <label class="filter-label" for="cl-role">They were</label>
+              <select class="filter-select" id="cl-role" name="role">
+                <option value="">Any</option>
+                {INVOLVED_ROLES.map((r) => <option value={r}>{r === 'other-motorized' ? 'On an e-scooter, skateboard or similar' : `A ${roleLabel(r).toLowerCase()}`}</option>)}
+              </select>
+            </div>
+            <div class="field cl-wide">
+              <label class="filter-label" for="cl-sex">Sex</label>
+              <select class="filter-select" id="cl-sex" name="sex">
+                <option value="">Any</option><option value="F">Female</option><option value="M">Male</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="filter-label" for="cl-afrom">Age</label>
+              <input class="search-input" id="cl-afrom" name="afrom" type="number" inputmode="numeric" min="0" max="110" placeholder="34" aria-describedby="cl-age-hint" />
+            </div>
+            <div class="field">
+              <label class="filter-label" for="cl-ato">to <span class="field-optional">(for a range)</span></label>
+              <input class="search-input" id="cl-ato" name="ato" type="number" inputmode="numeric" min="0" max="110" aria-describedby="cl-age-hint" />
+            </div>
           </div>
-          <div class="field">
-            <label class="filter-label" for="cl-yfrom">Model year</label>
-            <input class="search-input" id="cl-yfrom" name="yfrom" type="number" inputmode="numeric" min="1900" max={new Date().getUTCFullYear() + 1} placeholder="2019" aria-describedby="cl-year-hint" />
+          <button type="button" class="cl-link-btn cl-more-toggle" aria-expanded="false" aria-controls="cl-more-person" data-more-toggle data-label="person details">More person details</button>
+          <div class="cl-grid cl-more" id="cl-more-person" hidden>
+            <div class="field">
+              <label class="filter-label" for="cl-hurt">Hurt?</label>
+              <select class="filter-select" id="cl-hurt" name="hurt">
+                <option value="">Don’t know</option><option value="yes">Injured or killed</option><option value="no">No injury recorded</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="filter-label" for="cl-seat">Where they sat</label>
+              <select class="filter-select" id="cl-seat" name="seat">
+                <option value="">Any</option>
+                <option value="rear">Back seat (anywhere)</option>
+                {POSITIONS.map((p) => <option value={p.key}>{p.label}</option>)}
+              </select>
+            </div>
           </div>
-          <div class="field">
-            <label class="filter-label" for="cl-yto">to <span class="field-optional">(for a range)</span></label>
-            <input class="search-input" id="cl-yto" name="yto" type="number" inputmode="numeric" min="1900" max={new Date().getUTCFullYear() + 1} aria-describedby="cl-year-hint" />
-          </div>
-          <div class="field">
-            <label class="filter-label" for="cl-type">Kind of vehicle</label>
-            <select class="filter-select" id="cl-type" name="type">
-              <option value="">Any</option>
-              {VEHICLE_TYPES.map((t) => <option value={t.key}>{t.label}</option>)}
-            </select>
-          </div>
-        </div>
-        <button type="button" class="cl-link-btn cl-more-toggle" aria-expanded="false" aria-controls="cl-more-vehicle" data-more-toggle data-label="vehicle details">More vehicle details</button>
-        <div class="cl-grid cl-more" id="cl-more-vehicle" hidden>
-          <div class="field">
-            <label class="filter-label" for="cl-state">Plate state</label>
-            <input class="search-input" id="cl-state" name="state" type="text" list="cl-states" maxlength="2" autocomplete="off" placeholder="NY" />
-            <datalist id="cl-states">{STATES.map((s) => <option value={s} />)}</datalist>
-          </div>
-          <div class="field">
-            <label class="filter-label" for="cl-dir">Heading</label>
-            <select class="filter-select" id="cl-dir" name="dir">
-              <option value="">Any direction</option>
-              {DIRECTIONS.map((d) => <option value={d}>{d}</option>)}
-            </select>
-          </div>
-        </div>
-        <p class="field-hint" id="cl-year-hint">A year a model year off still counts, for less. The police data doesn’t record the model (Camry, Civic), so there’s no field for it.</p>
-      </fieldset>
-
-      <fieldset class="cl-fieldset">
-        <legend>Person</legend>
-        <div class="cl-grid">
-          <div class="field">
-            <label class="filter-label" for="cl-role">They were</label>
-            <select class="filter-select" id="cl-role" name="role">
-              <option value="">Any</option>
-              {INVOLVED_ROLES.map((r) => <option value={r}>{r === 'other-motorized' ? 'On an e-scooter, skateboard or similar' : `A ${roleLabel(r).toLowerCase()}`}</option>)}
-            </select>
-          </div>
-          <div class="field">
-            <label class="filter-label" for="cl-sex">Sex</label>
-            <select class="filter-select" id="cl-sex" name="sex">
-              <option value="">Any</option><option value="F">Female</option><option value="M">Male</option>
-            </select>
-          </div>
-          <div class="field">
-            <label class="filter-label" for="cl-afrom">Age</label>
-            <input class="search-input" id="cl-afrom" name="afrom" type="number" inputmode="numeric" min="0" max="110" placeholder="34" aria-describedby="cl-age-hint" />
-          </div>
-          <div class="field">
-            <label class="filter-label" for="cl-ato">to <span class="field-optional">(for a range)</span></label>
-            <input class="search-input" id="cl-ato" name="ato" type="number" inputmode="numeric" min="0" max="110" aria-describedby="cl-age-hint" />
-          </div>
-        </div>
-        <button type="button" class="cl-link-btn cl-more-toggle" aria-expanded="false" aria-controls="cl-more-person" data-more-toggle data-label="person details">More person details</button>
-        <div class="cl-grid cl-more" id="cl-more-person" hidden>
-          <div class="field">
-            <label class="filter-label" for="cl-hurt">Hurt?</label>
-            <select class="filter-select" id="cl-hurt" name="hurt">
-              <option value="">Don’t know</option><option value="yes">Injured or killed</option><option value="no">No injury recorded</option>
-            </select>
-          </div>
-          <div class="field">
-            <label class="filter-label" for="cl-seat">Where they sat</label>
-            <select class="filter-select" id="cl-seat" name="seat">
-              <option value="">Any</option>
-              <option value="rear">Back seat (anywhere)</option>
-              {POSITIONS.map((p) => <option value={p.key}>{p.label}</option>)}
-            </select>
-          </div>
-        </div>
-        <p class="field-hint" id="cl-age-hint">Ages a couple of years off still count, for less.</p>
-      </fieldset>
+          <p class="field-hint" id="cl-age-hint">Ages a couple of years off still count, for less.</p>
+        </fieldset>
+      </div>
 
       <ul class="cl-problems" data-problems role="alert" hidden></ul>
       <div class="cl-actions">
