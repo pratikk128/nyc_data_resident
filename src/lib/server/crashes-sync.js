@@ -15,7 +15,7 @@
  */
 import { env } from "cloudflare:workers";
 import { soql } from "./socrata.js";
-import { DATASETS, DATE_RANGE, SYNC_DAYS } from "../crashes/config.js";
+import { DATASETS, SYNC_DAYS, dateRange } from "../crashes/config.js";
 import { COLUMNS } from "../crashes/schema.js";
 import { crashRow, streetRows, vehicleRow, personRow } from "../crashes/rows.js";
 
@@ -30,12 +30,13 @@ export function windowStart(today, days = SYNC_DAYS) {
   const d = new Date(`${today}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() - days);
   const start = d.toISOString().slice(0, 10);
-  return start < DATE_RANGE.from ? DATE_RANGE.from : start;
+  const { from } = dateRange(today);
+  return start < from ? from : start;
 }
 
-async function fetchWindow(table, from) {
+async function fetchWindow(table, from, to) {
   const { id, key } = DATASETS[table];
-  const where = `crash_date >= '${from}T00:00:00'${DATE_RANGE.to ? ` AND crash_date <= '${DATE_RANGE.to}T23:59:59'` : ""}`;
+  const where = `crash_date >= '${from}T00:00:00'${to ? ` AND crash_date <= '${to}T23:59:59'` : ""}`;
   const rows = [];
   let last = null;
   while (rows.length < MAX_ROWS) {
@@ -80,13 +81,14 @@ async function runBatches(d1, statements) {
 export async function syncCrashes(today, d1 = env.CRASHES_DB) {
   if (!d1) throw new Error("No CRASHES_DB binding");
   const startedAt = new Date().toISOString();
+  const range = dateRange(today);
   const from = windowStart(today);
   // Nothing to keep current until the first full build is pushed (the status page says so).
   const built = await d1.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'ingest_log'").all();
   if (!built.results.length) return { from, skipped: "no full build loaded yet" };
 
   const source = {};
-  for (const table of Object.keys(DATASETS)) source[table] = await fetchWindow(table, from);
+  for (const table of Object.keys(DATASETS)) source[table] = await fetchWindow(table, from, range.to);
 
   const plan = {};
   for (const table of Object.keys(DATASETS)) {
@@ -116,12 +118,17 @@ export async function syncCrashes(today, d1 = env.CRASHES_DB) {
   for (const crash of plan.crashes.upserts) {
     for (const s of streetRows(crash)) statements.push(d1.prepare(streetSql).bind(...COLUMNS.crash_streets.map((c) => s[c])));
   }
+  // The range rolls forward a day at a time: drop crashes that aged out of it,
+  // street rows first (found through the crash date index), then the rest.
+  const before = range.from;
+  statements.push(d1.prepare("DELETE FROM crash_streets WHERE collision_id IN (SELECT collision_id FROM crashes WHERE crash_date < ?)").bind(before));
+  for (const table of Object.keys(DATASETS)) statements.push(d1.prepare(`DELETE FROM ${table} WHERE crash_date < ?`).bind(before));
   await runBatches(d1, statements);
 
   const counts = Object.fromEntries(Object.keys(DATASETS).map((t) => [t, {
     fetched: source[t].length, written: plan[t].upserts.length, deleted: plan[t].deletes.length
   }]));
   await d1.prepare(`INSERT INTO ingest_log (kind, started_at, finished_at, date_from, date_to, counts)
-    VALUES ('sync', ?, ?, ?, ?, ?)`).bind(startedAt, new Date().toISOString(), from, DATE_RANGE.to, JSON.stringify(counts)).run();
-  return { from, counts };
+    VALUES ('sync', ?, ?, ?, ?, ?)`).bind(startedAt, new Date().toISOString(), from, range.to, JSON.stringify(counts)).run();
+  return { from, agedOutBefore: before, counts };
 }

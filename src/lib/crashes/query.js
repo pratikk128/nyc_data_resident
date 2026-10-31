@@ -5,7 +5,7 @@
  *
  * Every field is optional. The body:
  *   location  { text?, borough?, zip?, lat?, lon?, radius? }   radius in meters, with lat/lon
- *   date      { from?, to? }                                  YYYY-MM-DD, kept inside DATE_RANGE
+ *   date      { from?, to? }                                  YYYY-MM-DD, kept inside dateRange()
  *   time      { around: "HH:MM", within: minutes } | { from: "HH:MM", to: "HH:MM" }
  *   vehicle   { make?, yearFrom?, yearTo?, type?, state?, direction? }
  *   person    { role?, sex?, ageFrom?, ageTo?, injured?: "yes" | "no", position? }
@@ -14,7 +14,8 @@
  * → { criteria, problems }: problems are sentences for the form; criteria
  *   leave out whatever couldn't be read.
  */
-import { DATE_RANGE } from "./config.js";
+import { dateRange } from "./config.js";
+import { nycToday } from "../format.js";
 import { streetMatchKey, streetBaseKey, minuteOf, INVOLVED_ROLES, POSITIONS } from "./normalize.js";
 import { resolveMake } from "./makes.js";
 import { resolveVehicleType } from "./vehicle-types.js";
@@ -76,11 +77,9 @@ function readLocation(loc = {}, problems) {
   return out;
 }
 
-// The last day with data; DATE_RANGE.to, or today while the range is open.
-export const rangeEnd = (dataThrough) => DATE_RANGE.to ?? dataThrough ?? new Date().toISOString().slice(0, 10);
-
-function readDates(date = {}, problems, dataThrough) {
-  const lo = DATE_RANGE.from, hi = rangeEnd(dataThrough);
+function readDates(date = {}, problems, dataThrough, today) {
+  const range = dateRange(today);
+  const lo = range.from, hi = range.to ?? dataThrough ?? today;
   let from = clean(date.from), to = clean(date.to);
   for (const [name, v] of [["start", from], ["end", to]]) {
     if (v && !isDate(v)) problems.push(`The ${name} date should look like 2024-06-15.`);
@@ -160,10 +159,11 @@ function readPerson(p = {}, problems) {
   return Object.keys(out).length ? out : null;
 }
 
-export function normalizeSearch(body = {}, { dataThrough } = {}) {
+// `today` (YYYY-MM-DD, New York) sets the rolling date range; tests pin it.
+export function normalizeSearch(body = {}, { dataThrough, today = nycToday() } = {}) {
   const problems = [];
   const location = readLocation(body.location, problems);
-  const date = readDates(body.date, problems, dataThrough);
+  const date = readDates(body.date, problems, dataThrough, today);
   const criteria = {
     ...location,
     dateFrom: date.from,

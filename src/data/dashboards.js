@@ -97,7 +97,7 @@ export const dashboards = [
   {
     id: "crash-lookup",
     title: "NYC Crash Lookup",
-    description: "Think a car, bike or person you know was in a crash? Enter what you know and see police-reported crashes since 2024 that could match.",
+    description: "Think a car, bike or person you know was in a crash? Enter what you know and see police-reported crashes from the last year that could match.",
     category: "Public Safety",
     url: "/crash-lookup/",
     audience: ["resident"]

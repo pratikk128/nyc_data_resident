@@ -8,7 +8,7 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
 import CrashLookup from '../../components/crash-lookup/CrashLookup.astro';
 import AboutSection from '../../components/crash-lookup/AboutSection.astro';
 import { dataStatus } from '../../lib/server/crashes.js';
-import { DATE_RANGE } from '../../lib/crashes/config.js';
+import { dateRange } from '../../lib/crashes/config.js';
 import { date } from '../../lib/format.js';
 
 export const prerender = false;
@@ -20,13 +20,14 @@ try {
   console.error(err); // the page still loads; searches say the data isn't loaded
 }
 const through = status?.dataThrough ?? null;
+const range = dateRange();
 
 if (import.meta.env.PROD && status) Astro.response.headers.set('Cache-Control', 'public, max-age=300');
 ---
 
 <DashboardLayout
   title="NYC Crash Lookup"
-  description="Check whether a car, bike or person you know may have been in a police-reported NYC crash since 2024. Enter what you know; see possible matches and what the report says."
+  description="Check whether a car, bike or person you know may have been in a police-reported NYC crash in the last year. Enter what you know; see possible matches and what the report says."
   path="/crash-lookup/"
   category="Public Safety"
   lastRefreshed={status?.lastSync ? date(status.lastSync.slice(0, 10)) : status?.lastFull ? date(status.lastFull.slice(0, 10)) : undefined}
@@ -41,7 +42,7 @@ if (import.meta.env.PROD && status) Astro.response.headers.set('Cache-Control', 
   </header>
 
   <div class="callout callout-heads-up cl-heads-up" role="note">
-    <p><strong>Heads up.</strong> This is NYPD crash report data from NYC Open Data, {date(DATE_RANGE.from)} to {DATE_RANGE.to ? date(DATE_RANGE.to) : through ? date(through) : 'the latest report'}.
+    <p><strong>Heads up.</strong> This is NYPD crash report data from NYC Open Data, {date(range.from)} to {range.to ? date(range.to) : through ? date(through) : 'the latest report'}.
     It can be incomplete or a few days behind, and it has no names or plates. A match here is a <em>possible</em> match,
     not a confirmation. To confirm one, contact the NYPD precinct or request the police report (<a href="#cl-about">how</a>).</p>
   </div>

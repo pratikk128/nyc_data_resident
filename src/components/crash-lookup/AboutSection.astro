@@ -3,7 +3,7 @@
  * NYC Crash Lookup: where the data comes from, how matching works, its
  * limits, and how to confirm a crash with the NYPD (DESIGN.md §7).
  */
-import { DATASETS, DATE_RANGE, SYNC_DAYS, sourceUrl } from '../../lib/crashes/config.js';
+import { DATASETS, SYNC_DAYS, dateRange, sourceUrl } from '../../lib/crashes/config.js';
 import { date } from '../../lib/format.js';
 
 interface Props {
@@ -11,6 +11,7 @@ interface Props {
   lastSync: string | null;
 }
 const { dataThrough, lastSync } = Astro.props;
+const range = dateRange();
 ---
 
 <section class="dash-section" id="cl-about" aria-labelledby="cl-about-title">
@@ -22,7 +23,7 @@ const { dataThrough, lastSync } = Astro.props;
     <p>
       NYPD crash reports (form MV-104AN) published on NYC Open Data, in three tables:
       {Object.entries(DATASETS).map(([t, d], i, all) => <><a href={sourceUrl(t)} rel="noopener">{d.name}</a> ({d.id}){i < all.length - 1 ? ', ' : '.'}</>)}
-      This lookup has crashes from {date(DATE_RANGE.from)}{DATE_RANGE.to ? ` to ${date(DATE_RANGE.to)}` : dataThrough ? ` to ${date(dataThrough)}` : ''}.
+      This lookup has the last year of crashes, from {date(range.from)}{range.to ? ` to ${date(range.to)}` : dataThrough ? ` to ${date(dataThrough)}` : ''}; older ones drop off each day.
       {lastSync && <> We check for new and changed reports from the last {SYNC_DAYS} days every day (last on {date(lastSync.slice(0, 10))}), and reload everything about once a month.</>}
     </p>
 

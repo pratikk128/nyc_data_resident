@@ -15,13 +15,14 @@ import { VEHICLE_TYPES } from '../../lib/crashes/vehicle-types.js';
 import { MAKES } from '../../lib/crashes/makes.js';
 import { POSITIONS, ROLE_LABELS, INVOLVED_ROLES } from '../../lib/crashes/normalize.js';
 import { RADIUS_CHOICES, DEFAULT_RADIUS, TIME_WINDOWS, DIRECTIONS } from '../../lib/crashes/query.js';
-import { DATE_RANGE } from '../../lib/crashes/config.js';
+import { dateRange } from '../../lib/crashes/config.js';
 
 interface Props {
   dataThrough: string | null; // newest crash date in the database
 }
 const { dataThrough } = Astro.props;
-const maxDate = DATE_RANGE.to ?? dataThrough ?? undefined;
+const range = dateRange();
+const maxDate = range.to ?? dataThrough ?? undefined;
 const STATES = ['NY', 'NJ', 'CT', 'PA', 'FL', 'MA', 'TX', 'CA', 'NC', 'GA', 'VA', 'MD', 'OH', 'IL', 'DE', 'RI', 'VT', 'NH', 'ME', 'SC', 'MI', 'IN', 'TN', 'AZ', 'WA', 'CO', 'OR', 'MN', 'WI', 'MO', 'AL', 'LA', 'KY', 'OK', 'IA', 'UT', 'NV', 'AR', 'MS', 'KS', 'NM', 'NE', 'ID', 'WV', 'HI', 'AK', 'SD', 'ND', 'MT', 'WY', 'DC'];
 const roleLabel = (r: string) => (ROLE_LABELS as Record<string, string>)[r];
 const windowLabel = (m: number) => (m < 60 ? `${m} minutes` : m === 60 ? '1 hour' : `${m / 60} hours`);
@@ -82,11 +83,11 @@ const radiusLabel = (m: number) => (m < 1000 ? `${m} m (about ${Math.max(1, Math
         <div class="cl-grid">
           <div class="field">
             <label class="filter-label" for="cl-from">From</label>
-            <input class="search-input" id="cl-from" name="from" type="date" min={DATE_RANGE.from} max={maxDate} />
+            <input class="search-input" id="cl-from" name="from" type="date" min={range.from} max={maxDate} />
           </div>
           <div class="field">
             <label class="filter-label" for="cl-to">To</label>
-            <input class="search-input" id="cl-to" name="to" type="date" min={DATE_RANGE.from} max={maxDate} />
+            <input class="search-input" id="cl-to" name="to" type="date" min={range.from} max={maxDate} />
           </div>
         </div>
         <button type="button" class="cl-link-btn cl-more-toggle" aria-expanded="false" aria-controls="cl-more-when" data-more-toggle data-label="time details">More time details</button>

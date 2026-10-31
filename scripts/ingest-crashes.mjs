@@ -6,7 +6,9 @@
  *   npm run data:crashes:push -- --local   load the build into the local D1 (what `astro dev` reads)
  *   npm run data:crashes:push -- --remote  load it into production D1
  *
- * The date range is DATE_RANGE in src/lib/crashes/config.js. The site's
+ * The date range is dateRange() in src/lib/crashes/config.js (the last
+ * RANGE_YEARS years); the build drops rows older than it on the day it runs,
+ * so a kept fetch can be rebuilt later. The site's
  * hourly cron keeps recent weeks current (src/lib/server/crashes-sync.js);
  * run a full rebuild about monthly to pick up older amendments and rows the
  * city deleted (the ETL status page says when one is due).
@@ -30,7 +32,7 @@ import { once } from "node:events";
 import { execFileSync } from "node:child_process";
 import { DatabaseSync } from "node:sqlite";
 import { fetchAll, rawFile } from "./lib/crash-fetch.mjs";
-import { DATE_RANGE } from "../src/lib/crashes/config.js";
+import { dateRange } from "../src/lib/crashes/config.js";
 import { TABLES, INDEXES, COLUMNS } from "../src/lib/crashes/schema.js";
 import { crashRow, streetRows, vehicleRow, personRow } from "../src/lib/crashes/rows.js";
 
@@ -52,6 +54,7 @@ const insertSql = (table) =>
 
 async function build() {
   const startedAt = new Date().toISOString();
+  const range = dateRange();
   const fetchInfo = JSON.parse(await readFile(new URL("raw/fetch.json", DIR), "utf8"));
   const tmp = new URL("crashes.sqlite.part", DIR);
   await rm(tmp, { force: true });
@@ -68,6 +71,7 @@ async function build() {
     db.exec("BEGIN");
     for await (const raw of lines(rawFile(DIR, table))) {
       const row = map(raw);
+      if (row.crash_date < range.from || (range.to && row.crash_date > range.to)) continue;
       insert.run(...COLUMNS[table].map((c) => row[c] ?? null));
       n++;
       if (insertStreet) for (const s of extra(row)) { insertStreet.run(...COLUMNS.crash_streets.map((c) => s[c])); streets++; }
@@ -94,7 +98,7 @@ async function build() {
   const fileStats = await stat(tmp);
   db.prepare(`INSERT INTO ingest_log (kind, started_at, finished_at, date_from, date_to, counts, orphans, note)
     VALUES ('full', ?, ?, ?, ?, ?, ?, ?)`).run(
-    startedAt, new Date().toISOString(), DATE_RANGE.from, DATE_RANGE.to,
+    startedAt, new Date().toISOString(), range.from, range.to,
     JSON.stringify(counts), JSON.stringify(orphans),
     `fetched ${fetchInfo.fetchedAt}${Object.keys(duplicates).length ? `; duplicate keys: ${JSON.stringify(duplicates)}` : ""}`
   );
@@ -190,7 +194,8 @@ if (args.has("--push")) {
   await push();
 } else {
   if (args.has("--refetch") || !existsSync(new URL("raw/fetch.json", DIR))) {
-    console.log(`Fetching crashes from ${DATE_RANGE.from} to ${DATE_RANGE.to ?? "the latest"}`);
+    const range = dateRange();
+    console.log(`Fetching crashes from ${range.from} to ${range.to ?? "the latest"}`);
     // Without --refetch, a stopped fetch picks up after the tables it finished.
     const info = await fetchAll(DIR, { resume: !args.has("--refetch") });
     console.log(`Fetched ${Object.entries(info.counts).map(([t, n]) => `${n.toLocaleString()} ${t}`).join(", ")}`);

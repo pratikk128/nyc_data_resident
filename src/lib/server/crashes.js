@@ -20,7 +20,7 @@ import { searchCrashes, crashRows } from "../crashes/search.js";
 import { crashDetail } from "../crashes/detail.js";
 import { criteriaKey } from "../crashes/query.js";
 import { rowHash } from "../crashes/normalize.js";
-import { DATASETS, DATE_RANGE, REBUILD_DUE_DAYS } from "../crashes/config.js";
+import { DATASETS, REBUILD_DUE_DAYS, dateRange } from "../crashes/config.js";
 
 export const SEARCH_TTL = 3600;
 export const DETAIL_TTL = 3600;
@@ -57,7 +57,7 @@ export async function dataStatus() {
     value = {
       dataThrough: through?.through ?? null,
       crashes: through?.crashes ?? 0,
-      dateFrom: DATE_RANGE.from,
+      dateFrom: dateRange().from,
       lastFull: at.full ?? null,
       lastSync: at.sync ?? null,
       version: `${at.full ?? "-"}|${at.sync ?? "-"}`

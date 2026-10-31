@@ -23,11 +23,13 @@ import { crashDetail } from "../src/lib/crashes/detail.js";
 import { vehicleSummary, locationLine, roleCountsLine, roleCounts } from "../src/lib/crashes/present.js";
 import { valuesToParams, paramsToBody, paramsToValues, hasSearch, openCrash, resultsSummary } from "../src/lib/crashes/page-state.js";
 import { cardHtml, detailHtml, chipsHtml } from "../src/lib/crashes/render.js";
-import { dateWhere } from "../src/lib/crashes/config.js";
+import { dateWhere, dateRange } from "../src/lib/crashes/config.js";
 
-const THROUGH = "2026-10-27";
+// The range is the last year before "today"; pinned so the fixtures stay in it.
+const TODAY = "2025-06-01";
+const THROUGH = "2025-05-28";
 const criteria = (body) => {
-  const { criteria: c, problems } = normalizeSearch(body, { dataThrough: THROUGH });
+  const { criteria: c, problems } = normalizeSearch(body, { dataThrough: THROUGH, today: TODAY });
   assert.deepEqual(problems, []);
   return c;
 };
@@ -171,6 +173,11 @@ test("date range: one SoQL condition for every table", () => {
   assert.equal(dateWhere({ from: "2024-01-01", to: "2024-12-31" }), "crash_date >= '2024-01-01T00:00:00' AND crash_date <= '2024-12-31T23:59:59'");
 });
 
+test("date range: the last year, rolling with today", () => {
+  assert.deepEqual(dateRange("2026-10-31"), { from: "2025-10-31", to: null });
+  assert.deepEqual(dateRange("2028-02-29"), { from: "2027-03-01", to: null });
+});
+
 // ---------- The form ----------
 
 test("search form: every part optional, values normalized", () => {
@@ -194,7 +201,7 @@ test("search form: every part optional, values normalized", () => {
 
 test("search form: dates stay inside the range; a time window can cross midnight", () => {
   const c = criteria({ date: { from: "2020-01-01" }, time: { around: "23:30", within: 60 } });
-  assert.deepEqual([c.dateFrom, c.dateTo], ["2024-01-01", THROUGH]);
+  assert.deepEqual([c.dateFrom, c.dateTo], ["2024-06-01", THROUGH]);
   assert.deepEqual([c.time.from, c.time.to], [22 * 60 + 30, 30]);
   assert.equal(onlyDates(criteria({})), true);
 });
@@ -205,7 +212,7 @@ test("search form: plain-language problems", () => {
     date: { from: "2024-06-30", to: "2024-06-01" },
     vehicle: { yearFrom: "1800", state: "New York" },
     person: { ageFrom: "abc" }
-  }, { dataThrough: THROUGH });
+  }, { dataThrough: THROUGH, today: TODAY });
   assert.ok(problems.some((p) => /isn’t a New York City ZIP/.test(p)));
   assert.ok(problems.some((p) => /isn’t in New York City/.test(p)), "Hoboken is turned away (inCityLimits)");
   assert.ok(problems.some((p) => /start date is after/.test(p)));
