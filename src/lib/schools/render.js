@@ -46,7 +46,7 @@ export function bandBadge(score, { short = false } = {}) {
   return `<span class="sq-band" data-band="${band.tone}" title="DOE metric score ${score.toFixed(2)} of 4.99">${escape(short ? band.short : band.label)}</span>`;
 }
 
-export function trendChip(metric, t) {
+export function trendChip(t) {
   if (!t?.dir) return `<span class="sq-trend" data-dir="none">Not enough years for a trend</span>`;
   return `<span class="sq-trend" data-dir="${t.dir}">${TREND_TEXT[t.dir]}</span>`;
 }

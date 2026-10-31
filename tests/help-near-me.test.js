@@ -267,6 +267,29 @@ test("geocoding: the part of an address GeoSearch can match", () => {
   assert.equal(lookupText("2972 / 2968 Bronx Park East"), "2972 Bronx Park East");
   assert.equal(lookupText("80 Avenue D / 807 East 6th Street"), "80 Avenue D");
   assert.equal(lookupText("800 Barretto Street; Bronx, NY 10474"), "800 Barretto Street");
+  assert.equal(lookupText("temp. site- 30-14 Crescent street"), "30-14 Crescent street");
+});
+
+test("geocoding: a lettered house number, then any borough, when the address doesn't match as listed", async () => {
+  const at = (text, borough) => async (parsed) =>
+    parsed.text === text && (parsed.borough ?? null) === borough
+      ? { status: "resolved", location: { kind: "point", lat: 40.8, lon: -73.9 } }
+      : { status: "not-found" };
+  const site = (address, borough) => ({ name: address, address, borough, lat: null, lon: null });
+
+  const lettered = await geocodeMissing([site("34-35A 12th Street", "Queens")], { resolve: at("34-35 12th Street", "QUEENS"), log: () => {} });
+  assert.equal(lettered.sites.length, 1);
+
+  // Oct 2026: NYCHA lists 1131 Findlay Avenue (Bronx) in Manhattan.
+  const wrongBorough = await geocodeMissing([site("1131 Findlay Avenue", "Manhattan")], { resolve: at("1131 Findlay Avenue", null), log: () => {} });
+  assert.equal(wrongBorough.sites.length, 1);
+
+  // A point the city gave is only checked in its own borough.
+  const zips = { "10035": [40.7976, -73.9339] };
+  const far = { ...site("2322 3rd Ave", "Manhattan"), zip: "10035", lat: 40.7366655, lon: -73.9849393 };
+  const asked = [];
+  await geocodeMissing([far], { resolve: async (p) => { asked.push(p); return { status: "not-found" }; }, zips, log: () => {} });
+  assert.deepEqual(asked.map((p) => p.borough), ["MANHATTAN"]);
 });
 
 // ---------- Distances and the list ----------

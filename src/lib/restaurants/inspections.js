@@ -228,14 +228,14 @@ export function compareToMeans(rates, means, citedAt) {
 const KEEP_UPPER = new Set(["NYC", "BBQ", "USA", "II", "III", "IV", "LLC", "NY", "DBA"]);
 export function titleCase(text) {
   if (!text) return "";
-  return String(text).toLowerCase().replace(/[a-z0-9][a-z0-9'’]*/g, (word, offset, str) => {
+  return String(text).toLowerCase().replace(/[a-z0-9][a-z0-9'’]*/g, (word) => {
     const upper = word.toUpperCase();
     if (KEEP_UPPER.has(upper)) return upper;
     // "41st", "2nd": leave ordinals lowercase
     if (/^\d/.test(word)) return word;
     // "o'brien" → "O'Brien", but "joe's" → "Joe's"
     const cap = word[0].toUpperCase() + word.slice(1);
-    return cap.replace(/(['’])([a-z]{2,})/g, (m, q, rest) => q + rest[0].toUpperCase() + rest.slice(1));
+    return cap.replace(/(['’])([a-z]{2,})/g, (_, q, rest) => q + rest[0].toUpperCase() + rest.slice(1));
   });
 }
 

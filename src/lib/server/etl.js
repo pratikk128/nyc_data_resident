@@ -25,7 +25,7 @@
  */
 import { env } from "cloudflare:workers";
 import { refreshDaily } from "./cache.js";
-import { datasetMetadata } from "./socrata.js";
+import { datasetMetadata, SocrataError } from "./socrata.js";
 import { cadenceOf, refreshReason, sourceVersion, isOverdue, snapshotChanges, cronProblem } from "../etl/cadence.js";
 import { SNAPSHOTS, snapshotSourceIds } from "../etl/snapshots.js";
 import snapshotManifest from "../../data/snapshots.json";
@@ -43,6 +43,13 @@ export const DATASETS = [restaurantsDataset, complaints311Dataset, waterDataset,
 const STATE_KEY = "etl:state";
 const iso = (ms) => new Date(ms).toISOString();
 const snapshotBuiltAt = Object.fromEntries(Object.entries(snapshotManifest).map(([id, s]) => [id, s.builtAt]));
+
+// What /api/etl/status shows for a failure. The status route is public, so
+// it gets a short, fixed summary; the full message goes to the cron logs.
+const publicError = (err) => {
+  if (!(err instanceof SocrataError)) return "build failed (see the Worker's cron logs)";
+  return err.status ? `NYC Open Data returned ${err.status}` : "couldn't reach NYC Open Data";
+};
 
 const readState = async () => (await env.DATA_CACHE?.get(STATE_KEY, "json")) ?? { datasets: {}, snapshots: {} };
 
@@ -64,7 +71,7 @@ export async function runEtl(now = Date.now()) {
       s.source = { name: meta.name, rowsUpdatedAt: meta.rowsUpdatedTime };
       delete s.sourceError;
     } catch (err) {
-      s.sourceError = err.message;
+      s.sourceError = publicError(err);
       failures.push(`${ds.id} metadata: ${err.message}`);
     }
     if (isOverdue(ds.cadence, s.source?.rowsUpdatedAt, now)) {
@@ -94,7 +101,7 @@ export async function runEtl(now = Date.now()) {
           s.jobs[job.key] = { builtAt: iso(started), sourceVersion: version, reason, ms: Date.now() - started };
           console.log(`Refreshed ${job.key} (${reason}, ${Date.now() - started} ms)`);
         } catch (err) {
-          s.jobs[job.key] = { ...built, error: err.message, failedAt: iso(Date.now()) };
+          s.jobs[job.key] = { ...built, error: publicError(err), failedAt: iso(Date.now()) };
           failures.push(`${job.key}: ${err.message}`);
         }
       })());

@@ -16,7 +16,6 @@
   // ---------- Elements ----------
   var root = document.documentElement;
   var menuToggle = document.getElementById("menu-toggle");
-  var sidebar = document.getElementById("sidebar");
   var backdrop = document.getElementById("backdrop");
   var categoryList = document.getElementById("category-list");
   var resultsTitle = document.getElementById("results-title");

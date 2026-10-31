@@ -36,7 +36,7 @@ export function titleCase(text) {
     if (/^\d/.test(word)) return /^\d+(st|nd|rd|th)$/.test(word) ? word : upper;
     // "o'brien" → "O'Brien", but "joe's" → "Joe's"
     const cap = word[0].toUpperCase() + word.slice(1);
-    return cap.replace(/^(.['’])([a-z])/, (m, head, c) => head + c.toUpperCase());
+    return cap.replace(/^(.['’])([a-z])/, (_, head, c) => head + c.toUpperCase());
   });
 }
 
@@ -65,7 +65,7 @@ function properCase(value) {
 
 // "Stony point" → "Stony Point"; "MT. VERNON" → "Mt. Vernon".
 function cityName(value) {
-  return properCase(value).replace(/(^|[\s-])([a-z])/g, (m, sep, c) => sep + c.toUpperCase());
+  return properCase(value).replace(/(^|[\s-])([a-z])/g, (_, sep, c) => sep + c.toUpperCase());
 }
 
 // Ten digits (an 11-digit number starting with 1 drops the 1) → "(201) 993-9696"

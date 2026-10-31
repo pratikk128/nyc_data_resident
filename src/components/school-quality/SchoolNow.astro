@@ -104,7 +104,7 @@ const judged = groups.reduce((n, g) => n + g.tiles.length, 0);
           {t.last && <p class="sq-tile-vs">Last reported: {t.last.text} in {yearLabel(t.last.year)}</p>}
           <p class="sq-tile-trend">
             <span class="sq-tile-trend-label">{trendLabel(t.entry.trend)}</span>
-            <Fragment set:html={trendChip(t.metric, t.entry.trend)} />
+            <Fragment set:html={trendChip(t.entry.trend)} />
             {t.entry.trend?.dir && <span class="sr-only"> {trendSentence(t.metric, t.entry.trend)}</span>}
           </p>
           <details class="sq-tile-more">

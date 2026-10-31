@@ -65,7 +65,7 @@ const hasSimilar = (entry: any, years: number[]) => years.some((y) => entry.poin
       <figure class="sq-chart-card" data-chart={entry.id} data-report={report.report}>
         <div class="sq-chart-head">
           <h3 class="sq-chart-title">{metric.label}</h3>
-          {!metric.context && <p class="sq-chart-trend"><Fragment set:html={trendChip(metric, entry.trend)} /></p>}
+          {!metric.context && <p class="sq-chart-trend"><Fragment set:html={trendChip(entry.trend)} /></p>}
         </div>
         <p class="sq-chart-sentence">{metric.context ? 'Context, not a sign of quality.' : trendSentence(metric, entry.trend)}</p>
         <div class="chart sq-chart">

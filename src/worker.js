@@ -8,7 +8,7 @@ import { runEtl } from "./lib/server/etl.js";
 
 export default {
   fetch: handle,
-  scheduled(controller, env, ctx) {
+  scheduled(controller, _env, ctx) {
     ctx.waitUntil(runEtl(controller.scheduledTime));
   }
 };

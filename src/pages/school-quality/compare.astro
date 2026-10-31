@@ -256,7 +256,7 @@ const pickerJson = JSON.stringify({
           <thead role="rowgroup">
             <tr role="row">
               <td class="sq-cmp-corner" role="cell"></td>
-              {table.columns.map((c: any, i: number) => (
+              {table.columns.map((c: any) => (
                 <th scope="col" class="sq-cmp-col" role="columnheader">
                   <span class="sq-cmp-bullet" data-slot={c.n} aria-hidden="true">{c.n}</span>
                   <a href={schoolPath(c.dbn)}>{c.name}</a>
@@ -288,7 +288,7 @@ const pickerJson = JSON.stringify({
                     {cell.verdict && <span class="sq-cmp-verdict" set:html={verdictPill(cell.verdict)} />}
                     {cell.trend?.dir && (
                       <span class="sq-cmp-trend">
-                        <span aria-hidden="true">Trend </span><Fragment set:html={trendChip(row.metric, cell.trend)} />
+                        <span aria-hidden="true">Trend </span><Fragment set:html={trendChip(cell.trend)} />
                         <span class="sr-only"> {trendSentence(row.metric, cell.trend)}</span>
                       </span>
                     )}

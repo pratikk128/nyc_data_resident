@@ -65,7 +65,7 @@ function definition(category) {
   const maxAgeHours = requestMaxAgeHours(category.cadence);
   const metadataJob = { key: `help-near-me:metadata:${id}`, maxAgeHours, run: () => datasetMetadata(id) };
   const sitesJob = {
-    key: `help-near-me:sites:${id}:v2`, // v2: points far from their ZIP checked against their address
+    key: `help-near-me:sites:${id}:v3`, // v3: lettered house numbers and wrong boroughs retried
     maxAgeHours,
     async run() {
       const [meta, rows] = await Promise.all([datasetMetadata(id), FETCHERS[id]()]);

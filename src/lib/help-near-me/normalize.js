@@ -38,11 +38,11 @@ const blank = (s) => clean(s) || null;
 export function tidy(s) {
   const t = clean(s);
   if (!t || /[a-z]/.test(t) || !/[A-Z]{3}/.test(t)) return t || null;
-  return t.toLowerCase().replace(/(^|[\s\-/(&])([a-z])/g, (m, a, b) => a + b.toUpperCase())
-    .replace(/\b(\d+)(St|Nd|Rd|Th)\b/g, (m, n, s2) => n + s2.toLowerCase())
+  return t.toLowerCase().replace(/(^|[\s\-/(&])([a-z])/g, (_, a, b) => a + b.toUpperCase())
+    .replace(/\b(\d+)(St|Nd|Rd|Th)\b/g, (_, n, s2) => n + s2.toLowerCase())
     .replace(/\b(Norc|Oac|Nyc|Nycha|Ymca|Ywca|Ymha|Ny|Ii|Iii|Iv|Llc)\b/g, (m) => m.toUpperCase())
     .replace(/\b(Ps|Is|Ms|Jhs|Hs)(?=\s+\d)/g, (m) => m.toUpperCase())
-    .replace(/\bMc([a-z])/g, (m, c) => `Mc${c.toUpperCase()}`);
+    .replace(/\bMc([a-z])/g, (_, c) => `Mc${c.toUpperCase()}`);
 }
 
 const BOROUGH_NAMES = {
