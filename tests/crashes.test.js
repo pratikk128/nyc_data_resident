@@ -21,7 +21,7 @@ import { crashRow, streetRows, vehicleRow, personRow } from "../src/lib/crashes/
 import { TABLES, INDEXES, COLUMNS } from "../src/lib/crashes/schema.js";
 import { crashDetail } from "../src/lib/crashes/detail.js";
 import { vehicleSummary, locationLine, roleCountsLine, roleCounts } from "../src/lib/crashes/present.js";
-import { valuesToParams, paramsToBody, paramsToValues, hasSearch, openCrash, resultsSummary } from "../src/lib/crashes/page-state.js";
+import { valuesToParams, paramsToBody, paramsToValues, hasSearch, openCrash, pageOf, searchKey, resultsSummary } from "../src/lib/crashes/page-state.js";
 import { cardHtml, detailHtml, chipsHtml } from "../src/lib/crashes/render.js";
 import { dateWhere, dateRange } from "../src/lib/crashes/config.js";
 
@@ -371,6 +371,25 @@ test("search: person details match people in the crash; a time window", async ()
   assert.deepEqual(new Set(evening.results.map((r) => r.collisionId)), new Set([id(1), id(4)]));
 });
 
+test("search: broad details (borough, sex, role) rank the key ones' matches instead of adding candidates", async () => {
+  const db = memoryDb(RAW);
+  const honda = await searchCrashes(db, criteria({ location: { borough: "MANHATTAN" }, vehicle: { make: "Honda" }, person: { sex: "F", role: "driver" } }));
+  assert.deepEqual(honda.results.map((r) => r.collisionId), [id(3)], "Manhattan crashes and female drivers aren't candidates on their own");
+  assert.equal(honda.total, 1);
+  // With nothing but broad details, they pick the candidates.
+  const boro = await searchCrashes(db, criteria({ location: { borough: "MANHATTAN" } }));
+  assert.deepEqual(new Set(boro.results.map((r) => r.collisionId)), new Set([id(1), id(2)]));
+  // A broad detail still scores a candidate that came from a key one.
+  const nj = await searchCrashes(db, criteria({ vehicle: { make: "Toyota", state: "NJ" } }));
+  assert.equal(nj.results[0].collisionId, id(2));
+});
+
+test("query: a make too short to match on is a problem, not a filter that matches everything", () => {
+  const { criteria: c, problems } = normalizeSearch({ vehicle: { make: "???" } }, { today: "2025-06-01" });
+  assert.equal(c.vehicle, null);
+  assert.match(problems[0], /make “\?\?\?”/);
+});
+
 test("search SQL: every value bound, under D1's 100-parameter cap", () => {
   const { sql, params } = candidateQuery(criteria({
     location: { text: "Broadway & W 72 St", borough: "MANHATTAN", zip: "10023", lat: 40.7781, lon: -73.9817 },
@@ -428,14 +447,19 @@ test("page URL: form values round-trip into the API body; a spot needs both coor
   assert.equal(paramsToValues(params).yfrom, "2019");
   assert.equal(hasSearch(new URLSearchParams(`crash=${id(1)}`)), false);
   assert.equal(openCrash(new URLSearchParams("crash=../etc")), null);
-  assert.equal(resultsSummary({ total: 120, results: new Array(50), dateOnly: false }), "120 crashes fit at least one detail. Showing the 50 closest.");
+  assert.equal(pageOf(new URLSearchParams("make=Toyota&pg=3")), 2);
+  assert.equal(pageOf(new URLSearchParams("pg=abc")), 0);
+  assert.equal(searchKey(new URLSearchParams(`make=Toyota&pg=3&crash=${id(1)}`)), "make=Toyota");
+  assert.equal(resultsSummary({ total: 120, results: new Array(50), dateOnly: false }), "120 crashes fit at least one detail. Showing the best 50.");
 });
 
 test("HTML: values are escaped, strength is in words not just color", () => {
   assert.match(chipsHtml([{ label: "2020 model", strength: "close" }]), /close<\/span>/);
   const card = { collisionId: id(1), date: "2024-06-15", time: null, location: "<b>Broadway</b>", area: null, vehicles: "x", people: "y", injured: 0, killed: 0, percent: 80, chips: [], missed: [] };
-  const html = cardHtml(card, 1);
+  const html = cardHtml(card, 1, "make=Toyota&pg=2");
   assert.ok(!html.includes("<b>Broadway"));
+  assert.match(html, new RegExp(`href="\\?make=Toyota&#38;pg=2&#38;crash=${id(1)}"`), "the link keeps the search");
+  assert.match(detailHtml({ ...crashDetail({ crash: { collision_id: id(1), crash_date: "2024-06-15" }, vehicles: [], persons: [] }) }, { fromSearch: false }), /Search for other crashes/);
   assert.match(html, /time not recorded/);
   assert.equal(vehicleSummary({ type_key: "e-bike" }), "E-bike");
   assert.equal(vehicleSummary({ vehicle_year: 2019, make_key: null, make_raw: "LUCI -CAR/SUV", type_key: "sedan" }), "2019 LUCI car");

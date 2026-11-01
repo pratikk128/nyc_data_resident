@@ -8,6 +8,7 @@
  *   &from=2024-06-01&to=2024-06-30&at=17:30&within=60
  *   &make=Toyota&yfrom=2019&yto=2019&type=suv&state=NY&dir=North
  *   &role=driver&sex=F&afrom=30&ato=35&hurt=yes&seat=rear
+ *   &pg=3                                                                (the page of results; left out for the first)
  *   &crash=<collision_id>                                                (the deep dive that's open)
  */
 export const FIELDS = [
@@ -34,6 +35,17 @@ export function valuesToParams(values, crash = null) {
 }
 
 export const paramsToValues = (params) => Object.fromEntries(FIELDS.map((k) => [k, get(params, k)]));
+
+// The page of results the URL asks for, counting from 0.
+export function pageOf(params) {
+  const n = Number(get(params, "pg"));
+  return Number.isInteger(n) && n > 1 ? n - 1 : 0;
+}
+
+// The URL's search, without the page or the open crash: what decides the results.
+export function searchKey(params) {
+  return new URLSearchParams([...params].filter(([k]) => FIELDS.includes(k))).toString();
+}
 
 // True when the URL holds a search (anything besides an open crash).
 export const hasSearch = (params) => FIELDS.some((k) => get(params, k));
@@ -64,6 +76,6 @@ export function resultsSummary({ total, results, dateOnly }) {
   const n = total.toLocaleString("en-US");
   const crashes = `crash${total === 1 ? "" : "es"}`;
   if (dateOnly) return `${n} ${crashes} in those dates. Add a place, vehicle or person to rank them.`;
-  const shown = results.length < total ? ` Showing the ${results.length} closest.` : "";
+  const shown = results.length < total ? ` Showing the best ${results.length}.` : "";
   return `${n} ${crashes} fit at least one detail.${shown}`;
 }

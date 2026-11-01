@@ -115,7 +115,10 @@ function readVehicle(v = {}, problems) {
   const makeText = clean(v.make);
   if (makeText) {
     const make = resolveMake(makeText);
-    out.make = make ?? { key: null, label: makeText, how: "unknown", text: makeText.toUpperCase() };
+    // An unknown make is matched by the start of its name, so it needs a few letters to go on.
+    if (make) out.make = make;
+    else if (makeText.replace(/[^A-Za-z0-9]/g, "").length >= 3) out.make = { key: null, label: makeText, how: "unknown", text: makeText.toUpperCase() };
+    else problems.push(`We don’t know the make “${makeText}”. Try its name, like Toyota or Ford.`);
   }
   const nextYear = new Date().getUTCFullYear() + 1;
   let yearFrom = intIn(v.yearFrom, 1900, nextYear), yearTo = intIn(v.yearTo, 1900, nextYear);
@@ -131,7 +134,7 @@ function readVehicle(v = {}, problems) {
   if (clean(v.type) && !type) problems.push(`We don’t know the vehicle type “${clean(v.type)}”. Pick one from the list.`);
   if (type) out.type = type;
   const state = clean(v.state).toUpperCase();
-  if (state && !/^[A-Z]{2}$/.test(state)) problems.push("Registration state is a two-letter code, like NY or NJ.");
+  if (state && !/^[A-Z]{2}$/.test(state)) problems.push("Plate state is a two-letter code, like NY or NJ.");
   else if (state) out.state = state;
   const dir = DIRECTIONS.find((d) => d.toLowerCase() === clean(v.direction).toLowerCase());
   if (dir) out.direction = dir;

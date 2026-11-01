@@ -25,7 +25,8 @@ export function chipsHtml(chips) {
   return `<ul class="cl-chips" aria-label="Details that match">${chips.map((c) => `<li class="cl-chip cl-chip-${c.strength}">${escape(c.label)}${STRENGTH_WORDS[c.strength] ? ` <span class="cl-chip-how">${STRENGTH_WORDS[c.strength]}</span>` : ""}</li>`).join("")}</ul>`;
 }
 
-export function cardHtml(r, rank) {
+// `search` is the URL's search (without the crash), so the link opened in a new tab or shared keeps the results.
+export function cardHtml(r, rank, search = "") {
   const place = r.location ?? "Street not recorded";
   const hurt = r.killed ? `${r.killed} killed` : r.injured ? `${r.injured} injured` : null;
   return `<li class="cl-card">
@@ -40,7 +41,7 @@ export function cardHtml(r, rank) {
     <p class="cl-card-line"><span class="cl-card-key">People</span> ${escape(r.people)}${hurt ? ` · ${escape(hurt)}` : ""}</p>
     ${chipsHtml(r.chips)}
     ${r.missed.length ? `<p class="cl-missed"><span class="cl-card-key">Didn’t match</span> ${escape(r.missed.join(", "))}</p>` : ""}
-    <p class="cl-card-open"><a class="cl-open" href="?crash=${escape(r.collisionId)}" data-open="${escape(r.collisionId)}">See this crash<span class="sr-only">: ${escape(date(r.date))}, ${escape(place)}</span></a></p>
+    <p class="cl-card-open"><a class="cl-open" href="?${escape(search ? `${search}&` : "")}crash=${escape(r.collisionId)}" data-open="${escape(r.collisionId)}">See this crash<span class="sr-only">: ${escape(date(r.date))}, ${escape(place)}</span></a></p>
   </article>
 </li>`;
 }
@@ -59,6 +60,11 @@ export const emptyHtml = () => `<div class="cl-empty">
 </div>`;
 
 // ---------- Deep dive ----------
+
+// Back to the results, or to the form when the crash was opened without a search.
+export const backHtml = (fromSearch = true) => `<p class="cl-back">${fromSearch
+  ? `<a href="#cl-results" data-close>← Back to results</a>`
+  : `<a href="#cl-find" data-close>Search for other crashes</a>`}</p>`;
 
 function personRows(p, { withVehicle = true } = {}) {
   const r = p.recognize;
@@ -84,7 +90,7 @@ function vehicleRecognizeHtml(v) {
   return `<section class="cl-vehicle" aria-labelledby="cl-v-${v.number}">
   <h4 id="cl-v-${v.number}">Vehicle ${v.number}: ${escape(v.label)}</h4>
   ${dl([
-    ["Type", r.type], ["Make", r.make], ["Model year", r.year], ["Registration state", r.state],
+    ["Type", r.type], ["Make", r.make], ["Model year", r.year], ["Plate state", r.state],
     ["Direction", r.direction], ["Occupants", r.occupants], ["Driver’s sex", r.driverSex],
     ["Driver’s license", r.licenseStatus], ["License state", r.licenseJurisdiction]
   ])}
@@ -159,9 +165,9 @@ function detailsHtml(d) {
 </section>`;
 }
 
-export function detailHtml(d) {
+export function detailHtml(d, { fromSearch = true } = {}) {
   return `<article class="cl-detail" aria-labelledby="cl-detail-title">
-  <p class="cl-back"><a href="#cl-results" data-close>← Back to results</a></p>
+  ${backHtml(fromSearch)}
   <h2 id="cl-detail-title" tabindex="-1">${when(d.recognize.date, d.recognize.time)}${d.recognize.location ? ` · ${escape(d.recognize.location)}` : ""}</h2>
   <p class="cl-possible">A possible match, not a confirmation. Check it with the NYPD (see below).</p>
   ${recognizeHtml(d)}

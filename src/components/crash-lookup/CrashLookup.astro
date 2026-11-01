@@ -49,7 +49,7 @@ const radiusLabel = (m: number) => (m < 1000 ? `${m} m (about ${Math.max(1, Math
                   autocomplete="off" spellcheck="false" maxlength="120" placeholder="Try “Broadway & W 72 St”" />
                 <ul class="c311-suggest" id="cl-where-list" role="listbox" aria-label="Places" hidden data-suggest></ul>
               </div>
-              <p class="field-hint" id="cl-where-hint">Matches the street names on the police report. Pick a suggestion to also find crashes near that spot.</p>
+              <p class="field-hint" id="cl-where-hint">Matches the street names on the police report, so an intersection finds crashes on either street. Type an address or place and pick a suggestion to also find crashes near that spot.</p>
             </div>
             <div class="field cl-wide">
               <label class="filter-label" for="cl-boro">Borough</label>
@@ -66,6 +66,16 @@ const radiusLabel = (m: number) => (m < 1000 ? `${m} m (about ${Math.max(1, Math
               <label class="filter-label" for="cl-to">To</label>
               <input class="search-input" id="cl-to" name="to" type="date" min={range.from} max={maxDate} />
             </div>
+            <div class="field">
+              <label class="filter-label" for="cl-at">Around what time?</label>
+              <input class="search-input" id="cl-at" name="at" type="time" />
+            </div>
+            <div class="field">
+              <label class="filter-label" for="cl-within">Give or take</label>
+              <select class="filter-select" id="cl-within" name="within">
+                {TIME_WINDOWS.map((m) => <option value={m} selected={m === 60}>{windowLabel(m)}</option>)}
+              </select>
+            </div>
           </div>
           <div class="cl-spot" data-spot hidden>
             <p class="cl-spot-text">Also searching near <strong data-spot-label></strong>
@@ -78,21 +88,11 @@ const radiusLabel = (m: number) => (m < 1000 ? `${m} m (about ${Math.max(1, Math
             </div>
             <input type="hidden" name="lat" /><input type="hidden" name="lon" /><input type="hidden" name="place" />
           </div>
-          <button type="button" class="cl-link-btn cl-more-toggle" aria-expanded="false" aria-controls="cl-more-where" data-more-toggle data-label="place and time details">More place and time details</button>
+          <button type="button" class="cl-link-btn cl-more-toggle" aria-expanded="false" aria-controls="cl-more-where" data-more-toggle data-label="place details">More place details</button>
           <div class="cl-grid cl-more" id="cl-more-where" hidden>
             <div class="field cl-wide">
               <label class="filter-label" for="cl-zip">ZIP code</label>
               <input class="search-input" id="cl-zip" name="zip" type="text" inputmode="numeric" maxlength="5" pattern="\d{5}" autocomplete="postal-code" />
-            </div>
-            <div class="field">
-              <label class="filter-label" for="cl-at">Around what time?</label>
-              <input class="search-input" id="cl-at" name="at" type="time" />
-            </div>
-            <div class="field">
-              <label class="filter-label" for="cl-within">Give or take</label>
-              <select class="filter-select" id="cl-within" name="within">
-                {TIME_WINDOWS.map((m) => <option value={m} selected={m === 60}>{windowLabel(m)}</option>)}
-              </select>
             </div>
           </div>
         </fieldset>
@@ -113,6 +113,7 @@ const radiusLabel = (m: number) => (m < 1000 ? `${m} m (about ${Math.max(1, Math
               <label class="filter-label" for="cl-yto">to <span class="field-optional">(for a range)</span></label>
               <input class="search-input" id="cl-yto" name="yto" type="number" inputmode="numeric" min="1900" max={new Date().getUTCFullYear() + 1} aria-describedby="cl-year-hint" />
             </div>
+            <p class="field-hint cl-wide" id="cl-year-hint">A year a model year off still counts, for less. The police data doesn’t record the model (Camry, Civic), so there’s no field for it.</p>
             <div class="field cl-wide">
               <label class="filter-label" for="cl-type">Kind of vehicle</label>
               <select class="filter-select" id="cl-type" name="type">
@@ -136,7 +137,6 @@ const radiusLabel = (m: number) => (m < 1000 ? `${m} m (about ${Math.max(1, Math
               </select>
             </div>
           </div>
-          <p class="field-hint" id="cl-year-hint">A year a model year off still counts, for less. The police data doesn’t record the model (Camry, Civic), so there’s no field for it.</p>
         </fieldset>
 
         <fieldset class="cl-fieldset">
@@ -163,6 +163,7 @@ const radiusLabel = (m: number) => (m < 1000 ? `${m} m (about ${Math.max(1, Math
               <label class="filter-label" for="cl-ato">to <span class="field-optional">(for a range)</span></label>
               <input class="search-input" id="cl-ato" name="ato" type="number" inputmode="numeric" min="0" max="110" aria-describedby="cl-age-hint" />
             </div>
+            <p class="field-hint cl-wide" id="cl-age-hint">Ages a couple of years off still count, for less.</p>
           </div>
           <button type="button" class="cl-link-btn cl-more-toggle" aria-expanded="false" aria-controls="cl-more-person" data-more-toggle data-label="person details">More person details</button>
           <div class="cl-grid cl-more" id="cl-more-person" hidden>
@@ -181,11 +182,10 @@ const radiusLabel = (m: number) => (m < 1000 ? `${m} m (about ${Math.max(1, Math
               </select>
             </div>
           </div>
-          <p class="field-hint" id="cl-age-hint">Ages a couple of years off still count, for less.</p>
         </fieldset>
       </div>
 
-      <ul class="cl-problems" data-problems role="alert" hidden></ul>
+      <ul class="cl-problems" data-problems role="alert" tabindex="-1" hidden></ul>
       <div class="cl-actions">
         <button type="submit" class="c311-go">Find possible matches</button>
         <button type="reset" class="cl-link-btn" data-clear>Clear the form</button>
@@ -211,9 +211,9 @@ const radiusLabel = (m: number) => (m < 1000 ? `${m} m (about ${Math.max(1, Math
 </div>
 
 <script>
-  import { valuesToParams, paramsToValues, paramsToBody, hasSearch, openCrash, resultsSummary, FIELDS } from '../../lib/crashes/page-state.js';
+  import { valuesToParams, paramsToValues, paramsToBody, hasSearch, openCrash, pageOf, searchKey, resultsSummary, FIELDS } from '../../lib/crashes/page-state.js';
   import { normalizeSearch } from '../../lib/crashes/query.js';
-  import { cardHtml, broadHtml, emptyHtml, detailHtml, escape } from '../../lib/crashes/render.js';
+  import { cardHtml, broadHtml, emptyHtml, detailHtml, backHtml, escape } from '../../lib/crashes/render.js';
   import { mountCrashMap } from '../../lib/crashes/crash-map.js';
   import { suggest } from '../../lib/complaints311/geocode.js';
 
@@ -256,8 +256,9 @@ const radiusLabel = (m: number) => (m < 1000 ? `${m} m (about ${Math.max(1, Math
     for (const k of FIELDS) {
       const el = field(k);
       if (!el) continue;
-      // Selects keep their default (radius, give or take) when the URL has none.
-      if (values[k] || el.tagName !== 'SELECT' || !['r', 'within'].includes(k)) el.value = values[k] ?? '';
+      const v = values[k] ?? '';
+      // A select keeps its default (radius, give or take, Any) when the URL's value isn't one of its options.
+      el.value = el instanceof HTMLSelectElement && ![...el.options].some((o) => o.value === v) ? defaultOf(el) : v;
     }
     showSpot(values.lat && values.lon ? values.place || 'the spot you picked' : null);
     // A folded-away section opens when the URL fills any of its fields, and folds back when it fills none.
@@ -299,9 +300,13 @@ const radiusLabel = (m: number) => (m < 1000 ? `${m} m (about ${Math.max(1, Math
 
   // ---------- Search ----------
 
-  async function runSearch(params: URLSearchParams) {
-    const key = new URLSearchParams([...params].filter(([k]) => k !== 'crash')).toString();
-    if (key === lastSearch && results.length) return;
+  // → 'done', 'problems' (the form shows what to fix) or 'stale' (a newer search took over).
+  async function runSearch(params: URLSearchParams): Promise<'done' | 'problems' | 'stale'> {
+    const key = searchKey(params);
+    if (key === lastSearch && results.length) {
+      if (pageOf(params) !== page) { page = pageOf(params); renderPage(); }
+      return 'done';
+    }
     lastSearch = key;
     const id = ++searchRequest;
     resultsEl.hidden = false;
@@ -315,28 +320,38 @@ const radiusLabel = (m: number) => (m < 1000 ? `${m} m (about ${Math.max(1, Math
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(paramsToBody(params))
       });
       data = await res.json();
-      if (id !== searchRequest) return;
-      if (res.status === 400) { showProblems(data.problems ?? []); resultsEl.hidden = true; lastSearch = ''; return; }
+      if (id !== searchRequest) return 'stale';
+      if (res.status === 400) { showProblems(data.problems ?? []); resultsEl.hidden = true; lastSearch = ''; return 'problems'; }
       if (!res.ok) throw new ShownError(data.error);
     } catch (err) {
-      if (id !== searchRequest) return;
+      if (id !== searchRequest) return 'stale';
       $<HTMLElement>('[data-summary]').textContent = shownText(err);
+      $<HTMLElement>('[data-broad]').innerHTML = '<p class="cl-retry"><button type="button" class="pager-btn" data-retry>Try again</button></p>';
       lastSearch = '';
-      return;
+      return 'done';
     }
     results = data.results;
-    page = 0;
+    page = Math.min(pageOf(params), Math.max(0, Math.ceil(results.length / PAGE_SIZE) - 1));
     $<HTMLElement>('[data-summary]').textContent = resultsSummary(data);
     $<HTMLElement>('[data-broad]').innerHTML = data.broad && !data.dateOnly ? broadHtml(data.total) : '';
     if (!results.length) $<HTMLElement>('[data-cards]').innerHTML = emptyHtml();
     renderPage();
+    return 'done';
+  }
+
+  // The URL's search with the page, for the cards' links (opened in a new tab or shared, they keep the results).
+  function searchWithPage() {
+    const params = new URLSearchParams(searchKey(new URLSearchParams(location.search)));
+    if (page) params.set('pg', String(page + 1));
+    return params.toString();
   }
 
   function renderPage() {
     const start = page * PAGE_SIZE;
     const cards = $<HTMLOListElement>('[data-cards]');
     cards.start = start + 1;
-    cards.innerHTML = results.slice(start, start + PAGE_SIZE).map((r, i) => cardHtml(r, start + i + 1)).join('');
+    const search = searchWithPage();
+    cards.innerHTML = results.slice(start, start + PAGE_SIZE).map((r, i) => cardHtml(r, start + i + 1, search)).join('');
     const pages = Math.ceil(results.length / PAGE_SIZE);
     const pager = $<HTMLElement>('[data-pager]');
     pager.hidden = pages <= 1;
@@ -346,6 +361,8 @@ const radiusLabel = (m: number) => (m < 1000 ? `${m} m (about ${Math.max(1, Math
   }
 
   // ---------- Deep dive ----------
+
+  const fromSearch = () => hasSearch(new URLSearchParams(location.search));
 
   async function showCrash(id: string | null) {
     const req = ++detailRequest;
@@ -365,10 +382,10 @@ const radiusLabel = (m: number) => (m < 1000 ? `${m} m (about ${Math.max(1, Math
       if (!res.ok) throw new ShownError(d.error);
     } catch (err) {
       if (req !== detailRequest) return;
-      detailEl.innerHTML = `<p class="cl-back"><a href="#cl-results" data-close>← Back to results</a></p><p class="cl-error">${escape(shownText(err))}</p>`;
+      detailEl.innerHTML = `${backHtml(fromSearch())}<p class="cl-error">${escape(shownText(err))}</p>`;
       return;
     }
-    detailEl.innerHTML = detailHtml(d);
+    detailEl.innerHTML = detailHtml(d, { fromSearch: fromSearch() });
     detailEl.querySelector<HTMLElement>('#cl-detail-title')?.focus();
     const mapEl = detailEl.querySelector<HTMLElement>('[data-crash-map]');
     if (mapEl && d.recognize.point) {
@@ -389,22 +406,26 @@ const radiusLabel = (m: number) => (m < 1000 ? `${m} m (about ${Math.max(1, Math
 
   form.addEventListener('submit', (e) => {
     e.preventDefault();
+    closeSuggest();
     const values = readForm();
     const params = valuesToParams(values);
     const { problems } = normalizeSearch(paramsToBody(params), { dataThrough: root.dataset.maxDate || undefined });
     showProblems(problems);
-    if (problems.length) { problemsEl.focus?.(); return; }
-    if (!hasSearch(params)) { showProblems(['Add at least one detail: a place, a date, the vehicle or the person.']); return; }
+    if (problems.length) { problemsEl.focus(); return; }
+    if (!hasSearch(params)) { showProblems(['Add at least one detail: a place, a date, the vehicle or the person.']); problemsEl.focus(); return; }
     history.pushState(null, '', `?${params}`);
     showCrash(null);
-    runSearch(params).then(() => $<HTMLElement>('#cl-results-title').focus());
+    runSearch(params).then((outcome) => {
+      if (outcome === 'done') $<HTMLElement>('#cl-results-title').focus();
+      else if (outcome === 'problems') problemsEl.focus();
+    });
   });
 
   form.addEventListener('reset', () => {
     setTimeout(() => {
       clearSpot();
       showProblems([]);
-      history.pushState(null, '', location.pathname);
+      if (location.search) history.pushState(null, '', location.pathname);
       syncFromUrl();
     });
   });
@@ -412,6 +433,8 @@ const radiusLabel = (m: number) => (m < 1000 ? `${m} m (about ${Math.max(1, Math
   root.addEventListener('click', (e) => {
     const target = e.target as HTMLElement;
     const open = target.closest<HTMLAnchorElement>('[data-open]');
+    // Cmd/Ctrl/Shift-click and middle-click open the link (it carries the search) the browser's way.
+    if (open && (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0)) return;
     if (open) {
       e.preventDefault();
       const params = new URLSearchParams(location.search);
@@ -428,6 +451,7 @@ const radiusLabel = (m: number) => (m < 1000 ? `${m} m (about ${Math.max(1, Math
         params.delete('crash');
         history.pushState(null, '', params.size ? `?${params}` : location.pathname);
         syncFromUrl();
+        if (!hasSearch(params)) whereInput.focus();
       }
       return;
     }
@@ -449,12 +473,24 @@ const radiusLabel = (m: number) => (m < 1000 ? `${m} m (about ${Math.max(1, Math
     const pageBtn = target.closest<HTMLButtonElement>('[data-page]');
     if (pageBtn && !pageBtn.disabled) {
       page += Number(pageBtn.dataset.page);
+      // Kept in the URL for a reload or a shared link, without a Back step per page.
+      history.replaceState(history.state, '', `?${searchWithPage()}`);
       renderPage();
       $<HTMLElement>('#cl-results-title').focus();
       return;
     }
+    if (target.closest('[data-retry]')) {
+      const params = new URLSearchParams(location.search);
+      runSearch(params).then((outcome) => { if (outcome === 'done') $<HTMLElement>('#cl-results-title').focus(); });
+      return;
+    }
     if (target.closest('[data-spot-clear]')) clearSpot();
   });
+
+  // The mouse wheel scrolls the page rather than changing a focused age or model year.
+  for (const el of form.querySelectorAll<HTMLInputElement>('input[type=number]')) {
+    el.addEventListener('wheel', () => { if (document.activeElement === el) el.blur(); }, { passive: true });
+  }
 
   window.addEventListener('popstate', syncFromUrl);
 
@@ -479,7 +515,6 @@ const radiusLabel = (m: number) => (m < 1000 ? `${m} m (about ${Math.max(1, Math
     field('lat')!.value = String(p.lat);
     field('lon')!.value = String(p.lon);
     field('place')!.value = p.label;
-    if (p.borough && !field('boro')!.value) field('boro')!.value = p.borough;
     showSpot(p.label);
     closeSuggest();
   }
