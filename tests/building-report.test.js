@@ -7,16 +7,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { isBbl, bblParts, dobCategoryLabel, buildingPath, SECTIONS } from "../src/lib/building-report/config.js";
+import { isBbl, bblParts, dobCategoryLabel, buildingPath, SECTIONS, SECTION_KEYS, PARTS } from "../src/lib/building-report/config.js";
 import {
-  yearAgo, monthsBack, violationsQueries, complaintsQueries, flagsQueries, registrationQuery, contactsQuery, dobQueries, lotQueries
+  yearAgo, monthsBack, violationsQueries, complaintsQueries, hygieneQueries, flagsQueries, registrationQuery, contactsQuery, dobQueries, lotQueries
 } from "../src/lib/building-report/soql.js";
 import {
   dobDate, ecbDate, plainViolation, summarizeLot, summarizeViolations, summarizeComplaints, summarizeBedbugs,
-  summarizeFlags, summarizeRepairs, summarizeLandlord, summarizeDob, lastMonths, lotName
+  summarizeFlags, summarizeRepairs, summarizeLandlord, summarizeDob, summarizeHygiene, hygieneKind, lastMonths, lotName
 } from "../src/lib/building-report/summarize.js";
 import {
-  violationsGlance, violationsHtml, complaintsHtml, bedbugsHtml, bedbugsGlance, flagsGlance, landlordHtml, repairsHtml, columnsHtml, severityLabel
+  violationsTakeaway, violationsHtml, complaintsHtml, bedbugsHtml, bedbugsTakeaway, flagsTakeaway, landlordHtml, landlordTakeaway,
+  repairsHtml, hygieneHtml, hygieneTakeaway, columnsHtml, severityLabel, NO_HPD_TEXT
 } from "../src/lib/building-report/render.js";
 import { findBuilding } from "../src/lib/building-report/lookup.js";
 import { normalizeFeature } from "../src/lib/complaints311/geocode.js";
@@ -83,6 +84,10 @@ test("violation text drops the law it cites and leaves the order in sentence cas
     "Correct the lead-based paint hazard at apt B7, 2nd story"
   );
   assert.equal(plainViolation("AT THE TIME OF INSPECTION. I OBSERVED CRACKS"), "At the time of inspection. I observed cracks");
+  assert.equal(
+    plainViolation("HMC ADM CODE: § 27-2017.4 ABATE THE INFESTATION CONSISTING OF MICE IN THE ENTIRE APARTMENT LOCATED AT APT B34"),
+    "Abate the infestation consisting of mice in the entire apartment located at apt B34"
+  );
 });
 
 test("the lot: BINs from footprints and HPD, placeholders and demolished buildings dropped", () => {
@@ -104,14 +109,14 @@ test("a lot HPD doesn't cover, with no records, says so instead of showing zeros
   const home = { ...LOT, hpd: false };
   const v = summarizeViolations({ openByClass: [], issued12: [{ n: "0" }], byYear: [], recentOpen: [], ever: [{ n: "0" }] }, TODAY);
   assert.match(violationsHtml(v, home), /No HPD records for this building/);
-  assert.equal(violationsGlance(v, home).text, "No HPD records");
+  assert.equal(violationsTakeaway(v, home).text, NO_HPD_TEXT);
   const c = summarizeComplaints({ byMonth: [], last12: [{ n: "0" }], topCategories: [], ever: [{ n: "0" }] }, TODAY);
   assert.match(complaintsHtml(c, home), /No HPD records/);
   // An HPD building with nothing open is shown as such.
-  assert.equal(violationsGlance({ ...v, ever: 9 }, LOT).text, "No open violations");
+  assert.equal(violationsTakeaway({ ...v, ever: 9 }, LOT).text, "Nothing the city ordered fixed is still open");
 });
 
-test("open violations by class; Class C gets the warn tone", () => {
+test("open violations by class; urgent (Class C) gets the warn tone", () => {
   const v = summarizeViolations({
     openByClass: [{ class: "A", n: "7" }, { class: "C", n: "30" }, { class: "B", n: "37" }, { class: "I", n: "1" }],
     issued12: [{ n: "28" }], ever: [{ n: "3670" }],
@@ -119,7 +124,8 @@ test("open violations by class; Class C gets the warn tone", () => {
   }, TODAY);
   assert.deepEqual(v.open, { A: 7, B: 37, C: 30, I: 1, total: 75 });
   assert.deepEqual(v.byYear, [{ year: 2024, n: 326 }, { year: 2025, n: 0 }, { year: 2026, n: 10 }]);
-  assert.deepEqual(violationsGlance(v, LOT), { tone: "warn", value: "75", text: "30 Class C (immediately hazardous)" });
+  assert.deepEqual(violationsTakeaway(v, LOT), { tone: "warn", value: "75", text: "30 urgent, like no heat or lead paint (24 hours to fix)" });
+  assert.match(violationsHtml(v, LOT), /Urgent<\/span><span class="br-class-short">Owner has 24 hours · Class C/);
 });
 
 test("bedbugs: the latest filing for a period replaces earlier ones", () => {
@@ -137,14 +143,14 @@ test("bedbugs: the latest filing for a period replaces earlier ones", () => {
   assert.equal(d.periods[1].infested, 2);
   assert.equal(d.periods[1].filed, "2025-06-30");
   assert.equal(d.stale, false);
-  assert.equal(bedbugsGlance(d, LOT).text, "No infested units in the latest report");
+  assert.deepEqual(bedbugsTakeaway(d, LOT), { tone: "info", value: "0", text: "In the owner’s latest yearly report (Nov 1, 2024 – Oct 31, 2025)" });
 });
 
 test("bedbugs: no report filed is not the same as no bedbugs", () => {
   const d = summarizeBedbugs([], TODAY);
   assert.equal(d.latest, null);
   assert.match(bedbugsHtml(d, LOT), /No bedbug report filed\.<\/strong> That’s not the same as no bedbugs/);
-  assert.equal(bedbugsGlance(d, LOT).text, "No report filed");
+  assert.equal(bedbugsTakeaway(d, LOT).text, "No yearly report filed, so no word either way");
 });
 
 test("red flags: active vacates, AEP and pending cases; past ones still show", () => {
@@ -156,7 +162,7 @@ test("red flags: active vacates, AEP and pending cases; past ones still show", (
   assert.equal(f.activeVacates.length, 0);
   assert.equal(f.pastVacates, 1);
   assert.equal(f.active, true);
-  assert.deepEqual(flagsGlance(f), { tone: "warn", value: "Yes", text: "in AEP, 1 open HPD case" });
+  assert.deepEqual(flagsTakeaway(f), { tone: "warn", value: "Yes", text: "On the city’s watch list for neglected buildings, 1 open court case brought by the city" });
   const none = summarizeFlags({ vacate: [], aep: [], pendingCases: [{ n: "0" }] });
   assert.equal(none.any, false);
 });
@@ -198,6 +204,7 @@ test("landlord: owners first, names only, an expired registration flagged", () =
   ]);
   assert.equal(d.registration.expired, true);
   assert.match(landlordHtml(d, LOT), /Registration expired Sep 1, 2025/);
+  assert.deepEqual(landlordTakeaway(d, LOT), { tone: "warn", value: "Marmion Realty 1967-1971 LLC", text: "Registration with the city expired Sep 1, 2025" });
   assert.match(landlordHtml(summarizeLandlord([], [], TODAY), { ...LOT, hpd: false }), /No HPD records/);
 });
 
@@ -249,6 +256,47 @@ test("address lookup: GeoSearch's BBL comes along; a street alone asks for the h
   assert.equal((await findBuilding({ kind: "address", houseNumber: "1967", text: "1967 Marmion Ave" }, { search: noLot })).status, "not-found");
 });
 
-test("every section names its datasets", () => {
+test("every section names its datasets and is in one part", () => {
   for (const s of SECTIONS) assert.ok(s.datasets.length > 0, s.key);
+  const inParts = PARTS.flatMap((p) => p.sections);
+  assert.deepEqual([...inParts].sort(), [...SECTION_KEYS].sort());
+  assert.equal(buildingPath("2031070036"), "/building-report/?bbl=2031070036");
+  assert.equal(buildingPath("2031070036", "pests"), "/building-report/pests/?bbl=2031070036");
+});
+
+test("pests, mold and garbage: violations sorted by their wording, complaints by type", () => {
+  assert.equal(hygieneKind("HMC ADM CODE: § 27-2017.4 ABATE THE INFESTATION CONSISTING OF ROACHES IN THE ENTIRE APARTMENT"), "roaches");
+  assert.equal(hygieneKind("ABATE THE INFESTATION CONSISTING OF RODENTS RATS IN THE ENTIRE APARTMENT"), "rodents");
+  assert.equal(hygieneKind("TRACE AND REPAIR THE SOURCE AND ABATE THE VISIBLE MOLD CONDITION"), "mold");
+  assert.equal(hygieneKind("PROVIDE SUFFICIENT ... RECEPTACLES FOR THE DEPOSIT OF GARBAGE, RUBBISH"), "garbage");
+  // "MOLDING" isn't mold.
+  assert.equal(hygieneKind("REPAIR THE BROKEN OR DEFECTIVE WOOD MOLDING"), null);
+
+  const d = summarizeHygiene({
+    openViolations: [
+      { violationid: "1", class: "B", novissueddate: "2026-10-01T00:00:00.000", novdescription: "ABATE THE INFESTATION CONSISTING OF ROACHES", apartment: "4B" },
+      { violationid: "2", class: "B", novissueddate: "2026-09-01T00:00:00.000", novdescription: "ABATE THE INFESTATION CONSISTING OF ROACHES", apartment: "4b" },
+      { violationid: "3", class: "B", novissueddate: "2026-08-01T00:00:00.000", novdescription: "ABATE THE INFESTATION CONSISTING OF MICE", apartment: "2A" },
+      { violationid: "4", class: "A", novdescription: "REPAIR THE WOOD MOLDING" }
+    ],
+    complaintTypes: [
+      { minor_category: "PESTS", problem_code: "ROACHES", n: "5" },
+      { minor_category: "PESTS", problem_code: "OTHER", n: "1" },
+      { minor_category: "MOLD", problem_code: "MOLD", n: "2" }
+    ],
+    complaints12: [{ n: "6" }]
+  }, TODAY);
+  assert.equal(d.open, 3);
+  assert.deepEqual(d.byKind.map((k) => [k.label, k.n]), [["Roaches", 2], ["Mice or rats", 1]]);
+  assert.equal(d.apartments, 2);
+  assert.deepEqual(d.complaintTypes, [{ label: "Roaches", n: 5 }, { label: "Mold", n: 2 }, { label: "Other pests", n: 1 }]);
+  assert.deepEqual(hygieneTakeaway(d, LOT), { tone: "info", value: "3", text: "Mostly roaches. 6 tenant complaints in the last year" });
+  assert.match(hygieneHtml(d, LOT), /In 2 apartments/);
+
+  const none = summarizeHygiene({ openViolations: [], complaintTypes: [], complaints12: [{ n: "0" }] }, TODAY);
+  assert.equal(hygieneTakeaway(none, { ...LOT, hpd: false }).text, NO_HPD_TEXT);
+
+  const q = hygieneQueries(LOT, TODAY);
+  assert.match(q.openViolations.params.$where, /^bbl = '2031070036' AND violationstatus = 'Open' AND \(novdescription like '%INFEST%' OR /);
+  assert.match(q.complaints12.params.$where, /^bbl = 2031070036 AND received_date >= '2025-11-02' AND minor_category in \('PESTS', 'MOLD', /);
 });

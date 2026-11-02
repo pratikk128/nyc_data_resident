@@ -1,0 +1,61 @@
+---
+/*
+ * Shell shared by the Building Report Card's pages: the search page and
+ * overview (src/pages/building-report/index.astro) and each part
+ * ([part].astro). Sets the status, caching, title and description from the
+ * lot the page looked up (lotForPage()), then the report and the glossary.
+ */
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+import BuildingReport from './BuildingReport.astro';
+import AboutSection from './AboutSection.astro';
+import { buildingPath, partById } from '../../lib/building-report/config.js';
+import { lotName } from '../../lib/building-report/summarize.js';
+import { RATE_LIMITED_TEXT } from '../../lib/server/rate-limit.js';
+import { UPSTREAM_TEXT } from '../../lib/building-report/render.js';
+
+interface Props {
+  part: string;           // PARTS id, or "all"
+  lot: any;               // lotForPage()
+  error: string | null;
+}
+const { part, lot, error } = Astro.props;
+
+if (error === 'not-found') Astro.response.status = 404;
+if (error === 'rate-limited') Astro.response.status = 429;
+Astro.response.headers.set('Cache-Control', error ? 'no-store' : 'public, max-age=300');
+
+const errorText = {
+  'not-found': 'We couldn’t find that building. Try searching for its address.',
+  'rate-limited': RATE_LIMITED_TEXT,
+  'upstream': UPSTREAM_TEXT
+}[error ?? ''] ?? null;
+
+const name = lot ? lotName(lot) : null;
+const current = partById(part)!;
+const title = !name
+  ? 'Building Report Card'
+  : part === 'overview' ? `${name} — Violations, Complaints & Bedbug History` : `${current.label} — ${name}`;
+const description = name
+  ? `Open repair orders, tenant complaints, bedbugs, pests, vacate orders, court cases and the registered owner for ${name} (BBL ${lot.bbl}), from NYC Open Data.`
+  : 'Type an NYC address and see the building’s record: repairs the city ordered, tenant complaints, bedbugs and pests, court cases and who owns it.';
+---
+
+<DashboardLayout
+  title={title}
+  description={description}
+  path={lot ? buildingPath(lot.bbl, part) : '/building-report/'}
+  category="Housing & Development"
+>
+  <header class="page-head">
+    <h1>Building Report Card</h1>
+    {!lot && (
+      <p>
+        Renting, buying or just curious? Type an address and see what the city has on file for the building:
+        repairs it ordered, tenant complaints, bedbugs, court cases and who owns it. No score, just the records.
+      </p>
+    )}
+  </header>
+
+  <BuildingReport lot={lot} part={part} errorText={errorText} />
+  <AboutSection />
+</DashboardLayout>

@@ -1,48 +1,77 @@
 ---
 /*
  * The Building Report Card: an address box (with suggestions) and, for a
- * building (?bbl=), its header and map, an "At a glance" row, then one
- * section per topic. The server renders the header from the lot; the
- * browser asks for every section at once (/api/building-report/:section),
- * so each loads, fails and retries on its own. Red flags only show when the
- * building has one. What each section says is in src/lib/building-report/render.js.
+ * building (?bbl=), its header and map, the part cards (SectionNav) and one
+ * part: the overview's key takeaways, or a topic's sections in full. The
+ * server renders the header from the lot; the browser asks for each section
+ * the page needs at once (/api/building-report/:section), so each loads,
+ * fails and retries on its own. A "Heads up" line shows on every part when
+ * the building has a serious warning (a vacate order, the city's watch list,
+ * an open court case). What each section says is in
+ * src/lib/building-report/render.js.
  *
  * Picking an address goes to the building's own page (?bbl=…), so every
  * building has a link to share and the server can title it.
  */
+import SectionNav from '../SectionNav.astro';
+import SectionPager from '../SectionPager.astro';
 import { MAX_INPUT_LENGTH } from '../../lib/complaints311/location-input.js';
-import { SECTIONS } from '../../lib/building-report/config.js';
+import { SECTIONS, PARTS, buildingPath, partById } from '../../lib/building-report/config.js';
 import { count } from '../../lib/format.js';
 
 interface Props {
   lot: any;               // summarizeLot(), or null on the search page
+  part: string;           // PARTS id, or "all"
   errorText: string | null;
 }
-const { lot, errorText } = Astro.props;
+const { lot, part, errorText } = Astro.props;
 
 const INTROS: Record<string, string> = {
-  flags: 'Vacate orders, the city’s program for the worst-kept buildings, and open court cases.',
-  violations: 'Problems an HPD inspector saw and ordered fixed, from leaks to no heat.',
-  complaints: 'What tenants called 311 or HPD about. A complaint isn’t a violation until an inspector confirms it.',
-  bedbugs: 'The owner’s yearly bedbug report to HPD.',
-  dob: 'Department of Buildings complaints and violations: the structure, elevators, boilers, gas and construction.',
-  court: 'Cases HPD brought against the owner in Housing Court.',
-  repairs: 'Emergency repairs the city ordered when the owner didn’t make them.',
-  landlord: 'The owner’s registration with HPD and who’s listed on it.'
+  flags: 'Orders to leave the building, the city’s watch list for neglected buildings, and court cases the city has open against the owner.',
+  violations: 'Problems an inspector from HPD, the city’s housing agency, saw and ordered the owner to fix, from leaks to no heat. Officially called violations.',
+  complaints: 'What tenants reported to 311 or HPD. A complaint isn’t a repair order until an inspector confirms it.',
+  repairs: 'Emergencies the owner didn’t fix, so the city hired someone to do it and billed the owner.',
+  bedbugs: 'Building owners must tell the city once a year how many apartments had bedbugs.',
+  hygiene: 'Open repair orders for pests, mold and garbage, and what tenants complained about.',
+  dob: 'From the Department of Buildings: the structure, elevators, boilers, gas and construction.',
+  court: 'Cases the city brought against the owner in Housing Court.',
+  landlord: 'The owner’s yearly registration with the city, and who’s listed on it.'
 };
-// The "At a glance" row: one card per question a renter asks first.
-const GLANCE = [
-  { key: 'violations', label: 'Open HPD violations' },
-  { key: 'complaints', label: 'HPD complaints, last 12 months' },
-  { key: 'bedbugs', label: 'Bedbugs' },
-  { key: 'flags', label: 'Red flags' },
-  { key: 'repairs', label: 'City had to step in' }
-];
+// The overview's key takeaways, grouped by the part that has the details.
+const TAKEAWAYS: Record<string, { key: string; label: string }[]> = {
+  repairs: [
+    { key: 'violations', label: 'Open repair orders' },
+    { key: 'complaints', label: 'Tenant complaints, last 12 months' },
+    { key: 'repairs', label: 'Times the city made emergency repairs' }
+  ],
+  pests: [
+    { key: 'bedbugs', label: 'Apartments with bedbugs' },
+    { key: 'hygiene', label: 'Open orders for pests, mold or garbage' }
+  ],
+  legal: [
+    { key: 'flags', label: 'Serious warnings' },
+    { key: 'dob', label: 'Open building-safety violations' },
+    { key: 'landlord', label: 'Owner' }
+  ]
+};
+
+const current = partById(part)!;
+const showTakeaways = part === 'overview' || part === 'all';
+const sections = SECTIONS.filter((s) => current.sections.includes(s.key))
+  .sort((a, b) => current.sections.indexOf(a.key) - current.sections.indexOf(b.key));
+const nav = lot ? PARTS.map((p) => ({ id: p.id, href: buildingPath(lot.bbl, p.id), label: p.label, blurb: p.blurb })) : [];
+// On the all-in-one page a takeaway group jumps to its first section; elsewhere it opens the part.
+const detailsHref = (id: string) => part === 'all' ? `#br-${partById(id)!.sections[0]}` : buildingPath(lot.bbl, id);
+const facts = lot ? [
+  lot.units > 0 ? `${count(lot.units)} ${lot.units === 1 ? 'apartment' : 'apartments'}${lot.unitsSource === 'pluto' ? ' (city tax records)' : ''}` : null,
+  lot.yearBuilt ? `Built ${lot.yearBuilt}` : null,
+  lot.bins.length > 1 ? `${lot.bins.length} buildings on this lot` : null
+].filter(Boolean) : [];
 const lotJson = lot ? JSON.stringify(lot) : '';
 ---
 
-<div class="ar br" data-br data-lot={lotJson}>
-  <section class="dash-section hn-find" id="find" aria-labelledby="br-find-title">
+<div class="ar br" data-br data-lot={lotJson} data-part={part}>
+  <section class:list={['dash-section hn-find', { 'br-find-compact': lot }]} id="find" aria-labelledby="br-find-title">
     <h2 class="sr-only" id="br-find-title">Search</h2>
     <form class="hn-search" data-form novalidate role="search" aria-label="Find a building by address" action="/building-report/">
       <label class="filter-label" for="br-address">{lot ? 'Look up another building' : 'Building address'}</label>
@@ -67,19 +96,14 @@ const lotJson = lot ? JSON.stringify(lot) : '';
         <div class="br-head-text">
           <h2 class="ar-place" id="br-title">{lot.address ?? `Lot ${lot.bbl}`}</h2>
           <p class="br-borough">{lot.borough}{lot.zip ? ` ${lot.zip}` : ''}</p>
-          <dl class="br-facts">
-            <div><dt>BBL</dt><dd>{lot.bbl}</dd></div>
-            <div>
-              <dt>{lot.bins.length > 1 ? 'BINs' : 'BIN'}</dt>
-              <dd>
-                {lot.bins.length > 3
-                  ? <details class="br-bins"><summary>{lot.bins.length} buildings</summary>{lot.bins.join(', ')}</details>
-                  : lot.bins.length ? lot.bins.join(', ') : 'None found'}
-              </dd>
-            </div>
-            {lot.units > 0 && <div><dt>Apartments</dt><dd>{count(lot.units)}{lot.unitsSource === 'pluto' ? ' (city tax records)' : ''}</dd></div>}
-            {lot.yearBuilt && <div><dt>Built</dt><dd>{lot.yearBuilt}</dd></div>}
-          </dl>
+          {facts.length > 0 && <p class="br-facts-line">{facts.join(' · ')}</p>}
+          <details class="br-ids">
+            <summary>City ID numbers</summary>
+            <dl class="br-facts">
+              <div><dt>Tax lot (BBL)</dt><dd>{lot.bbl}</dd></div>
+              <div><dt>{lot.bins.length > 1 ? 'Buildings (BINs)' : 'Building (BIN)'}</dt><dd>{lot.bins.length ? lot.bins.join(', ') : 'None found'}</dd></div>
+            </dl>
+          </details>
           <div class="ar-actions">
             <button type="button" class="near-btn" data-copy>Copy link</button>
           </div>
@@ -89,46 +113,66 @@ const lotJson = lot ? JSON.stringify(lot) : '';
         )}
       </header>
 
-      <nav class="ar-glance br-glance" aria-labelledby="br-glance-title">
-        <h3 class="ar-glance-title" id="br-glance-title">At a glance</h3>
-        <ul class="ar-glance-list">
-          {GLANCE.map((g) => (
-            <li>
-              <a class="ar-glance-item" href={`#br-${g.key}`} data-glance={g.key} data-tone="loading">
-                <span class="br-glance-value" data-glance-value>…</span>
-                <span class="ar-glance-words">
-                  <span class="ar-glance-topic">{g.label}</span>
-                  <span class="ar-glance-text" data-glance-text>Checking…</span>
-                </span>
-              </a>
-            </li>
-          ))}
-        </ul>
-      </nav>
+      <SectionNav sections={nav} current={part} label="Parts of this building’s report" />
 
-      <div class="br-sections">
-        {SECTIONS.map((s) => (
-          <section class="ar-card br-section" id={`br-${s.key}`} tabindex="-1" data-section={s.key}
-            aria-labelledby={`br-${s.key}-title`} aria-busy="true" hidden={s.key === 'flags'}>
-            <h3 class="ar-card-title br-section-title" id={`br-${s.key}-title`}>{s.title}</h3>
-            <p class="ar-card-scope">{INTROS[s.key]}</p>
-            <div class="ar-body" data-body>
-              <span class="sk-line"></span><span class="sk-line sk-short"></span><span class="sk-line"></span>
-            </div>
-            <div data-sources></div>
-          </section>
-        ))}
-      </div>
+      <aside class="callout callout-heads-up br-alert" role="note" data-alert hidden></aside>
+
+      {showTakeaways && (
+        <section class="br-takeaways" aria-labelledby="br-take-title">
+          <h3 class="br-part-title" id="br-take-title">Key takeaways</h3>
+          <div class="br-take-groups">
+            {PARTS.filter((p) => TAKEAWAYS[p.id]).map((p) => (
+              <div class="br-take-group">
+                <h4 class="br-take-group-title">
+                  <span class="section-bullet" aria-hidden="true">{PARTS.indexOf(p) + 1}</span>{p.label}
+                </h4>
+                <ul class="br-take-list">
+                  {TAKEAWAYS[p.id].map((t) => (
+                    <li class="br-take" data-take={t.key} data-tone="loading">
+                      <span class="br-take-label">{t.label}</span>
+                      <span class="br-take-value" data-take-value>…</span>
+                      <span class="br-take-text" data-take-text>Checking…</span>
+                    </li>
+                  ))}
+                </ul>
+                <a class="br-take-more" href={detailsHref(p.id)}>See the details<span aria-hidden="true"> →</span><span class="sr-only">: {p.label}</span></a>
+              </div>
+            ))}
+          </div>
+          {part === 'overview' && (
+            <p class="br-all-link">Want it all at once? <a href={buildingPath(lot.bbl, 'all')}>See every record on one page</a></p>
+          )}
+        </section>
+      )}
+
+      {sections.length > 0 && (
+        <div class="br-sections">
+          {sections.map((s) => (
+            <section class="ar-card br-section" id={`br-${s.key}`} tabindex="-1" data-section={s.key}
+              aria-labelledby={`br-${s.key}-title`} aria-busy="true">
+              <h3 class="ar-card-title br-section-title" id={`br-${s.key}-title`}>{s.title}</h3>
+              <p class="ar-card-scope">{INTROS[s.key]}</p>
+              <div class="ar-body" data-body>
+                <span class="sk-line"></span><span class="sk-line sk-short"></span><span class="sk-line"></span>
+              </div>
+              <div data-sources></div>
+            </section>
+          ))}
+        </div>
+      )}
+
+      {part !== 'all' && <SectionPager sections={nav} current={part} />}
     </section>
   )}
 </div>
 
 <script>
   import {
-    flagsHtml, flagsGlance, violationsHtml, violationsGlance, complaintsHtml, complaintsGlance, bedbugsHtml, bedbugsGlance,
-    dobHtml, courtHtml, repairsHtml, repairsGlance, landlordHtml, sourcesHtml, escape, UPSTREAM_TEXT
+    flagsHtml, flagsTakeaway, flagsSummary, violationsHtml, violationsTakeaway, complaintsHtml, complaintsTakeaway,
+    repairsHtml, repairsTakeaway, bedbugsHtml, bedbugsTakeaway, hygieneHtml, hygieneTakeaway, dobHtml, dobTakeaway,
+    courtHtml, landlordHtml, landlordTakeaway, sourcesHtml, escape, UPSTREAM_TEXT
   } from '../../lib/building-report/render.js';
-  import { SECTION_KEYS, buildingPath, isBbl } from '../../lib/building-report/config.js';
+  import { buildingPath, isBbl, partById } from '../../lib/building-report/config.js';
   import { findBuilding } from '../../lib/building-report/lookup.js';
   import { parseLocationInput } from '../../lib/complaints311/location-input.js';
   import { suggest } from '../../lib/complaints311/geocode.js';
@@ -146,6 +190,7 @@ const lotJson = lot ? JSON.stringify(lot) : '';
   const choices = $('[data-address-choices]');
   const status = $('[data-status]');
   const lot = root.dataset.lot ? JSON.parse(root.dataset.lot) : null;
+  const part = root.dataset.part!;
 
   // ---------- The report ----------
 
@@ -165,82 +210,88 @@ const lotJson = lot ? JSON.stringify(lot) : '';
     }
   }
 
-  type Glance = { tone: string; value: string; text: string };
+  type Takeaway = { tone: string; value: string; text: string };
 
-  function setGlance(key: string, g: Glance) {
-    const el = root.querySelector<HTMLElement>(`[data-glance="${key}"]`);
+  function setTakeaway(key: string, t: Takeaway) {
+    const el = root.querySelector<HTMLElement>(`[data-take="${key}"]`);
     if (!el) return;
-    el.dataset.tone = g.tone;
-    el.querySelector('[data-glance-value]')!.textContent = g.value;
-    el.querySelector('[data-glance-text]')!.textContent = g.text;
+    el.dataset.tone = t.tone;
+    el.querySelector('[data-take-value]')!.textContent = t.value;
+    // Names (the owner) are longer than a number: a smaller size so they fit.
+    el.querySelector('[data-take-value]')!.classList.toggle('br-take-value-text', t.value.length > 6);
+    el.querySelector('[data-take-text]')!.textContent = t.text;
   }
 
-  // Each section: its HTML, and its "At a glance" card if it has one.
-  const VIEWS: Record<string, { html: (d: any, lot: any) => string; glance?: (d: any, lot: any) => Glance }> = {
-    flags: { html: flagsHtml, glance: flagsGlance },
-    violations: { html: violationsHtml, glance: violationsGlance },
-    complaints: { html: complaintsHtml, glance: complaintsGlance },
-    bedbugs: { html: bedbugsHtml, glance: bedbugsGlance },
-    dob: { html: dobHtml },
+  // Each section: its HTML, and its key takeaway if it has one.
+  const VIEWS: Record<string, { html: (d: any, lot: any) => string; takeaway?: (d: any, lot: any) => Takeaway }> = {
+    flags: { html: flagsHtml, takeaway: flagsTakeaway },
+    violations: { html: violationsHtml, takeaway: violationsTakeaway },
+    complaints: { html: complaintsHtml, takeaway: complaintsTakeaway },
+    repairs: { html: repairsHtml, takeaway: repairsTakeaway },
+    bedbugs: { html: bedbugsHtml, takeaway: bedbugsTakeaway },
+    hygiene: { html: hygieneHtml, takeaway: hygieneTakeaway },
+    dob: { html: dobHtml, takeaway: dobTakeaway },
     court: { html: courtHtml },
-    repairs: { html: repairsHtml, glance: repairsGlance },
-    landlord: { html: landlordHtml }
+    landlord: { html: landlordHtml, takeaway: landlordTakeaway }
   };
 
+  // A serious warning shows on every part but the one that has it in full.
+  function showAlert(d: any) {
+    const alert = $('[data-alert]');
+    if (!d.active || partById(part)!.sections.includes('flags')) return;
+    alert.innerHTML = `<strong>Heads up:</strong> ${escape(flagsSummary(d))}. ` +
+      `<a href="${buildingPath(lot.bbl, 'legal')}">See safety, court &amp; owner</a>`;
+    alert.hidden = false;
+  }
+
   /*
-   * One section, loaded on its own. Red flags stay hidden unless the building
-   * has one (or the section couldn't load, so nobody reads "none" into a gap).
-   * A failed section offers "Try again", which loads just that section.
+   * One section, loaded on its own: its full view and/or its takeaway,
+   * whichever this page has. A failed section offers "Try again", which
+   * loads just that section.
    */
   function loadSection(key: string) {
-    const el = root.querySelector<HTMLElement>(`[data-section="${key}"]`)!;
-    const body = el.querySelector<HTMLElement>('[data-body]')!;
-    const sources = el.querySelector<HTMLElement>('[data-sources]')!;
-    el.setAttribute('aria-busy', 'true');
-    body.innerHTML = '<span class="sk-line"></span><span class="sk-line sk-short"></span><span class="sk-line"></span>';
-    sources.innerHTML = '';
-    setGlance(key, { tone: 'loading', value: '…', text: 'Checking…' });
+    const el = root.querySelector<HTMLElement>(`[data-section="${key}"]`);
+    const body = el?.querySelector<HTMLElement>('[data-body]');
+    const sources = el?.querySelector<HTMLElement>('[data-sources]');
+    el?.setAttribute('aria-busy', 'true');
+    if (body) body.innerHTML = '<span class="sk-line"></span><span class="sk-line sk-short"></span><span class="sk-line"></span>';
+    if (sources) sources.innerHTML = '';
+    setTakeaway(key, { tone: 'loading', value: '…', text: 'Checking…' });
     getJson(`/api/building-report/${key}?bbl=${lot.bbl}`).then(
       (d) => {
         const view = VIEWS[key];
-        if (key === 'flags') el.hidden = !d.any;
-        body.innerHTML = view.html(d, lot);
-        sources.innerHTML = sourcesHtml(d.sources ?? []);
-        if (view.glance) setGlance(key, view.glance(d, lot));
+        if (body) body.innerHTML = view.html(d, lot);
+        if (sources) sources.innerHTML = sourcesHtml(d.sources ?? []);
+        if (view.takeaway) setTakeaway(key, view.takeaway(d, lot));
+        if (key === 'flags') showAlert(d);
       },
       (err) => {
-        if (key === 'flags') el.hidden = false;
-        body.innerHTML = `<p class="ar-error"><strong>Couldn’t load this section.</strong> ${escape(err?.message || UPSTREAM_TEXT)}</p>` +
-          '<button type="button" class="near-btn ar-retry" data-retry>Try again</button>';
-        body.querySelector('[data-retry]')!.addEventListener('click', () => {
-          loadSection(key);
-          el.focus({ preventScroll: true });
-        });
-        setGlance(key, { tone: 'none', value: '?', text: 'Couldn’t load this' });
+        if (body) {
+          body.innerHTML = `<p class="ar-error"><strong>Couldn’t load this section.</strong> ${escape(err?.message || UPSTREAM_TEXT)}</p>` +
+            '<button type="button" class="near-btn ar-retry" data-retry>Try again</button>';
+          body.querySelector('[data-retry]')!.addEventListener('click', () => {
+            loadSection(key);
+            el!.focus({ preventScroll: true });
+          });
+        }
+        setTakeaway(key, { tone: 'none', value: '?', text: 'Couldn’t load this. Reload the page to try again.' });
       }
-    ).finally(() => el.removeAttribute('aria-busy'));
+    ).finally(() => el?.removeAttribute('aria-busy'));
   }
 
   if (lot) {
-    for (const key of SECTION_KEYS) loadSection(key);
-
-    // "At a glance" scrolls to its section. With no red flags (their section hidden), that card goes to Court cases.
-    root.querySelector('.br-glance')!.addEventListener('click', (e: Event) => {
-      if (!(e instanceof MouseEvent)) return;
-      const link = (e.target as HTMLElement).closest<HTMLAnchorElement>('[data-glance]');
-      if (!link || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-      let target = document.getElementById(`br-${link.dataset.glance}`)!;
-      if (target.hidden) target = document.getElementById('br-court')!;
-      e.preventDefault();
-      const smooth = !matchMedia('(prefers-reduced-motion: reduce)').matches;
-      target.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' });
-      target.focus({ preventScroll: true });
-    });
+    // This part's sections, the takeaways it shows, and the serious warnings (for the heads-up line).
+    const keys = new Set([
+      ...partById(part)!.sections,
+      ...[...root.querySelectorAll<HTMLElement>('[data-take]')].map((el) => el.dataset.take!),
+      'flags'
+    ]);
+    for (const key of keys) loadSection(key);
 
     const copyBtn = $<HTMLButtonElement>('[data-copy]');
     copyBtn.addEventListener('click', async () => {
       try {
-        await navigator.clipboard.writeText(`${location.origin}${buildingPath(lot.bbl)}`);
+        await navigator.clipboard.writeText(`${location.origin}${buildingPath(lot.bbl, part)}`);
         copyBtn.textContent = 'Link copied';
       } catch {
         copyBtn.textContent = 'Copy it from the address bar';

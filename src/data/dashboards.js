@@ -121,7 +121,7 @@ export const dashboards = [
   {
     id: "building-report",
     title: "Building Report Card",
-    description: "Type an address and see a building’s record: open HPD violations, complaints, bedbugs, vacate orders, court cases, city-paid repairs and who owns it.",
+    description: "Type an address and see a building’s record: repairs the city ordered, tenant complaints, bedbugs and pests, vacate orders, court cases and who owns it.",
     category: "Housing & Development",
     url: "/building-report/",
     audience: ["resident"]

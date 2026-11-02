@@ -6,10 +6,13 @@
  *     the latest filing is the one that counts
  *   - DOB complaints: date_entered is text, filtered to the last 12 months here
  *   - city repairs: OMO and HWO combined; dollars only on orders where the work got done
+ *   - pests, mold and garbage: violations sorted by their text, first match wins
  *   - "ever": whether HPD has any record at all, so an empty section can say
  *     "No HPD records" instead of looking spotless
  */
-import { CLASSES, CONTACT_ROLES, COMPLAINT_CATEGORIES, BOROUGH_NAMES, dobCategoryLabel } from "./config.js";
+import {
+  CLASSES, CONTACT_ROLES, COMPLAINT_CATEGORIES, BOROUGH_NAMES, HYGIENE_KINDS, HYGIENE_COMPLAINT_LABELS, dobCategoryLabel
+} from "./config.js";
 import { yearAgo, workDone } from "./soql.js";
 import { titleCase } from "../restaurants/inspections.js";
 
@@ -36,6 +39,10 @@ export function ecbDate(text) {
  */
 export function plainViolation(text) {
   let s = String(text ?? "").replace(/\s+/g, " ").trim();
+  // Some lead with the code's name instead ("HMC ADM CODE: § 27-2017.4 ABATE …"): from the § on, then the law's number goes.
+  if (/^(HMC|ADM CODE|MDL)\b[^§]{0,20}§/.test(s)) {
+    s = s.slice(s.indexOf("§")).replace(/^§\s*[\d.,\s-]+(?=[A-Z])/, "");
+  }
   if (s.startsWith("§")) {
     const colon = s.indexOf(":");
     const code = /\b(ADM CODE|HMC|MDL)\b\s*[-–:]?\s*(?=[A-Z])/.exec(s);
@@ -147,6 +154,49 @@ export function summarizeComplaints(r, today) {
       label: COMPLAINT_CATEGORIES[row.major_category] ?? titleCase(row.major_category),
       n: num(row.n)
     }))
+  };
+}
+
+// ---------- Pests, mold and garbage ----------
+
+// Violation text → its HYGIENE_KINDS key, or null when it only mentions one in passing.
+export function hygieneKind(text) {
+  const t = String(text ?? "").toUpperCase();
+  return HYGIENE_KINDS.find((k) => k.test.test(t))?.key ?? null;
+}
+
+/*
+ * → { open, byKind: [{ key, label, n }] (most first, only kinds with any),
+ *     apartments, recent, complaints12, complaintTypes: [{ label, n }], since }
+ */
+export function summarizeHygiene(r, today) {
+  const counts = new Map();
+  const apartments = new Set();
+  const recent = [];
+  for (const v of r.openViolations ?? []) {
+    const kind = hygieneKind(v.novdescription);
+    if (!kind) continue;
+    counts.set(kind, (counts.get(kind) ?? 0) + 1);
+    if (v.apartment) apartments.add(String(v.apartment).trim().toUpperCase());
+    if (recent.length < 5) recent.push({ id: v.violationid, kind, class: v.class, date: day(v.novissueddate), text: plainViolation(v.novdescription), apartment: v.apartment ?? null });
+  }
+  const byKind = HYGIENE_KINDS.filter((k) => counts.get(k.key)).map((k) => ({ key: k.key, label: k.label, n: counts.get(k.key) }))
+    .sort((a, b) => b.n - a.n);
+  // Pests by what they were (mice, roaches …), the rest by category; "Other" pests stay together.
+  const types = new Map();
+  for (const row of r.complaintTypes ?? []) {
+    const code = row.minor_category === "PESTS" ? row.problem_code : row.minor_category;
+    const label = HYGIENE_COMPLAINT_LABELS[code] ?? (row.minor_category === "PESTS" ? "Other pests" : titleCase(code ?? "Other"));
+    types.set(label, (types.get(label) ?? 0) + num(row.n));
+  }
+  return {
+    open: byKind.reduce((s, k) => s + k.n, 0),
+    byKind,
+    apartments: apartments.size,
+    recent,
+    complaints12: firstN(r.complaints12),
+    complaintTypes: [...types].map(([label, n]) => ({ label, n })).sort((a, b) => b.n - a.n),
+    since: yearAgo(today)
   };
 }
 

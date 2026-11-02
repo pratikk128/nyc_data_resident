@@ -1,8 +1,8 @@
 /*
  * The Building Report Card (/building-report/?bbl=…): one tax lot, its track
  * record from twelve HPD and DOB datasets. Every dataset, the section it
- * feeds and how it's keyed, plus the labels the sections use. Pure and
- * browser-safe.
+ * feeds and how it's keyed, the parts the report is split into, plus the
+ * labels the sections use. Pure and browser-safe.
  *
  * Keys differ by dataset (checked against each dataset's columns):
  *   bbl as text ('2031070036'): violations, bedbugs, litigation, OMO, HWO
@@ -39,21 +39,55 @@ export const LOT_DATASETS = {
 };
 
 /*
- * Sections in page order. datasets: the keys above whose "last updated" the
- * section shows. hpd: an HPD section, which says "No HPD records" for a lot
- * HPD has never dealt with instead of showing zeros.
+ * Sections. datasets: the keys above whose "last updated" the section shows.
+ * hpd: an HPD section, which says "No HPD records" for a lot HPD has never
+ * dealt with instead of showing zeros. Titles are plain words: readers
+ * needn't know which agency keeps what (each section's intro says).
  */
 export const SECTIONS = [
-  { key: "flags",      title: "Red flags",           datasets: ["vacate", "aep", "litigation"], hpd: true },
-  { key: "violations", title: "HPD violations",       datasets: ["violations"], hpd: true },
-  { key: "complaints", title: "HPD complaints",       datasets: ["complaints"], hpd: true },
-  { key: "bedbugs",    title: "Bedbugs",              datasets: ["bedbugs"], hpd: true },
-  { key: "dob",        title: "Building safety (DOB)", datasets: ["dobComplaints", "ecb"], hpd: false },
-  { key: "court",      title: "Court cases",          datasets: ["litigation"], hpd: true },
-  { key: "repairs",    title: "City repairs",         datasets: ["omo", "hwo"], hpd: true },
-  { key: "landlord",   title: "Landlord",             datasets: ["registrations", "contacts"], hpd: true }
+  { key: "flags",      title: "Serious warnings",               datasets: ["vacate", "aep", "litigation"], hpd: true },
+  { key: "violations", title: "Open repair orders",             datasets: ["violations"], hpd: true },
+  { key: "complaints", title: "Tenant complaints",              datasets: ["complaints"], hpd: true },
+  { key: "repairs",    title: "Emergency repairs by the city",  datasets: ["omo", "hwo"], hpd: true },
+  { key: "bedbugs",    title: "Bedbugs",                        datasets: ["bedbugs"], hpd: true },
+  { key: "hygiene",    title: "Mice, roaches, mold and garbage", datasets: ["violations", "complaints"], hpd: true },
+  { key: "dob",        title: "Building safety",                datasets: ["dobComplaints", "ecb"], hpd: false },
+  { key: "court",      title: "Housing Court cases",            datasets: ["litigation"], hpd: true },
+  { key: "landlord",   title: "Who owns it",                    datasets: ["registrations", "contacts"], hpd: true }
 ];
 export const SECTION_KEYS = SECTIONS.map((s) => s.key);
+
+/*
+ * The report's parts, one page each (DESIGN.md §6.3): the overview (key
+ * takeaways from every section) and one page per topic. path: after
+ * /building-report/. sections: the sections the part shows in full.
+ * "all" isn't a card: the overview links to it for readers who want every
+ * section on one page.
+ */
+export const PARTS = [
+  {
+    id: "overview", path: "", label: "Key takeaways",
+    blurb: "The short version: what stands out, in one screen.",
+    sections: []
+  },
+  {
+    id: "repairs", path: "repairs/", label: "Repairs & complaints",
+    blurb: "What inspectors ordered fixed, what tenants reported, and when the city stepped in.",
+    sections: ["violations", "complaints", "repairs"]
+  },
+  {
+    id: "pests", path: "pests/", label: "Pests & cleanliness",
+    blurb: "Bedbugs, mice, roaches, mold and garbage.",
+    sections: ["bedbugs", "hygiene"]
+  },
+  {
+    id: "legal", path: "legal/", label: "Safety, court & owner",
+    blurb: "Vacate orders, building safety, court cases and who owns it.",
+    sections: ["flags", "dob", "court", "landlord"]
+  }
+];
+export const ALL_PART = { id: "all", path: "all/", label: "Everything", sections: SECTION_KEYS };
+export const partById = (id) => [...PARTS, ALL_PART].find((p) => p.id === id) ?? null;
 
 export const BUILDING_TTL = 3600;
 export const SECTION_TTL = 3600;
@@ -65,17 +99,18 @@ export const bblParts = (bbl) => ({ boro: Number(bbl[0]), block: Number(bbl.slic
 
 export const BOROUGH_NAMES = { 1: "Manhattan", 2: "Bronx", 3: "Brooklyn", 4: "Queens", 5: "Staten Island" };
 
-// What a building page is called, for the URL.
-export const buildingPath = (bbl) => `/building-report/?bbl=${bbl}`;
+// A building's page, for the URL: its overview, or one part (PARTS id).
+export const buildingPath = (bbl, part = "overview") =>
+  `/building-report/${partById(part)?.path ?? ""}?bbl=${bbl}`;
 
 // ---------- Labels ----------
 
-// HPD violation classes (HPD's own definitions, shortened).
+// HPD violation classes (HPD's own definitions, shortened), with a plain name first.
 export const CLASSES = [
-  { key: "C", label: "Class C", short: "Immediately hazardous", text: "Immediately hazardous: the owner usually has 24 hours to fix it." },
-  { key: "B", label: "Class B", short: "Hazardous", text: "Hazardous: the owner has 30 days to fix it." },
-  { key: "A", label: "Class A", short: "Non-hazardous", text: "Non-hazardous: the owner has 90 days to fix it." },
-  { key: "I", label: "Class I", short: "Information orders", text: "An order from HPD rather than a repair, like a vacate order or a notice that the building is in AEP." }
+  { key: "C", label: "Urgent", code: "Class C", short: "Owner has 24 hours", text: "Immediately hazardous, like no heat, a gas leak or lead paint: the owner usually has 24 hours to fix it." },
+  { key: "B", label: "Serious", code: "Class B", short: "Owner has 30 days", text: "Hazardous, like a broken lock or a leak: the owner has 30 days to fix it." },
+  { key: "A", label: "Minor", code: "Class A", short: "Owner has 90 days", text: "Non-hazardous, like peeling paint in a closet: the owner has 90 days to fix it." },
+  { key: "I", label: "City notice", code: "Class I", short: "Not a repair", text: "An order from HPD rather than a repair, like a vacate order or a notice that the building is on the city’s watch list (AEP)." }
 ];
 
 // Registration contact roles, owners first. Names only: the page never shows contacts' addresses.
@@ -302,6 +337,28 @@ export function dobCategoryLabel(code) {
   const key = String(code ?? "").trim().toUpperCase().padStart(2, "0");
   return DOB_CATEGORIES[key] ?? `Other DOB complaint (code ${key})`;
 }
+
+/*
+ * Pests, mold and garbage. Complaints: HPD's minor_category, and for pests
+ * its problem_code. Violations have no category, so they're sorted by their
+ * text ("ABATE THE INFESTATION CONSISTING OF ROACHES …", "… VISIBLE MOLD
+ * CONDITION …", "… RECEPTACLES FOR THE DEPOSIT OF GARBAGE …"), first match wins.
+ */
+export const HYGIENE_COMPLAINTS = ["PESTS", "MOLD", "GARBAGE/RECYCLING STORAGE", "SEWAGE"];
+export const HYGIENE_KINDS = [
+  { key: "bedbugs", label: "Bedbugs", test: /BED ?BUGS?/ },
+  { key: "rodents", label: "Mice or rats", test: /\b(MICE|MOUSE|RATS?|RODENTS?)\b/ },
+  { key: "roaches", label: "Roaches", test: /ROACH/ },
+  { key: "pests", label: "Other pests", test: /INFEST|VERMIN|INSECT|\bFLIES\b|\bPESTS?\b|TERMITE|FLEAS/ },
+  { key: "mold", label: "Mold", test: /\bMOLD\b/ },
+  { key: "garbage", label: "Garbage", test: /GARBAGE|RUBBISH/ }
+];
+// What the violations query looks for (soql.js); HYGIENE_KINDS sorts what comes back.
+export const HYGIENE_WORDS = ["INFEST", "BED BUG", "MICE", "RODENT", "RATS", "ROACH", "VERMIN", "MOLD", "GARBAGE", "RUBBISH"];
+export const HYGIENE_COMPLAINT_LABELS = {
+  "MICE": "Mice", "ROACHES": "Roaches", "BED BUGS": "Bedbugs", "FLIES": "Flies", "TERMITES": "Termites", "FLEAS": "Fleas",
+  "MOLD": "Mold", "GARBAGE/RECYCLING STORAGE": "Garbage or recycling storage", "SEWAGE": "Sewage"
+};
 
 // OMO and HWO status reasons that mean the city's contractor did the work.
 export const WORK_DONE = ["OMO Completed", "Work Partially Completed"];

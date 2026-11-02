@@ -1,9 +1,8 @@
 /*
  * GET /api/building-report/:section?bbl=2031070036
- * One section of the Building Report Card (flags, violations, complaints,
- * bedbugs, dob, court, repairs, landlord) for one tax lot, from
- * src/lib/server/building-report.js. The page asks for every section at
- * once, so each loads and fails on its own.
+ * One section of the Building Report Card (SECTIONS in config.js) for one
+ * tax lot, from src/lib/server/building-report.js. A page asks for each
+ * section it shows at once, so each loads and fails on its own.
  * → { section, ...summary, sources: [{ id, name, url, updatedAt }] }, or { error }
  */
 import { loadLot, loadSection } from "../../../lib/server/building-report.js";

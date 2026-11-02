@@ -4065,9 +4065,10 @@ a.hn-directions:hover { background: var(--accent-deep); }
 
 /* =========================================================
    Building Report Card (/building-report/)
-   Builds on the address report's cards, lists, bars and "At a glance"
-   (.ar-*). Neutral by design: only Class C violations, open red flags,
-   infested units and open ECB violations get the warm "warn" tone.
+   Builds on the address report's cards, lists and bars (.ar-*) and the
+   part cards (.section-*). Neutral by design: only urgent (Class C) repair
+   orders, serious warnings, apartments with bedbugs, open building-safety
+   violations and an expired registration get the warm "warn" tone.
    ========================================================= */
 .br-head {
   display: grid;
@@ -4082,16 +4083,69 @@ a.hn-directions:hover { background: var(--accent-deep); }
 }
 .br-head-text { min-width: 0; }
 .br-borough { margin-top: 2px; color: var(--ink-soft); font-weight: 600; }
-.br-facts { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); margin: var(--space-4) 0; }
+.br-facts-line { margin-top: var(--space-3); font-weight: 600; font-variant-numeric: tabular-nums; }
+.br-ids { margin-top: var(--space-2); font-size: .875rem; color: var(--ink-soft); }
+.br-ids summary { width: fit-content; cursor: pointer; }
+.br-ids summary:hover { color: var(--link); }
+.br-facts { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); margin: var(--space-2) 0 0; }
 .br-facts div { min-width: 0; }
 .br-facts dt { font-size: .75rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-soft); }
 .br-facts dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.br-map { height: 220px; margin-top: 0; border-radius: var(--radius-md); overflow: hidden; isolation: isolate; }
+.br-head .ar-actions { margin-top: var(--space-4); }
+.br-map { height: 200px; margin-top: 0; border-radius: var(--radius-md); overflow: hidden; isolation: isolate; }
 
-.br-glance .ar-glance-list { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-.br-glance .ar-glance-item { flex-direction: column; gap: var(--space-1); }
-.br-glance-value { font-size: 1.75rem; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
-.br-glance .ar-glance-item[data-tone="warn"] .br-glance-value { color: var(--callout-heads-up-deep); }
+/* On a building's page the search steps back: one slim row above the report */
+.br-find-compact { padding-bottom: var(--space-4); }
+.br-find-compact .filter-label { font-size: .875rem; }
+.br-find-compact .rest-status:empty { display: none; }
+
+/* The parts: four cards in a row on a wide screen */
+.br .section-nav { margin-top: var(--space-5); }
+.br .section-cards { margin-top: 0; }
+@media (min-width: 900px) {
+  .br .section-cards { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .br .section-card { padding: var(--space-4); }
+  .br .section-card-title { font-size: 1.0625rem; }
+  .br .section-card-blurb { font-size: .875rem; }
+}
+
+.br-alert { margin-top: var(--space-5); }
+.br-alert[hidden] { display: none; }
+.br-part-title { font-size: 1.375rem; margin-top: var(--space-6); }
+
+/* Key takeaways: one card per part, a big number per line, a link to the details */
+.br-take-groups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); margin-top: var(--space-3); }
+.br-take-group {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+.br-take-group-title { display: flex; align-items: center; gap: var(--space-2); font-size: 1.0625rem; font-weight: 800; }
+.br-take-group-title .section-bullet { width: 28px; height: 28px; font-size: .875rem; }
+.br-take-list { display: grid; gap: var(--space-2); margin: var(--space-3) 0 0; padding: 0; list-style: none; }
+.br-take {
+  display: grid;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  border-left: 4px solid var(--line-strong);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+.br-take[data-tone="warn"] { border-left-color: var(--callout-heads-up-deep); background: var(--callout-heads-up); }
+.br-take[data-tone="info"] { border-left-color: var(--link); }
+.br-take-label { font-size: .8125rem; font-weight: 700; color: var(--ink-soft); }
+.br-take-value { font-size: 1.75rem; font-weight: 800; line-height: 1.15; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.br-take-value-text { font-size: 1.0625rem; line-height: 1.3; }
+.br-take[data-tone="warn"] .br-take-value { color: var(--callout-heads-up-deep); }
+.br-take[data-tone="loading"] .br-take-value, .br-take[data-tone="none"] .br-take-value { color: var(--ink-soft); }
+.br-take-text { font-size: .9375rem; line-height: 1.4; }
+.br-take[data-tone="loading"] .br-take-text, .br-take[data-tone="none"] .br-take-text { color: var(--ink-soft); }
+.br-take-more { margin-top: auto; padding-top: var(--space-3); font-weight: 700; }
+.br-all-link { margin-top: var(--space-4); color: var(--ink-soft); }
+.br-all-link a { font-weight: 700; }
 
 .br-sections { display: grid; gap: var(--space-5); margin-top: var(--space-6); }
 .br-section { scroll-margin-top: calc(var(--header-h) + var(--space-4)); }
@@ -4153,11 +4207,12 @@ a.hn-directions:hover { background: var(--accent-deep); }
 .br-terms { display: grid; gap: var(--space-3); max-width: 75ch; margin-top: var(--space-4); }
 .br-terms dt { font-weight: 800; }
 .br-terms dd { margin: 2px 0 0; color: var(--ink-soft); }
+.br-term-sub { padding-left: var(--space-4); border-left: 2px solid var(--line); }
 
 @media (max-width: 899px) {
   .br-head { grid-template-columns: 1fr; }
-  .br-map { height: 180px; }
-  .br-glance .ar-glance-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .br-map { height: 160px; }
+  .br-take-groups { grid-template-columns: 1fr; }
 }
 @media (max-width: 639px) {
   .br-head { padding: var(--space-4); }
@@ -4165,14 +4220,7 @@ a.hn-directions:hover { background: var(--accent-deep); }
   .br-col-value { display: none; }
   .br-cols { height: 120px; gap: 2px; }
 }
-@media (max-width: 419px) {
-  .br-glance .ar-glance-list { grid-template-columns: 1fr; }
-  .br-glance .ar-glance-item { flex-direction: row; align-items: center; gap: var(--space-3); }
-  .br-glance-value { min-width: 3.5rem; font-size: 1.5rem; }
-}
 @media print {
-  .br-map { display: none; }
+  .br-map, .br-find-compact, .br .section-nav, .br .section-pager, .br-take-more, .br-all-link { display: none; }
   .br-section { break-inside: avoid; }
 }
-.br-bins summary { cursor: pointer; color: var(--link); }
-.br-bins[open] summary { margin-bottom: var(--space-1); }

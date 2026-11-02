@@ -12,22 +12,22 @@
  */
 import { soql, datasetMetadata } from "./socrata.js";
 import { dailyValue, edgeCached } from "./cache.js";
-import { checkRateLimit } from "./rate-limit.js";
+import { checkRateLimit, RateLimited } from "./rate-limit.js";
 import { requestMaxAgeHours } from "../etl/cadence.js";
 import { nycToday } from "../format.js";
 import {
-  DATASETS, LOT_DATASETS, SECTIONS, BUILDING_TTL, SECTION_TTL, bblParts, datasetUrl
+  DATASETS, LOT_DATASETS, SECTIONS, BUILDING_TTL, SECTION_TTL, bblParts, datasetUrl, isBbl
 } from "../building-report/config.js";
 import {
-  lotQueries, violationsQueries, complaintsQueries, bedbugsQueries, flagsQueries, courtQueries,
+  lotQueries, violationsQueries, complaintsQueries, hygieneQueries, bedbugsQueries, flagsQueries, courtQueries,
   repairsQueries, registrationQuery, contactsQuery, dobQueries
 } from "../building-report/soql.js";
 import {
-  summarizeLot, summarizeViolations, summarizeComplaints, summarizeBedbugs, summarizeFlags,
+  summarizeLot, summarizeViolations, summarizeComplaints, summarizeHygiene, summarizeBedbugs, summarizeFlags,
   summarizeCourt, summarizeRepairs, summarizeLandlord, summarizeDob
 } from "../building-report/summarize.js";
 
-const CACHE_VERSION = "v1";
+const CACHE_VERSION = "v2";
 const LIMITER = "BUILDING_RATE_LIMITER";
 
 // ---------- Daily jobs (see src/lib/server/etl.js) ----------
@@ -98,11 +98,31 @@ export async function loadLot(bbl, requestUrl, ctx, clientAddress) {
   return data.missing ? null : data;
 }
 
+/*
+ * For a report page: the ?bbl= in the URL → { lot, error }. error: null,
+ * "not-found" (a bad or unknown BBL), "rate-limited" or "upstream". No
+ * ?bbl= at all is the search page: { lot: null, error: null }.
+ */
+export async function lotForPage(url, ctx, clientAddress) {
+  const bbl = url.searchParams.get("bbl");
+  if (bbl === null) return { lot: null, error: null };
+  if (!isBbl(bbl)) return { lot: null, error: "not-found" };
+  try {
+    const lot = await loadLot(bbl, url, ctx, clientAddress);
+    return { lot, error: lot ? null : "not-found" };
+  } catch (err) {
+    if (err instanceof RateLimited) return { lot: null, error: "rate-limited" };
+    console.error(err);
+    return { lot: null, error: "upstream" };
+  }
+}
+
 // ---------- Sections ----------
 
 const LOADERS = {
   violations: async (lot, today) => summarizeViolations(await runAll(violationsQueries(lot, today)), today),
   complaints: async (lot, today) => summarizeComplaints(await runAll(complaintsQueries(lot, today)), today),
+  hygiene: async (lot, today) => summarizeHygiene(await runAll(hygieneQueries(lot, today)), today),
   bedbugs: async (lot, today) => summarizeBedbugs((await runAll(bedbugsQueries(lot))).filings, today),
   flags: async (lot) => summarizeFlags(await runAll(flagsQueries(lot))),
   court: async (lot) => summarizeCourt(await runAll(courtQueries(lot))),

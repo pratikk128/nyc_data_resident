@@ -7,7 +7,7 @@
  * lot: { bbl, boro, block, lot, bins } (bblParts() plus the lot's BINs).
  * today: "YYYY-MM-DD" in New York (format.js nycToday()).
  */
-import { DATASETS, WORK_DONE } from "./config.js";
+import { DATASETS, WORK_DONE, HYGIENE_COMPLAINTS, HYGIENE_WORDS } from "./config.js";
 
 const quote = (s) => `'${String(s).replace(/'/g, "''")}'`;
 const q = (key, params) => ({ dataset: DATASETS[key].id, params });
@@ -70,6 +70,29 @@ export function complaintsQueries(lot, today) {
       $group: "major_category", $order: "n DESC", $limit: "8"
     }),
     ever: q("complaints", { $select: "count(*) AS n", $where: where })
+  };
+}
+
+/*
+ * Pests, mold and garbage: the open violations whose text names one (sorted
+ * by kind in summarize.js), and the last 12 months' complaints about them.
+ * Complaint rows are problems: types count problems, the total complaints.
+ */
+export function hygieneQueries(lot, today) {
+  const words = HYGIENE_WORDS.map((w) => `novdescription like ${quote(`%${w}%`)}`).join(" OR ");
+  const complaints = `${bblNumber(lot)} AND received_date >= ${quote(yearAgo(today))} AND ` +
+    `minor_category in (${HYGIENE_COMPLAINTS.map(quote).join(", ")})`;
+  return {
+    openViolations: q("violations", {
+      $select: "violationid, class, novissueddate, novdescription, apartment",
+      $where: `${bblText(lot)} AND violationstatus = 'Open' AND (${words})`,
+      $order: "novissueddate DESC NULL LAST, violationid DESC", $limit: "1000"
+    }),
+    complaintTypes: q("complaints", {
+      $select: "minor_category, problem_code, count(*) AS n",
+      $where: complaints, $group: "minor_category, problem_code", $order: "n DESC"
+    }),
+    complaints12: q("complaints", { $select: "count(distinct complaint_id) AS n", $where: complaints })
   };
 }
 

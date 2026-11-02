@@ -32,8 +32,8 @@ src/components/crash-lookup/  The lookup form, results and deep dive; method not
 src/pages/crash-hotspots/  NYC Crash Hotspots (rendered on demand)
 src/components/crash-hotspots/  Place and how you get around, stat cards, what to watch for, dangerous intersections and map; method notes
 src/lib/crashes/          Crash lookup logic: config (date range), schema, normalizing, form, scoring, search SQL, deep dive, rendering; crash hotspots' facts (facts.js) and hotspot-*.js
-src/pages/building-report/  Building Report Card: /building-report/?bbl=<BBL>, one page per tax lot (rendered on demand)
-src/components/building-report/  Address search, header and map, "At a glance", the eight sections; terms and sources
+src/pages/building-report/  Building Report Card: /building-report/?bbl=<BBL> (key takeaways), plus repairs/, pests/, legal/ and all/ per tax lot (rendered on demand)
+src/components/building-report/  Page shell, address search, header and map, part cards, key takeaways, the nine sections; terms and sources
 src/lib/building-report/  Building report logic: datasets and labels (config.js), SoQL per section, summaries, rendering, address lookup
 src/pages/api/            API routes (Worker): /api/restaurants/search, /api/restaurants/:camis, /api/311/*, /api/water/stations, /api/shop-diverse/*, /api/schools/search, /api/street-closures/search, /api/building-report/:section
 src/lib/restaurants/      Restaurant logic: SoQL builders, inspection rules, violation categories, rendering
