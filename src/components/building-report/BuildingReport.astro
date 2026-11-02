@@ -109,7 +109,7 @@ const lotJson = lot ? JSON.stringify(lot) : '';
           </div>
         </div>
         {lot.lat != null && (
-          <div class="c311-map-frame br-map" data-map role="img" aria-label={`Map showing ${lot.address ?? 'the lot'}, ${lot.borough}`}></div>
+          <div class="c311-map-frame br-map" data-map role="region" aria-label={`Map showing ${lot.address ?? 'the lot'}, ${lot.borough}`}></div>
         )}
       </header>
 

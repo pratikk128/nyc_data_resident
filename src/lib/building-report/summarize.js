@@ -137,10 +137,13 @@ export const classInfo = (key) => CLASSES.find((c) => c.key === key);
 
 // ---------- Complaints ----------
 
-// The 12 calendar months ending this month: ["2025-12", …, "2026-11"]
-export function lastMonths(today, n = 12) {
-  const [y, m] = today.split("-").map(Number);
-  return Array.from({ length: n }, (_, i) => new Date(Date.UTC(y, m - n + i, 1)).toISOString().slice(0, 7));
+// Every calendar month from a year ago through this one: ["2025-11", …, "2026-11"].
+// The first and last are usually part-months.
+export function chartMonths(today) {
+  const [y, m] = yearAgo(today).split("-").map(Number);
+  const [ty, tm] = today.split("-").map(Number);
+  const n = (ty - y) * 12 + (tm - m) + 1;
+  return Array.from({ length: n }, (_, i) => new Date(Date.UTC(y, m - 1 + i, 1)).toISOString().slice(0, 7));
 }
 
 export function summarizeComplaints(r, today) {
@@ -149,7 +152,8 @@ export function summarizeComplaints(r, today) {
     ever: firstN(r.ever),
     last12: firstN(r.last12),
     since: yearAgo(today),
-    months: lastMonths(today).map((month) => ({ month, n: counts.get(month) ?? 0 })),
+    today,
+    months: chartMonths(today).map((month) => ({ month, n: counts.get(month) ?? 0 })),
     top: (r.topCategories ?? []).filter((row) => row.major_category).map((row) => ({
       key: row.major_category,
       label: COMPLAINT_CATEGORIES[row.major_category] ?? titleCase(row.major_category),
@@ -272,8 +276,9 @@ export function summarizeFlags(r) {
 
 // ---------- Court cases ----------
 
-export function summarizeCourt(r) {
+export function summarizeCourt(r, today) {
   return {
+    today,
     total: firstN(r.total),
     cases: (r.cases ?? []).map((c) => ({
       id: c.litigationid,

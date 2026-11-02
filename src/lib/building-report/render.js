@@ -7,7 +7,7 @@
  * plain words (readers needn't know what HPD or ECB stand for).
  */
 import { escape } from "../address-report/render.js";
-import { count, money, date } from "../format.js";
+import { count, money, date, shortDate } from "../format.js";
 import { CLASSES } from "./config.js";
 import { classInfo } from "./summarize.js";
 
@@ -27,6 +27,18 @@ const stats = (items) => `<div class="br-stats">${items.join("")}</div>`;
 const takeaway = (tone, value, text) => ({ tone, value, text });
 const monthName = (ym, style = "short") =>
   new Date(`${ym}-01T12:00:00Z`).toLocaleDateString("en-US", { month: style, year: style === "short" ? undefined : "numeric", timeZone: "UTC" });
+// Fines to the dollar, as the tribunal states them: "$11,752", not "$12K".
+const dollars = (n) => `$${count(n)}`;
+
+// "3 years, 10 months" from one "YYYY-MM-DD" to another.
+export function howLong(from, to) {
+  const [fy, fm, fd] = from.split("-").map(Number);
+  const [ty, tm, td] = to.split("-").map(Number);
+  const months = (ty - fy) * 12 + (tm - fm) - (td < fd ? 1 : 0);
+  if (months < 1) return "under a month";
+  const y = Math.floor(months / 12), m = months % 12;
+  return [y ? plural(y, "year") : "", m ? plural(m, "month") : ""].filter(Boolean).join(", ");
+}
 
 export const UPSTREAM_TEXT = "Couldn’t reach NYC Open Data. Their servers might be stuck behind a double-parked truck. Try again in a minute.";
 
@@ -165,8 +177,14 @@ export function complaintsHtml(d, lot) {
   const out = [stats([stat(count(d.last12), "complaints in the last 12 months"), stat(count(d.ever), "on record in all")])];
   if (d.months.some((m) => m.n)) {
     out.push(sub("Complaints by month"));
-    out.push(columnsHtml(d.months.map((m) => ({ label: monthName(m.month, "long"), short: monthName(m.month).slice(0, 1), n: m.n })),
-      { caption: `Complaints to 311 and HPD each month, ${monthName(d.months[0].month, "long")} to ${monthName(d.months.at(-1).month, "long")}.` }));
+    // The bars cover the same days as the total: a year ago today through today.
+    const first = d.months[0].month, last = d.months.at(-1).month;
+    const partFirst = !d.since.endsWith("-01");
+    const label = (month) => monthName(month, "long") +
+      (month === first && partFirst ? ` (from ${shortDate(d.since)})` : month === last ? ` (through ${shortDate(d.today)})` : "");
+    out.push(columnsHtml(d.months.map((m) => ({ label: label(m.month), short: monthName(m.month).slice(0, 1), n: m.n })),
+      { caption: `Complaints to 311 and HPD each month, ${date(d.since)} to ${date(d.today)}. ` +
+        `${partFirst ? "The first and last bars are part-months" : "The last bar is a part-month"}, so they run lower.` }));
   }
   if (d.top.length) {
     out.push(sub("What they were about"));
@@ -253,7 +271,7 @@ export function hygieneHtml(d, lot) {
 export function dobTakeaway(d) {
   if (!d.bins.length) return takeaway("info", "—", "No Department of Buildings records found");
   const complaints = `${plural(d.complaints12, "complaint")} in the last year`;
-  return takeaway(d.ecb.open ? "warn" : "info", count(d.ecb.open), d.ecb.due ? `${money(d.ecb.due)} in fines still owed. ${complaints}` : complaints);
+  return takeaway(d.ecb.open ? "warn" : "info", count(d.ecb.open), d.ecb.due ? `${dollars(d.ecb.due)} in fines still owed. ${complaints}` : complaints);
 }
 
 export function dobHtml(d) {
@@ -263,7 +281,7 @@ export function dobHtml(d) {
   out.push(stats([
     stat(count(d.complaints12), "complaints in the last 12 months"),
     stat(count(d.ecb.open), "open violations with fines", d.ecb.open ? "warn" : ""),
-    stat(d.ecb.due ? money(d.ecb.due) : "$0", "in fines still owed")
+    stat(dollars(d.ecb.due), "in fines still owed")
   ]));
   if (d.top.length) {
     out.push(sub("What people complained about"));
@@ -279,10 +297,10 @@ export function dobHtml(d) {
     out.push(list(d.ecb.recent.map((v) => row(
       escape(v.text || v.type || "Violation"),
       v.date ? date(v.date) : "",
-      [v.type, v.severity ? severityLabel(v.severity) : "", v.due ? `${money(v.due)} owed` : ""].filter(Boolean).map(escape).join(" · ")
+      [v.type, v.severity ? severityLabel(v.severity) : "", v.due ? `${dollars(v.due)} owed` : ""].filter(Boolean).map(escape).join(" · ")
     ))));
   }
-  if (d.ecb.due) out.push(note(`${money(d.ecb.due)} owed across ${plural(d.ecb.dueCount, "violation")}, open or resolved: a violation can be resolved and still have a penalty unpaid.`));
+  if (d.ecb.due) out.push(note(`${dollars(d.ecb.due)} owed across ${plural(d.ecb.dueCount, "violation")}, open or resolved: a violation can be resolved and still have a penalty unpaid.`));
   out.push(note("The Department of Buildings (DOB) covers the structure: construction, elevators, boilers, gas, façades. Violations with fines are heard at the city’s tribunal (OATH, formerly the ECB), which sets the penalty."));
   return out.join("");
 }
@@ -304,7 +322,7 @@ export function courtHtml(d, lot) {
   out.push(list(d.cases.map((c) => row(
     escape(c.type),
     c.opened ? date(c.opened) : "",
-    [c.status, c.judgement ? "Judgment entered" : "", c.harassment ? "Harassment found" : "", c.penalty ? `Penalty: ${c.penalty}` : ""]
+    [c.pending && c.opened && d.today ? `Pending for ${howLong(c.opened, d.today)}` : c.status, c.judgement ? "Judgment entered" : "", c.harassment ? "Harassment found" : "", c.penalty ? `Penalty: ${c.penalty}` : ""]
       .filter(Boolean).map(escape).join(" · ")
   ))));
   if (d.total > d.cases.length) out.push(note(`The ${d.cases.length} most recent of ${count(d.total)}.`));

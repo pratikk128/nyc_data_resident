@@ -19,13 +19,6 @@ export function yearAgo(today) {
   return back.toISOString().slice(0, 10);
 }
 
-// The first day of the month 11 months back: the complaints chart's 12 calendar months.
-export function monthsBack(today, n = 12) {
-  const [y, m] = today.split("-").map(Number);
-  const start = new Date(Date.UTC(y, m - n, 1));
-  return start.toISOString().slice(0, 10);
-}
-
 // Every bbl filter, by how the dataset stores it.
 const bblText = (lot) => `bbl = ${quote(lot.bbl)}`;
 const bblNumber = (lot) => `bbl = ${Number(lot.bbl)}`;
@@ -54,7 +47,8 @@ export function violationsQueries(lot, today) {
 // Rows are problems; a complaint can have several. Months count complaints, categories count problems.
 export function complaintsQueries(lot, today) {
   const where = bblNumber(lot);
-  const since = monthsBack(today);
+  // The chart and the total count from the same day, so the bars add up to it.
+  const since = yearAgo(today);
   return {
     byMonth: q("complaints", {
       $select: "date_trunc_ym(received_date) AS month, count(distinct complaint_id) AS n",
@@ -62,11 +56,11 @@ export function complaintsQueries(lot, today) {
     }),
     last12: q("complaints", {
       $select: "count(distinct complaint_id) AS n",
-      $where: `${where} AND received_date >= ${quote(yearAgo(today))}`
+      $where: `${where} AND received_date >= ${quote(since)}`
     }),
     topCategories: q("complaints", {
       $select: "major_category, count(*) AS n",
-      $where: `${where} AND received_date >= ${quote(yearAgo(today))}`,
+      $where: `${where} AND received_date >= ${quote(since)}`,
       $group: "major_category", $order: "n DESC", $limit: "8"
     }),
     ever: q("complaints", { $select: "count(distinct complaint_id) AS n", $where: where })

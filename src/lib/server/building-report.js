@@ -27,7 +27,7 @@ import {
   summarizeCourt, summarizeRepairs, summarizeLandlord, summarizeDob
 } from "../building-report/summarize.js";
 
-const CACHE_VERSION = "v3";
+const CACHE_VERSION = "v4";
 const LIMITER = "BUILDING_RATE_LIMITER";
 
 // ---------- Daily jobs (see src/lib/server/etl.js) ----------
@@ -125,7 +125,7 @@ const LOADERS = {
   hygiene: async (lot, today) => summarizeHygiene(await runAll(hygieneQueries(lot, today)), today),
   bedbugs: async (lot, today) => summarizeBedbugs((await runAll(bedbugsQueries(lot))).filings, today),
   flags: async (lot) => summarizeFlags(await runAll(flagsQueries(lot))),
-  court: async (lot) => summarizeCourt(await runAll(courtQueries(lot))),
+  court: async (lot, today) => summarizeCourt(await runAll(courtQueries(lot)), today),
   repairs: async (lot) => summarizeRepairs(await runAll(repairsQueries(lot))),
   // Contacts are keyed by the registration, so they wait for it.
   async landlord(lot, today) {

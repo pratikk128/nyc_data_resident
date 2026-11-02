@@ -9,15 +9,15 @@ import assert from "node:assert/strict";
 
 import { isBbl, bblParts, dobCategoryLabel, buildingPath, SECTIONS, SECTION_KEYS, PARTS } from "../src/lib/building-report/config.js";
 import {
-  yearAgo, monthsBack, violationsQueries, complaintsQueries, hygieneQueries, flagsQueries, registrationQuery, contactsQuery, dobQueries, lotQueries
+  yearAgo, violationsQueries, complaintsQueries, hygieneQueries, flagsQueries, registrationQuery, contactsQuery, dobQueries, lotQueries
 } from "../src/lib/building-report/soql.js";
 import {
   dobDate, ecbDate, plainViolation, summarizeLot, summarizeViolations, summarizeComplaints, summarizeBedbugs,
-  summarizeFlags, summarizeRepairs, summarizeLandlord, summarizeDob, summarizeHygiene, summarizeCourt, hygieneKind, lastMonths, lotName
+  summarizeFlags, summarizeRepairs, summarizeLandlord, summarizeDob, summarizeHygiene, summarizeCourt, hygieneKind, chartMonths, lotName
 } from "../src/lib/building-report/summarize.js";
 import {
   violationsTakeaway, violationsHtml, complaintsHtml, bedbugsHtml, bedbugsTakeaway, flagsTakeaway, landlordHtml, landlordTakeaway,
-  repairsHtml, repairsTakeaway, courtHtml, hygieneHtml, hygieneTakeaway, columnsHtml, severityLabel, NO_HPD_TEXT
+  repairsHtml, repairsTakeaway, courtHtml, dobHtml, dobTakeaway, howLong, hygieneHtml, hygieneTakeaway, columnsHtml, severityLabel, NO_HPD_TEXT
 } from "../src/lib/building-report/render.js";
 import { findBuilding } from "../src/lib/building-report/lookup.js";
 import { normalizeFeature } from "../src/lib/complaints311/geocode.js";
@@ -57,11 +57,11 @@ test("the open-violations list sorts undated rows last (the fast form of the que
   assert.equal(violationsQueries(LOT, TODAY).openByClass.params.$where, "bbl = '2031070036' AND violationstatus = 'Open'");
 });
 
-test("date windows: last 12 months, 12 calendar months, DOB's text dates", () => {
+test("date windows: last 12 months, the chart's calendar months, DOB's text dates", () => {
   assert.equal(yearAgo(TODAY), "2025-11-02");
-  assert.equal(monthsBack(TODAY), "2025-12-01");
-  assert.deepEqual(lastMonths(TODAY).slice(0, 2), ["2025-12", "2026-01"]);
-  assert.equal(lastMonths(TODAY).at(-1), "2026-11");
+  assert.deepEqual(chartMonths(TODAY).slice(0, 2), ["2025-11", "2025-12"]);
+  assert.equal(chartMonths(TODAY).at(-1), "2026-11");
+  assert.equal(chartMonths(TODAY).length, 13);
   assert.equal(dobDate("07/09/2026"), "2026-07-09");
   assert.equal(dobDate("2026-07-09"), null);
   assert.equal(ecbDate("20260711"), "2026-07-11");
@@ -327,4 +327,32 @@ test("court: a harassment finding is \"After Trial\" or \"After Inquest\", not \
   });
   assert.deepEqual(d.cases.map((c) => c.harassment), [true, true, null]);
   assert.equal(courtHtml(d, LOT).match(/Harassment found/g).length, 2);
+});
+
+test("complaints: the chart counts from the same day as the total and names its part-months", () => {
+  const q = complaintsQueries(LOT, TODAY);
+  assert.equal(q.byMonth.params.$where, q.last12.params.$where);
+  const c = summarizeComplaints({ byMonth: [{ month: "2025-11-01T00:00:00.000", n: "2" }, { month: "2026-11-01T00:00:00.000", n: "1" }],
+    last12: [{ n: "3" }], topCategories: [], ever: [{ n: "9" }] }, TODAY);
+  assert.equal(c.months.reduce((sum, m) => sum + m.n, 0), c.last12);
+  const html = complaintsHtml(c, LOT);
+  assert.match(html, /November 2025 \(from Nov 2\): 2/);
+  assert.match(html, /November 2026 \(through Nov 2\): 1/);
+  assert.match(html, /Nov 2, 2025 to Nov 2, 2026\. The first and last bars are part-months/);
+});
+
+test("DOB fines are shown to the dollar", () => {
+  const d = { bins: ["2000001"], complaints12: 0, top: [], activeComplaints: 0,
+    ecb: { open: 1, due: 11752, dueCount: 1, bySeverity: [], recent: [] } };
+  assert.match(dobTakeaway(d).text, /^\$11,752 in fines still owed/);
+  assert.match(dobHtml(d), /\$11,752<\/span><span class="br-stat-label">in fines still owed/);
+  assert.doesNotMatch(dobHtml(d), /\$12K/);
+});
+
+test("court: a pending case says how long it has been open", () => {
+  assert.equal(howLong("2023-01-15", TODAY), "3 years, 9 months");
+  assert.equal(howLong("2026-10-20", TODAY), "under a month");
+  assert.equal(howLong("2025-11-02", TODAY), "1 year");
+  const d = summarizeCourt({ total: [{ n: "1" }], cases: [{ litigationid: "1", casetype: "Heat and Hot Water", casestatus: "PENDING", caseopendate: "2023-01-15T00:00:00.000" }] }, TODAY);
+  assert.match(courtHtml(d, LOT), /Pending for 3 years, 9 months/);
 });
