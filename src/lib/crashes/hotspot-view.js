@@ -213,7 +213,7 @@ export function statCards(summary, mode = null) {
     {
       // With a mode, these count everyone in the crashes that hurt the mode's someone, drivers included.
       name: "ksi", label: modeOf(mode)?.who.length ? "People killed or seriously hurt in these crashes" : "People killed or seriously hurt", value: count(here.killed + here.serious),
-      context: `${count(here.killed)} killed, ${count(here.serious)} seriously hurt${modeOf(mode)?.who.length ? `, ${victim} or anyone else in them` : ""}.`
+      context: `${count(here.killed)} killed, ${count(here.serious)} seriously hurt.${modeOf(mode)?.who.length ? ` Counts everyone involved, not only the ${victim.replace(/^a /, "")}.` : ""}`
     }
   ];
   if (rank && here.hurtCrashes) {

@@ -375,6 +375,8 @@ test("stat cards: crashes that hurt the mode's someone, how often, killed or ser
   assert.equal(cards[0].context, "About 7 a week.", "under 1.5 a day reads as a week");
   assert.equal(cards[1].value, "10");
   assert.equal(statCards({ ...base, here }, "walk")[0].label, "Crashes that hurt a pedestrian");
+  assert.equal(cards[1].context, "2 killed, 8 seriously hurt.");
+  assert.equal(statCards({ ...base, here }, "bike")[1].context, "2 killed, 8 seriously hurt. Counts everyone involved, not only the cyclist or e-rider.");
   assert.equal(statCards({ ...base, here }, "walk").length, 2, "walking: every crash counted hurt someone, so no all-crashes card");
   const rank = statCards({ ...base, area: { kind: "corner", label: "A & B" }, here, rank: { label: "Brooklyn", total: 4000, above: 9 } });
   assert.equal(rank[2].value, "#10");
