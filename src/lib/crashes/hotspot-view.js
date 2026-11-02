@@ -211,9 +211,9 @@ export function statCards(summary, mode = null) {
   const cards = [
     { name: "hurt", label: `Crashes that hurt ${victim}`, value: count(here.hurtCrashes), context: howOften(here.hurtCrashes, days) },
     {
-      // With a mode, these count everyone in the crashes that hurt the mode's someone, drivers included.
-      name: "ksi", label: modeOf(mode)?.who.length ? "People killed or seriously hurt in these crashes" : "People killed or seriously hurt", value: count(here.killed + here.serious),
-      context: `${count(here.killed)} killed, ${count(here.serious)} seriously hurt.${modeOf(mode)?.who.length ? ` Counts everyone involved, not only the ${victim.replace(/^a /, "")}.` : ""}`
+      // With the walk or bike mode, only the mode's people (hotspot-sql.js peopleOf()).
+      name: "ksi", label: `${modeOf(mode)?.people ?? "People"} killed or seriously hurt`, value: count(here.killed + here.serious),
+      context: `${count(here.killed)} killed, ${count(here.serious)} seriously hurt.`
     }
   ];
   if (rank && here.hurtCrashes) {

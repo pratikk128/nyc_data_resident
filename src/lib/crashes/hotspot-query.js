@@ -31,9 +31,9 @@ export const DEFAULT_RADIUS = 250;
  * crash, since a driver can be in any of them, including hitting someone on foot.
  */
 export const MODES = [
-  { key: "walk", label: "I walk", who: ["pedestrian"], victim: "a pedestrian" },
-  { key: "bike", label: "I bike or ride an e-bike", who: ["cyclist", "e-rider"], victim: "a cyclist or e-rider" },
-  { key: "drive", label: "I drive", who: [], victim: "someone" }
+  { key: "walk", label: "I walk", who: ["pedestrian"], victim: "a pedestrian", people: "Pedestrians" },
+  { key: "bike", label: "I bike or ride an e-bike", who: ["cyclist", "e-rider"], victim: "a cyclist or e-rider", people: "Cyclists and e-riders" },
+  { key: "drive", label: "I drive", who: [], victim: "someone", people: "People" }
 ];
 export const modeOf = (key) => MODES.find((m) => m.key === key) ?? null;
 

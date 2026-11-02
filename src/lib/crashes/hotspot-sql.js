@@ -9,7 +9,7 @@
  *
  * Every function takes a query from readQuery() and returns { sql, params }.
  */
-import { DIMENSIONS, maskOf } from "./facts.js";
+import { DIMENSIONS, KIND_COLUMNS, maskOf } from "./facts.js";
 
 // Meters per degree of latitude / longitude at NYC's latitude.
 const M_LAT = 111320;
@@ -68,13 +68,28 @@ const bitColumns = (withKsi = true) => DIMENSIONS.flatMap((d) => d.groups.flatMa
   ...(withKsi ? [`sum(((${d.column} >> ${g.bit}) & 1) * (severity >= 2)) AS "k:${d.column}:${g.key}"`] : [])
 ]));
 
-const TOTALS = `count(*) AS crashes, coalesce(sum(injured), 0) AS injured, coalesce(sum(killed), 0) AS killed,
-      coalesce(sum(serious), 0) AS serious, coalesce(sum(severity >= 1), 0) AS hurt_crashes, coalesce(sum(severity >= 2), 0) AS ksi_crashes`;
+/*
+ * The people counted as injured, killed and seriously hurt, as SQL: everyone
+ * in the crash, or with a who filter whose kinds all have their own counts
+ * (the walk and bike modes), only those people.
+ */
+function peopleOf(filters = {}) {
+  const prefixes = (filters.who ?? []).map((k) => KIND_COLUMNS[k]);
+  if (!prefixes.length || prefixes.some((p) => !p)) return { injured: "injured", killed: "killed", serious: "serious" };
+  const sum = (c) => prefixes.map((p) => `${p}_${c}`).join(" + ");
+  return { injured: sum("injured"), killed: sum("killed"), serious: sum("serious") };
+}
+
+const totals = (filters) => {
+  const people = peopleOf(filters);
+  return `count(*) AS crashes, coalesce(sum(${people.injured}), 0) AS injured, coalesce(sum(${people.killed}), 0) AS killed,
+      coalesce(sum(${people.serious}), 0) AS serious, coalesce(sum(severity >= 1), 0) AS hurt_crashes, coalesce(sum(severity >= 2), 0) AS ksi_crashes`;
+};
 
 // Counts for the stat cards, and per kind of crash (crashes, and those that seriously hurt or killed someone).
 export function totalsSql(query) {
   const { where, params } = whereOf(query);
-  return { sql: `SELECT ${TOTALS},\n      ${bitColumns().join(",\n      ")}\n      FROM crash_facts ${where}`, params };
+  return { sql: `SELECT ${totals(query.filters)},\n      ${bitColumns().join(",\n      ")}\n      FROM crash_facts ${where}`, params };
 }
 
 /*
@@ -83,7 +98,7 @@ export function totalsSql(query) {
  */
 export function boroughTotalsSql({ filters }) {
   const { where, params } = whereOf({ area: null, filters });
-  return { sql: `SELECT borough, ${TOTALS},\n      ${bitColumns().join(",\n      ")}\n      FROM crash_facts ${where} GROUP BY borough`, params };
+  return { sql: `SELECT borough, ${totals(filters)},\n      ${bitColumns().join(",\n      ")}\n      FROM crash_facts ${where} GROUP BY borough`, params };
 }
 
 /*
@@ -119,13 +134,15 @@ export function addTotals(list) {
  * The intersections where crashes hurt people most often: ranked by crashes
  * that hurt someone (with the mode, someone walking or on a bike), then by
  * those that seriously hurt or killed someone. Each row carries its counts per
- * kind of crash, so the page can say what goes wrong there.
+ * kind of crash, so the page can say what goes wrong there, and its people
+ * hurt and killed (peopleOf(): with the mode, only the mode's people).
  */
 export function cornersSql(query) {
   const { where, params } = whereOf(query, ["corner IS NOT NULL"]);
+  const people = peopleOf(query.filters);
   return {
     sql: `SELECT corner, min(corner_label) AS label, max(borough) AS borough, round(avg(lat), 5) AS lat, round(avg(lon), 5) AS lon,
-      count(*) AS n, sum(severity >= 1) AS hurt, sum(injured) AS injured, sum(killed) AS killed, sum(severity >= 2) AS ksi,
+      count(*) AS n, sum(severity >= 1) AS hurt, sum(${people.injured}) AS injured, sum(${people.killed}) AS killed, sum(severity >= 2) AS ksi,
       ${bitColumns(false).join(", ")}
       FROM crash_facts ${where} GROUP BY corner
       HAVING count(*) >= ${MIN_CORNER_CRASHES} AND sum(severity >= 1) >= ${MIN_CORNER_HURT}

@@ -128,6 +128,8 @@ const RAW = {
     { unique_id: "p2", collision_id: id(1), crash_date: day("2025-03-03"), vehicle_id: "v1", person_type: "Occupant", ped_role: "Driver", person_injury: "Unspecified" },
     { unique_id: "p3", collision_id: id(1), crash_date: day("2025-03-03"), vehicle_id: "v1", person_type: "Occupant", ped_role: "Witness", person_injury: "Killed" },
     { unique_id: "p4", collision_id: id(2), crash_date: day("2025-03-04"), vehicle_id: "v3", person_type: "Bicyclist", ped_role: "Driver", person_injury: "Injured", complaint: "Abrasion" },
+    // The SUV's driver, seriously hurt: in the crash's counts, not the bike mode's
+    { unique_id: "p6", collision_id: id(2), crash_date: day("2025-03-04"), vehicle_id: "v2", person_type: "Occupant", ped_role: "Driver", person_injury: "Injured", complaint: "Concussion" },
     { unique_id: "p5", collision_id: id(3), crash_date: day("2025-04-10"), vehicle_id: "v4", person_type: "Occupant", ped_role: "Driver", person_injury: "Unspecified" }
   ]
 };
@@ -149,8 +151,11 @@ test("facts row: who was hurt, how badly, the causes, maneuvers and vehicles", (
   assert.equal(f1.hour, 17);
   assert.equal(f1.corner, f2.corner, "the same corner written either way round");
 
-  assert.equal(f2.severity, 1);
-  assert.deepEqual(keysOf(WHO, f2.who), ["e-rider"], "a 'Bicyclist' on an e-bike is an e-rider");
+  assert.equal(f2.severity, 2, "the SUV's driver");
+  assert.equal(f2.serious, 1);
+  assert.deepEqual(keysOf(WHO, f2.who).sort(), ["e-rider", "occupant"], "a 'Bicyclist' on an e-bike is an e-rider");
+  assert.deepEqual([f2.erider_injured, f2.erider_serious, f2.erider_killed, f2.cyc_injured], [1, 0, 0, 0], "the e-rider's own counts leave out the driver");
+  assert.deepEqual([f1.ped_injured, f1.ped_serious, f1.ped_killed], [1, 1, 0]);
   assert.deepEqual(keysOf(VEHICLES, f2.vehicles).sort(), ["e-bike", "suv"]);
 
   assert.equal(f3.severity, 0);
@@ -160,6 +165,7 @@ test("facts row: who was hurt, how badly, the causes, maneuvers and vehicles", (
   assert.equal(f4.severity, 3);
   assert.equal(f4.killed, 1);
   assert.deepEqual(keysOf(WHO, f4.who), ["cyclist"], "without person rows, the crash's counts say who");
+  assert.deepEqual([f4.cyc_killed, f4.cyc_serious, f4.ped_killed], [1, 0, 0], "and how many");
   assert.deepEqual(keysOf(VEHICLES, f4.vehicles).sort(), ["bike", "sedan"]);
   assert.equal(f4.corner, null);
 
@@ -244,14 +250,20 @@ test("SQL: totals and per-group counts follow the place and mode", () => {
   const city = readTotals(all(totalsSql(q("")))[0]);
   assert.equal(city.crashes, 5);
   assert.equal(city.killed, 1);
-  assert.equal(city.serious, 1);
-  assert.equal(city.ksiCrashes, 2);
+  assert.equal(city.serious, 2);
+  assert.equal(city.ksiCrashes, 3);
   assert.equal(city.groups.who.pedestrian.n, 1);
   assert.equal(city.groups.who.pedestrian.ksi, 1);
   assert.equal(city.groups.maneuvers["left-turn"].n, 1);
 
   assert.equal(readTotals(all(totalsSql(q("mode=walk")))[0]).crashes, 1, "crashes that hurt a pedestrian");
-  assert.equal(readTotals(all(totalsSql(q("mode=bike")))[0]).crashes, 2, "a cyclist or an e-rider");
+  const bike = readTotals(all(totalsSql(q("mode=bike")))[0]);
+  assert.equal(bike.crashes, 2, "a cyclist or an e-rider");
+  assert.deepEqual([bike.injured, bike.killed, bike.serious], [1, 1, 0], "only the cyclists and e-riders, not the SUV's seriously hurt driver");
+  const walk = readTotals(all(totalsSql(q("mode=walk")))[0]);
+  assert.deepEqual([walk.injured, walk.killed, walk.serious], [1, 0, 1]);
+  const drive = readTotals(all(totalsSql(q("mode=drive")))[0]);
+  assert.deepEqual([drive.killed, drive.serious], [city.killed, city.serious], "driving: everyone");
   assert.equal(readTotals(all(totalsSql(q("mode=drive")))[0]).crashes, 5, "every crash");
   assert.equal(city.hurtCrashes, 3);
   assert.equal(readTotals(all(totalsSql(q("zip=10023")))[0]).crashes, 3);
@@ -278,7 +290,7 @@ test("SQL: borough totals, ranked corners, an intersection's rank, the area's bo
   assert.equal(corners.length, 1);
   assert.equal(corners[0].n, 3);
   assert.equal(corners[0].hurt, 2);
-  assert.equal(corners[0].ksi, 1);
+  assert.equal(corners[0].ksi, 2);
   assert.equal(corners[0].borough, "MANHATTAN");
   assert.ok(Math.abs(corners[0].lat - 40.7781) < 0.001);
   assert.equal(corners[0].groups.vehicles.truck.n, 1);
@@ -289,7 +301,7 @@ test("SQL: borough totals, ranked corners, an intersection's rank, the area's bo
   assert.equal(all(cornerRankSql(q(""), "BROOKLYN", 1))[0].total, 0, "the Brooklyn crash names no cross street");
 
   assert.equal(all(areaBoroughSql(q("zip=10023&mode=walk")))[0].borough, "MANHATTAN");
-  assert.deepEqual(all(pointsSql(q(""))).map((p) => p.severity), [3, 2], "killed first");
+  assert.deepEqual(all(pointsSql(q(""))).map((p) => p.severity), [3, 2, 2], "killed first");
   // A corner from the list, back through the URL, finds the same crashes.
   const [street, cross] = corners[0].label.split(" & ");
   assert.equal(readTotals(all(totalsSql(q(new URLSearchParams({ street, cross, boro: corners[0].borough }).toString())))[0]).crashes, 3);
@@ -379,7 +391,9 @@ test("stat cards: crashes that hurt the mode's someone, how often, killed or ser
   assert.equal(cards[1].value, "10");
   assert.equal(statCards({ ...base, here }, "walk")[0].label, "Crashes that hurt a pedestrian");
   assert.equal(cards[1].context, "2 killed, 8 seriously hurt.");
-  assert.equal(statCards({ ...base, here }, "bike")[1].context, "2 killed, 8 seriously hurt. Counts everyone involved, not only the cyclist or e-rider.");
+  assert.equal(cards[1].label, "People killed or seriously hurt");
+  assert.equal(statCards({ ...base, here }, "bike")[1].label, "Cyclists and e-riders killed or seriously hurt");
+  assert.equal(statCards({ ...base, here }, "walk")[1].context, "2 killed, 8 seriously hurt.");
   assert.equal(statCards({ ...base, here }, "walk").length, 2, "walking: every crash counted hurt someone, so no all-crashes card");
   const rank = statCards({ ...base, area: { kind: "corner", label: "A & B" }, here, rank: { label: "Brooklyn", total: 4000, above: 9 } });
   assert.equal(rank[2].value, "#10");

@@ -114,6 +114,15 @@ export const TABLES = {
     killed INTEGER NOT NULL,
     injured INTEGER NOT NULL,
     serious INTEGER NOT NULL,          -- people seriously hurt
+    ped_killed INTEGER NOT NULL,       -- the same three counts for pedestrians, cyclists and e-riders only
+    ped_serious INTEGER NOT NULL,      -- (facts.js KIND_COLUMNS); injured includes the seriously hurt
+    ped_injured INTEGER NOT NULL,
+    cyc_killed INTEGER NOT NULL,
+    cyc_serious INTEGER NOT NULL,
+    cyc_injured INTEGER NOT NULL,
+    erider_killed INTEGER NOT NULL,
+    erider_serious INTEGER NOT NULL,
+    erider_injured INTEGER NOT NULL,
     who INTEGER NOT NULL,              -- bitmasks over facts.js WHO, CAUSES, MANEUVERS, VEHICLES
     causes INTEGER NOT NULL,
     maneuvers INTEGER NOT NULL,

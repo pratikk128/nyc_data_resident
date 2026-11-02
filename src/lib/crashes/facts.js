@@ -24,7 +24,7 @@ import { vehicleTypeKey } from "./vehicle-types.js";
 import { prettyStreet } from "../complaints311/location-input.js";
 
 // Bump to rewrite every row on the next sync and full build (the hash includes it).
-export const FACTS_VERSION = 1;
+export const FACTS_VERSION = 2;
 
 export const WHO = [
   { key: "pedestrian", label: "Pedestrians", bit: 0 },
@@ -33,6 +33,12 @@ export const WHO = [
   { key: "motorcyclist", label: "Motorcyclists", bit: 3 },
   { key: "occupant", label: "People in cars, trucks and buses", bit: 4 }
 ];
+
+/*
+ * The WHO kinds with their own people counts in crash_facts (the walk and
+ * bike modes' someone), by column prefix: ped_killed, ped_serious, ped_injured, …
+ */
+export const KIND_COLUMNS = { pedestrian: "ped", cyclist: "cyc", "e-rider": "erider" };
 
 /*
  * Contributing factors as the police form writes them ("Driver
@@ -193,8 +199,10 @@ export function factsRow(crash, vehicles = [], persons = []) {
   const types = new Map(vehicles.map((v) => [v.unique_id, v.type_key]));
   const typeOf = (ref) => (ref ? types.get(ref) ?? null : null);
 
-  // Severity and who was hurt, from the people in the crash.
+  // Severity and who was hurt, from the people in the crash; and the people counts for each of KIND_COLUMNS.
   let severity = 0, serious = 0, who = 0;
+  const kinds = {};
+  for (const prefix of Object.values(KIND_COLUMNS)) kinds[prefix] = { killed: 0, serious: 0, injured: 0 };
   for (const p of persons) {
     const s = personSeverity(p);
     if (!s) continue;
@@ -202,6 +210,11 @@ export function factsRow(crash, vehicles = [], persons = []) {
     if (s === 2) serious++;
     const kind = personKind(p, typeOf);
     if (kind) who |= maskOf(WHO, [kind]);
+    const counts = kinds[KIND_COLUMNS[kind]];
+    if (!counts) continue;
+    if (s === 3) counts.killed++;
+    else counts.injured++;
+    if (s === 2) counts.serious++;
   }
   // The crash's own counts are the official ones; they also cover crashes whose person rows are missing.
   const killed = crash.persons_killed ?? 0;
@@ -212,6 +225,11 @@ export function factsRow(crash, vehicles = [], persons = []) {
     if ((crash.pedestrians_injured ?? 0) + (crash.pedestrians_killed ?? 0)) who |= maskOf(WHO, ["pedestrian"]);
     if ((crash.cyclists_injured ?? 0) + (crash.cyclists_killed ?? 0)) who |= maskOf(WHO, ["cyclist"]);
     if ((crash.motorists_injured ?? 0) + (crash.motorists_killed ?? 0)) who |= maskOf(WHO, ["occupant"]);
+    // The crash's counts don't say who was seriously hurt, or split off e-riders.
+    kinds.ped.killed = crash.pedestrians_killed ?? 0;
+    kinds.ped.injured = crash.pedestrians_injured ?? 0;
+    kinds.cyc.killed = crash.cyclists_killed ?? 0;
+    kinds.cyc.injured = crash.cyclists_injured ?? 0;
   }
 
   const factors = [...parse(crash.factors), ...vehicles.flatMap((v) => parse(v.factors)), ...persons.flatMap((p) => parse(p.factors))];
@@ -238,6 +256,7 @@ export function factsRow(crash, vehicles = [], persons = []) {
     killed,
     injured,
     serious,
+    ...Object.fromEntries(Object.entries(kinds).flatMap(([prefix, c]) => Object.entries(c).map(([k, n]) => [`${prefix}_${k}`, n]))),
     who,
     causes,
     maneuvers,
