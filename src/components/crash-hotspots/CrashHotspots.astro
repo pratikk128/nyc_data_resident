@@ -253,7 +253,7 @@ const radiusLabel = (m: number) => (m === 250 ? '250 m (about 3 blocks)' : '500 
     const n = points.points.length;
     $('[data-map-note]').textContent = points.capped
       ? `Showing ${count(n)} of the crashes that seriously hurt or killed someone: every one that killed someone, then the most recent.`
-      : `${count(n)} crash${n === 1 ? '' : 'es'} here seriously hurt or killed someone. A few crashes in 100 have no map location, so the map shows a bit less than the counts.`;
+      : `${count(n)} crash${n === 1 ? '' : 'es'} here seriously hurt or killed someone. Some crashes have no map location, so the map can show fewer than the counts.`;
     // One intersection: its own pin, so the map centers on it even with no serious crashes.
     map.update({ spots: corner ? s.corners.slice(0, 1) : spots, points: points.points, area: query.area, victim });
   }
