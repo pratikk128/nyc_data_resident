@@ -106,7 +106,7 @@ export function flagsHtml(d) {
     out.push(p(a.active
       ? `<strong>On the list since ${date(a.start)}.</strong> Each year the city’s housing agency picks the buildings with the most serious problems for this program (the Alternative Enforcement Program, or AEP) and makes the owner fix what’s behind them.`
       : `Was on the list from ${date(a.start)}${a.discharged ? ` to ${date(a.discharged)}` : ""}${a.status ? ` (${escape(a.status.replace(/^AEP /, "").toLowerCase())})` : ""}.`));
-    if (a.violationsAtStart != null) out.push(note(`${plural(a.violationsAtStart, "urgent or serious repair order")} were open when it was picked.`));
+    if (a.violationsAtStart != null) out.push(note(`${plural(a.violationsAtStart, "urgent or serious repair order")} ${a.violationsAtStart === 1 ? "was" : "were"} open when it was picked.`));
   }
   if (d.pendingCases) {
     out.push(sub("Open court cases"));

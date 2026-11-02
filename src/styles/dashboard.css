@@ -4143,6 +4143,7 @@ a.hn-directions:hover { background: var(--accent-deep); }
 .br-take[data-tone="loading"] .br-take-value, .br-take[data-tone="none"] .br-take-value { color: var(--ink-soft); }
 .br-take-text { font-size: .9375rem; line-height: 1.4; }
 .br-take[data-tone="loading"] .br-take-text, .br-take[data-tone="none"] .br-take-text { color: var(--ink-soft); }
+.br-take .ar-retry { justify-self: start; margin-top: var(--space-1); }
 .br-take-more { margin-top: auto; padding-top: var(--space-3); font-weight: 700; }
 .br-all-link { margin-top: var(--space-4); color: var(--ink-soft); }
 .br-all-link a { font-weight: 700; }

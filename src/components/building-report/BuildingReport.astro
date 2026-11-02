@@ -128,7 +128,7 @@ const lotJson = lot ? JSON.stringify(lot) : '';
                 </h4>
                 <ul class="br-take-list">
                   {TAKEAWAYS[p.id].map((t) => (
-                    <li class="br-take" data-take={t.key} data-tone="loading">
+                    <li class="br-take" data-take={t.key} data-tone="loading" tabindex="-1">
                       <span class="br-take-label">{t.label}</span>
                       <span class="br-take-value" data-take-value>…</span>
                       <span class="br-take-text" data-take-text>Checking…</span>
@@ -179,6 +179,8 @@ const lotJson = lot ? JSON.stringify(lot) : '';
   import { mountNearbyMap } from '../../lib/maps/nearby-map.js';
 
   const TIMEOUT_TEXT = 'NYC Open Data is taking too long to answer. Try again in a minute.';
+  // The API's not-found: the lot dropped out of every dataset since the page loaded.
+  const NOT_FOUND_TEXT = 'We couldn’t find this building’s records just now. Reload the page, or search for the address again.';
   // A few HPD queries take Socrata several seconds when its cache is cold.
   const TIMEOUT_MS = 45000;
 
@@ -201,7 +203,9 @@ const lotJson = lot ? JSON.stringify(lot) : '';
     try {
       const res = await fetch(url, { signal: ctl.signal });
       const data = await res.json().catch(() => null);
-      if (!res.ok || !data || data.error) throw new Error(data?.error && data.error !== 'upstream' ? data.error : UPSTREAM_TEXT);
+      if (!res.ok || !data || data.error) {
+        throw new Error(data?.error === 'not-found' ? NOT_FOUND_TEXT : data?.error && data.error !== 'upstream' ? data.error : UPSTREAM_TEXT);
+      }
       return data;
     } catch (err: any) {
       throw timedOut ? new Error(TIMEOUT_TEXT) : err;
@@ -216,6 +220,7 @@ const lotJson = lot ? JSON.stringify(lot) : '';
     const el = root.querySelector<HTMLElement>(`[data-take="${key}"]`);
     if (!el) return;
     el.dataset.tone = t.tone;
+    el.querySelector('[data-retry]')?.remove();
     el.querySelector('[data-take-value]')!.textContent = t.value;
     // Names (the owner) are longer than a number: a smaller size so they fit.
     el.querySelector('[data-take-value]')!.classList.toggle('br-take-value-text', t.value.length > 6);
@@ -244,10 +249,24 @@ const lotJson = lot ? JSON.stringify(lot) : '';
     alert.hidden = false;
   }
 
+  // "Try again" under a failed section or takeaway: loads just that section, keeping focus nearby.
+  function retryButton(key: string, focusTo: HTMLElement) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'near-btn ar-retry';
+    btn.dataset.retry = '';
+    btn.textContent = 'Try again';
+    btn.addEventListener('click', () => {
+      loadSection(key);
+      focusTo.focus({ preventScroll: true });
+    });
+    return btn;
+  }
+
   /*
    * One section, loaded on its own: its full view and/or its takeaway,
-   * whichever this page has. A failed section offers "Try again", which
-   * loads just that section.
+   * whichever this page has. A failed section or takeaway offers "Try
+   * again", which loads just that section.
    */
   function loadSection(key: string) {
     const el = root.querySelector<HTMLElement>(`[data-section="${key}"]`);
@@ -266,15 +285,17 @@ const lotJson = lot ? JSON.stringify(lot) : '';
         if (key === 'flags') showAlert(d);
       },
       (err) => {
+        const message = err?.message || UPSTREAM_TEXT;
         if (body) {
-          body.innerHTML = `<p class="ar-error"><strong>Couldn’t load this section.</strong> ${escape(err?.message || UPSTREAM_TEXT)}</p>` +
-            '<button type="button" class="near-btn ar-retry" data-retry>Try again</button>';
-          body.querySelector('[data-retry]')!.addEventListener('click', () => {
-            loadSection(key);
-            el!.focus({ preventScroll: true });
-          });
+          body.innerHTML = `<p class="ar-error"><strong>Couldn’t load this section.</strong> ${escape(message)}</p>`;
+          body.append(retryButton(key, el!));
         }
-        setTakeaway(key, { tone: 'none', value: '?', text: 'Couldn’t load this. Reload the page to try again.' });
+        const take = root.querySelector<HTMLElement>(`[data-take="${key}"]`);
+        if (take) {
+          setTakeaway(key, { tone: 'none', value: '?', text: `Couldn’t load this. ${message}` });
+          // A page with the section in full has its button there; the overview has only this one.
+          if (!body) take.append(retryButton(key, take));
+        }
       }
     ).finally(() => el?.removeAttribute('aria-busy'));
   }
