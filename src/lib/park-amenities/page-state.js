@@ -8,7 +8,7 @@
  * typed address never goes in the URL.
  */
 import { RADII, DEFAULT_RADIUS, CATEGORY_KEYS, categoryOf } from "./config.js";
-import { milesText, radiusText } from "./nearby.js";
+import { milesText, milesPast, radiusText } from "./nearby.js";
 import { inCityLimits } from "../in-city.js";
 import { count } from "../format.js";
 
@@ -65,11 +65,13 @@ export function summaryText(view, query, placeLabel) {
 /*
  * One "nearest of each" card's words. n: a selectView() nearest entry.
  *   "Pool · 0.3 mi" / "Pool · 1.4 mi (outside ½ mi)" / "Pool · none listed"
+ * Outside the radius the distance never rounds down to it ("0.51 mi", milesPast()).
  */
 export function nearestText(n, radius) {
   const one = categoryOf(n.key).one;
   if (!n.amenity) return { head: one, dist: "None listed", note: null };
-  return { head: one, dist: milesText(n.amenity.miles), note: n.inRadius ? null : `Outside ${radiusText(radius)}` };
+  if (n.inRadius) return { head: one, dist: milesText(n.amenity.miles), note: null };
+  return { head: one, dist: milesPast(n.amenity.miles, radius), note: `Outside ${radiusText(radius)}` };
 }
 
 /*
@@ -80,7 +82,8 @@ export function emptyText(view, query) {
   if (!query.cats.length) return { text: "Pick at least one kind of amenity above to see what’s nearby.", widen: null };
   const kinds = query.cats.length === CATEGORY_KEYS.length ? "park amenities" : CATEGORY_KEYS.filter((k) => query.cats.includes(k)).map((k) => categoryOf(k).label.toLowerCase()).join(" or ");
   const miles = view.nearest.map((n) => n.amenity?.miles).filter((m) => m != null);
-  const nearest = miles.length ? ` The nearest is ${milesText(Math.min(...miles))} away.` : "";
+  // Nothing's inside the radius, so the nearest is past it.
+  const nearest = miles.length ? ` The nearest is ${milesPast(Math.min(...miles), query.r)} away.` : "";
   return { text: `No ${kinds} within ${radiusText(query.r)}.${nearest}`, widen: view.widenTo };
 }
 

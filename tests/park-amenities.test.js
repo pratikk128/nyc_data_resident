@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 
 import { CATEGORIES, CATEGORY_KEYS, categoryOf, boroughName, DEFAULT_RADIUS } from "../src/lib/park-amenities/config.js";
 import { centroid, normalizeRows, parkNameIndex } from "../src/lib/park-amenities/normalize.js";
-import { byDistance, amenitiesNear, selectView, pagesFor, haversineMiles } from "../src/lib/park-amenities/nearby.js";
+import { byDistance, amenitiesNear, selectView, pagesFor, haversineMiles, milesPast, seasonOf } from "../src/lib/park-amenities/nearby.js";
 import {
   normalizeQuery, queryToParams, pointQuery, searchKey, toggleCategory, summaryText, nearestText, emptyText
 } from "../src/lib/park-amenities/page-state.js";
@@ -95,12 +95,12 @@ test("fountains: sinks left out; bottle fillers, dog bowls, two heights and indo
   assert.equal(ids.length, FX["qnv7-p7a2"].length - 1);
 
   const filler = byId(all.fountain, "fountain:X182-DF0493");
-  assert.equal(filler.name, "Bottle filler");
+  assert.equal(filler.name, `Bottle filler at ${filler.parkName}`); // named after its park, so a list of them differs
   assert.ok(filler.details.bottleFiller && !filler.details.indoor);
   assert.ok(categoryOf("fountain").seasonal(filler.details));
 
   const indoor = byId(all.fountain, "fountain:X307-DF0575");
-  assert.equal(indoor.name, "Drinking fountain");
+  assert.equal(indoor.name, `Drinking fountain at ${indoor.parkName}`);
   assert.equal(indoor.parkName, FX["qnv7-p7a2"].find((r) => r.system === "X307-DF0575").propertyna); // the fountains name their own park
   assert.ok(indoor.details.indoor);
   assert.equal(categoryOf("fountain").seasonal(indoor.details), false);
@@ -230,19 +230,23 @@ test("wording: the summary, the nearest cards and the empty list", () => {
 
 // ---------- Cards ----------
 
-test("cards: distance, park, details, the seasonal note only where it applies, directions to the point", () => {
+const JULY = new Date("2026-07-15T12:00:00-04:00"), NOV = new Date("2026-11-02T12:00:00-05:00");
+
+test("cards: distance, park, details, the season note only where it applies, directions to the point", () => {
   const [filler] = byDistance([byId(all.fountain, "fountain:X182-DF0493")], SPOT);
-  const html = cardHtml(filler);
-  assert.match(html, /Bottle filler/);
-  assert.match(html, /May be seasonal; check <a href="https:\/\/www\.nycgovparks\.org\/"[^>]*>NYC Parks<\/a> for current status/);
+  const html = cardHtml(filler, JULY);
+  assert.match(html, />Bottle filler at Millbrook Playground</);
+  assert.match(html, /<p class="hn-addr">Bronx<\/p>/); // the park's in the name, so not again
+  assert.match(html, /aria-label="Bottle filler at Millbrook Playground, \d+\.\d mi, Fills bottles: show on map"/);
+  assert.match(html, /data-season="on">Outdoor fountain: usually on in the warmer months\. Check <a href="https:\/\/www\.nycgovparks\.org\/"[^>]*>NYC Parks<\/a> for current status\./);
   assert.match(html, new RegExp(`destination=${filler.lat},${filler.lon}`));
-  assert.match(popupHtml(filler), /May be seasonal/);
+  assert.match(popupHtml(filler, NOV), /data-season="maybe">Outdoor fountains are turned off/);
 
   const [chelsea] = byDistance([byId(all.pool, "pool:M260-POOL-0032")], SPOT);
-  assert.doesNotMatch(cardHtml(chelsea), /seasonal/i); // indoor
+  assert.doesNotMatch(cardHtml(chelsea, NOV), /seasonal/i); // indoor
   assert.match(cardHtml(chelsea), /Chelsea Recreation Center, Manhattan/);
   const [playground] = byDistance([byId(all.playground, "playground:DCA-1001")], SPOT);
-  assert.doesNotMatch(cardHtml(playground), /seasonal/i);
+  assert.doesNotMatch(cardHtml(playground, NOV), /seasonal/i);
   // A park named like the amenity isn't said twice.
   assert.equal(placeText(byId(all.pool, "pool:X236-POOL-0027")), "Mapes Pool, Bronx"); // Mapes Wading Pool
   assert.equal(placeText({ name: "Stop & Go Playground", parkName: "Stop & Go Playground", borough: "Bronx" }), "Bronx");
@@ -261,4 +265,47 @@ test("nearest cards: a button in the radius, directions outside it, plain when n
   assert.match(nearestHtml({ key: "pool", amenity: p, inRadius: true }, 1), /^<li><button[^>]*data-locate="pool:p1"/);
   assert.match(nearestHtml({ key: "pool", amenity: p, inRadius: false }, 0.5), /^<li><a [^>]*href="https:\/\/www\.google\.com\/maps/);
   assert.match(nearestHtml({ key: "pool", amenity: null, inRadius: false }, 0.5), /^<li><span[^>]*>.*None listed/);
+});
+
+test("season: outdoor pools and fountains by the New York date; indoor ones never", () => {
+  const pool = byId(all.pool, "pool:Q458-POOL-0015"); // outdoor
+  const fountain = byId(all.fountain, "fountain:X182-DF0493"); // outdoor
+  const day = (iso) => new Date(`${iso}T12:00:00Z`);
+  assert.equal(seasonOf(pool, day("2026-07-15")).state, "on");
+  assert.equal(seasonOf(pool, day("2026-09-16")).state, "maybe");
+  assert.equal(seasonOf(pool, day("2026-11-02")).state, "off");
+  assert.equal(seasonOf(pool, day("2026-11-02")).short, "Closed for the season");
+  assert.equal(seasonOf(pool, day("2026-07-15")).short, null);
+  assert.equal(seasonOf(fountain, day("2026-11-02")).state, "maybe");
+  assert.equal(seasonOf(fountain, day("2027-01-20")).state, "off");
+  assert.equal(seasonOf(fountain, day("2026-05-10")).state, "maybe");
+  // 1 a.m. UTC on Sept 14 is still Sept 13 in New York: the pool season's last day.
+  assert.equal(seasonOf(pool, new Date("2026-09-14T01:00:00Z")).state, "on");
+  assert.equal(seasonOf(byId(all.pool, "pool:M260-POOL-0032"), day("2026-11-02")), null); // indoor
+  assert.equal(seasonOf(byId(all.playground, "playground:DCA-1001"), day("2026-11-02")), null);
+});
+
+test("nearest card: an outdoor pool out of season says it's closed", () => {
+  const [p] = byDistance([byId(all.pool, "pool:Q458-POOL-0015")], SPOT);
+  const off = nearestHtml({ key: "pool", amenity: p, inRadius: false }, 1, NOV);
+  assert.match(off, /<span class="pa-near-note" data-season="off">Closed for the season<\/span>/);
+  assert.match(off, /aria-label="Nearest pool: [^"]+, closed for the season, outside your radius/);
+  assert.doesNotMatch(nearestHtml({ key: "pool", amenity: p, inRadius: false }, 1, JULY), /Closed for the season/);
+  assert.match(cardHtml(p, NOV), /data-season="off">Closed for the season\. NYC Parks outdoor pools usually open in late June\./);
+});
+
+test("a distance past the radius never reads as inside it", () => {
+  assert.equal(milesPast(0.51, 0.5), "0.51 mi");
+  assert.equal(milesPast(0.5001, 0.5), "0.51 mi");
+  assert.equal(milesPast(1.038, 1), "1.04 mi");
+  assert.equal(milesPast(0.56, 0.5), "0.6 mi"); // already reads as past it
+  assert.equal(milesPast(2.5, 1), "2.5 mi");
+
+  const sorted = byDistance([at("fountain", "f1", 0.51)], SPOT);
+  const q = { lat: 1, lon: 1, r: 0.5, cats: [...CATEGORY_KEYS] };
+  const v = selectView(sorted, { categories: q.cats, radius: 0.5 });
+  const fountain = v.nearest.find((n) => n.key === "fountain");
+  assert.deepEqual(nearestText(fountain, 0.5), { head: "Water fountain", dist: "0.51 mi", note: "Outside ½ mi" });
+  assert.equal(emptyText(v, q).text, "No park amenities within ½ mi. The nearest is 0.51 mi away.");
+  assert.match(nearestHtml(fountain, 0.5), /, 0\.51 mi, outside your radius/);
 });

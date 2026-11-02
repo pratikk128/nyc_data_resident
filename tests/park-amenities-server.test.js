@@ -75,7 +75,7 @@ test("empty KV: built from Socrata on the first search; a dataset that fails sho
   for (const k of ["playground", "dog", "fountain"]) assert.ok(body.amenities.some((a) => a.category === k), k);
   assert.ok(body.amenities.every((a, i, xs) => i === 0 || xs[i - 1].miles <= a.miles));
   // The amenities and park names are in KV now.
-  assert.ok(env.DATA_CACHE.store.has("park-amenities:amenities:qnv7-p7a2:v1"));
+  assert.ok(env.DATA_CACHE.store.has("park-amenities:amenities:qnv7-p7a2:v2"));
   assert.ok(env.DATA_CACHE.store.has("park-amenities:park-names:enfh-gkve:v1"));
   failing = new Set();
 });

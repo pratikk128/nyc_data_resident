@@ -61,7 +61,7 @@ function definition(category) {
   const maxAgeHours = requestMaxAgeHours(category.cadence);
   const metadataJob = { key: `park-amenities:metadata:${id}`, maxAgeHours, run: () => datasetMetadata(id) };
   const amenitiesJob = {
-    key: `park-amenities:amenities:${id}:v1`,
+    key: `park-amenities:amenities:${id}:v2`,
     maxAgeHours,
     async run() {
       const [meta, rows, parkNames] = await Promise.all([

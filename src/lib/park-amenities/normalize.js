@@ -8,7 +8,9 @@
  *
  * Every row becomes one point: a point as it is, a polygon or multipolygon
  * (playgrounds, dog runs, pools) at its centroid. details is the category's
- * own (config.js map()). Missing values stay null; nothing is filled in.
+ * own (config.js map()). Missing values stay null; nothing is filled in. A
+ * category with withPark is named after its park as well ("Drinking fountain
+ * at Bryant Park"), so a list of them isn't the same name over and over.
  */
 import { CATEGORIES, boroughName } from "./config.js";
 import { inCityLimits } from "../in-city.js";
@@ -84,10 +86,11 @@ export function normalizeRows(category, rows, { parkNames = {}, updatedAt = null
     const id = `${category.key}:${text(m.id) ?? `${point.lat},${point.lon}`}`;
     if (out.has(id)) continue;
     const parkName = text(m.parkName) ?? text(parkNames[text(m.parkId)]) ?? null;
+    const own = text(m.name) ?? parkName ?? category.one;
     out.set(id, {
       id,
       category: category.key,
-      name: text(m.name) ?? parkName ?? category.one,
+      name: category.withPark && parkName && own !== parkName ? `${own} at ${parkName}` : own,
       parkName,
       borough: boroughName(m.borough),
       lat: point.lat,

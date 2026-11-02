@@ -19,7 +19,8 @@
  * (enfh-gkve) by gispropnum. featurestatus / featuresta are "Active" on every
  * row: the feature is in the inventory, not that it's turned on today. No
  * dataset says whether a pool is open or a fountain is on, so seasonal ones
- * get the SEASONAL note instead.
+ * get a note from their usual season instead (season below, seasonOf() in
+ * nearby.js).
  */
 export const DOMAIN = "https://data.cityofnewyork.us";
 export const datasetUrl = (id) => `${DOMAIN}/d/${id}`;
@@ -49,7 +50,13 @@ const SINK = /^(food prep|slop|bathroom) sink$/i;
  *   select    the columns the ETL asks for
  *   map(row)  → { id, name, parkName?, parkId?, borough, geometry, details } or null to leave the row out
  *   lines(d)  the details as short phrases for a card
- *   seasonal(d)  true when the card gets the SEASONAL note
+ *   seasonal(d)  true when the amenity runs only part of the year (gets the season note)
+ *   season    when it usually runs, as [month, day] ranges within one calendar year:
+ *               on     the usual season
+ *               maybe  around it (it may have started or ended); outside it: off
+ *             and the note for each state, plus short (the "nearest of each" card, off only)
+ *   withPark  name it after its park too ("Drinking fountain at Bryant Park"): its own
+ *             name is the same for every one
  */
 export const CATEGORIES = [
   {
@@ -84,6 +91,7 @@ export const CATEGORIES = [
     cadence: "as-needed", tone: "blue", color: "#1F4FB8",
     icon: '<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/><path d="M9.5 15a2.5 2.5 0 0 0 2.5 2.5"/>',
     select: ["system", "fountainty", "position", "fountainco", "propertyna", "gispropnum", "borough", "the_geom"],
+    withPark: true,
     map: (r) => {
       const type = text(r.fountainty);
       if (SINK.test(type)) return null;
@@ -111,7 +119,19 @@ export const CATEGORIES = [
       d.dogBowl ? "Dog bowl" : null,
       d.count > 1 ? `${d.count} fountains together` : null
     ].filter(Boolean),
-    seasonal: (d) => !d.indoor
+    seasonal: (d) => !d.indoor,
+    // NYC Parks publishes no fountain schedule: outdoor ones are turned off in the cold months
+    // (frozen pipes) and back on in spring, park by park, so only "usually".
+    season: {
+      on: [[6, 1], [10, 14]],
+      maybe: [[4, 1], [11, 30]],
+      text: {
+        on: "Outdoor fountain: usually on in the warmer months.",
+        maybe: "Outdoor fountains are turned off for the cold months, so this one may be off now.",
+        off: "Outdoor fountains are usually turned off for the winter."
+      },
+      short: "Usually off in winter"
+    }
   },
   {
     key: "pool", label: "Pools", one: "Pool",
@@ -125,7 +145,18 @@ export const CATEGORIES = [
     }),
     // "Outdoor", "Olympic pool" / "Intermediate and diving pool"
     lines: (d) => [d.indoor ? "Indoor" : "Outdoor", d.size ? `${sentence(d.size.replace(/&/g, "and"))} pool` : null].filter(Boolean),
-    seasonal: (d) => !d.indoor
+    seasonal: (d) => !d.indoor,
+    // The 2026 season (nyc.gov): June 27 to September 13. Earlier ones ran from late June to about Labor Day.
+    season: {
+      on: [[6, 27], [9, 13]],
+      maybe: [[6, 20], [9, 20]],
+      text: {
+        on: "Outdoor pools are open in summer, daily.",
+        maybe: "The outdoor pool season starts or ends around now.",
+        off: "Closed for the season. NYC Parks outdoor pools usually open in late June."
+      },
+      short: "Closed for the season"
+    }
   }
 ];
 export const CATEGORY_KEYS = CATEGORIES.map((c) => c.key);
@@ -140,7 +171,7 @@ export const PAGE_SIZE = 25;        // list: this many, then "Show more" adds as
 export const METERS_PER_MILE = 1609.344;
 
 export const PARKS_URL = "https://www.nycgovparks.org/";
-// "May be seasonal; check NYC Parks for current status", with NYC Parks a link to PARKS_URL.
-export const SEASONAL = { before: "May be seasonal; check ", link: "NYC Parks", after: " for current status" };
+// After each season note: "Check NYC Parks for current status.", with NYC Parks a link to PARKS_URL.
+export const SEASON_CHECK = { before: "Check ", link: "NYC Parks", after: " for current status." };
 
 export const ERROR_TEXT = "Couldn’t reach NYC Open Data. Try again in a minute.";

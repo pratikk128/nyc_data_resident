@@ -3664,6 +3664,8 @@ span.pa-near { border-style: dashed; background: var(--card); }
   font-size: .875rem;
   color: var(--ink-soft);
 }
+/* Out of season: the note is the main thing to know, so it reads stronger */
+.pa-seasonal[data-season="off"] { color: var(--ink); font-weight: 600; }
 /* .leaflet-popup-content p sets a 1.3em margin; this outranks it */
 .leaflet-popup-content .pa-popup p { margin: 0 0 4px; font-size: .8125rem; line-height: 1.4; }
 .leaflet-popup-content .pa-popup .pa-popup-title { font-size: .9375rem; }

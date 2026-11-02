@@ -4,8 +4,8 @@
  * goes through escape(). Classes are Help Near Me's (hn-*) where the pieces
  * are the same, pa-* where they aren't (dashboard.css).
  */
-import { categoryOf, PARKS_URL, SEASONAL } from "./config.js";
-import { milesText } from "./nearby.js";
+import { categoryOf, PARKS_URL, SEASON_CHECK } from "./config.js";
+import { milesText, milesPast, seasonOf } from "./nearby.js";
 import { nearestText } from "./page-state.js";
 import { escape, iconSvg } from "../help-near-me/render.js";
 
@@ -19,16 +19,19 @@ export function badgeHtml(category) {
   return `<span class="hn-badge" data-tone="${c.tone}">${iconSvg(c.icon)}${escape(c.one)}</span>`;
 }
 
-// "Joyce Kilmer Park, Bronx" (the park left out when it's the amenity's own name).
+// "Joyce Kilmer Park, Bronx" (the park left out when the amenity's name already says it).
 export function placeText(a) {
-  const park = a.parkName && a.parkName !== a.name ? a.parkName : null;
+  const park = a.parkName && !a.name.includes(a.parkName) ? a.parkName : null;
   return [park, a.borough].filter(Boolean).join(", ");
 }
 
-const seasonalHtml = (a) =>
-  categoryOf(a.category).seasonal(a.details)
-    ? `<p class="pa-seasonal">${SEASONAL.before}<a href="${PARKS_URL}" target="_blank" rel="noopener">${SEASONAL.link}</a>${SEASONAL.after}</p>`
+// Its usual season on `date` (seasonOf()), then where to check today's status.
+const seasonalHtml = (a, date) => {
+  const s = seasonOf(a, date);
+  return s
+    ? `<p class="pa-seasonal" data-season="${s.state}">${escape(s.text)} ${SEASON_CHECK.before}<a href="${PARKS_URL}" target="_blank" rel="noopener">${SEASON_CHECK.link}</a>${SEASON_CHECK.after}</p>`
     : "";
+};
 
 const detailsHtml = (a) => {
   const lines = categoryOf(a.category).lines(a.details);
@@ -38,23 +41,25 @@ const detailsHtml = (a) => {
 const directionsHtml = (a) =>
   `<a class="hn-action hn-directions" href="${escape(directionsUrl(a))}" target="_blank" rel="noopener" aria-label="Directions to ${escape(a.name)} (opens Google Maps)">Directions</a>`;
 
-// One result in the list. a: an amenity with .miles.
-export function cardHtml(a) {
+// One result in the list. a: an amenity with .miles; date: today (the season note).
+// The name's label adds the distance and first detail, so a row of fountains in one park sounds different.
+export function cardHtml(a, date = new Date()) {
   const place = placeText(a);
+  const label = [a.name, milesText(a.miles), categoryOf(a.category).lines(a.details)[0]].filter(Boolean).join(", ");
   return (
     `<li class="hn-card" data-id="${escape(a.id)}" data-category="${escape(a.category)}">` +
       `<div class="hn-card-top">${badgeHtml(a.category)}<span class="hn-dist">${milesText(a.miles)}</span></div>` +
-      `<h3 class="hn-card-title"><button type="button" class="hn-locate" data-locate="${escape(a.id)}" aria-label="${escape(a.name)}: show on map">${escape(a.name)}</button></h3>` +
+      `<h3 class="hn-card-title"><button type="button" class="hn-locate" data-locate="${escape(a.id)}" aria-label="${escape(label)}: show on map">${escape(a.name)}</button></h3>` +
       (place ? `<p class="hn-addr">${escape(place)}</p>` : "") +
       detailsHtml(a) +
-      seasonalHtml(a) +
+      seasonalHtml(a, date) +
       `<div class="hn-actions">${directionsHtml(a)}</div>` +
     `</li>`
   );
 }
 
 // The map popup: the same facts, shorter.
-export function popupHtml(a) {
+export function popupHtml(a, date = new Date()) {
   const place = placeText(a);
   const lines = categoryOf(a.category).lines(a.details);
   return (
@@ -63,7 +68,7 @@ export function popupHtml(a) {
       (place ? `<p>${escape(place)}</p>` : "") +
       (lines.length ? `<p>${lines.map(escape).join(" · ")}</p>` : "") +
       `<p><strong>${milesText(a.miles)}</strong> away (straight line)</p>` +
-      seasonalHtml(a) +
+      seasonalHtml(a, date) +
       `<p><a href="${escape(directionsUrl(a))}" target="_blank" rel="noopener">Directions</a></p>` +
     `</div>`
   );
@@ -72,23 +77,27 @@ export function popupHtml(a) {
 /*
  * One "nearest of each" card. n: a selectView() nearest entry. In the radius
  * it's a button that picks the amenity; outside it, the distance and its
- * directions; none in the data, a plain card.
+ * directions; none in the data, a plain card. Out of season it says so
+ * ("Closed for the season"), since it's still the nearest.
  */
-export function nearestHtml(n, radius) {
+export function nearestHtml(n, radius, date = new Date()) {
   const c = categoryOf(n.key);
   const t = nearestText(n, radius);
+  const off = n.amenity ? seasonOf(n.amenity, date)?.short : null;
+  const said = (dist) => `Nearest ${escape(c.one.toLowerCase())}: ${escape(n.amenity.name)}, ${dist}${off ? `, ${escape(off.toLowerCase())}` : ""}`;
   const inner =
     `${iconSvg(c.icon, "hn-icon pa-near-icon")}` +
     `<span class="pa-near-words"><span class="pa-near-head">${escape(t.head)} · <strong>${escape(t.dist)}</strong></span>` +
     (n.amenity ? `<span class="pa-near-name">${escape(n.amenity.name)}</span>` : "") +
     (t.note ? `<span class="pa-near-note">${escape(t.note)}</span>` : "") +
+    (off ? `<span class="pa-near-note" data-season="off">${escape(off)}</span>` : "") +
     `</span>`;
   const attrs = `class="pa-near" data-tone="${c.tone}" style="--hn-pin:${c.color}"`;
   if (n.amenity && n.inRadius) {
-    return `<li><button type="button" ${attrs} data-locate="${escape(n.amenity.id)}" aria-label="Nearest ${escape(c.one.toLowerCase())}: ${escape(n.amenity.name)}, ${milesText(n.amenity.miles)}. Show on map">${inner}</button></li>`;
+    return `<li><button type="button" ${attrs} data-locate="${escape(n.amenity.id)}" aria-label="${said(milesText(n.amenity.miles))}. Show on map">${inner}</button></li>`;
   }
   if (n.amenity) {
-    return `<li><a ${attrs} href="${escape(directionsUrl(n.amenity))}" target="_blank" rel="noopener" aria-label="Nearest ${escape(c.one.toLowerCase())}: ${escape(n.amenity.name)}, ${milesText(n.amenity.miles)}, outside your radius. Directions (opens Google Maps)">${inner}</a></li>`;
+    return `<li><a ${attrs} href="${escape(directionsUrl(n.amenity))}" target="_blank" rel="noopener" aria-label="${said(milesPast(n.amenity.miles, radius))}, outside your radius. Directions (opens Google Maps)">${inner}</a></li>`;
   }
   return `<li><span ${attrs}>${inner}</span></li>`;
 }

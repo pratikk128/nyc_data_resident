@@ -5,10 +5,36 @@
  * amenitiesNear() to pick what to send, the page script selectView() to pick
  * what to show. Distances are straight-line, from the searched spot.
  */
-import { RADII, MAX_RADIUS, FAR_PER_CATEGORY, PAGE_SIZE, CATEGORY_KEYS } from "./config.js";
+import { RADII, MAX_RADIUS, FAR_PER_CATEGORY, PAGE_SIZE, CATEGORY_KEYS, categoryOf } from "./config.js";
 import { haversineMiles, milesText, radiusText } from "../help-near-me/distance.js";
 
 export { haversineMiles, milesText, radiusText };
+
+// A distance past the radius, never rounded down to it: 0.51 mi outside ½ mi reads "0.51 mi", not "0.5 mi".
+export function milesPast(miles, radius) {
+  const t = milesText(miles);
+  return parseFloat(t) <= radius ? `${(Math.ceil(miles * 100) / 100).toFixed(2)} mi` : t;
+}
+
+// Today in New York as month × 100 + day (Nov 2 → 1102), whatever the viewer's time zone.
+function nycMonthDay(date) {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "numeric", day: "numeric" }).formatToParts(date);
+  const get = (type) => Number(parts.find((p) => p.type === type).value);
+  return get("month") * 100 + get("day");
+}
+const within = (n, [[m0, d0], [m1, d1]]) => n >= m0 * 100 + d0 && n <= m1 * 100 + d1;
+
+/*
+ * Whether a seasonal amenity usually runs on `date` (config.js season):
+ *   → { state: "on" | "maybe" | "off", text, short }, or null (indoors, or not seasonal)
+ */
+export function seasonOf(a, date = new Date()) {
+  const c = categoryOf(a.category);
+  if (!c?.season || !c.seasonal(a.details)) return null;
+  const n = nycMonthDay(date);
+  const state = within(n, c.season.on) ? "on" : within(n, c.season.maybe) ? "maybe" : "off";
+  return { state, text: c.season.text[state], short: state === "off" ? c.season.short : null };
+}
 
 // Amenities, each with .miles from the spot, nearest first (ties by name, so the order is stable).
 export function byDistance(amenities, point) {

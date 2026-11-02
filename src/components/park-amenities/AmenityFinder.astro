@@ -523,7 +523,7 @@ const { query } = Astro.props;
     nearest.innerHTML = near.map((n: any) => nearestHtml(n, query.r)).join('');
     nearest.hidden = !near.length;
 
-    cards.innerHTML = view.list.map(cardHtml).join('');
+    cards.innerHTML = view.list.map((a: any) => cardHtml(a)).join('');
     if (selected && !view.inRadius.some((a: any) => a.id === selected)) selected = null;
     if (selected) cardFor(selected)?.classList.add('is-selected');
     showPicked();
