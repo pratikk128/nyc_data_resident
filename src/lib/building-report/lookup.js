@@ -20,10 +20,10 @@ const withBbl = (places) => places.filter((p) => isBbl(p.bbl));
  *   { status: "need-address", text }              a ZIP, borough or street alone
  */
 export async function findBuilding(parsed, { search = (text, size) => geosearch("search", text, { size }) } = {}) {
-  if (parsed.kind === "empty") return { status: "need-address", text: "Type a street address, like “1 Centre St, Manhattan”." };
+  if (parsed.kind === "empty") return { status: "need-address", text: "Type a street address: house number, street and borough." };
   if (parsed.kind === "error") return { status: "need-address", text: parsed.message };
   if (parsed.kind !== "address") {
-    return { status: "need-address", text: "Add the house number: a report is for one building, like “1 Centre St, Manhattan”." };
+    return { status: "need-address", text: "Add the house number: a report is for one building, so include the number, street and borough." };
   }
   const where = [parsed.borough && boroughLabel(parsed.borough), parsed.zip].filter(Boolean).join(" ");
   const text = `${parsed.houseNumber} ${parsed.text.replace(/^\S+\s+/, "")}`;
