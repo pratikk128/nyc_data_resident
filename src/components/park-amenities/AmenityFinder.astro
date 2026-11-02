@@ -1,0 +1,543 @@
+---
+/*
+ * The amenity finder: an address (with suggestions) or "Use my location",
+ * then the nearest playgrounds, dog runs, fountains and pools: category chips
+ * with counts, a radius, the nearest of each kind, and a map and list kept in
+ * sync. Built like Help Near Me's finder (help-near-me/HelpFinder.astro).
+ *
+ * The amenities come from /api/park-amenities/search, once per spot; the
+ * categories, radius and "Show more" are applied here
+ * (src/lib/park-amenities/nearby.js), so they switch at once. The spot,
+ * radius and categories are in the URL (page-state.js).
+ */
+import { CATEGORIES, RADII } from '../../lib/park-amenities/config.js';
+import { radiusText } from '../../lib/park-amenities/nearby.js';
+import { iconSvg } from '../../lib/park-amenities/render.js';
+import { pendingText } from '../../lib/park-amenities/page-state.js';
+import { MAX_INPUT_LENGTH } from '../../lib/complaints311/location-input.js';
+
+interface Props {
+  query: { r: number; cats: string[] };
+}
+const { query } = Astro.props;
+---
+
+<div class="hn pa" data-amenities>
+  <section class="dash-section hn-find" id="find" aria-labelledby="pa-find-title">
+    <h2 class="sr-only" id="pa-find-title">Search</h2>
+    <form class="hn-search" data-form novalidate role="search" aria-label="Find park amenities near an address">
+      <label class="filter-label" for="pa-address">Your address or ZIP code</label>
+      <div class="hn-search-row">
+        <div class="c311-combo hn-field">
+          <input class="search-input" id="pa-address" type="text" role="combobox" aria-autocomplete="list"
+            aria-expanded="false" aria-controls="pa-address-list" autocomplete="street-address" spellcheck="false"
+            maxlength={MAX_INPUT_LENGTH} placeholder="A street address, or a ZIP code" data-address />
+          <ul class="c311-suggest" id="pa-address-list" role="listbox" aria-label="Address suggestions" hidden data-address-list></ul>
+        </div>
+        <button type="submit" class="c311-go">Find nearby</button>
+        <button type="button" class="near-btn" data-locate-me>
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+          Use my location
+        </button>
+      </div>
+    </form>
+    <div class="scl-suggest-chips" data-address-choices hidden></div>
+    <p class="rest-status" role="status" aria-live="polite" data-status></p>
+
+    <div class="hn-filters">
+      <div class="hn-chips" role="group" aria-label="Kinds of amenity (pick one or more)">
+        {CATEGORIES.map((c) => (
+          <button type="button" class="hn-chip" data-cat={c.key} data-tone={c.tone} style={`--hn-pin:${c.color}`}
+            aria-pressed={query.cats.includes(c.key) ? 'true' : 'false'}>
+            <Fragment set:html={iconSvg(c.icon, 'hn-icon hn-chip-icon')} />
+            <span>{c.label}</span>
+            <span class="hn-chip-count" data-count={c.key} hidden></span>
+          </button>
+        ))}
+      </div>
+      <div class="hn-radius">
+        <span class="filter-label" id="pa-radius-label">How far</span>
+        <div class="toggle" role="group" aria-labelledby="pa-radius-label">
+          {RADII.map((r) => <button type="button" class="toggle-btn" data-radius={r} aria-pressed={query.r === r ? 'true' : 'false'}>{radiusText(r)}</button>)}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="dash-section" id="results" aria-labelledby="pa-results-title">
+    <header class="section-head">
+      <h2 id="pa-results-title">Nearest of each</h2>
+      <p class="section-intro" data-summary aria-live="polite">{pendingText}</p>
+    </header>
+
+    <!-- Live on a wrapper that's always there: a live region that was just unhidden often isn't read. -->
+    <div aria-live="polite">
+      <ul class="hn-missing" data-errors hidden></ul>
+    </div>
+    <ul class="pa-nearest" data-nearest aria-label="The nearest of each kind" hidden></ul>
+
+    <div class="hn-layout" data-layout data-view="list" hidden>
+      <!-- Narrow screens show the list or the map, one at a time (list first, in page order). -->
+      <div class="toggle hn-view-switch" role="group" aria-label="Show the amenities as">
+        <button type="button" class="toggle-btn" data-show="list" aria-pressed="true">List</button>
+        <button type="button" class="toggle-btn" data-show="map" aria-pressed="false">Map</button>
+      </div>
+      <div class="hn-list-col">
+        <ol class="hn-cards" data-cards aria-label="Park amenities, nearest first"></ol>
+        <div class="scl-empty" data-empty hidden></div>
+        <button type="button" class="pager-btn scl-more" data-more hidden>Show more</button>
+      </div>
+      <div class="hn-map-col">
+        <div class="c311-map-frame hn-map" data-map role="region" aria-label="Map of park amenities. Each pin is also in the list."></div>
+        <p class="hn-picked" data-picked aria-live="polite" hidden></p>
+        <p class="hn-legend"><span class="scl-key-you"></span>Your spot and radius. Pins match the colors and icons of the kinds above.</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+  import { CATEGORIES, ERROR_TEXT, METERS_PER_MILE } from '../../lib/park-amenities/config.js';
+  import { selectView, pagesFor, milesText, radiusText } from '../../lib/park-amenities/nearby.js';
+  import { cardHtml, nearestHtml, skeletonHtml, escape } from '../../lib/park-amenities/render.js';
+  import { mountAmenityMap } from '../../lib/park-amenities/amenity-map.js';
+  import {
+    normalizeQuery, queryToParams, pointQuery, searchKey, toggleCategory, summaryText, emptyText, chipLabel, pendingText
+  } from '../../lib/park-amenities/page-state.js';
+  import { nearSearch, addressOutcome } from '../../lib/location/near-search.js';
+  import { parseLocationInput, isNycZip } from '../../lib/complaints311/location-input.js';
+  import { inCityLimits } from '../../lib/in-city.js';
+  import { resolveLocation, suggest } from '../../lib/complaints311/geocode.js';
+  import zipFile from '../../data/zip-centroids.json';
+
+  // The decisions about the list and its wording are in nearby.js and page-state.js, with tests.
+
+  const root = document.querySelector<HTMLElement>('[data-amenities]')!;
+  const $ = <T extends HTMLElement = HTMLElement>(sel: string) => root.querySelector<T>(sel)!;
+
+  const form = $<HTMLFormElement>('[data-form]');
+  const input = $<HTMLInputElement>('[data-address]');
+  const list = $<HTMLUListElement>('[data-address-list]');
+  const choices = $('[data-address-choices]');
+  const locateBtn = $<HTMLButtonElement>('[data-locate-me]');
+  const status = $('[data-status]');
+  const summary = $('[data-summary]');
+  const errors = $('[data-errors]');
+  const nearest = $('[data-nearest]');
+  const layout = $('[data-layout]');
+  const cards = $('[data-cards]');
+  const empty = $('[data-empty]');
+  const more = $<HTMLButtonElement>('[data-more]');
+  const picked = $('[data-picked]');
+  const narrow = matchMedia('(max-width: 1023px)'); // matches the CSS breakpoint
+
+  const map = mountAmenityMap($('[data-map]'), { onPick: (id: string) => select(id, { fromMap: true }) });
+
+  let query: any = normalizeQuery(new URLSearchParams(location.search));
+  // The spot's name: never in the URL, so a shared or reloaded link says "the spot you picked".
+  let placeLabel = (history.state?.placeLabel as string) || '';
+  let data: { point: any; amenities: any[]; sources: any[] } | null = null;
+  let loadedFor = '';
+  let pages = 1;
+  let selected: string | null = null;
+  let view: any = null;
+  let shown: 'list' | 'map' = 'list'; // on narrow screens
+  let request = 0;
+  const cache = new Map<string, any>();
+
+  // ---------- URL ----------
+  function go(next: any, { push = true } = {}) {
+    query = next;
+    const qs = queryToParams(query).toString();
+    const url = `${location.pathname}${qs ? `?${qs}` : ''}`;
+    const state = { placeLabel, text: input.value };
+    if (push) history.pushState(state, '', url); else history.replaceState(state, '', url);
+    update();
+  }
+
+  window.addEventListener('popstate', () => {
+    query = normalizeQuery(new URLSearchParams(location.search));
+    placeLabel = history.state?.placeLabel || '';
+    input.value = history.state?.text || '';
+    closeOptions();
+    pages = 1;
+    update();
+  });
+
+  const spotKey = () => searchKey(query);
+
+  // ---------- Address box with suggestions ----------
+  type Option = { label: string; hint?: string; lat: number; lon: number };
+  let options: Option[] = [];
+  let active = -1;
+  let timer = 0;
+  let suggestAbort: AbortController | null = null;
+  let lookup = 0; // bumped by every search, so only the latest one's answer counts
+
+  function renderOptions(next: Option[]) {
+    options = next;
+    active = -1;
+    list.innerHTML = next.map((o, i) =>
+      `<li role="option" id="pa-opt-${i}" aria-selected="false" class="c311-option" data-i="${i}">` +
+      `<span>${escape(o.label)}</span>${o.hint ? `<span class="c311-option-hint">${escape(o.hint)}</span>` : ''}</li>`).join('');
+    list.hidden = !next.length;
+    input.setAttribute('aria-expanded', String(next.length > 0));
+    input.removeAttribute('aria-activedescendant');
+  }
+  const closeOptions = () => renderOptions([]);
+
+  function highlightOption(i: number) {
+    active = i;
+    list.querySelectorAll('[role="option"]').forEach((el, j) => el.setAttribute('aria-selected', String(j === i)));
+    if (i >= 0) {
+      input.setAttribute('aria-activedescendant', `pa-opt-${i}`);
+      list.children[i]?.scrollIntoView({ block: 'nearest' });
+    } else input.removeAttribute('aria-activedescendant');
+  }
+
+  // A ZIP comes from the text itself; GeoSearch adds addresses.
+  async function updateSuggestions() {
+    const text = input.value.trim();
+    suggestAbort?.abort();
+    const local: Option[] = [];
+    const c = (zipFile.zips as Record<string, number[]>)[text];
+    if (/^\d{5}$/.test(text) && isNycZip(text) && c) local.push({ label: `ZIP code ${text}`, hint: 'The middle of the ZIP', lat: c[0], lon: c[1] });
+    if (text.length < 3 || /^\d+$/.test(text)) { renderOptions(local); return; }
+    suggestAbort = new AbortController();
+    try {
+      const places = await suggest(text, { signal: suggestAbort.signal });
+      renderOptions([...local, ...places.map((p: any) => ({ label: p.label, lat: p.lat, lon: p.lon }))].slice(0, 6));
+    } catch (err: any) {
+      if (err.name !== 'AbortError') renderOptions(local); // typing still works; submitting looks it up
+    }
+  }
+
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    status.textContent = '';
+    timer = window.setTimeout(updateSuggestions, 250);
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' && options.length) { e.preventDefault(); highlightOption(Math.min(active + 1, options.length - 1)); }
+    else if (e.key === 'ArrowUp' && options.length) { e.preventDefault(); highlightOption(Math.max(active - 1, -1)); }
+    else if (e.key === 'Enter' && active >= 0) { e.preventDefault(); pickOption(options[active]); }
+    else if (e.key === 'Escape' && options.length) { e.preventDefault(); closeOptions(); }
+  });
+  // mousedown so the input keeps focus (a click would blur it first and close the list).
+  list.addEventListener('mousedown', (e) => {
+    const li = (e.target as HTMLElement).closest<HTMLElement>('[role="option"]');
+    if (!li) return;
+    e.preventDefault();
+    pickOption(options[Number(li.dataset.i)]);
+  });
+  input.addEventListener('blur', () => setTimeout(closeOptions, 150));
+
+  function pickOption(o: Option) {
+    closeOptions();
+    clearTimeout(timer);
+    input.value = o.label;
+    usePoint(o.lat, o.lon, o.label.startsWith('ZIP code') ? `the middle of ${o.label.replace('ZIP code', 'ZIP')}` : o.label);
+  }
+
+  // ---------- Search ----------
+  function usePoint(lat: number, lon: number, label: string) {
+    // A suggestion or address lookup still in flight must not reopen the list or replace this spot.
+    ++lookup;
+    clearTimeout(timer);
+    suggestAbort?.abort();
+    closeOptions();
+    choices.hidden = true;
+    status.textContent = '';
+    placeLabel = label;
+    selected = null;
+    pages = 1;
+    show('list');
+    go(pointQuery(query, lat, lon));
+    // On a phone the results are below the fold.
+    if (narrow.matches) document.getElementById('results')!.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearTimeout(timer);
+    suggestAbort?.abort();
+    closeOptions();
+    choices.hidden = true;
+    const parsed: any = parseLocationInput({ text: input.value });
+    const next: any = nearSearch(parsed, zipFile.zips);
+    if (next.kind === 'message') { status.textContent = next.text; if (next.focus) input.focus(); return; }
+    // A borough is too big to be "near": ask for somewhere in it.
+    if (next.kind === 'borough') { status.textContent = 'Type an address or ZIP code in that borough, or use your location.'; input.focus(); return; }
+    if (next.kind === 'point') { usePoint(next.lat, next.lon, next.label); return; }
+    status.textContent = 'Looking up that address…';
+    const id = ++lookup;
+    let result: any;
+    try {
+      result = addressOutcome(await resolveLocation(parsed));
+    } catch {
+      if (id === lookup) status.textContent = 'Couldn’t reach the address lookup. Try again in a minute, or use your location.';
+      return;
+    }
+    if (id !== lookup) return;
+    if (result.kind === 'point') { usePoint(result.lat, result.lon, result.label); return; }
+    status.textContent = result.text;
+    if (result.kind === 'choose') {
+      choices.innerHTML = result.choices.map((p: any, i: number) =>
+        `<button type="button" class="pay-chip" data-pick="${i}">${escape(p.label)}</button>`).join('');
+      choices.hidden = false;
+      choices.querySelectorAll<HTMLButtonElement>('[data-pick]').forEach((b) => b.addEventListener('click', () => {
+        const p = result.choices[Number(b.dataset.pick)];
+        input.value = p.label;
+        usePoint(p.lat, p.lon, p.label);
+      }));
+    }
+  });
+
+  locateBtn.addEventListener('click', () => {
+    choices.hidden = true;
+    if (!navigator.geolocation) { status.textContent = 'Your browser can’t share its location. Type an address or ZIP code instead.'; return; }
+    const id = ++lookup;
+    locateBtn.disabled = true;
+    status.textContent = 'Finding you…';
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        locateBtn.disabled = false;
+        if (id !== lookup) return;
+        const { latitude: lat, longitude: lon } = pos.coords;
+        if (!inCityLimits(lat, lon)) { status.textContent = 'You seem to be outside NYC. Type an address or ZIP code instead.'; return; }
+        input.value = '';
+        usePoint(lat, lon, 'your location');
+      },
+      () => {
+        locateBtn.disabled = false;
+        if (id === lookup) status.textContent = 'We couldn’t get your location. Check your browser’s location setting, or type an address or ZIP code.';
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
+  });
+
+  // ---------- Chips, radius, more ----------
+  root.querySelectorAll<HTMLButtonElement>('[data-cat]').forEach((b) => b.addEventListener('click', () => {
+    pages = 1;
+    go({ ...query, cats: toggleCategory(query.cats, b.dataset.cat!) }, { push: false });
+  }));
+  const setRadius = (r: number) => { pages = 1; go({ ...query, r }, { push: false }); };
+  root.querySelectorAll<HTMLButtonElement>('[data-radius]').forEach((b) => b.addEventListener('click', () => setRadius(Number(b.dataset.radius))));
+  empty.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-widen]');
+    if (b) setRadius(Number(b.dataset.widen));
+  });
+  more.addEventListener('click', () => {
+    const before = new Set([...cards.children].map((el) => (el as HTMLElement).dataset.id));
+    pages += 1;
+    render({ refit: false });
+    const added = [...cards.children].find((el) => !before.has((el as HTMLElement).dataset.id));
+    added?.querySelector<HTMLButtonElement>('[data-locate]')?.focus();
+  });
+
+  // ---------- List or map (narrow screens show one at a time) ----------
+  const showsMap = () => !narrow.matches || shown === 'map';
+  const cardFor = (id: string) => cards.querySelector<HTMLElement>(`[data-id="${CSS.escape(id)}"]`);
+
+  function show(next: 'list' | 'map', { focus = false } = {}) {
+    shown = next;
+    layout.dataset.view = next;
+    root.querySelectorAll<HTMLButtonElement>('[data-show]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.show === next)));
+    if (!narrow.matches || !data || spotKey() !== loadedFor) return;
+    // The map isn't drawn while it's hidden (Leaflet can't size it), so draw it now, on the picked amenity.
+    if (next === 'map') { render({ refit: true })?.then(() => map.highlight(selected, { pan: true, popup: true })); return; }
+    const card = selected ? cardFor(selected) : null;
+    card?.scrollIntoView({ block: 'center' });
+    if (focus) card?.querySelector<HTMLButtonElement>('[data-locate]')?.focus({ preventScroll: true });
+  }
+  root.querySelectorAll<HTMLButtonElement>('[data-show]').forEach((b) =>
+    b.addEventListener('click', () => show(b.dataset.show as 'list' | 'map')));
+  picked.addEventListener('click', (e) => {
+    if ((e.target as HTMLElement).closest('[data-to-list]')) show('list', { focus: true });
+  });
+  narrow.addEventListener('change', () => { if (data && spotKey() === loadedFor) render({ refit: true }); });
+
+  // Under the map on narrow screens: which amenity is picked, and the way back to its card.
+  function showPicked() {
+    const a = selected ? view?.inRadius.find((x: any) => x.id === selected) : null;
+    picked.hidden = !a;
+    picked.innerHTML = a
+      ? `<strong>${escape(a.name)}</strong>, ${milesText(a.miles)} away. <button type="button" class="copy-link" data-to-list>See it in the list</button>`
+      : '';
+  }
+
+  // ---------- Map and list in sync ----------
+  function select(id: string | null, { fromMap = false } = {}) {
+    selected = id;
+    // A pin past the list's first page: grow the list to reach its card.
+    const need = id ? pagesFor(view, id) : null;
+    if (need && need > pages) { pages = need; render({ refit: false }); }
+    cards.querySelectorAll('.hn-card.is-selected').forEach((el) => el.classList.remove('is-selected'));
+    const card = id ? cardFor(id) : null;
+    card?.classList.add('is-selected');
+    showPicked();
+    if (id && !fromMap && narrow.matches) {
+      // The list's hidden once the map shows, so focus goes to the way back.
+      show('map');
+      picked.querySelector<HTMLButtonElement>('[data-to-list]')?.focus({ preventScroll: true });
+      layout.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    map.highlight(id, { pan: !fromMap, popup: !fromMap });
+    if (fromMap && card && !narrow.matches) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      card.querySelector<HTMLButtonElement>('[data-locate]')?.focus({ preventScroll: true });
+    }
+  }
+  // The list's names and the "nearest of each" cards both pick an amenity.
+  for (const el of [cards, nearest]) {
+    el.addEventListener('click', (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-locate]');
+      if (b) select(b.dataset.locate!);
+    });
+  }
+  cards.addEventListener('mouseover', (e) => {
+    const card = (e.target as HTMLElement).closest<HTMLElement>('.hn-card');
+    if (card?.dataset.id) map.highlight(card.dataset.id);
+  });
+  cards.addEventListener('mouseleave', () => map.highlight(selected));
+  // Tabbing out of the list puts the halo back on the picked amenity, as the mouse leaving does.
+  cards.addEventListener('focusout', (e) => {
+    if (!cards.contains(e.relatedTarget as Node | null)) map.highlight(selected);
+  });
+  cards.addEventListener('focusin', (e) => {
+    const card = (e.target as HTMLElement).closest<HTMLElement>('.hn-card');
+    if (card?.dataset.id) map.highlight(card.dataset.id);
+  });
+  // Up and down arrows move between the amenities' names.
+  cards.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    const names = [...cards.querySelectorAll<HTMLButtonElement>('[data-locate]')];
+    const i = names.indexOf(document.activeElement as HTMLButtonElement);
+    if (i < 0) return;
+    e.preventDefault();
+    names[Math.max(0, Math.min(names.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)))].focus();
+  });
+
+  // ---------- Loading ----------
+  async function load() {
+    const key = spotKey();
+    if (cache.has(key)) return cache.get(key);
+    const res = await fetch(`/api/park-amenities/search?${key}`);
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error && body.error !== 'upstream' ? body.error : ERROR_TEXT);
+    // A dataset that couldn't load gets another try on the next visit to this spot.
+    if (!body.sources?.some((s: any) => s.error)) cache.set(key, body);
+    return body;
+  }
+
+  function clearCounts() {
+    root.querySelectorAll<HTMLElement>('[data-count]').forEach((el) => {
+      el.hidden = true;
+      el.textContent = '';
+      el.closest('button')!.removeAttribute('aria-label');
+    });
+  }
+
+  // Only while it's on screen: Leaflet can't size a hidden map (show() draws it when it appears).
+  function drawMap(amenities: any[], { refit }: { refit: boolean }) {
+    if (!showsMap()) return null;
+    const point = { lat: query.lat, lon: query.lon };
+    return map.update({ amenities, point, radiusMeters: query.r * METERS_PER_MILE, refit });
+  }
+
+  async function update() {
+    fillControls();
+    if (!spotKey()) {
+      layout.hidden = true;
+      nearest.hidden = true;
+      errors.hidden = true;
+      summary.textContent = pendingText;
+      clearCounts();
+      return;
+    }
+    const key = spotKey();
+    if (key === loadedFor && data) { render({ refit: true }); return; }
+    const id = ++request;
+    layout.hidden = false;
+    nearest.hidden = true;
+    errors.hidden = true;
+    summary.textContent = 'Looking for park amenities nearby…';
+    cards.innerHTML = skeletonHtml();
+    empty.hidden = true;
+    more.hidden = true;
+    // Nothing from the last spot while this one loads (or fails): its counts and pins would read as this one's.
+    selected = null;
+    picked.hidden = true;
+    clearCounts();
+    drawMap([], { refit: true });
+    root.setAttribute('aria-busy', 'true');
+    try {
+      const body = await load();
+      if (id !== request) return;
+      data = body;
+      loadedFor = key;
+      selected = null;
+      root.removeAttribute('aria-busy');
+      render({ refit: true });
+    } catch (err: any) {
+      if (id !== request) return;
+      root.removeAttribute('aria-busy');
+      cards.innerHTML = '';
+      summary.textContent = '';
+      empty.innerHTML = `<p>${escape(err.message || ERROR_TEXT)}</p><button type="button" class="copy-link" data-retry>Try again</button>`;
+      empty.hidden = false;
+      empty.querySelector('[data-retry]')!.addEventListener('click', () => update());
+    }
+  }
+
+  function fillControls() {
+    root.querySelectorAll<HTMLButtonElement>('[data-cat]').forEach((b) =>
+      b.setAttribute('aria-pressed', String(query.cats.includes(b.dataset.cat))));
+    root.querySelectorAll<HTMLButtonElement>('[data-radius]').forEach((b) =>
+      b.setAttribute('aria-pressed', String(Number(b.dataset.radius) === query.r)));
+  }
+
+  // ---------- Drawing ----------
+  function render({ refit }: { refit: boolean }) {
+    const { amenities, sources } = data!;
+    view = selectView(amenities, { categories: query.cats, radius: query.r, pages });
+
+    for (const c of CATEGORIES) {
+      const n = view.counts[c.key];
+      const el = root.querySelector<HTMLElement>(`[data-count="${c.key}"]`)!;
+      el.textContent = String(n);
+      el.hidden = false;
+      el.closest('button')!.setAttribute('aria-label', chipLabel(c.label, n, query.r));
+    }
+
+    summary.textContent = summaryText(view, query, placeLabel);
+
+    const broken = sources.filter((s: any) => s.error && query.cats.includes(s.key));
+    errors.innerHTML = broken.map((s: any) =>
+      `<li class="hn-missing-error">${escape(CATEGORIES.find((c) => c.key === s.key)!.label)} couldn’t load right now. Try again later.</li>`).join('');
+    errors.hidden = !broken.length;
+
+    // A dataset that didn't load has no "nearest" to show; its error says so.
+    const near = view.nearest.filter((n: any) => !broken.some((s: any) => s.key === n.key));
+    nearest.innerHTML = near.map((n: any) => nearestHtml(n, query.r)).join('');
+    nearest.hidden = !near.length;
+
+    cards.innerHTML = view.list.map(cardHtml).join('');
+    if (selected && !view.inRadius.some((a: any) => a.id === selected)) selected = null;
+    if (selected) cardFor(selected)?.classList.add('is-selected');
+    showPicked();
+    more.hidden = !view.more;
+    empty.hidden = view.list.length > 0;
+    if (!view.list.length) {
+      const e = emptyText(view, query);
+      empty.innerHTML = `<p><strong>${escape(e.text)}</strong></p>` +
+        (e.widen ? `<button type="button" class="copy-link" data-widen="${e.widen}">Widen to ${radiusText(e.widen)}</button>` : '');
+    }
+
+    // Redrawing clears the halo; the picked amenity keeps it.
+    return drawMap(view.inRadius, { refit })?.then(() => map.highlight(selected));
+  }
+
+  update();
+</script>

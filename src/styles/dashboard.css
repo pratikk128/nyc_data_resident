@@ -3609,6 +3609,78 @@ a.hn-directions:hover { background: var(--accent-deep); }
 }
 
 /* =========================================================
+   Park Amenities Near Me
+   Help Near Me's search, chips, cards, map and pins (hn-*), plus the
+   "nearest of each" strip and the seasonal note.
+   ========================================================= */
+.pa .rest-status { margin-top: var(--space-2); }
+.pa .hn-filters { margin-top: var(--space-3); }
+.pa-nearest {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.pa-nearest[hidden] { display: none; }
+.pa-nearest li { display: flex; min-width: 0; }
+.pa-near {
+  display: flex;
+  flex: 1;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 44px;
+  padding: var(--space-3);
+  border: 1.5px solid var(--tone-deep, var(--line-strong));
+  border-radius: var(--radius-md);
+  background: var(--tone-tint, var(--card));
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+}
+button.pa-near, a.pa-near { cursor: pointer; transition: box-shadow var(--speed) var(--ease); }
+button.pa-near:hover, a.pa-near:hover { box-shadow: var(--shadow-hover); }
+span.pa-near { border-style: dashed; background: var(--card); }
+.pa-near-icon {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  padding: 5px;
+  border-radius: 50%;
+  background: var(--hn-pin);
+  color: #fff;
+}
+.pa-near-words { display: grid; gap: 1px; min-width: 0; }
+.pa-near-head { font-size: .9375rem; font-variant-numeric: tabular-nums; }
+.pa-near-name { font-size: .8125rem; color: var(--ink-soft); overflow-wrap: anywhere; }
+.pa-near-note { font-size: .8125rem; font-weight: 700; color: var(--tone-deep, var(--ink-soft)); }
+.pa-seasonal {
+  margin-top: var(--space-1);
+  padding-left: var(--space-2);
+  border-left: 3px solid var(--callout-heads-up-deep);
+  font-size: .875rem;
+  color: var(--ink-soft);
+}
+/* .leaflet-popup-content p sets a 1.3em margin; this outranks it */
+.leaflet-popup-content .pa-popup p { margin: 0 0 4px; font-size: .8125rem; line-height: 1.4; }
+.leaflet-popup-content .pa-popup .pa-popup-title { font-size: .9375rem; }
+/* Leaflet's popup is white in both themes, so fixed colors (as the pins) */
+.pa-popup, .pa-popup .pa-seasonal { color: #1C2A44; }
+.leaflet-popup-content .pa-popup .pa-seasonal { margin: 4px 0; border-left-color: #A14A0C; }
+.pa-popup a { color: #1F4FB8; font-weight: 700; }
+.pa .scl-empty .copy-link { margin-top: var(--space-2); }
+
+@media (max-width: 1023px) {
+  .pa-nearest { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 379px) {
+  .pa-nearest { grid-template-columns: 1fr; }
+}
+
+/* =========================================================
    Address report (/address/)
    The place, "At a glance" (one line per topic, colored by how it looks),
    then the topics in groups. Each topic fills in on its own.

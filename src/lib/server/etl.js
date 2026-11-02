@@ -40,8 +40,9 @@ import { streetClosuresDataset } from "./street-closures.js";
 import { helpNearMeDatasets } from "./help-near-me.js";
 import { crashesDataset } from "./crashes.js";
 import { buildingReportDatasets } from "./building-report.js";
+import { parkAmenitiesDatasets } from "./park-amenities.js";
 
-export const DATASETS = [restaurantsDataset, complaints311Dataset, waterDataset, shopDiverseDataset, schoolsDataset, payrollDataset, streetClosuresDataset, ...helpNearMeDatasets, crashesDataset, ...buildingReportDatasets];
+export const DATASETS = [restaurantsDataset, complaints311Dataset, waterDataset, shopDiverseDataset, schoolsDataset, payrollDataset, streetClosuresDataset, ...helpNearMeDatasets, crashesDataset, ...buildingReportDatasets, ...parkAmenitiesDatasets];
 
 const STATE_KEY = "etl:state";
 const iso = (ms) => new Date(ms).toISOString();

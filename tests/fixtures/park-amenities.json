@@ -1,0 +1,476 @@
+{
+ "_note": "Real rows from NYC Open Data, Nov 2026 (the smallest shapes of each kind, so the file stays small). Columns as the ETL selects them.",
+ "j55h-3upk": [
+  {
+   "system": "DCA-1001",
+   "gispropnum": "X281",
+   "omppropid": "X281",
+   "publicname": "Stop & Go Playground",
+   "publiclocation": "W 175 St between Washington Av and Bathgate Av",
+   "parkdistrict": "X-06",
+   "borough": "X",
+   "shape": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        -73.89891074772193,
+        40.8449600753404
+       ],
+       [
+        -73.89904134656253,
+        40.84472801378705
+       ],
+       [
+        -73.89888449393139,
+        40.84467629345086
+       ],
+       [
+        -73.898756236505,
+        40.84490841091373
+       ],
+       [
+        -73.89891074772193,
+        40.8449600753404
+       ]
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "system": "DCA-1080",
+   "gispropnum": "R046",
+   "omppropid": "R046-06",
+   "publicname": "Midland Playground",
+   "publiclocation": "Greely Ave & Father Capodanno Blvd",
+   "parkdistrict": "R-02B",
+   "borough": "R",
+   "shape": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        -74.09110540341929,
+        40.56875608348094
+       ],
+       [
+        -74.09134039610944,
+        40.56851236868128
+       ],
+       [
+        -74.09106183648636,
+        40.56826905445536
+       ],
+       [
+        -74.09071034373639,
+        40.56855585633263
+       ],
+       [
+        -74.09110540341929,
+        40.56875608348094
+       ]
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "system": "DCA-0750",
+   "gispropnum": "QT06",
+   "omppropid": "QT06",
+   "publicname": "Old Hickory Playground",
+   "publiclocation": "51 Ave between Jackson Ave, Vernon Blvd and 11 St",
+   "parkdistrict": "Q-02",
+   "borough": "Q",
+   "shape": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        -73.95383047789076,
+        40.74178136669348
+       ],
+       [
+        -73.95378302124043,
+        40.74167216657004
+       ],
+       [
+        -73.95371647024484,
+        40.74168009402404
+       ],
+       [
+        -73.95322781911764,
+        40.74170881820084
+       ],
+       [
+        -73.95322969466682,
+        40.74174569473054
+       ],
+       [
+        -73.95371636175045,
+        40.74183627253726
+       ],
+       [
+        -73.95383047789076,
+        40.74178136669348
+       ]
+      ]
+     ]
+    ]
+   }
+  }
+ ],
+ "hxx3-bwgv": [
+  {
+   "objectid": "1589",
+   "system": "B025-DOGAREA0005",
+   "the_geom": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        -73.93633586930186,
+        40.71542350573422
+       ],
+       [
+        -73.9362919535276,
+        40.715325665286535
+       ],
+       [
+        -73.93609844210262,
+        40.715319799272514
+       ],
+       [
+        -73.9361649294871,
+        40.715467926913306
+       ],
+       [
+        -73.93633586930186,
+        40.71542350573422
+       ]
+      ]
+     ]
+    ]
+   },
+   "gispropnum": "B025",
+   "department": "B-01",
+   "parentid": "B025",
+   "borough": "B",
+   "dog_area_type": "Dog Run",
+   "name": "Cooper Park Small Dog Run",
+   "seating": "Yes",
+   "surface": "Sand",
+   "featurestatus": "Active"
+  },
+  {
+   "objectid": "1992",
+   "the_geom": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        -74.01634094360534,
+        40.70724611439286
+       ],
+       [
+        -74.01618841678872,
+        40.707701312853295
+       ],
+       [
+        -74.01621660354468,
+        40.70771292638086
+       ],
+       [
+        -74.01618953589018,
+        40.70778269909701
+       ],
+       [
+        -74.01624965636064,
+        40.70780746999224
+       ],
+       [
+        -74.01645116246097,
+        40.70728803280105
+       ],
+       [
+        -74.01634094360534,
+        40.70724611439286
+       ]
+      ]
+     ]
+    ]
+   },
+   "department": "M-01",
+   "borough": "M",
+   "dog_area_type": "Dog Run",
+   "name": "West Thames Street Dog Run",
+   "featurestatus": "Active"
+  }
+ ],
+ "qnv7-p7a2": [
+  {
+   "system": "X182-DF0493",
+   "fountainty": "Bottle Filler",
+   "gispropnum": "X182",
+   "propertyna": "Millbrook Playground",
+   "parentid": "X182",
+   "borough": "X",
+   "fountainco": "1",
+   "department": "X-01",
+   "decription": "Bottle Filler-Millbrook Playground",
+   "featuresta": "Active",
+   "the_geom": {
+    "type": "Point",
+    "coordinates": [
+     -73.916449,
+     40.804297
+    ]
+   }
+  },
+  {
+   "system": "X307-DF0575",
+   "fountainty": "Indoor Drinking Fountain",
+   "position": "Indoor",
+   "gispropnum": "X307",
+   "propertyna": "Barretto Point Park",
+   "parentid": "X307-BLG0002",
+   "borough": "X",
+   "fountainco": "1",
+   "department": "X-02",
+   "decription": "Indoor Drinking Fountain-Barretto Point Park-Floating Pool Barge",
+   "featuresta": "Active",
+   "the_geom": {
+    "type": "Point",
+    "coordinates": [
+     -73.888781,
+     40.804415
+    ]
+   }
+  },
+  {
+   "system": "X307-DF0586",
+   "fountainty": "Food Prep Sink",
+   "position": "Indoor",
+   "gispropnum": "X307",
+   "propertyna": "Barretto Point Park",
+   "parentid": "X307",
+   "borough": "X",
+   "fountainco": "1",
+   "department": "X-02",
+   "decription": "Food Prep Sink-Barretto Point Park",
+   "featuresta": "Active",
+   "the_geom": {
+    "type": "Point",
+    "coordinates": [
+     -73.888913,
+     40.804642
+    ]
+   }
+  },
+  {
+   "system": "B055-DF1007",
+   "fountainty": "E and Dog",
+   "gispropnum": "B055",
+   "propertyna": "Sternberg Park",
+   "parentid": "B055",
+   "borough": "B",
+   "fountainco": "2",
+   "department": "B-01",
+   "decription": "E and Dog-Sternberg Park",
+   "featuresta": "Active",
+   "the_geom": {
+    "type": "Point",
+    "coordinates": [
+     -73.946949,
+     40.70615
+    ]
+   }
+  },
+  {
+   "system": "R035-DF0177",
+   "fountainty": "Bottle Filler High Low",
+   "gispropnum": "R035",
+   "propertyna": "De Matti Park",
+   "parentid": "R035",
+   "borough": "R",
+   "fountainco": "3",
+   "department": "R-01",
+   "decription": "Bottle Filler High Low-De Matti Park",
+   "featuresta": "Active",
+   "the_geom": {
+    "type": "Point",
+    "coordinates": [
+     -74.074155,
+     40.614279
+    ]
+   }
+  }
+ ],
+ "y5rm-wagw": [
+  {
+   "borough": "M",
+   "communityboard": "104",
+   "councildistrict": "3",
+   "parkdistrict": "M-04",
+   "gispropnum": "M260",
+   "location": "Indoor",
+   "name": "Chelsea Pool",
+   "omppropid": "M260",
+   "system": "M260-POOL-0032",
+   "polygon": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       -74.00211124195569,
+       40.74837807390657
+      ],
+      [
+       -74.00219149496512,
+       40.74826668159367
+      ],
+      [
+       -74.00200853309536,
+       40.74819044177136
+      ],
+      [
+       -74.00192827987186,
+       40.74830183485851
+      ],
+      [
+       -74.00211124195569,
+       40.74837807390657
+      ]
+     ]
+    ]
+   },
+   "pooltype": "Intermediate"
+  },
+  {
+   "borough": "Q",
+   "communityboard": "407",
+   "councildistrict": "19",
+   "parkdistrict": "Q-07A",
+   "gispropnum": "Q458",
+   "location": "Outdoor",
+   "name": "Totten Pool",
+   "omppropid": "Q458",
+   "system": "Q458-POOL-0015",
+   "polygon": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       -73.77461002225255,
+       40.79222250436782
+      ],
+      [
+       -73.77467240788494,
+       40.792307105258224
+      ],
+      [
+       -73.77477814797923,
+       40.792262066144616
+      ],
+      [
+       -73.77471576106979,
+       40.79217746530856
+      ],
+      [
+       -73.77464275343426,
+       40.79207846083346
+      ],
+      [
+       -73.77462248980031,
+       40.79208867163997
+      ],
+      [
+       -73.77441089945596,
+       40.79217879699741
+      ],
+      [
+       -73.77448302109842,
+       40.792276599513876
+      ],
+      [
+       -73.77461002225255,
+       40.79222250436782
+      ]
+     ]
+    ]
+   },
+   "pooltype": "Intermediate & Diving"
+  },
+  {
+   "borough": "X",
+   "communityboard": "206",
+   "councildistrict": "15",
+   "parkdistrict": "X-06",
+   "gispropnum": "X236",
+   "location": "Outdoor",
+   "name": "Mapes Wading Pool",
+   "omppropid": "X236",
+   "system": "X236-POOL-0027",
+   "polygon": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       -73.88626280458823,
+       40.84670312461004
+      ],
+      [
+       -73.88630395120147,
+       40.84664785959688
+      ],
+      [
+       -73.8862351500453,
+       40.84661360184694
+      ],
+      [
+       -73.88618870578074,
+       40.84666986836034
+      ],
+      [
+       -73.88626280458823,
+       40.84670312461004
+      ]
+     ]
+    ]
+   },
+   "pooltype": "Wading"
+  }
+ ],
+ "enfh-gkve": [
+  {
+   "gispropnum": "M260",
+   "signname": "Chelsea Recreation Center"
+  },
+  {
+   "gispropnum": "B025",
+   "signname": "Cooper Park"
+  },
+  {
+   "gispropnum": "Q458",
+   "signname": "Fort Totten Park"
+  },
+  {
+   "gispropnum": "X236",
+   "signname": "Mapes Pool"
+  },
+  {
+   "gispropnum": "R046",
+   "signname": "Franklin D. Roosevelt Boardwalk and Beach"
+  },
+  {
+   "gispropnum": "X281",
+   "signname": "Stop & Go Playground"
+  }
+ ]
+}

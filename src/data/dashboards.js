@@ -125,6 +125,14 @@ export const dashboards = [
     category: "Housing & Development",
     url: "/building-report/",
     audience: ["resident"]
+  },
+  {
+    id: "park-amenities",
+    title: "Park Amenities Near Me",
+    description: "Find the closest playgrounds, dog runs, drinking fountains and pools to any address, on a map with directions.",
+    category: "Recreation",
+    url: "/park-amenities/",
+    audience: ["resident"]
   }
 ];
 

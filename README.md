@@ -2,7 +2,7 @@
 
 **asknycdata.com** · NYC's public data, made easy to understand.
 
-Interactive dashboards for NYC residents and businesses, built on public [NYC Open Data](https://opendata.cityofnewyork.us/): a landing page plus thirteen dashboards (restaurant inspections, restaurant leads, 311 complaints, city payroll spending, what city jobs pay, drinking water, certified M/WBE firms, school quality, street closures, help near me, crash lookup, crash hotspots, building report card).
+Interactive dashboards for NYC residents and businesses, built on public [NYC Open Data](https://opendata.cityofnewyork.us/): a landing page plus fourteen dashboards (restaurant inspections, restaurant leads, 311 complaints, city payroll spending, what city jobs pay, drinking water, certified M/WBE firms, school quality, street closures, help near me, crash lookup, crash hotspots, building report card, park amenities near me).
 
 Built with [Astro](https://docs.astro.build) and deployed to Cloudflare Workers. The page's interactivity is plain vanilla JavaScript. Most pages are prerendered; pages and API routes that read live NYC Open Data run in the Worker (`export const prerender = false`).
 
@@ -398,6 +398,26 @@ Ethnicity and gender never score. **No renewal date scores the same as a current
 - Street names are matched in one spelling (`streetKey()` in `streets.js`): padding collapsed, `W 8th St` → `WEST 8 STREET`, ordinals dropped, Saint as `ST`. A street search matches the closed street or either cross street, so the autocomplete lists both (minus DOT's stand-ins such as `BEND` and cemetery boundaries).
 - Purposes (58 DOT permit types, some cut at 40 characters, some with a `-PROTECTED` suffix) get a plain label and one of 10 groups in `purposes.js`.
 - Radius search uses the distance from the spot to the nearest point of the block's line (`geo.js`); checked against SoQL `intersects()` with a buffer polygon.
+
+## Park Amenities Near Me
+
+`/park-amenities/` finds the nearest NYC Parks playgrounds, dog runs, drinking fountains and pools to an address, a ZIP or "Use my location", on a map and a list kept in sync. It's built like Help Near Me (same address box, map, pins and card styles).
+
+**Datasets** (the tabular versions, not their "Map" views; checked Nov 2026): [Playgrounds with Dedicated Children's Areas](https://data.cityofnewyork.us/d/j55h-3upk) (`j55h-3upk`, ~1,000 MultiPolygons), [Dog Runs](https://data.cityofnewyork.us/d/hxx3-bwgv) (`hxx3-bwgv`, ~95 MultiPolygons), [NYC Parks Drinking Fountains](https://data.cityofnewyork.us/d/qnv7-p7a2) (`qnv7-p7a2`, ~3,800 Points), [NYC Parks Pools](https://data.cityofnewyork.us/d/y5rm-wagw) (`y5rm-wagw`, ~90 Polygons, `location` Indoor/Outdoor), plus [Parks Properties](https://data.cityofnewyork.us/d/enfh-gkve) (`enfh-gkve`) for park names: only the fountains name their park, the rest give its `gispropnum`.
+
+**Adding an amenity.** Add one entry to `CATEGORIES` in `src/lib/park-amenities/config.js`: dataset id and name, cadence, label, tone, pin color, icon, the columns to `select`, and `map(row)` (row → `{ id, name, parkName?, parkId?, borough, geometry, details }`), `lines(details)` and `seasonal(details)`. The ETL job, search API, chips, "nearest of each" cards, map and list pick it up. Add real sample rows to `tests/fixtures/park-amenities.json` and a test.
+
+**Architecture.** One ETL dataset per amenity (`park-amenities:amenities:<id>:v1`, in `src/lib/server/park-amenities.js`) fetches its rows, turns each into one point (polygons at their area-weighted centroid, `normalize.js`) and keeps the normalized amenities in KV; park names are their own job (`park-amenities:park-names:enfh-gkve:v1`). The hourly check rebuilds a job when its source changes, so geometry is fetched once per change, never per search. `/api/park-amenities/search?lat=&lon=` reads all four (building one only when KV has none yet, as in local dev: a few seconds), returns everything within 1 mile plus the nearest one of any kind with none that close, and is edge-cached for an hour per rounded spot, data version and deploy version (`PARKS_RATE_LIMITER` on misses). The browser applies the radius (½ mi default, or 1 mi), categories and paging itself (`nearby.js`), so they switch without a request.
+
+**URL state** (`src/lib/park-amenities/page-state.js`): `lat`, `lon` (3 decimals), `r` (`0.5` default, `1`), `cat` (comma-separated keys; absent means all, empty means none). A typed address never goes in the URL.
+
+**Data rules** (tested in `tests/park-amenities.test.js`):
+
+- Borough is a letter in every dataset: `M`, `X` (Bronx), `B` (Brooklyn), `Q`, `R` (Staten Island).
+- The fountain list includes food prep, slop and bathroom sinks (~160 rows); they're left out. `fountainty` is often a model letter (`A`, `D`, `E`), so cards only say what a resident can use: bottle filler, two heights (`High Low`), dog bowl, indoors, and where it is (`position`).
+- `featurestatus` / `featuresta` are `Active` on every row: in the inventory, not switched on. No dataset says whether a pool is open or a fountain is on, so outdoor pools and outdoor fountains get "May be seasonal; check NYC Parks for current status"; indoor pools and indoor fountains don't.
+- A few dog runs have no `system` id or `gispropnum`; they get an id from their point and no park name. Park names are Parks Properties' `signname` as published.
+- Distances are straight-line from the searched spot; Directions opens Google Maps at the amenity's point.
 
 ## NYC Crash Lookup
 

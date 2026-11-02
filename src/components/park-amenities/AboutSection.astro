@@ -1,0 +1,71 @@
+---
+/*
+ * "How to read this": what each kind of amenity includes (the rules in
+ * src/lib/park-amenities/config.js), the seasonal caveat, and every source
+ * with its last update.
+ */
+import { CATEGORIES, PARKS_URL } from '../../lib/park-amenities/config.js';
+import { date } from '../../lib/format.js';
+
+interface Props {
+  sources: { key: string; datasetId: string; name: string; url: string; updatedAt: string | null }[];
+}
+const { sources } = Astro.props;
+const rows = [
+  ...CATEGORIES.map((c) => ({ label: c.label, ...sources.find((s) => s.key === c.key)! })),
+  { label: 'Park names', ...sources.find((s) => s.key === 'park-names')! }
+];
+---
+
+<section class="dash-section" aria-labelledby="pa-about-title">
+  <h2 class="chart-title" id="pa-about-title">How to read this</h2>
+
+  <p class="callout callout-heads-up">
+    <strong>Heads up:</strong> outdoor pools and most drinking fountains only run part of the year, and these lists
+    don’t say what’s open today. Before you head out, check <a href={PARKS_URL}>NYC Parks</a> for current hours and
+    status.
+  </p>
+
+  <details class="about-data">
+    <summary>What each kind of amenity includes</summary>
+    <div class="about-body">
+      <ul class="caveats">
+        <li><strong>Playgrounds:</strong> NYC Parks playgrounds with a dedicated children’s area (DCA), the part set aside for children and the adults with them.</li>
+        <li><strong>Dog runs:</strong> NYC Parks dog runs. Lawns with off-leash hours aren’t in this list.</li>
+        <li><strong>Water fountains:</strong> NYC Parks drinking fountains and bottle fillers, outdoors and in recreation centers. Food prep, slop and bathroom sinks in the same list are left out. Fountains in the list are “Active” in the city’s inventory, which doesn’t mean they’re turned on today.</li>
+        <li><strong>Pools:</strong> NYC Parks indoor and outdoor pools, including wading and mini pools. Outdoor pools usually open in summer only.</li>
+      </ul>
+    </div>
+  </details>
+
+  <details class="about-data">
+    <summary>How we place and measure</summary>
+    <div class="about-body">
+      <p>
+        Fountains are mapped as points. Playgrounds, dog runs and pools are mapped as shapes, so we put each one’s pin
+        at the middle of its shape. A big playground’s entrance can be a short walk from that pin. Distances are
+        straight-line (as the crow flies) from the spot you searched, not walking distance. Most park names come from
+        the Parks Properties list, matched by each park’s ID.
+      </p>
+      <p>
+        What you type in the address box is sent to NYC Planning’s GeoSearch as you type, to suggest addresses. We only
+        get a rounded spot (about a block), never the address or your exact location. That spot goes in the page link,
+        so anyone you share the link with sees roughly where you searched. The Directions button opens Google Maps with
+        the amenity’s map location.
+      </p>
+    </div>
+  </details>
+
+  <footer class="section-sources">
+    <h3 class="sources-title">Where this comes from</h3>
+    <ul class="hn-sources">
+      {rows.map((s) => (
+        <li>
+          <strong>{s.label}:</strong> <a href={s.url}>{s.name}</a> ({s.datasetId}), NYC Department of Parks and Recreation.
+          {s.updatedAt ? <> Last updated <time datetime={s.updatedAt}>{date(s.updatedAt)}</time>.</> : <> Last update unknown.</>}
+        </li>
+      ))}
+    </ul>
+    <p>All on NYC Open Data. We check each list for changes every hour. Spot a mistake? Use “Contact dataset owner” on the dataset’s page to report a data problem.</p>
+  </footer>
+</section>

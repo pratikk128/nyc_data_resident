@@ -43,11 +43,13 @@
     // Crash hotspots: D1 only; one summary and one map per view (place or filter change)
     { "name": "HOTSPOTS_RATE_LIMITER", "namespace_id": "1010", "simple": { "limit": 60, "period": 60 } },
     // Building Report Card: live Socrata; one lot lookup and eight sections per building viewed
-    { "name": "BUILDING_RATE_LIMITER", "namespace_id": "1011", "simple": { "limit": 90, "period": 60 } }
+    { "name": "BUILDING_RATE_LIMITER", "namespace_id": "1011", "simple": { "limit": 90, "period": 60 } },
+    // Park amenities: KV only, one search per spot (radius and categories switch in the browser)
+    { "name": "PARKS_RATE_LIMITER", "namespace_id": "1012", "simple": { "limit": 60, "period": 60 } }
   ],
 
-  // The deploy's version id, part of the Shop Diverse, Street Closures and Help Near Me edge cache keys
-  // (src/lib/server/shop-diverse.js, street-closures.js, help-near-me.js) so a deploy's changes show at once.
+  // The deploy's version id, part of the Shop Diverse, Street Closures, Help Near Me and Park Amenities edge cache keys
+  // (src/lib/server/shop-diverse.js, street-closures.js, help-near-me.js, park-amenities.js) so a deploy's changes show at once.
   "version_metadata": { "binding": "CF_VERSION_METADATA" },
 
   // Hourly: checks every dataset's last update on NYC Open Data and rebuilds

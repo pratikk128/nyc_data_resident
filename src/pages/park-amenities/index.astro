@@ -1,0 +1,42 @@
+---
+/*
+ * Park Amenities Near Me. Rendered on demand so each dataset's "Last
+ * updated" date comes from the metadata in KV
+ * (src/lib/server/park-amenities.js). The spot, radius and categories live
+ * in the URL (src/lib/park-amenities/page-state.js); the amenities load in
+ * the browser from /api/park-amenities/search.
+ */
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+import AmenityFinder from '../../components/park-amenities/AmenityFinder.astro';
+import AboutSection from '../../components/park-amenities/AboutSection.astro';
+import { getSources } from '../../lib/server/park-amenities.js';
+import { normalizeQuery } from '../../lib/park-amenities/page-state.js';
+
+export const prerender = false;
+
+const sources = await getSources();
+const query = normalizeQuery(Astro.url.searchParams);
+// The newest of the amenity datasets, for the header; each one's own date is in the sources list.
+const newest = sources.filter((s) => s.key !== 'park-names').map((s) => s.updatedAt).filter(Boolean).sort().at(-1) ?? undefined;
+
+if (import.meta.env.PROD && sources.every((s) => s.updatedAt)) Astro.response.headers.set('Cache-Control', 'public, max-age=300');
+---
+
+<DashboardLayout
+  title="Park Amenities Near Me"
+  description="Find the closest NYC Parks playgrounds, dog runs, drinking fountains and pools to any address, on a map with directions."
+  path="/park-amenities/"
+  category="Recreation"
+  dataUpdated={newest}
+>
+  <header class="page-head">
+    <h1>Find park amenities near you</h1>
+    <p>
+      Where’s the nearest playground, dog run, water fountain or pool? Type an address or use your location to see
+      the closest ones from NYC Parks, on a map with directions.
+    </p>
+  </header>
+
+  <AmenityFinder query={query} />
+  <AboutSection sources={sources} />
+</DashboardLayout>
