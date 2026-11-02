@@ -207,10 +207,13 @@ test("URL: defaults left out; a spot outside the city or a bad radius ignored; c
   assert.deepEqual(pointQuery(q, 40.70001, -73.9), { ...q, lat: 40.7, lon: -73.9 });
 });
 
-test("chips toggle, down to none", () => {
+test("chips toggle, down to none; All turns every one on", () => {
   assert.deepEqual(toggleCategory(CATEGORY_KEYS, "dog"), ["playground", "fountain", "pool"]);
   assert.deepEqual(toggleCategory(["pool"], "playground"), ["playground", "pool"]);
   assert.deepEqual(toggleCategory(["pool"], "pool"), []);
+  assert.deepEqual(toggleCategory([], "all"), CATEGORY_KEYS);
+  assert.deepEqual(toggleCategory(["pool"], "all"), CATEGORY_KEYS);
+  assert.deepEqual(toggleCategory(CATEGORY_KEYS, "all"), CATEGORY_KEYS);
 });
 
 test("wording: the summary, the nearest cards and the empty list", () => {

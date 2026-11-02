@@ -22,6 +22,7 @@ interface Props {
   query: { r: number; cats: string[] };
 }
 const { query } = Astro.props;
+const all = query.cats.length === CATEGORIES.length;
 ---
 
 <div class="hn pa" data-amenities>
@@ -48,6 +49,9 @@ const { query } = Astro.props;
 
     <div class="hn-filters">
       <div class="hn-chips" role="group" aria-label="Kinds of amenity (pick one or more)">
+        <button type="button" class="hn-chip hn-chip-all" data-cat="all" aria-pressed={all ? 'true' : 'false'}>
+          All amenities <span class="hn-chip-count" data-count="all" hidden></span>
+        </button>
         {CATEGORIES.map((c) => (
           <button type="button" class="hn-chip" data-cat={c.key} data-tone={c.tone} style={`--hn-pin:${c.color}`}
             aria-pressed={query.cats.includes(c.key) ? 'true' : 'false'}>
@@ -512,8 +516,9 @@ const { query } = Astro.props;
   }
 
   function fillControls() {
+    const all = query.cats.length === CATEGORIES.length;
     root.querySelectorAll<HTMLButtonElement>('[data-cat]').forEach((b) =>
-      b.setAttribute('aria-pressed', String(query.cats.includes(b.dataset.cat))));
+      b.setAttribute('aria-pressed', String(b.dataset.cat === 'all' ? all : query.cats.includes(b.dataset.cat))));
     root.querySelectorAll<HTMLButtonElement>('[data-radius]').forEach((b) =>
       b.setAttribute('aria-pressed', String(Number(b.dataset.radius) === query.r)));
   }
@@ -524,13 +529,19 @@ const { query } = Astro.props;
     // The API measured from the rounded spot; measure again from the exact one.
     view = selectView(byDistance(amenities, spot()), { categories: query.cats, radius: query.r, pages });
 
+    let total = 0;
     for (const c of CATEGORIES) {
       const n = view.counts[c.key];
+      total += n;
       const el = root.querySelector<HTMLElement>(`[data-count="${c.key}"]`)!;
       el.textContent = String(n);
       el.hidden = false;
       el.closest('button')!.setAttribute('aria-label', chipLabel(c.label, n, query.r));
     }
+    const allCount = root.querySelector<HTMLElement>('[data-count="all"]')!;
+    allCount.textContent = String(total);
+    allCount.hidden = false;
+    allCount.closest('button')!.setAttribute('aria-label', chipLabel('All amenities', total, query.r));
 
     summary.textContent = summaryText(view, query, placeLabel);
 

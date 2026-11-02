@@ -41,8 +41,10 @@ export const pointQuery = (q, lat, lon) => ({ ...q, lat: round3(lat), lon: round
 // What the search API is asked for, and the cache key for it: "lat=…&lon=…", or "" (no spot yet).
 export const searchKey = (q) => (q.lat == null ? "" : `lat=${q.lat}&lon=${q.lon}`);
 
-// Clicking a chip turns its category on or off (none is allowed: the page asks for one).
+// Clicking a chip turns its category on or off (none is allowed: the page asks for one);
+// "All" turns every category on.
 export function toggleCategory(cats, key) {
+  if (key === "all") return [...CATEGORY_KEYS];
   const next = cats.includes(key) ? cats.filter((k) => k !== key) : [...cats, key];
   return CATEGORY_KEYS.filter((k) => next.includes(k));
 }
