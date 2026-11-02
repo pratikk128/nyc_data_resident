@@ -10,6 +10,7 @@
  * Sections load one request each, so a slow or broken dataset only holds up
  * its own section (the page retries it on its own).
  */
+import { waitUntil } from "cloudflare:workers";
 import { soql, datasetMetadata } from "./socrata.js";
 import { dailyValue, edgeCached } from "./cache.js";
 import { checkRateLimit, RateLimited } from "./rate-limit.js";
@@ -29,6 +30,10 @@ import {
 
 const CACHE_VERSION = "v4";
 const LIMITER = "BUILDING_RATE_LIMITER";
+// How long a page waits for a lot it hasn't cached before sending the page
+// without it (the browser then asks /api/building-report/lot). A cold lot
+// can take Socrata 5 seconds or more; a cached one is back in milliseconds.
+export const LOT_WAIT_MS = 1000;
 
 // ---------- Daily jobs (see src/lib/server/etl.js) ----------
 
@@ -80,12 +85,16 @@ async function lookUpLot(bbl) {
   return summarizeLot(bbl, parts, { pluto, footprints, hpdBuildings });
 }
 
+// Per isolate: lot lookups in flight, so a page and the requests it starts share one.
+const lotsInFlight = new Map();
+
 /*
  * bbl: a valid BBL (isBbl()). → the lot (summarizeLot()), or null when no
  * dataset knows it (also cached, as { missing: true }). Throws RateLimited.
  */
-export async function loadLot(bbl, requestUrl, ctx, clientAddress) {
-  const data = await edgeCached(
+export function loadLot(bbl, requestUrl, ctx, clientAddress) {
+  if (lotsInFlight.has(bbl)) return lotsInFlight.get(bbl);
+  const promise = edgeCached(
     requestUrl,
     `building-report/${CACHE_VERSION}/lot/${bbl}`,
     BUILDING_TTL,
@@ -94,27 +103,39 @@ export async function loadLot(bbl, requestUrl, ctx, clientAddress) {
       return (await lookUpLot(bbl)) ?? { missing: true };
     },
     ctx
-  );
-  return data.missing ? null : data;
+  ).then((data) => (data.missing ? null : data))
+    .finally(() => lotsInFlight.delete(bbl));
+  lotsInFlight.set(bbl, promise);
+  return promise;
 }
 
 /*
- * For a report page: the ?bbl= in the URL → { lot, error }. error: null,
- * "not-found" (a bad or unknown BBL), "rate-limited" or "upstream". No
- * ?bbl= at all is the search page: { lot: null, error: null }.
+ * For a report page: the ?bbl= in the URL → { bbl, lot, error }. error:
+ * null, "not-found" (a bad or unknown BBL), "rate-limited" or "upstream". No
+ * ?bbl= at all is the search page: { bbl: null, lot: null, error: null }.
+ * A lot that takes longer than waitMs is { bbl, lot: null, error: null }:
+ * the page goes out without it, and the lookup carries on so the browser's
+ * request for it finds it cached.
  */
-export async function lotForPage(url, ctx, clientAddress) {
+export async function lotForPage(url, ctx, clientAddress, { waitMs = LOT_WAIT_MS } = {}) {
   const bbl = url.searchParams.get("bbl");
-  if (bbl === null) return { lot: null, error: null };
-  if (!isBbl(bbl)) return { lot: null, error: "not-found" };
-  try {
-    const lot = await loadLot(bbl, url, ctx, clientAddress);
-    return { lot, error: lot ? null : "not-found" };
-  } catch (err) {
-    if (err instanceof RateLimited) return { lot: null, error: "rate-limited" };
-    console.error(err);
-    return { lot: null, error: "upstream" };
-  }
+  if (bbl === null) return { bbl: null, lot: null, error: null };
+  if (!isBbl(bbl)) return { bbl: null, lot: null, error: "not-found" };
+  const lookup = loadLot(bbl, url, ctx, clientAddress).then(
+    (lot) => ({ bbl, lot, error: lot ? null : "not-found" }),
+    (err) => {
+      if (err instanceof RateLimited) return { bbl, lot: null, error: "rate-limited" };
+      console.error(err);
+      return { bbl, lot: null, error: "upstream" };
+    }
+  );
+  let timer;
+  const late = new Promise((resolve) => { timer = setTimeout(() => resolve(null), waitMs); });
+  const result = await Promise.race([lookup, late]);
+  clearTimeout(timer);
+  if (result) return result;
+  waitUntil(lookup);
+  return { bbl, lot: null, error: null };
 }
 
 // ---------- Sections ----------

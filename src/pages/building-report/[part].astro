@@ -15,7 +15,7 @@ const part = Astro.params.part ?? '';
 if (!partById(part) || part === 'overview') return new Response(null, { status: 404 }); // Astro serves the 404 page
 if (!Astro.url.searchParams.has('bbl')) return Astro.redirect('/building-report/');
 
-const { lot, error } = await lotForPage(Astro.url, Astro.locals.cfContext, Astro.clientAddress);
+const { bbl, lot, error } = await lotForPage(Astro.url, Astro.locals.cfContext, Astro.clientAddress);
 ---
 
-<ReportPage part={part} lot={lot} error={error} />
+<ReportPage part={part} bbl={bbl} lot={lot} error={error} />

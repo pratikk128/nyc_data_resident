@@ -8,8 +8,8 @@
  */
 import { escape } from "../address-report/render.js";
 import { count, money, date, shortDate } from "../format.js";
-import { CLASSES } from "./config.js";
-import { classInfo } from "./summarize.js";
+import { CLASSES, partById } from "./config.js";
+import { classInfo, lotName } from "./summarize.js";
 
 export { escape };
 
@@ -40,6 +40,7 @@ export function howLong(from, to) {
   return [y ? plural(y, "year") : "", m ? plural(m, "month") : ""].filter(Boolean).join(", ");
 }
 
+export const LOT_NOT_FOUND_TEXT = "We couldn’t find that building. Try searching for its address.";
 export const UPSTREAM_TEXT = "Couldn’t reach NYC Open Data. Their servers might be stuck behind a double-parked truck. Try again in a minute.";
 
 // A lot HPD doesn't cover and has never cited: no zeros, just what that means.
@@ -60,6 +61,48 @@ export function sourcesHtml(sources) {
     (s.updatedAt ? `updated <time datetime="${escape(s.updatedAt)}">${date(s.updatedAt)}</time>` : "update date unavailable")
   ).join("<br>")}</p>`;
 }
+
+// ---------- The lot ----------
+
+// The page's title (before " | Ask NYC Data"). lot: summarizeLot(), or null while it loads.
+export function reportTitle(lot, part) {
+  if (!lot) return "Building Report Card";
+  const name = lotName(lot);
+  return part === "overview" ? `${name} — Violations, Complaints & Bedbug History` : `${partById(part).label} — ${name}`;
+}
+
+/*
+ * The header's text and map frame: address, borough, size, the lot's ID
+ * numbers and "Copy link". Drawn by the server when it has the lot, else by
+ * the page once /api/building-report/lot answers.
+ */
+export function lotHeadHtml(lot) {
+  const facts = [
+    lot.units > 0 ? `${plural(lot.units, "apartment")}${lot.unitsSource === "pluto" ? " (city tax records)" : ""}` : null,
+    lot.yearBuilt ? `Built ${lot.yearBuilt}` : null,
+    lot.bins.length > 1 ? `${lot.bins.length} buildings on this lot` : null
+  ].filter(Boolean);
+  const place = escape(lot.address ?? `Lot ${lot.bbl}`);
+  return `<div class="br-head-text">` +
+    `<h2 class="ar-place" id="br-title">${place}</h2>` +
+    `<p class="br-borough">${escape(lot.borough)}${lot.zip ? ` ${escape(lot.zip)}` : ""}</p>` +
+    (facts.length ? `<p class="br-facts-line">${facts.join(" · ")}</p>` : "") +
+    `<details class="br-ids"><summary>City ID numbers</summary><dl class="br-facts">` +
+    `<div><dt>Tax lot (BBL)</dt><dd>${escape(lot.bbl)}</dd></div>` +
+    `<div><dt>${lot.bins.length > 1 ? "Buildings (BINs)" : "Building (BIN)"}</dt><dd>${lot.bins.length ? escape(lot.bins.join(", ")) : "None found"}</dd></div>` +
+    `</dl></details>` +
+    `<div class="ar-actions"><button type="button" class="near-btn" data-copy>Copy link</button></div>` +
+    `</div>` +
+    (lot.lat != null
+      ? `<div class="c311-map-frame br-map" data-map role="region" aria-label="Map showing ${place}, ${escape(lot.borough)}"></div>`
+      : "");
+}
+
+// The header while the lot loads: the same frame, with placeholder lines.
+export const LOT_HEAD_LOADING =
+  `<div class="br-head-text"><h2 class="ar-place" id="br-title"><span class="sr-only">Loading this building…</span>` +
+  `<span class="sk-line" aria-hidden="true"></span></h2>` +
+  `<span class="sk-line sk-short"></span><span class="sk-line"></span></div>`;
 
 /*
  * A small column chart in HTML: one bar per item, the value in each bar's

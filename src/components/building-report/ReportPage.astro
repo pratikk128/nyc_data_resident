@@ -4,37 +4,38 @@
  * overview (src/pages/building-report/index.astro) and each part
  * ([part].astro). Sets the status, caching, title and description from the
  * lot the page looked up (lotForPage()), then the report and the glossary.
+ * A lot that was too slow to wait for (bbl set, lot null, no error) goes out
+ * with the plain title, uncached; the page loads the lot and retitles itself.
  */
 import DashboardLayout from '../../layouts/DashboardLayout.astro';
 import BuildingReport from './BuildingReport.astro';
 import AboutSection from './AboutSection.astro';
-import { buildingPath, partById } from '../../lib/building-report/config.js';
+import { buildingPath } from '../../lib/building-report/config.js';
 import { lotName } from '../../lib/building-report/summarize.js';
 import { RATE_LIMITED_TEXT } from '../../lib/server/rate-limit.js';
-import { UPSTREAM_TEXT } from '../../lib/building-report/render.js';
+import { UPSTREAM_TEXT, LOT_NOT_FOUND_TEXT, reportTitle } from '../../lib/building-report/render.js';
 
 interface Props {
   part: string;           // PARTS id, or "all"
-  lot: any;               // lotForPage()
+  bbl: string | null;     // lotForPage()
+  lot: any;
   error: string | null;
 }
-const { part, lot, error } = Astro.props;
+const { part, bbl, lot, error } = Astro.props;
+const pending = Boolean(bbl) && !lot && !error;
 
 if (error === 'not-found') Astro.response.status = 404;
 if (error === 'rate-limited') Astro.response.status = 429;
-Astro.response.headers.set('Cache-Control', error ? 'no-store' : 'public, max-age=300');
+Astro.response.headers.set('Cache-Control', error || pending ? 'no-store' : 'public, max-age=300');
 
 const errorText = {
-  'not-found': 'We couldn’t find that building. Try searching for its address.',
+  'not-found': LOT_NOT_FOUND_TEXT,
   'rate-limited': RATE_LIMITED_TEXT,
   'upstream': UPSTREAM_TEXT
 }[error ?? ''] ?? null;
 
 const name = lot ? lotName(lot) : null;
-const current = partById(part)!;
-const title = !name
-  ? 'Building Report Card'
-  : part === 'overview' ? `${name} — Violations, Complaints & Bedbug History` : `${current.label} — ${name}`;
+const title = reportTitle(lot, part);
 const description = name
   ? `Open repair orders, tenant complaints, bedbugs, pests, vacate orders, court cases and the registered owner for ${name} (BBL ${lot.bbl}), from NYC Open Data.`
   : 'Type an NYC address and see the building’s record: repairs the city ordered, tenant complaints, bedbugs and pests, court cases and who owns it.';
@@ -43,12 +44,12 @@ const description = name
 <DashboardLayout
   title={title}
   description={description}
-  path={lot ? buildingPath(lot.bbl, part) : '/building-report/'}
+  path={lot || pending ? buildingPath(bbl, part) : '/building-report/'}
   category="Housing & Development"
 >
   <header class="page-head">
     <h1>Building Report Card</h1>
-    {!lot && (
+    {!lot && !pending && (
       <p>
         Renting, buying or just curious? Type an address and see what the city has on file for the building:
         repairs it ordered, tenant complaints, bedbugs, court cases and who owns it. No score, just the records.
@@ -56,6 +57,6 @@ const description = name
     )}
   </header>
 
-  <BuildingReport lot={lot} part={part} errorText={errorText} />
+  <BuildingReport bbl={lot || pending ? bbl : null} lot={lot} part={part} errorText={errorText} />
   <AboutSection />
 </DashboardLayout>

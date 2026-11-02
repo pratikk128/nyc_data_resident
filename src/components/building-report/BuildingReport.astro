@@ -3,9 +3,11 @@
  * The Building Report Card: an address box (with suggestions) and, for a
  * building (?bbl=), its header and map, the part cards (SectionNav) and one
  * part: the overview's key takeaways, or a topic's sections in full. The
- * server renders the header from the lot; the browser asks for each section
- * the page needs at once (/api/building-report/:section), so each loads,
- * fails and retries on its own. A "Heads up" line shows on every part when
+ * server renders the header from the lot, or, when the lot was too slow to
+ * wait for, sends the page with a placeholder header and the browser asks
+ * /api/building-report/lot for it. With the lot, the browser asks for each
+ * section the page needs at once (/api/building-report/:section), so each
+ * loads, fails and retries on its own. A "Heads up" line shows on every part when
  * the building has a serious warning (a vacate order, the city's watch list,
  * an open court case). What each section says is in
  * src/lib/building-report/render.js.
@@ -17,14 +19,15 @@ import SectionNav from '../SectionNav.astro';
 import SectionPager from '../SectionPager.astro';
 import { MAX_INPUT_LENGTH } from '../../lib/complaints311/location-input.js';
 import { SECTIONS, PARTS, buildingPath, partById } from '../../lib/building-report/config.js';
-import { count } from '../../lib/format.js';
+import { lotHeadHtml, LOT_HEAD_LOADING } from '../../lib/building-report/render.js';
 
 interface Props {
-  lot: any;               // summarizeLot(), or null on the search page
+  bbl: string | null;     // the building's BBL, or null on the search page
+  lot: any;               // summarizeLot(), or null on the search page or while it loads
   part: string;           // PARTS id, or "all"
   errorText: string | null;
 }
-const { lot, part, errorText } = Astro.props;
+const { bbl, lot, part, errorText } = Astro.props;
 
 const INTROS: Record<string, string> = {
   flags: 'Orders to leave the building, the city’s watch list for neglected buildings, and court cases the city has open against the owner.',
@@ -59,22 +62,17 @@ const current = partById(part)!;
 const showTakeaways = part === 'overview' || part === 'all';
 const sections = SECTIONS.filter((s) => current.sections.includes(s.key))
   .sort((a, b) => current.sections.indexOf(a.key) - current.sections.indexOf(b.key));
-const nav = lot ? PARTS.map((p) => ({ id: p.id, href: buildingPath(lot.bbl, p.id), label: p.label, blurb: p.blurb })) : [];
+const nav = bbl ? PARTS.map((p) => ({ id: p.id, href: buildingPath(bbl, p.id), label: p.label, blurb: p.blurb })) : [];
 // On the all-in-one page a takeaway group jumps to its first section; elsewhere it opens the part.
-const detailsHref = (id: string) => part === 'all' ? `#br-${partById(id)!.sections[0]}` : buildingPath(lot.bbl, id);
-const facts = lot ? [
-  lot.units > 0 ? `${count(lot.units)} ${lot.units === 1 ? 'apartment' : 'apartments'}${lot.unitsSource === 'pluto' ? ' (city tax records)' : ''}` : null,
-  lot.yearBuilt ? `Built ${lot.yearBuilt}` : null,
-  lot.bins.length > 1 ? `${lot.bins.length} buildings on this lot` : null
-].filter(Boolean) : [];
+const detailsHref = (id: string) => part === 'all' ? `#br-${partById(id)!.sections[0]}` : buildingPath(bbl, id);
 const lotJson = lot ? JSON.stringify(lot) : '';
 ---
 
-<div class="ar br" data-br data-lot={lotJson} data-part={part}>
-  <section class:list={['dash-section hn-find', { 'br-find-compact': lot }]} id="find" aria-labelledby="br-find-title">
+<div class="ar br" data-br data-bbl={bbl ?? ''} data-lot={lotJson} data-part={part}>
+  <section class:list={['dash-section hn-find', { 'br-find-compact': bbl }]} id="find" aria-labelledby="br-find-title">
     <h2 class="sr-only" id="br-find-title">Search</h2>
     <form class="hn-search" data-form novalidate role="search" aria-label="Find a building by address" action="/building-report/">
-      <label class="filter-label" for="br-address">{lot ? 'Look up another building' : 'Building address'}</label>
+      <label class="filter-label" for="br-address">{bbl ? 'Look up another building' : 'Building address'}</label>
       <div class="hn-search-row br-search-row">
         <div class="c311-combo hn-field">
           <input class="search-input" id="br-address" name="q" type="text" role="combobox" aria-autocomplete="list"
@@ -90,28 +88,9 @@ const lotJson = lot ? JSON.stringify(lot) : '';
     <noscript><p class="rest-status">The report needs JavaScript to look up addresses and load its sections.</p></noscript>
   </section>
 
-  {lot && (
+  {bbl && (
     <section class="ar-results" id="report" aria-labelledby="br-title">
-      <header class="br-head">
-        <div class="br-head-text">
-          <h2 class="ar-place" id="br-title">{lot.address ?? `Lot ${lot.bbl}`}</h2>
-          <p class="br-borough">{lot.borough}{lot.zip ? ` ${lot.zip}` : ''}</p>
-          {facts.length > 0 && <p class="br-facts-line">{facts.join(' · ')}</p>}
-          <details class="br-ids">
-            <summary>City ID numbers</summary>
-            <dl class="br-facts">
-              <div><dt>Tax lot (BBL)</dt><dd>{lot.bbl}</dd></div>
-              <div><dt>{lot.bins.length > 1 ? 'Buildings (BINs)' : 'Building (BIN)'}</dt><dd>{lot.bins.length ? lot.bins.join(', ') : 'None found'}</dd></div>
-            </dl>
-          </details>
-          <div class="ar-actions">
-            <button type="button" class="near-btn" data-copy>Copy link</button>
-          </div>
-        </div>
-        {lot.lat != null && (
-          <div class="c311-map-frame br-map" data-map role="region" aria-label={`Map showing ${lot.address ?? 'the lot'}, ${lot.borough}`}></div>
-        )}
-      </header>
+      <header class="br-head" data-head tabindex="-1" aria-busy={lot ? undefined : 'true'} set:html={lot ? lotHeadHtml(lot) : LOT_HEAD_LOADING} />
 
       <SectionNav sections={nav} current={part} label="Parts of this building’s report" />
 
@@ -140,7 +119,7 @@ const lotJson = lot ? JSON.stringify(lot) : '';
             ))}
           </div>
           {part === 'overview' && (
-            <p class="br-all-link">Want it all at once? <a href={buildingPath(lot.bbl, 'all')}>See every record on one page</a></p>
+            <p class="br-all-link">Want it all at once? <a href={buildingPath(bbl, 'all')}>See every record on one page</a></p>
           )}
         </section>
       )}
@@ -170,7 +149,8 @@ const lotJson = lot ? JSON.stringify(lot) : '';
   import {
     flagsHtml, flagsTakeaway, flagsSummary, violationsHtml, violationsTakeaway, complaintsHtml, complaintsTakeaway,
     repairsHtml, repairsTakeaway, bedbugsHtml, bedbugsTakeaway, hygieneHtml, hygieneTakeaway, dobHtml, dobTakeaway,
-    courtHtml, landlordHtml, landlordTakeaway, sourcesHtml, escape, UPSTREAM_TEXT
+    courtHtml, landlordHtml, landlordTakeaway, sourcesHtml, lotHeadHtml, reportTitle, escape, UPSTREAM_TEXT,
+    LOT_NOT_FOUND_TEXT
   } from '../../lib/building-report/render.js';
   import { buildingPath, isBbl, partById } from '../../lib/building-report/config.js';
   import { findBuilding } from '../../lib/building-report/lookup.js';
@@ -191,7 +171,8 @@ const lotJson = lot ? JSON.stringify(lot) : '';
   const list = $<HTMLUListElement>('[data-address-list]');
   const choices = $('[data-address-choices]');
   const status = $('[data-status]');
-  const lot = root.dataset.lot ? JSON.parse(root.dataset.lot) : null;
+  const bbl = root.dataset.bbl || null;
+  let lot = root.dataset.lot ? JSON.parse(root.dataset.lot) : null; // null until /api/building-report/lot answers
   const part = root.dataset.part!;
 
   // ---------- The report ----------
@@ -204,7 +185,11 @@ const lotJson = lot ? JSON.stringify(lot) : '';
       const res = await fetch(url, { signal: ctl.signal });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data || data.error) {
-        throw new Error(data?.error === 'not-found' ? NOT_FOUND_TEXT : data?.error && data.error !== 'upstream' ? data.error : UPSTREAM_TEXT);
+        const notFound = data?.error === 'not-found';
+        throw Object.assign(
+          new Error(notFound ? NOT_FOUND_TEXT : data?.error && data.error !== 'upstream' ? data.error : UPSTREAM_TEXT),
+          { notFound }
+        );
       }
       return data;
     } catch (err: any) {
@@ -245,19 +230,19 @@ const lotJson = lot ? JSON.stringify(lot) : '';
     const alert = $('[data-alert]');
     if (!d.active || partById(part)!.sections.includes('flags')) return;
     alert.innerHTML = `<strong>Heads up:</strong> ${escape(flagsSummary(d))}. ` +
-      `<a href="${buildingPath(lot.bbl, 'legal')}">See safety, court &amp; owner</a>`;
+      `<a href="${buildingPath(bbl!, 'legal')}">See safety, court &amp; owner</a>`;
     alert.hidden = false;
   }
 
-  // "Try again" under a failed section or takeaway: loads just that section, keeping focus nearby.
-  function retryButton(key: string, focusTo: HTMLElement) {
+  // "Try again" under a failed load (a section, a takeaway, the lot): runs retry, keeping focus nearby.
+  function retryButton(retry: () => void, focusTo: HTMLElement) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'near-btn ar-retry';
     btn.dataset.retry = '';
     btn.textContent = 'Try again';
     btn.addEventListener('click', () => {
-      loadSection(key);
+      retry();
       focusTo.focus({ preventScroll: true });
     });
     return btn;
@@ -276,7 +261,7 @@ const lotJson = lot ? JSON.stringify(lot) : '';
     if (body) body.innerHTML = '<span class="sk-line"></span><span class="sk-line sk-short"></span><span class="sk-line"></span>';
     if (sources) sources.innerHTML = '';
     setTakeaway(key, { tone: 'loading', value: '…', text: 'Checking…' });
-    getJson(`/api/building-report/${key}?bbl=${lot.bbl}`).then(
+    getJson(`/api/building-report/${key}?bbl=${bbl}`).then(
       (d) => {
         const view = VIEWS[key];
         if (body) body.innerHTML = view.html(d, lot);
@@ -288,31 +273,24 @@ const lotJson = lot ? JSON.stringify(lot) : '';
         const message = err?.message || UPSTREAM_TEXT;
         if (body) {
           body.innerHTML = `<p class="ar-error"><strong>Couldn’t load this section.</strong> ${escape(message)}</p>`;
-          body.append(retryButton(key, el!));
+          body.append(retryButton(() => loadSection(key), el!));
         }
         const take = root.querySelector<HTMLElement>(`[data-take="${key}"]`);
         if (take) {
           setTakeaway(key, { tone: 'none', value: '?', text: `Couldn’t load this. ${message}` });
           // A page with the section in full has its button there; the overview has only this one.
-          if (!body) take.append(retryButton(key, take));
+          if (!body) take.append(retryButton(() => loadSection(key), take));
         }
       }
     ).finally(() => el?.removeAttribute('aria-busy'));
   }
 
-  if (lot) {
-    // This part's sections, the takeaways it shows, and the serious warnings (for the heads-up line).
-    const keys = new Set([
-      ...partById(part)!.sections,
-      ...[...root.querySelectorAll<HTMLElement>('[data-take]')].map((el) => el.dataset.take!),
-      'flags'
-    ]);
-    for (const key of keys) loadSection(key);
-
+  // The header's "Copy link" and map, once it's drawn from the lot.
+  function wireHead() {
     const copyBtn = $<HTMLButtonElement>('[data-copy]');
     copyBtn.addEventListener('click', async () => {
       try {
-        await navigator.clipboard.writeText(`${location.origin}${buildingPath(lot.bbl, part)}`);
+        await navigator.clipboard.writeText(`${location.origin}${buildingPath(bbl!, part)}`);
         copyBtn.textContent = 'Link copied';
       } catch {
         copyBtn.textContent = 'Copy it from the address bar';
@@ -328,6 +306,52 @@ const lotJson = lot ? JSON.stringify(lot) : '';
       mountNearbyMap(mapEl, { draw: () => [], drawHalo: () => {}, keyOf: () => '', fallback: 'The map couldn’t load.' })
         .update({ items: [], point, radiusMeters: null, fitTo: box });
     }
+  }
+
+  // This part's sections, the takeaways it shows, and the serious warnings (for the heads-up line).
+  function loadSections() {
+    const keys = new Set([
+      ...partById(part)!.sections,
+      ...[...root.querySelectorAll<HTMLElement>('[data-take]')].map((el) => el.dataset.take!),
+      'flags'
+    ]);
+    for (const key of keys) loadSection(key);
+  }
+
+  /*
+   * A page the server sent before the lot came back: the lot, then the
+   * header, the title and the sections. Unknown, it says so where the
+   * report was; a failure offers "Try again".
+   */
+  function loadLot() {
+    const head = $('[data-head]');
+    head.setAttribute('aria-busy', 'true');
+    getJson(`/api/building-report/lot?bbl=${bbl}`).then(
+      (d) => {
+        lot = d.lot;
+        head.innerHTML = lotHeadHtml(lot);
+        document.title = `${reportTitle(lot, part)} | Ask NYC Data`;
+        wireHead();
+        loadSections();
+      },
+      (err) => {
+        if (err?.notFound) {
+          $('#report').remove();
+          status.textContent = LOT_NOT_FOUND_TEXT;
+          return;
+        }
+        head.innerHTML = `<div class="br-head-text"><h2 class="ar-place" id="br-title">Lot ${escape(bbl!)}</h2>` +
+          `<p class="ar-error"><strong>Couldn’t load this building.</strong> ${escape(err?.message || UPSTREAM_TEXT)}</p></div>`;
+        head.querySelector('.br-head-text')!.append(retryButton(loadLot, head));
+      }
+    ).finally(() => head.removeAttribute('aria-busy'));
+  }
+
+  if (lot) {
+    wireHead();
+    loadSections();
+  } else if (bbl) {
+    loadLot();
   }
 
   // ---------- Address box with suggestions ----------
