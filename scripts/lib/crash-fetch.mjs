@@ -18,7 +18,7 @@ import { DATASETS, dateWhere } from "../../src/lib/crashes/config.js";
 const DOMAIN = "https://data.cityofnewyork.us";
 // Socrata can take 10 s for 1,000 of these rows when it's busy; smaller
 // pages keep each request well inside the timeout.
-const PAGE = 10000;
+const PAGE = 3000;
 const RETRIES = 6;
 
 // The crash table's `location` repeats latitude/longitude; everything else is kept.
