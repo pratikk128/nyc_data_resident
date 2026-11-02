@@ -24,6 +24,7 @@ import { cleanVendor, indexRecord, packIndex, unpackIndex } from "../shop-divers
 import { searchBusinesses, queryToParams, outsideShare } from "../shop-diverse/filter.js";
 import { certStatus, yearsInBusiness } from "../shop-diverse/ranking.js";
 import { vendorsCsv } from "../shop-diverse/export.js";
+import { KINDS } from "../shop-local/config.js";
 
 export const SEARCH_TTL = 3600;
 export const DETAIL_TTL = 6 * 3600;
@@ -37,7 +38,7 @@ const QUERY_TIMEOUT_MS = 60000;
 const INDEX_COLUMNS = [
   "account_number", "vendor_formal_name", "vendor_dba", "certification", "cert_renewal_date", "ethnicity",
   "naics_sector", "naics_subsector", "naics_title", "business_description", "telephone", "website",
-  "city", "state", "zip", "borough", "date_of_establishment",
+  "address1", "address2", "city", "state", "zip", "borough", "date_of_establishment",
   "id6_digit_naics_code", "nigp_codes", "aggregate_bonding_limit", "largest_value_of_contract", "signatory_to_union_contracts"
 ].join(",");
 
@@ -50,8 +51,9 @@ export const metadataJob = {
 export const vendorsJob = {
   // v2: excerpt and search words in place of the description; v3: industry
   // table, fewer search words, outsideShare; v4: NAICS and NIGP codes,
-  // bonding, largest contract, union, coverage
-  key: "shop-diverse:vendors:v4",
+  // bonding, largest contract, union, coverage; v5: street lines for Shop
+  // Local's walk-in businesses
+  key: "shop-diverse:vendors:v5",
   maxAgeHours: MAX_AGE_HOURS,
   async run() {
     const today = nycToday();
@@ -73,7 +75,7 @@ export const vendorsJob = {
       const v = cleanVendor(row, today);
       if (!v || seen.has(v.id)) continue;
       seen.add(v.id);
-      vendors.push(indexRecord(v));
+      vendors.push(indexRecord(v, { street: Boolean(KINDS.get(v.title)?.walk) }));
     }
     if (!vendors.length) throw new Error("SBS Certified Business List returned no vendors");
     // How many firms give each procurement field, for the About section

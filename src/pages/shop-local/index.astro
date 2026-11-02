@@ -1,0 +1,78 @@
+---
+/*
+ * Shop Local: for residents, find city-certified women- and minority-owned
+ * businesses to eat at, shop at or hire, nearest first. The resident side of
+ * the SBS Certified Business List (Shop Diverse is the contractor side).
+ * Rendered on demand so a shared link (?what=eat&own=black&near=11216) shows
+ * its results on first paint; ?biz=<account> also renders that business.
+ */
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+import LocalFinder from '../../components/shop-local/LocalFinder.astro';
+import { getMetadata } from '../../lib/server/shop-diverse.js';
+import { loadLocalSearch, loadLocalBusiness, isAccount } from '../../lib/server/shop-local.js';
+import { RateLimited } from '../../lib/server/rate-limit.js';
+import { normalizeQuery, defaultQuery } from '../../lib/shop-local/filter.js';
+import { businessMeta } from '../../lib/shop-local/render.js';
+import { date } from '../../lib/format.js';
+
+export const prerender = false;
+
+const normalized = normalizeQuery(Astro.url.searchParams);
+const query = normalized.query ?? defaultQuery();
+const bizId = Astro.url.searchParams.get('biz');
+const loadShared = async () => {
+  if (!isAccount(bizId)) return null;
+  return (await loadLocalBusiness(bizId, Astro.url, Astro.locals.cfContext, Astro.clientAddress)) ?? { missing: true };
+};
+const [meta, initial, shared] = await Promise.allSettled([
+  getMetadata(), loadLocalSearch(query, Astro.url, Astro.locals.cfContext, Astro.clientAddress), loadShared()
+]);
+if (meta.status === 'rejected') console.error(meta.reason);
+for (const r of [initial, shared]) if (r.status === 'rejected' && !(r.reason instanceof RateLimited)) console.error(r.reason);
+const metaValue = meta.status === 'fulfilled' ? meta.value : null;
+const business = shared.status === 'fulfilled' ? shared.value : null;
+const bizMeta = business && !business.missing ? businessMeta(business) : null;
+const pageTitle = 'Support Women- and Minority-Owned Businesses Near You';
+if (import.meta.env.PROD && initial.status === 'fulfilled' && shared.status === 'fulfilled') {
+  Astro.response.headers.set('Cache-Control', 'public, max-age=3600');
+}
+---
+
+<DashboardLayout
+  title={bizMeta ? `${bizMeta.title} | ${pageTitle}` : pageTitle}
+  description={bizMeta?.description ??
+    'Find city-certified women-, Black-, Hispanic-, Asian- and Native American-owned businesses near you: restaurants, shops, salons, home repairs, tutors and more.'}
+  path={bizMeta ? `/shop-local/?biz=${bizId}` : '/shop-local/'}
+  category="Business"
+  lastRefreshed={metaValue?.rowsUpdatedAt ? date(metaValue.rowsUpdatedAt) : undefined}
+  dataUpdated={metaValue?.rowsUpdatedAt ?? undefined}
+>
+  <header class="page-head sd-head">
+    <p class="sd-eyebrow">For New Yorkers</p>
+    <h1>{pageTitle}</h1>
+    <p>
+      Restaurants, shops, salons, plumbers, tutors and more, certified by NYC Small Business Services as women- or
+      minority-owned. Pick what you need and where you are.
+    </p>
+    <p class="sd-consumer">
+      Hiring for a contract or an M/WBE goal? Use the <a href="/shop-diverse/">contractor and buyer search</a>.
+    </p>
+  </header>
+
+  <LocalFinder
+    query={query}
+    initial={initial.status === 'fulfilled' ? initial.value : null}
+    inputError={normalized.error ?? null}
+    business={business}
+  />
+
+  <section class="dash-section sd-about" aria-labelledby="sl-about-title">
+    <h2 class="chart-title" id="sl-about-title">Good to know</h2>
+    <ul class="caveats">
+      <li>This isn’t every women- or minority-owned business in NYC, only ones certified by the city, mostly to bid on city contracts.</li>
+      <li>Certification checks who owns and runs a business. It isn’t a review of the work.</li>
+      <li>We don’t have hours or know if there’s a storefront. Call or check the website before you go. Street addresses are shown only for places customers visit.</li>
+      <li>Distances are from the middle of your ZIP code to the middle of theirs, so they’re approximate.</li>
+    </ul>
+  </section>
+</DashboardLayout>

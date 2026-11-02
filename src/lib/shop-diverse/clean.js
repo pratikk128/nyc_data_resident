@@ -261,14 +261,20 @@ export function excerpt(description) {
 // ranking, and its other words, for the keyword search (descriptionHaystack).
 // NIGP codes are kept as one space-separated string, and union as true when
 // the firm names one (the card says "Union"; the detail has the names).
+// street: keep the street lines too, for the businesses Shop Local shows
+// with directions (shop-local/config.js, walk).
 const INDEX_FIELDS = [
   "id", "name", "dba", "certs", "renewals", "ethnicity", "sector", "subsector", "title",
   "phone", "website", "city", "state", "zip", "borough", "established",
   "naics", "bonding", "largestContract"
 ];
-export function indexRecord(vendor) {
+export function indexRecord(vendor, { street = false } = {}) {
   const out = {};
   for (const k of INDEX_FIELDS) if (vendor[k] !== undefined) out[k] = vendor[k];
+  if (street) {
+    if (vendor.address1) out.address1 = vendor.address1;
+    if (vendor.address2) out.address2 = vendor.address2;
+  }
   if (out.phone) out.phone = { tel: out.phone.tel ?? null };
   if (vendor.nigp?.length) out.nigp = vendor.nigp.join(" ");
   if (vendor.union) out.union = true;

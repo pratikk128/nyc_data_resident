@@ -79,6 +79,14 @@ export const dashboards = [
     audience: ["business"]
   },
   {
+    id: "shop-local",
+    title: "Support Women- and Minority-Owned Businesses Near You",
+    description: "Find city-certified women- and minority-owned restaurants, shops, salons, home repair pros and more, nearest first.",
+    category: "Business",
+    url: "/shop-local/",
+    audience: ["resident"]
+  },
+  {
     id: "school-quality",
     title: "NYC School Quality Explorer",
     description: "Find any NYC public school and see how it’s doing now and whether it’s getting better or worse.",

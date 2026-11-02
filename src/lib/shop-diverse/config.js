@@ -4,7 +4,8 @@
  * Minority-, Women-, Emerging- and Locally-based business enterprises. Nearly
  * all of it is professional services and construction, so the page is built
  * for contractors and agency buyers looking for certified firms to meet M/WBE
- * goals; residents get a link to the retail and food businesses (CONSUMER_SECTORS).
+ * goals. Residents have their own page on the same list, Shop Local
+ * (src/lib/shop-local/config.js).
  */
 
 export const DATASET_ID = "ci93-uc8s";
@@ -34,9 +35,6 @@ export const AMOUNT_TIERS = [
   { value: "10m", amount: 1e7, label: "$10M or more" },
   { value: "25m", amount: 2.5e7, label: "$25M or more" }
 ];
-
-// The sectors a resident shopping or eating out would want (about 5% of the list).
-export const CONSUMER_SECTORS = ["Retail Trade", "Accommodation and Food Services"];
 
 // Certification codes as the dataset spells them, with the badge tone
 // ([data-tone] in landing.css) and plain-language names.
