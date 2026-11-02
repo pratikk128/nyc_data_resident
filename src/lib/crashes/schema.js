@@ -96,6 +96,31 @@ export const TABLES = {
     h TEXT NOT NULL
   )`,
 
+  // NYC Crash Hotspots: one row per crash with its filters worked out (facts.js),
+  // so the dashboard's counts read one narrow table with no joins.
+  crash_facts: `CREATE TABLE crash_facts (
+    collision_id TEXT PRIMARY KEY,
+    crash_date TEXT NOT NULL,
+    hour INTEGER,                      -- 0–23, null when not recorded
+    dow INTEGER NOT NULL,              -- 0 Monday … 6 Sunday
+    borough TEXT,
+    zip_code TEXT,
+    lat REAL,
+    lon REAL,
+    cell TEXT,                         -- facts.js cellOf(): the map's ~165 m grid square
+    corner TEXT,                       -- facts.js cornerOf(): on & cross street, either order
+    corner_label TEXT,
+    severity INTEGER NOT NULL,         -- 0 none, 1 hurt, 2 seriously hurt, 3 killed (the worst person)
+    killed INTEGER NOT NULL,
+    injured INTEGER NOT NULL,
+    serious INTEGER NOT NULL,          -- people seriously hurt
+    who INTEGER NOT NULL,              -- bitmasks over facts.js WHO, CAUSES, MANEUVERS, VEHICLES
+    causes INTEGER NOT NULL,
+    maneuvers INTEGER NOT NULL,
+    vehicles INTEGER NOT NULL,
+    h TEXT NOT NULL                    -- of the crash's, its vehicles' and its persons' hashes
+  )`,
+
   // One row per full build or daily sync.
   ingest_log: `CREATE TABLE ingest_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -123,7 +148,12 @@ export const INDEXES = [
   "CREATE INDEX vehicles_date ON vehicles (crash_date)",
   "CREATE INDEX persons_collision ON persons (collision_id)",
   "CREATE INDEX persons_vehicle ON persons (vehicle_ref)",
-  "CREATE INDEX persons_date ON persons (crash_date)"
+  "CREATE INDEX persons_date ON persons (crash_date)",
+  "CREATE INDEX crash_facts_date ON crash_facts (crash_date)",
+  "CREATE INDEX crash_facts_zip ON crash_facts (zip_code)",
+  "CREATE INDEX crash_facts_borough ON crash_facts (borough)",
+  "CREATE INDEX crash_facts_corner ON crash_facts (corner)",
+  "CREATE INDEX crash_facts_lat ON crash_facts (lat)"
 ];
 
 // Columns per table, in CREATE order, for INSERTs (rows.js builds objects with these keys).

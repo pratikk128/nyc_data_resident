@@ -2,7 +2,7 @@
 
 **asknycdata.com** · NYC's public data, made easy to understand.
 
-Interactive dashboards for NYC residents and businesses, built on public [NYC Open Data](https://opendata.cityofnewyork.us/): a landing page plus eleven dashboards (restaurant inspections, restaurant leads, 311 complaints, city payroll spending, what city jobs pay, drinking water, certified M/WBE firms, school quality, street closures, help near me, crash lookup).
+Interactive dashboards for NYC residents and businesses, built on public [NYC Open Data](https://opendata.cityofnewyork.us/): a landing page plus twelve dashboards (restaurant inspections, restaurant leads, 311 complaints, city payroll spending, what city jobs pay, drinking water, certified M/WBE firms, school quality, street closures, help near me, crash lookup, crash hotspots).
 
 Built with [Astro](https://docs.astro.build) and deployed to Cloudflare Workers. The page's interactivity is plain vanilla JavaScript. Most pages are prerendered; pages and API routes that read live NYC Open Data run in the Worker (`export const prerender = false`).
 
@@ -29,7 +29,9 @@ src/pages/street-closures/  Street Closures Near You (rendered on demand)
 src/components/street-closures/  The finder (search, window tabs, map + cards, breakdown) and method notes
 src/pages/crash-lookup/    NYC Crash Lookup (rendered on demand)
 src/components/crash-lookup/  The lookup form, results and deep dive; method notes
-src/lib/crashes/          Crash lookup logic: config (date range), schema, normalizing, form, scoring, search SQL, deep dive, rendering
+src/pages/crash-hotspots/  NYC Crash Hotspots (rendered on demand)
+src/components/crash-hotspots/  Place and filters, stat cards, map, intersections, time patterns; method notes
+src/lib/crashes/          Crash lookup logic: config (date range), schema, normalizing, form, scoring, search SQL, deep dive, rendering; crash hotspots' facts (facts.js) and hotspot-*.js
 src/pages/api/            API routes (Worker): /api/restaurants/search, /api/restaurants/:camis, /api/311/*, /api/water/stations, /api/shop-diverse/*, /api/schools/search, /api/street-closures/search
 src/lib/restaurants/      Restaurant logic: SoQL builders, inspection rules, violation categories, rendering
 src/lib/complaints311/    311 logic: config, SoQL, share math, labels, input parsing, geocoding, rendering
@@ -434,6 +436,20 @@ Both read D1 only, are cached at the edge for an hour per query and data version
 **Tests.** `tests/crashes.test.js` (normalizers, form, scoring, the search on a small in-memory database, the sync diff, rendering) runs with `npm test`. `tests/crashes-e2e.test.js` searches the real build in `.data/crashes/` with partial details of known crashes and checks each ranks at or near the top; it skips when there's no build.
 
 **Privacy.** The data has no names, plates or license numbers. Don't add anything that joins it to other sources to identify people.
+
+## NYC Crash Hotspots
+
+`/crash-hotspots/`: for residents asking where crashes happen, where people get badly hurt, and what to watch for on their street or in their ZIP. Pick all of NYC, a borough, ZIP, street, intersection or address (a 250 or 500 m circle), and filter by who was hurt, cause, what the driver was doing, vehicle, how bad and time of day. The page shows stat cards, "What to watch for here" (kinds of crash clearly more common than in the borough, with a practical tip each), a heat map or a dot per serious or fatal crash, the intersections with the most crashes, a day × hour grid, crashes by month and a breakdown per filter group. The view lives in the URL.
+
+**Data.** The same D1 database as the crash lookup, through one extra table, `crash_facts`: a row per crash with each filter group stored as a bitmask (`src/lib/crashes/facts.js`), so any mix of filters is one scan of a narrow table with no joins. The full build writes it from the three tables; the daily sync rewrites a crash's row when it or any of its vehicles or persons changed (the row's hash covers all of them, plus `FACTS_VERSION`). A database built before this dashboard has no `crash_facts` until its next full build: run `npm run data:crashes` and `push` again; the page says the data isn't loaded until then.
+
+- Bits are stored, so a group's `bit` never changes; add groups with the next free one. Changing a mapping rule: bump `FACTS_VERSION` and rebuild.
+- "Seriously hurt" isn't on the report; `personSeverity()` reads it from the injury type (fracture, internal, concussion, crush, severe bleeding…) and emotional status (unconscious, semiconscious, apparent death). The page says it's a stand-in for the city's KSI count.
+- The build prints contributing factors and pre-crash actions no group takes, like it does for makes.
+
+**API.** `GET /api/crash-hotspots/summary` and `GET /api/crash-hotspots/map`, both taking the page's URL parameters (`src/lib/crashes/hotspot-query.js`). SQL is in `hotspot-sql.js`; the summary compares an area with its borough (a borough with NYC). Both are cached at the edge for an hour per view and data version and rate limited per client (`HOTSPOTS_RATE_LIMITER`, 60 a minute); the opening view (all of NYC, no filters) is also kept in KV per data version.
+
+**Tests.** `tests/crash-hotspots.test.js`: the groups and severity, bit stability, `factsRow()`, the URL round trip, the SQL on an in-memory database, the sync diff and "What to watch for".
 
 ## Theme
 

@@ -9,6 +9,9 @@
  * changed; rows in the window the city no longer has are deleted. Older
  * amendments wait for the monthly full rebuild (scripts/ingest-crashes.mjs).
  *
+ * NYC Crash Hotspots' crash_facts are rebuilt from the same rows: a crash's
+ * facts row is rewritten when it, or any of its vehicles or persons, changed.
+ *
  * If the source returns far fewer crashes for the window than the database
  * holds, the sync stops without deleting anything: that's an outage or a
  * half-published dataset, not a mass deletion.
@@ -18,6 +21,7 @@ import { soql } from "./socrata.js";
 import { DATASETS, SYNC_DAYS, dateRange } from "../crashes/config.js";
 import { COLUMNS } from "../crashes/schema.js";
 import { crashRow, streetRows, vehicleRow, personRow } from "../crashes/rows.js";
+import { factsRow, byCrash } from "../crashes/facts.js";
 
 const PAGE = 10000;
 const MAX_ROWS = 300000; // a 45-day window is ~75,000 rows across the three tables
@@ -74,6 +78,26 @@ export function diffTable(table, sourceRows, stored) {
   return { upserts, deletes };
 }
 
+/*
+ * The crash_facts rows to write and delete, from the window's source rows
+ * (all three tables) and the stored { id, h }. Pure; exported for tests.
+ * → { upserts: [row], deletes: [id] }
+ */
+export function diffFacts(source, stored) {
+  const vehicles = byCrash(source.vehicles.map(vehicleRow));
+  const persons = byCrash(source.persons.map(personRow));
+  const have = new Map(stored.map((r) => [r.id, r.h]));
+  const upserts = [];
+  const seen = new Set();
+  for (const raw of source.crashes) {
+    const crash = crashRow(raw);
+    const row = factsRow(crash, vehicles.get(crash.collision_id), persons.get(crash.collision_id));
+    seen.add(row.collision_id);
+    if (have.get(row.collision_id) !== row.h) upserts.push(row);
+  }
+  return { upserts, deletes: stored.filter((r) => !seen.has(r.id)).map((r) => r.id) };
+}
+
 async function runBatches(d1, statements) {
   for (let i = 0; i < statements.length; i += BATCH) await d1.batch(statements.slice(i, i + BATCH));
 }
@@ -84,8 +108,10 @@ export async function syncCrashes(today, d1 = env.CRASHES_DB) {
   const range = dateRange(today);
   const from = windowStart(today);
   // Nothing to keep current until the first full build is pushed (the status page says so).
-  const built = await d1.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'ingest_log'").all();
-  if (!built.results.length) return { from, skipped: "no full build loaded yet" };
+  const built = new Set((await d1.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('ingest_log', 'crash_facts')").all()).results.map((r) => r.name));
+  if (!built.has("ingest_log")) return { from, skipped: "no full build loaded yet" };
+  // A database built before NYC Crash Hotspots has no facts table until its next full build.
+  const hasFacts = built.has("crash_facts");
 
   const source = {};
   for (const table of Object.keys(DATASETS)) source[table] = await fetchWindow(table, from, range.to);
@@ -98,6 +124,10 @@ export async function syncCrashes(today, d1 = env.CRASHES_DB) {
       throw new Error(`Source has ${source.crashes.length} crashes since ${from}, the database ${results.length}; not syncing`);
     }
     plan[table] = diffTable(table, source[table], results);
+  }
+  if (hasFacts) {
+    const { results } = await d1.prepare("SELECT collision_id AS id, h FROM crash_facts WHERE crash_date >= ?").bind(from).all();
+    plan.crash_facts = diffFacts(source, results);
   }
 
   const statements = [];
@@ -118,16 +148,24 @@ export async function syncCrashes(today, d1 = env.CRASHES_DB) {
   for (const crash of plan.crashes.upserts) {
     for (const s of streetRows(crash)) statements.push(d1.prepare(streetSql).bind(...COLUMNS.crash_streets.map((c) => s[c])));
   }
+  if (hasFacts) {
+    del("crash_facts", "collision_id", plan.crash_facts.deletes);
+    const factsSql = insert("crash_facts");
+    for (const row of plan.crash_facts.upserts) statements.push(d1.prepare(factsSql).bind(...COLUMNS.crash_facts.map((c) => row[c] ?? null)));
+  }
   // The range rolls forward a day at a time: drop crashes that aged out of it,
   // street rows first (found through the crash date index), then the rest.
   const before = range.from;
   statements.push(d1.prepare("DELETE FROM crash_streets WHERE collision_id IN (SELECT collision_id FROM crashes WHERE crash_date < ?)").bind(before));
-  for (const table of Object.keys(DATASETS)) statements.push(d1.prepare(`DELETE FROM ${table} WHERE crash_date < ?`).bind(before));
+  for (const table of [...Object.keys(DATASETS), ...(hasFacts ? ["crash_facts"] : [])]) {
+    statements.push(d1.prepare(`DELETE FROM ${table} WHERE crash_date < ?`).bind(before));
+  }
   await runBatches(d1, statements);
 
   const counts = Object.fromEntries(Object.keys(DATASETS).map((t) => [t, {
     fetched: source[t].length, written: plan[t].upserts.length, deleted: plan[t].deletes.length
   }]));
+  if (hasFacts) counts.crash_facts = { written: plan.crash_facts.upserts.length, deleted: plan.crash_facts.deletes.length };
   await d1.prepare(`INSERT INTO ingest_log (kind, started_at, finished_at, date_from, date_to, counts)
     VALUES ('sync', ?, ?, ?, ?, ?)`).bind(startedAt, new Date().toISOString(), from, range.to, JSON.stringify(counts)).run();
   return { from, agedOutBefore: before, counts };

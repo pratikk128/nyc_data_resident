@@ -33,8 +33,8 @@ const BLUE_DEEP = "#1F4FB8";
 const FILTER_DEBOUNCE_MS = 600;
 
 let leaflet = null;
-// Leaflet.heat is a plain script that extends the global L.
-async function loadLeaflet() {
+// Leaflet.heat is a plain script that extends the global L. Also used by the crash hotspots map.
+export async function loadLeaflet() {
   leaflet ??= (async () => {
     const [{ default: L }] = await Promise.all([import("leaflet"), import("leaflet/dist/leaflet.css")]);
     window.L = L;

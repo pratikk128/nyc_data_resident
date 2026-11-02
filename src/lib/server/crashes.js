@@ -29,14 +29,14 @@ const STATUS_MS = 5 * 60e3;
 export class NoDatabase extends Error {}
 export const NOT_LOADED_TEXT = "The crash data isn’t loaded yet. Try again later.";
 
-// D1 as search.js wants it: all(sql, params) → rows.
-function db() {
+// D1 as search.js wants it: all(sql, params) → rows. Also read by crash-hotspots.js.
+export function db() {
   const d1 = env.CRASHES_DB;
   if (!d1) throw new NoDatabase("No CRASHES_DB binding");
   return { all: async (sql, params = []) => (await d1.prepare(sql).bind(...params).all()).results };
 }
 
-const codeVersion = () => env.CF_VERSION_METADATA?.id ?? "dev";
+export const codeVersion = () => env.CF_VERSION_METADATA?.id ?? "dev";
 
 /*
  * The newest crash in the database and the last full build and sync, for

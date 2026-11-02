@@ -1,0 +1,52 @@
+---
+/*
+ * NYC Crash Hotspots. Rendered on demand so "Data through" comes from the
+ * crash database in D1 (src/lib/server/crashes.js); the numbers, map and
+ * tables load in the browser (src/components/crash-hotspots/CrashHotspots.astro).
+ */
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+import CrashHotspots from '../../components/crash-hotspots/CrashHotspots.astro';
+import AboutSection from '../../components/crash-hotspots/AboutSection.astro';
+import { dataStatus } from '../../lib/server/crashes.js';
+import { dateRange } from '../../lib/crashes/config.js';
+import { date } from '../../lib/format.js';
+
+export const prerender = false;
+
+let status = null;
+try {
+  status = await dataStatus();
+} catch (err) {
+  console.error(err); // the page still loads; its numbers say the data isn't loaded
+}
+const through = status?.dataThrough ?? null;
+const range = dateRange();
+
+if (import.meta.env.PROD && status) Astro.response.headers.set('Cache-Control', 'public, max-age=300');
+---
+
+<DashboardLayout
+  title="NYC Crash Hotspots"
+  description="Where crashes happen in NYC, where people get badly hurt, and what to watch for on your street or in your ZIP code. Filter by pedestrians, cyclists, speeding, left turns, trucks and more."
+  path="/crash-hotspots/"
+  category="Public Safety"
+  lastRefreshed={status?.lastSync ? date(status.lastSync.slice(0, 10)) : status?.lastFull ? date(status.lastFull.slice(0, 10)) : undefined}
+  dataUpdated={through ?? undefined}
+>
+  <header class="page-head">
+    <h1>NYC Crash Hotspots</h1>
+    <p>
+      Where crashes happen in New York City, where they hurt people most, and what to watch for on your street.
+      Walk, bike or drive? Filter to the crashes that matter to you.
+    </p>
+  </header>
+
+  <div class="callout callout-heads-up cl-heads-up" role="note">
+    <p><strong>Heads up.</strong> These are NYPD-reported crashes from NYC Open Data, {date(range.from)} to {through ? date(through) : 'the latest report'}.
+    Recent weeks are still filling in, counts aren’t adjusted for how busy a street is, and “seriously hurt” is our reading of the
+    injury on the report, not an official grade (<a href="#hs-about">how</a>).</p>
+  </div>
+
+  <CrashHotspots />
+  <AboutSection dataThrough={through} lastSync={status?.lastSync ?? null} />
+</DashboardLayout>

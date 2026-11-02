@@ -103,6 +103,14 @@ export const dashboards = [
     audience: ["resident"]
   },
   {
+    id: "crash-hotspots",
+    title: "NYC Crash Hotspots",
+    description: "Where crashes happen, where people get badly hurt, and what to watch for on your street or ZIP. Filter by pedestrians, cyclists, speeding, left turns, trucks and more.",
+    category: "Public Safety",
+    url: "/crash-hotspots/",
+    audience: ["resident"]
+  },
+  {
     id: "help-near-me",
     title: "Where Can I Get Help Near Me?",
     description: "Find the nearest food benefits office, homelessness help, free computers, youth and older adult programs, with hours and directions.",

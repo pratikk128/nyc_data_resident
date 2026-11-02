@@ -35,12 +35,13 @@ import { fetchAll, rawFile } from "./lib/crash-fetch.mjs";
 import { dateRange } from "../src/lib/crashes/config.js";
 import { TABLES, INDEXES, COLUMNS } from "../src/lib/crashes/schema.js";
 import { crashRow, streetRows, vehicleRow, personRow } from "../src/lib/crashes/rows.js";
+import { factsRow, byCrash, causeKey, maneuverKey, UNGROUPED_CAUSES, UNGROUPED_MANEUVERS } from "../src/lib/crashes/facts.js";
 
 const DIR = new URL("../.data/crashes/", import.meta.url);
 const DB_FILE = new URL("crashes.sqlite", DIR);
 const SQL_FILE = new URL("d1-import.sql", DIR);
 const D1_NAME = "asknycdata-crashes"; // wrangler.jsonc → d1_databases
-const DATA_TABLES = ["crashes", "crash_streets", "vehicles", "persons"];
+const DATA_TABLES = ["crashes", "crash_streets", "vehicles", "persons", "crash_facts"];
 
 const args = new Set(process.argv.slice(2));
 
@@ -88,6 +89,7 @@ async function build() {
   await load("crashes", crashRow, streetRows);
   await load("vehicles", vehicleRow);
   await load("persons", personRow);
+  counts.crash_facts = buildFacts(db);
 
   console.log("Indexing");
   for (const sql of INDEXES) db.exec(sql);
@@ -106,6 +108,23 @@ async function build() {
   db.close();
   await rename(tmp, DB_FILE);
   console.log(`Built ${DB_FILE.pathname} (${(fileStats.size / 1e6).toFixed(0)} MB before vacuum, ${((await stat(DB_FILE)).size / 1e6).toFixed(0)} MB after)`);
+}
+
+// NYC Crash Hotspots' table: one row per crash from it and its vehicles and persons (facts.js).
+function buildFacts(db) {
+  const vehicles = byCrash(db.prepare("SELECT * FROM vehicles").all());
+  const persons = byCrash(db.prepare("SELECT * FROM persons").all());
+  const insert = db.prepare(insertSql("crash_facts"));
+  let n = 0;
+  db.exec("BEGIN");
+  for (const crash of db.prepare("SELECT * FROM crashes").iterate()) {
+    const row = factsRow(crash, vehicles.get(crash.collision_id), persons.get(crash.collision_id));
+    insert.run(...COLUMNS.crash_facts.map((c) => row[c] ?? null));
+    n++;
+  }
+  db.exec("COMMIT");
+  console.log(`  crash_facts: ${n.toLocaleString()} rows`);
+  return n;
 }
 
 function checkOrphans(db) {
@@ -141,6 +160,21 @@ function reportUnmapped(db) {
   if (makes.length) console.log(`  ${makes.map((m) => `${m.v} (${m.n})`).join(", ")}`);
   console.log(`Vehicle types not in vehicle-types.js: ${share("type_raw", "type_key")}% of vehicles with a type`);
   if (types.length) console.log(`  ${types.map((m) => `${m.v} (${m.n})`).join(", ")}`);
+
+  // Contributing factors and pre-crash actions no group in facts.js takes (and none left out on purpose).
+  const unmapped = (values, keyOf, ungrouped) => [...values]
+    .filter((r) => !keyOf(r.v) && !ungrouped.test(r.v.toUpperCase()))
+    .sort((a, b) => b.n - a.n).slice(0, 25);
+  const factorCounts = new Map();
+  for (const t of ["crashes", "vehicles", "persons"]) {
+    for (const { f } of db.prepare(`SELECT factors AS f FROM ${t} WHERE factors IS NOT NULL`).iterate()) {
+      for (const v of JSON.parse(f)) if (v) factorCounts.set(v, (factorCounts.get(v) ?? 0) + 1);
+    }
+  }
+  const factors = unmapped([...factorCounts].map(([v, n]) => ({ v, n })), causeKey, UNGROUPED_CAUSES);
+  console.log(`Contributing factors not in facts.js CAUSES: ${factors.length ? factors.map((m) => `${m.v} (${m.n})`).join(", ") : "none"}`);
+  const actions = unmapped(top("SELECT pre_crash AS v, count(*) AS n FROM vehicles WHERE pre_crash IS NOT NULL GROUP BY 1"), maneuverKey, UNGROUPED_MANEUVERS);
+  console.log(`Pre-crash actions not in facts.js MANEUVERS: ${actions.length ? actions.map((m) => `${m.v} (${m.n})`).join(", ") : "none"}`);
 }
 
 // ---------- Push to D1 ----------

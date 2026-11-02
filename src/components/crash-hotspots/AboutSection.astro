@@ -1,0 +1,65 @@
+---
+/*
+ * NYC Crash Hotspots: where the data comes from, how crashes are grouped,
+ * what "seriously hurt" means here, and the limits (DESIGN.md §7).
+ */
+import { DATASETS, SYNC_DAYS, dateRange, sourceUrl } from '../../lib/crashes/config.js';
+import { CAUSES, MANEUVERS } from '../../lib/crashes/facts.js';
+import { MIN_CORNER_CRASHES } from '../../lib/crashes/hotspot-sql.js';
+import { date } from '../../lib/format.js';
+
+interface Props {
+  dataThrough: string | null;
+  lastSync: string | null;
+}
+const { dataThrough, lastSync } = Astro.props;
+const range = dateRange();
+---
+
+<section class="dash-section" id="hs-about" aria-labelledby="hs-about-title">
+  <header class="section-head">
+    <h2 id="hs-about-title">How this works</h2>
+  </header>
+  <div class="about-body cl-about">
+    <h3>Where this comes from</h3>
+    <p>
+      NYPD crash reports published on NYC Open Data, in three tables:{' '}
+      {Object.entries(DATASETS).map(([t, d], i, all) => <><a href={sourceUrl(t)} rel="noopener">{d.name}</a> ({d.id}){i < all.length - 1 ? ', ' : '.'}</>)}{' '}
+      This dashboard covers the last year, from {date(range.from)}{dataThrough ? ` to ${date(dataThrough)}` : ''}; older crashes drop off each day.
+      {lastSync && <>We check for new and changed reports from the last {SYNC_DAYS} days every day (last on {date(lastSync.slice(0, 10))}).{' '}</>}
+      It uses the same data as <a href="/crash-lookup/">NYC Crash Lookup</a>, where you can look up a single crash.
+    </p>
+
+    <h3>What “seriously hurt” means here</h3>
+    <p>
+      The police report doesn’t grade injuries. We count someone as seriously hurt when the report lists an injury that’s rarely
+      minor (a fracture or dislocation, an internal injury, a concussion, a crush injury, severe bleeding or cuts, an amputation,
+      paralysis, or a moderate or severe burn) or says they were unconscious, semiconscious or in apparent death. It’s our stand-in for
+      the city’s “killed or seriously injured” measure, not the city’s own count, and it likely misses some serious injuries.
+    </p>
+
+    <h3>How crashes are grouped</h3>
+    <p>
+      <strong>Who was hurt</strong> comes from the people on the report who were hurt or killed: pedestrians; cyclists; people on e-bikes,
+      e-scooters and mopeds; motorcyclists; and people in cars, trucks and buses.{' '}
+      <strong>Cause</strong> groups the contributing factors police list for the crash and each vehicle
+      ({CAUSES.map((c) => c.label.toLowerCase()).join(', ')}). “Unspecified” and factors like “other vehicular” aren’t in any group.{' '}
+      <strong>What the driver was doing</strong> groups each vehicle’s action just before the crash
+      ({MANEUVERS.map((m) => m.label.toLowerCase()).join('; ')}).{' '}
+      <strong>Vehicle</strong> uses the same vehicle kinds as the crash lookup.{' '}
+      A crash can be in several groups, so the shares add up to more than 100%.
+    </p>
+
+    <h3>Limits</h3>
+    <ul>
+      <li>Only crashes the police reported are here: ones where someone was hurt or killed, or with at least $1,000 of damage.</li>
+      <li>Counts aren’t adjusted for traffic. Busy streets and intersections rank higher partly because more people use them.</li>
+      <li>About 3 in 10 crashes have no street name or borough on the report, and about 1 in 10 has no map location. Those count toward NYC’s totals but can’t be placed on a street, in a ZIP or on the map.</li>
+      <li>Intersections are the on and cross street the officer wrote down. We list an intersection only with {MIN_CORNER_CRASHES} or more crashes, and “What to watch for” needs at least 5 crashes of a kind.</li>
+      <li>Reports can be late or amended, so the last few weeks fill in over time.</li>
+      <li>Contributing factors are the officer’s judgment at the scene, not a finding of fault.</li>
+    </ul>
+
+    <p class="cl-note">Spot a problem with the data? <a href="https://data.cityofnewyork.us/d/h9gi-nx95" rel="noopener">Report it on NYC Open Data</a>.</p>
+  </div>
+</section>

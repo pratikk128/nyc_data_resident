@@ -1,0 +1,612 @@
+---
+/*
+ * NYC Crash Hotspots: pick a place (all of NYC, a borough, a ZIP, a street,
+ * an intersection or a spot) and the kinds of crash you care about, and see
+ * the counts, the map, the intersections with the most crashes, what stands
+ * out there and when crashes happen.
+ *
+ * The view lives in the URL (src/lib/crashes/hotspot-query.js), so reload,
+ * Back and shared links work. Each change loads /api/crash-hotspots/summary
+ * and /api/crash-hotspots/map in parallel.
+ */
+import { DIMENSIONS } from '../../lib/crashes/facts.js';
+import { SEVERITIES, TIMES, PRESETS, RADII, DEFAULT_RADIUS } from '../../lib/crashes/hotspot-query.js';
+import { MIN_CORNER_CRASHES, TOP_CORNERS } from '../../lib/crashes/hotspot-sql.js';
+import { WATCH } from '../../lib/crashes/hotspot-view.js';
+
+const radiusLabel = (m: number) => (m === 250 ? '250 m (about 3 blocks)' : '500 m (about ⅓ mile)');
+---
+
+<div class="hs" data-hotspots>
+  <section class="dash-section hs-controls" id="hs-find" aria-labelledby="hs-find-title">
+    <header class="section-head">
+      <h2 id="hs-find-title">Where and what</h2>
+      <p class="section-intro">Start with all of NYC, or look up a street, intersection, address or ZIP code. Then pick the kinds of crash you care about.</p>
+    </header>
+
+    <form class="hs-place" role="search" aria-label="Pick a place" novalidate data-place-form>
+      <div class="field hs-place-field">
+        <label class="filter-label" for="hs-where">Street, intersection, address or ZIP</label>
+        <div class="c311-combo">
+          <input class="search-input" id="hs-where" name="where" type="text" role="combobox" aria-autocomplete="list"
+            aria-expanded="false" aria-controls="hs-where-list" aria-describedby="hs-where-hint hs-where-problem"
+            autocomplete="off" spellcheck="false" maxlength="120" placeholder="Try “Atlantic Ave, Brooklyn” or 11211" />
+          <ul class="c311-suggest" id="hs-where-list" role="listbox" aria-label="Places" hidden data-suggest></ul>
+        </div>
+        <p class="field-hint" id="hs-where-hint">A street shows its whole length; an intersection, crashes at that corner; an address, crashes within the distance you pick.</p>
+        <p class="field-error" id="hs-where-problem" role="alert" data-place-problem hidden></p>
+      </div>
+      <div class="field hs-radius" data-radius-field hidden>
+        <label class="filter-label" for="hs-r">Within</label>
+        <select class="filter-select" id="hs-r" name="r">
+          {RADII.map((m) => <option value={m} selected={m === DEFAULT_RADIUS}>{radiusLabel(m)}</option>)}
+        </select>
+      </div>
+      <div class="hs-place-actions">
+        <button type="submit" class="c311-go">Show crashes</button>
+        <button type="button" class="cl-link-btn" data-locate>Use my location</button>
+      </div>
+    </form>
+    <ul class="c311-suggest hs-choices" aria-label="Did you mean" hidden data-choices></ul>
+
+    <p class="hs-current" aria-live="polite">
+      <span class="hs-current-label">Showing</span> <strong data-current>all of NYC</strong>
+      <button type="button" class="cl-link-btn" data-all-nyc hidden>Back to all of NYC</button>
+    </p>
+
+    <div class="hs-presets" role="group" aria-labelledby="hs-presets-label">
+      <span class="filter-label" id="hs-presets-label">Quick picks</span>
+      {PRESETS.map((p) => <button type="button" class="pay-chip hs-preset" aria-pressed="false" data-preset={p.key}>{p.label}</button>)}
+    </div>
+
+    <details class="hs-filters" data-filters>
+      <summary>Filter by kind of crash <span class="hs-filter-count" data-filter-count></span></summary>
+      <form class="hs-filter-form" data-filter-form>
+        <fieldset class="hs-group">
+          <legend class="hs-group-title">How bad</legend>
+          <div class="hs-pills">
+            {SEVERITIES.map((s, i) => (
+              <label class="pay-chip"><input type="radio" name="sev" value={s.key} checked={i === 0} />{s.label}</label>
+            ))}
+          </div>
+        </fieldset>
+        {DIMENSIONS.map((d) => (
+          <fieldset class="hs-group">
+            <legend class="hs-group-title">{d.title}</legend>
+            <div class="hs-pills">
+              {d.groups.map((g) => <label class="pay-chip"><input type="checkbox" name={d.param} value={g.key} />{g.label}</label>)}
+            </div>
+          </fieldset>
+        ))}
+        <fieldset class="hs-group">
+          <legend class="hs-group-title">Time of day</legend>
+          <div class="hs-pills">
+            {TIMES.map((t) => <label class="pay-chip"><input type="checkbox" name="time" value={t.key} />{t.label}</label>)}
+          </div>
+        </fieldset>
+        <p class="field-hint">Within a group, a crash matches if it has any of the ones you pick; across groups, it has to match each. A crash can have more than one cause, vehicle or person hurt.</p>
+      </form>
+    </details>
+
+    <div class="sd-active" data-active hidden>
+      <span class="filter-label">Filters on:</span>
+      <ul class="sd-active-list" data-active-list></ul>
+      <button type="button" class="cl-link-btn" data-clear-filters>Clear filters</button>
+    </div>
+  </section>
+
+  <p class="hs-status" role="status" data-status></p>
+
+  <section class="dash-section" id="hs-overview" aria-labelledby="hs-overview-title">
+    <header class="section-head">
+      <h2 id="hs-overview-title" data-overview-title>Crashes in NYC</h2>
+      <p class="section-intro" data-overview-intro></p>
+    </header>
+    <div class="stat-grid hs-stats" data-stats aria-busy="true">
+      {[0, 1, 2, 3].map(() => <div class="stat-card hs-skeleton"><p class="stat-label">&nbsp;</p><p class="stat-value">&nbsp;</p></div>)}
+    </div>
+  </section>
+
+  <section class="dash-section" id="hs-watch" aria-labelledby="hs-watch-title" data-watch-section hidden>
+    <header class="section-head">
+      <h2 id="hs-watch-title">What to watch for here</h2>
+      <p class="section-intro" data-watch-intro></p>
+    </header>
+    <div data-watch></div>
+    <details class="c311-tip">
+      <summary>How we pick these</summary>
+      <p class="c311-tip-text">We compare shares, not raw counts: each kind of crash’s share of crashes here, divided by its share in the area we compare with.
+        A kind shows up when it’s at least {WATCH.minRatio}× as common here and there are at least {WATCH.minLocal} such crashes, biggest difference first.
+        Going straight, cars, SUVs and people in vehicles are left out because they’re in most crashes everywhere.</p>
+    </details>
+  </section>
+
+  <section class="dash-section" id="hs-map" aria-labelledby="hs-map-title">
+    <header class="chart-head">
+      <div>
+        <h2 id="hs-map-title" class="hs-h2">Where crashes happen</h2>
+        <p class="chart-subtitle" data-map-subtitle></p>
+      </div>
+      <div class="toggle" role="group" aria-label="Map view">
+        <button type="button" class="toggle-btn" aria-pressed="true" data-map-view="crashes">All crashes</button>
+        <button type="button" class="toggle-btn" aria-pressed="false" data-map-view="ksi">Seriously hurt or killed</button>
+      </div>
+    </header>
+    <div class="c311-map-frame hs-map-frame" data-map role="region" aria-label="Map of crashes. The intersections table below lists the same places."></div>
+    <div class="c311-map-legend" data-legend="crashes">
+      <span>Fewer crashes</span><span class="c311-map-ramp" aria-hidden="true"></span><span>More</span>
+    </div>
+    <div class="c311-map-legend" data-legend="ksi" hidden>
+      <span class="hs-key"><span class="hs-dot hs-dot-killed" aria-hidden="true"></span>Someone killed (larger, ringed)</span>
+      <span class="hs-key"><span class="hs-dot hs-dot-serious" aria-hidden="true"></span>Someone seriously hurt</span>
+      <span>Tap a dot for the date and a link to the report.</span>
+    </div>
+    <p class="field-hint" data-map-note></p>
+  </section>
+
+  <section class="dash-section" id="hs-corners" aria-labelledby="hs-corners-title">
+    <header class="chart-head">
+      <div>
+        <h2 id="hs-corners-title" class="hs-h2">Intersections with the most crashes</h2>
+        <p class="chart-subtitle">Top {TOP_CORNERS}, with at least {MIN_CORNER_CRASHES} crashes. Busy intersections see more crashes partly because more people go through them.</p>
+      </div>
+      <div class="toggle" role="group" aria-label="Rank by">
+        <button type="button" class="toggle-btn" aria-pressed="true" data-corners-by="crashes">Most crashes</button>
+        <button type="button" class="toggle-btn" aria-pressed="false" data-corners-by="ksi">Most serious</button>
+      </div>
+    </header>
+    <div class="table-scroll hs-corners-scroll">
+      <table class="hs-corners">
+        <thead><tr>
+          <th scope="col">#</th><th scope="col">Intersection</th><th scope="col">Crashes</th><th scope="col">People hurt</th>
+          <th scope="col">Seriously hurt or killed</th><th scope="col">Most common cause</th>
+        </tr></thead>
+        <tbody data-corners></tbody>
+      </table>
+    </div>
+    <p class="chart-actions"><a class="download-link" href="#" download="crash-intersections.csv" data-csv="corners">Download CSV</a></p>
+  </section>
+
+  <section class="dash-section" id="hs-when" aria-labelledby="hs-when-title">
+    <header class="section-head">
+      <h2 id="hs-when-title">When crashes happen</h2>
+      <p class="section-intro" data-when-intro></p>
+    </header>
+    <div class="chart-frame">
+      <h3 class="chart-title">By day and hour</h3>
+      <p class="chart-subtitle">Darker means more crashes. Hover or tap a square for its count.</p>
+      <div class="table-scroll hs-hours-scroll" data-hours></div>
+      <p class="chart-actions"><a class="download-link" href="#" download="crashes-by-hour.csv" data-csv="hours">Download CSV</a></p>
+    </div>
+    <div class="chart-frame">
+      <h3 class="chart-title">By month</h3>
+      <p class="chart-subtitle" data-months-subtitle>Crashes per month. The last month may be partial, and recent weeks fill in as reports arrive.</p>
+      <div data-months></div>
+      <div class="chart-actions">
+        <details class="data-table"><summary>View as table</summary><div class="table-scroll" data-months-table></div></details>
+        <a class="download-link" href="#" download="crashes-by-month.csv" data-csv="months">Download CSV</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="dash-section" id="hs-kinds" aria-labelledby="hs-kinds-title">
+    <header class="section-head">
+      <h2 id="hs-kinds-title">What kinds of crash</h2>
+      <p class="section-intro" data-kinds-intro>Share of crashes with each. One crash can count in more than one row.</p>
+    </header>
+    <div class="hs-kinds">
+      {DIMENSIONS.map((d) => (
+        <div class="chart-frame hs-kind">
+          <h3 class="chart-title">{d.title}</h3>
+          <div data-breakdown={d.column}></div>
+          <details class="data-table"><summary>View as table</summary><div class="table-scroll" data-breakdown-table={d.column}></div></details>
+        </div>
+      ))}
+    </div>
+    <p class="c311-map-legend hs-bars-legend" data-bars-legend hidden>
+      <span class="hs-key"><span class="hs-bar-swatch" aria-hidden="true"></span>Here</span>
+      <span class="hs-key"><span class="hs-tick-swatch" aria-hidden="true"></span><span data-bars-compare></span></span>
+    </p>
+  </section>
+</div>
+
+<script>
+  import { readQuery, queryToParams, placeFromText, hasFilters, SEVERITIES, TIMES, PRESETS, DEFAULT_RADIUS } from '../../lib/crashes/hotspot-query.js';
+  import { DIMENSIONS } from '../../lib/crashes/facts.js';
+  import { statCards, watchFor, breakdown, hourGrid, busiestHour, toCsv, filtersText, DAYS, hourLabel, groupTitle, WATCH } from '../../lib/crashes/hotspot-view.js';
+  import { statCardsHtml, watchHtml, cornerRowsHtml, hourGridHtml, monthsHtml, monthsTableHtml, breakdownHtml, breakdownTableHtml, escape } from '../../lib/crashes/hotspot-render.js';
+  import { mountHotspotMap } from '../../lib/crashes/hotspot-map.js';
+  import { suggest, resolveLocation } from '../../lib/complaints311/geocode.js';
+  import { inCityLimits } from '../../lib/in-city.js';
+  import { boroughLabel } from '../../lib/complaints311/config.js';
+  import { count, date } from '../../lib/format.js';
+
+  const ERROR_TEXT = 'We couldn’t load the crash numbers. Check your connection and try again.';
+  const root = document.querySelector<HTMLElement>('[data-hotspots]')!;
+  const $ = <T extends Element = HTMLElement>(sel: string) => root.querySelector<T>(sel)!;
+  const $$ = <T extends Element = HTMLElement>(sel: string) => [...root.querySelectorAll<T>(sel)];
+  const placeForm = $<HTMLFormElement>('[data-place-form]');
+  const filterForm = $<HTMLFormElement>('[data-filter-form]');
+  const whereInput = $<HTMLInputElement>('#hs-where');
+  const suggestEl = $<HTMLUListElement>('[data-suggest]');
+  const choicesEl = $<HTMLUListElement>('[data-choices]');
+  const problemEl = $('[data-place-problem]');
+  const statusEl = $('[data-status]');
+  const map = mountHotspotMap($('[data-map]'));
+
+  let query = readQuery(new URLSearchParams(location.search));
+  let summary: any = null;
+  let mapData: any = null;
+  let cornersBy: 'crashes' | 'ksi' = 'crashes';
+  let request = 0;
+  let controller: AbortController | null = null;
+
+  // ---------- URL ⇄ controls ----------
+
+  function setUrl(push = true) {
+    const p = queryToParams(query);
+    const url = p.size ? `?${p}` : location.pathname;
+    if (push) history.pushState(null, '', url); else history.replaceState(null, '', url);
+  }
+
+  function fillControls() {
+    for (const input of filterForm.querySelectorAll<HTMLInputElement>('input')) {
+      input.checked = input.name === 'sev' ? input.value === query.filters.sev : (query.filters as any)[input.name]?.includes(input.value) ?? false;
+    }
+    const area = query.area;
+    $('[data-current]').textContent = area ? area.label : 'all of NYC';
+    $('[data-all-nyc]').hidden = !area;
+    $('[data-radius-field]').hidden = area?.kind !== 'point';
+    if (area?.kind === 'point') $<HTMLSelectElement>('#hs-r').value = String(area.radius);
+    for (const btn of $$<HTMLButtonElement>('[data-preset]')) btn.setAttribute('aria-pressed', String(presetActive(btn.dataset.preset!)));
+    renderActive();
+  }
+
+  const presetOf = (key: string) => PRESETS.find((p) => p.key === key)!;
+  function presetActive(key: string) {
+    const p = presetOf(key);
+    const f: any = query.filters;
+    return DIMENSIONS.every((d) => {
+      const want = ((p.filters as any)[d.param] ?? []).slice().sort().join(',');
+      return (f[d.param] ?? []).slice().sort().join(',') === want;
+    });
+  }
+
+  function readFilters() {
+    const data = new FormData(filterForm);
+    const filters: any = { sev: String(data.get('sev') ?? 'all'), time: data.getAll('time').map(String) };
+    for (const d of DIMENSIONS) filters[d.param] = data.getAll(d.param).map(String);
+    return filters;
+  }
+
+  // Removable chips for each filter that's on (DESIGN.md "Search and filters").
+  function renderActive() {
+    const chips: string[] = [];
+    const f: any = query.filters;
+    for (const d of DIMENSIONS) {
+      for (const g of d.groups) if (f[d.param].includes(g.key)) chips.push(chip(d.param, g.key, groupTitle(d.column, g)));
+    }
+    if (f.sev !== 'all') chips.push(chip('sev', f.sev, SEVERITIES.find((s) => s.key === f.sev)!.label));
+    for (const t of TIMES) if (f.time.includes(t.key)) chips.push(chip('time', t.key, t.label));
+    $('[data-active-list]').innerHTML = chips.join('');
+    $('[data-active]').hidden = !chips.length;
+    $('[data-filter-count]').textContent = chips.length ? `(${chips.length} on)` : '';
+  }
+  const chip = (param: string, key: string, label: string) =>
+    `<li><button type="button" class="sd-active-chip" data-remove="${escape(param)}:${escape(key)}" aria-label="Remove filter: ${escape(label)}">${escape(label)}
+      <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg></button></li>`;
+
+  // ---------- Loading ----------
+
+  async function getJson(path: string, signal: AbortSignal) {
+    const res = await fetch(`${path}?${queryToParams(query)}`, { signal });
+    const body = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(typeof body?.error === 'string' && body.error !== 'upstream' ? body.error : ERROR_TEXT);
+    return body;
+  }
+
+  async function load() {
+    const id = ++request;
+    controller?.abort();
+    controller = new AbortController();
+    statusEl.textContent = 'Counting the crashes…';
+    $('[data-stats]').setAttribute('aria-busy', 'true');
+    root.classList.add('is-loading');
+    try {
+      const [s, m] = await Promise.all([
+        getJson('/api/crash-hotspots/summary', controller.signal),
+        getJson('/api/crash-hotspots/map', controller.signal)
+      ]);
+      if (id !== request) return;
+      summary = s; mapData = m;
+    } catch (err: any) {
+      if (err.name === 'AbortError' || id !== request) return;
+      statusEl.innerHTML = `${escape(err.message || ERROR_TEXT)} <button type="button" class="cl-link-btn" data-retry>Try again</button>`;
+      root.classList.remove('is-loading');
+      return;
+    }
+    root.classList.remove('is-loading');
+    statusEl.textContent = '';
+    render();
+  }
+
+  // ---------- Rendering ----------
+
+  function scopeLine() {
+    const where = query.area ? query.area.label : 'all of NYC';
+    const f = filtersText(query.filters, { SEVERITIES, TIMES });
+    return `${where}, ${date(summary.dateFrom)} to ${date(summary.dataThrough)}${f ? ` · ${f}` : ''}`;
+  }
+
+  function render() {
+    const s = summary;
+    const compareLabel = s.compareTo?.label ?? null;
+    const scope = scopeLine();
+
+    $('[data-overview-title]').textContent = query.area ? `Crashes at ${query.area.label}` : 'Crashes in NYC';
+    $('[data-overview-intro]').textContent = `Police-reported crashes, ${scope}.${compareLabel ? ` Compared with ${compareLabel}.` : ''}`;
+    $('[data-stats]').innerHTML = s.here.crashes
+      ? statCardsHtml(statCards(s))
+      : '<p class="hs-empty">No crashes match. Even the pigeons are quiet here. Try fewer filters or a bigger area.</p>';
+    $('[data-stats]').setAttribute('aria-busy', 'false');
+
+    // What to watch for: only for a place, against its borough (or NYC for a borough).
+    const watchSection = $('[data-watch-section]');
+    watchSection.hidden = !query.area;
+    if (query.area) {
+      $('[data-watch-intro]').textContent = `Kinds of crash that are clearly more common at ${query.area.label} than across ${compareLabel}.`;
+      $('[data-watch]').innerHTML = watchHtml(watchFor(s, query.filters), { compareLabel, areaLabel: query.area.label, enough: s.here.crashes >= WATCH.minLocal * 2 });
+    }
+
+    // Map
+    const ksiCount = mapData.points.length;
+    $('[data-map-subtitle]').textContent = scope.charAt(0).toUpperCase() + scope.slice(1);
+    $('[data-map-note]').textContent = mapData.capped
+      ? `Showing the ${count(ksiCount)} most recent serious and fatal crashes.`
+      : `${count(ksiCount)} crash${ksiCount === 1 ? '' : 'es'} seriously hurt or killed someone. About 1 in 10 crashes has no map location, so the map shows a bit less than the counts.`;
+    map.update({ cells: mapData.cells, points: mapData.points, area: query.area });
+
+    renderCorners();
+
+    // When
+    const peak = busiestHour(s.hours);
+    $('[data-when-intro]').textContent = s.here.crashes ? `${scope}.${peak ? ` The busiest hour is around ${peak}.` : ''}` : scope;
+    $('[data-hours]').innerHTML = hourGridHtml(hourGrid(s.hours));
+    $('[data-months]').innerHTML = monthsHtml(s.months);
+    $('[data-months-table]').innerHTML = monthsTableHtml(s.months);
+
+    // Kinds
+    for (const d of DIMENSIONS) {
+      const rows = breakdown(s, d.column);
+      $(`[data-breakdown="${d.column}"]`).innerHTML = breakdownHtml(rows, { compareLabel });
+      $(`[data-breakdown-table="${d.column}"]`).innerHTML = breakdownTableHtml(rows, compareLabel);
+    }
+    $('[data-kinds-intro]').textContent = `Share of crashes with each, ${scope}. One crash can count in more than one row.`;
+    $('[data-bars-legend]').hidden = !compareLabel;
+    $('[data-bars-compare]').textContent = compareLabel ? `Across ${compareLabel}` : '';
+  }
+
+  function renderCorners() {
+    $('[data-corners]').innerHTML = cornerRowsHtml(summary.corners[cornersBy]);
+    for (const btn of $$<HTMLButtonElement>('[data-corners-by]')) btn.setAttribute('aria-pressed', String(btn.dataset.cornersBy === cornersBy));
+  }
+
+  // ---------- CSV ----------
+
+  function csvFor(kind: string) {
+    const s = summary;
+    if (kind === 'corners') {
+      return toCsv(['rank', 'intersection', 'borough', 'crashes', 'people_hurt', 'people_killed', 'crashes_serious_or_fatal', 'top_cause'],
+        s.corners[cornersBy].map((r: any, i: number) => [i + 1, r.label, boroughLabel(r.borough) ?? '', r.n, r.injured, r.killed, r.ksi, r.topCause ?? '']));
+    }
+    if (kind === 'hours') {
+      return toCsv(['day', 'hour', 'crashes', 'crashes_serious_or_fatal'],
+        hourGrid(s.hours).grid.flatMap((row, d) => row.map((c, h) => [DAYS[d], hourLabel(h), c.n, c.ksi])));
+    }
+    return toCsv(['month', 'crashes', 'crashes_someone_hurt', 'crashes_serious_or_fatal'], s.months.map(([ym, n, hurt, ksi]: any[]) => [ym, n, hurt, ksi]));
+  }
+
+  // ---------- Places ----------
+
+  function showProblem(text: string | null) {
+    problemEl.textContent = text ?? '';
+    problemEl.hidden = !text;
+    whereInput.setAttribute('aria-invalid', String(Boolean(text)));
+  }
+
+  function goTo(area: any) {
+    query = { ...query, area };
+    closeSuggest();
+    choicesEl.hidden = true;
+    showProblem(null);
+    setUrl();
+    fillControls();
+    load();
+  }
+
+  function pointArea(p: { lat: number; lon: number; label: string }) {
+    const r = Number($<HTMLSelectElement>('#hs-r').value) || DEFAULT_RADIUS;
+    return readQuery(new URLSearchParams({ lat: String(p.lat), lon: String(p.lon), r: String(r), place: p.label })).area;
+  }
+
+  placeForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const picked = placeFromText(whereInput.value);
+    if (picked.kind === 'empty') { goTo(null); return; }
+    if (picked.kind === 'problem') { showProblem(picked.text); whereInput.focus(); return; }
+    if (picked.kind === 'area') { goTo(picked.area); return; }
+    statusEl.textContent = 'Looking up that address…';
+    try {
+      const result: any = await resolveLocation(picked.parsed);
+      statusEl.textContent = '';
+      if (result.status === 'resolved') goTo(pointArea(result.location));
+      else if (result.status === 'choose') showChoices(result.suggestions);
+      else { showProblem('No matches. Try a nearby ZIP code or fewer words.'); whereInput.focus(); }
+    } catch {
+      statusEl.textContent = '';
+      showProblem('We couldn’t look up that address right now. Try a street name, an intersection or a ZIP code.');
+    }
+  });
+
+  function showChoices(places: any[]) {
+    choicesEl.innerHTML = places.map((p, i) => `<li><button type="button" class="hs-choice" data-choice="${i}">${escape(p.label)}</button></li>`).join('');
+    choicesEl.hidden = false;
+    (choicesEl as any).places = places;
+    choicesEl.querySelector<HTMLButtonElement>('button')?.focus();
+  }
+
+  choicesEl.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-choice]');
+    if (btn) goTo(pointArea((choicesEl as any).places[Number(btn.dataset.choice)]));
+  });
+
+  $<HTMLSelectElement>('#hs-r').addEventListener('change', (e) => {
+    if (query.area?.kind !== 'point') return;
+    goTo({ ...query.area, radius: Number((e.target as HTMLSelectElement).value) });
+  });
+
+  $('[data-locate]').addEventListener('click', () => {
+    if (!navigator.geolocation) { showProblem('Your browser can’t share your location. Type a street or ZIP instead.'); return; }
+    statusEl.textContent = 'Finding you…';
+    navigator.geolocation.getCurrentPosition((pos) => {
+      statusEl.textContent = '';
+      const { latitude: lat, longitude: lon } = pos.coords;
+      if (!inCityLimits(lat, lon)) { showProblem('You seem to be outside New York City. Type a street or ZIP in the five boroughs.'); return; }
+      goTo(pointArea({ lat, lon, label: 'your location' }));
+    }, () => {
+      statusEl.textContent = '';
+      showProblem('We couldn’t get your location. Type a street or ZIP instead.');
+    }, { timeout: 10000, maximumAge: 60000 });
+  });
+
+  // Autocomplete for addresses and places, as in the crash lookup.
+  let suggestTimer = 0, suggestRequest = 0;
+  function closeSuggest() {
+    suggestEl.hidden = true;
+    suggestEl.innerHTML = '';
+    whereInput.setAttribute('aria-expanded', 'false');
+    whereInput.removeAttribute('aria-activedescendant');
+  }
+  whereInput.addEventListener('input', () => {
+    showProblem(null);
+    window.clearTimeout(suggestTimer);
+    const text = whereInput.value.trim();
+    // Only addresses and places need GeoSearch; a ZIP, street or intersection is read as typed.
+    if (text.length < 4 || placeFromText(text).kind !== 'lookup') { closeSuggest(); return; }
+    suggestTimer = window.setTimeout(async () => {
+      const id = ++suggestRequest;
+      let places: any[] = [];
+      try { places = await suggest(text); } catch { /* no suggestions */ }
+      if (id !== suggestRequest) return;
+      if (!places.length) { closeSuggest(); return; }
+      suggestEl.innerHTML = places.map((p, i) => `<li role="option" id="hs-sg-${i}" aria-selected="false" class="c311-option" data-i="${i}">${escape(p.label)}</li>`).join('');
+      (suggestEl as any).places = places;
+      suggestEl.hidden = false;
+      whereInput.setAttribute('aria-expanded', 'true');
+    }, 250);
+  });
+  whereInput.addEventListener('keydown', (e) => {
+    const items = [...suggestEl.querySelectorAll<HTMLElement>('[role=option]')];
+    if (suggestEl.hidden || !items.length) return;
+    const current = items.findIndex((el) => el.getAttribute('aria-selected') === 'true');
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const next = (current + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+      items.forEach((el, i) => el.setAttribute('aria-selected', String(i === next)));
+      whereInput.setAttribute('aria-activedescendant', items[next].id);
+    } else if (e.key === 'Enter' && current >= 0) {
+      e.preventDefault();
+      const p = (suggestEl as any).places[current];
+      whereInput.value = p.label;
+      goTo(pointArea(p));
+    } else if (e.key === 'Escape') {
+      closeSuggest();
+    }
+  });
+  suggestEl.addEventListener('mousedown', (e) => {
+    const item = (e.target as HTMLElement).closest<HTMLElement>('[data-i]');
+    if (!item) return;
+    e.preventDefault();
+    const p = (suggestEl as any).places[Number(item.dataset.i)];
+    whereInput.value = p.label;
+    goTo(pointArea(p));
+  });
+  whereInput.addEventListener('blur', () => setTimeout(closeSuggest, 150));
+
+  // ---------- Filters ----------
+
+  filterForm.addEventListener('change', () => {
+    query = { ...query, filters: readFilters() };
+    setUrl();
+    fillControls();
+    load();
+  });
+
+  root.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    const preset = target.closest<HTMLButtonElement>('[data-preset]');
+    if (preset) {
+      const on = preset.getAttribute('aria-pressed') !== 'true';
+      const filters: any = { ...query.filters };
+      for (const d of DIMENSIONS) filters[d.param] = on ? [...((presetOf(preset.dataset.preset!).filters as any)[d.param] ?? [])] : [];
+      query = { ...query, filters };
+      setUrl(); fillControls(); load();
+      return;
+    }
+    const remove = target.closest<HTMLButtonElement>('[data-remove]');
+    if (remove) {
+      const [param, key] = remove.dataset.remove!.split(':');
+      const filters: any = { ...query.filters };
+      filters[param] = param === 'sev' ? 'all' : filters[param].filter((k: string) => k !== key);
+      query = { ...query, filters };
+      setUrl(); fillControls(); load();
+      ($('[data-active-list] button') ?? $('[data-filters] summary')).focus();
+      return;
+    }
+    if (target.closest('[data-clear-filters]')) {
+      query = { area: query.area, filters: readQuery(new URLSearchParams()).filters };
+      setUrl(); fillControls(); load();
+      $('[data-filters] summary').focus();
+      return;
+    }
+    if (target.closest('[data-all-nyc]')) { whereInput.value = ''; goTo(null); whereInput.focus(); return; }
+    const view = target.closest<HTMLButtonElement>('[data-map-view]');
+    if (view) {
+      for (const b of $$<HTMLButtonElement>('[data-map-view]')) b.setAttribute('aria-pressed', String(b === view));
+      for (const l of $$<HTMLElement>('[data-legend]')) l.hidden = l.dataset.legend !== view.dataset.mapView;
+      $('#hs-map-title').textContent = view.dataset.mapView === 'ksi' ? 'Where people get badly hurt' : 'Where crashes happen';
+      map.setView(view.dataset.mapView!);
+      return;
+    }
+    const by = target.closest<HTMLButtonElement>('[data-corners-by]');
+    if (by && summary) { cornersBy = by.dataset.cornersBy as any; renderCorners(); return; }
+    const corner = target.closest<HTMLButtonElement>('[data-corner-street]');
+    if (corner) {
+      const p = new URLSearchParams({ street: corner.dataset.cornerStreet!, cross: corner.dataset.cornerCross!, boro: corner.dataset.cornerBoro! });
+      whereInput.value = '';
+      goTo(readQuery(p).area);
+      $('#hs-overview-title').scrollIntoView({ block: 'start' });
+      return;
+    }
+    const csv = target.closest<HTMLAnchorElement>('[data-csv]');
+    if (csv) {
+      if (!summary) { e.preventDefault(); return; }
+      csv.href = URL.createObjectURL(new Blob([csvFor(csv.dataset.csv!)], { type: 'text/csv' }));
+      return;
+    }
+    if (target.closest('[data-retry]')) load();
+  });
+
+  // The filters stay folded, so the numbers come first, unless a link arrives with some on (phones keep them folded).
+  if (window.matchMedia('(min-width: 768px)').matches && hasFilters(query.filters)) $<HTMLDetailsElement>('[data-filters]').open = true;
+
+  window.addEventListener('popstate', () => {
+    query = readQuery(new URLSearchParams(location.search));
+    fillControls();
+    load();
+  });
+
+  setUrl(false);
+  fillControls();
+  load();
+</script>
