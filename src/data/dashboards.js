@@ -117,6 +117,14 @@ export const dashboards = [
     category: "Social Services",
     url: "/help-near-me/",
     audience: ["resident"]
+  },
+  {
+    id: "building-report",
+    title: "Building Report Card",
+    description: "Type an address and see a building’s record: open HPD violations, complaints, bedbugs, vacate orders, court cases, city-paid repairs and who owns it.",
+    category: "Housing & Development",
+    url: "/building-report/",
+    audience: ["resident"]
   }
 ];
 

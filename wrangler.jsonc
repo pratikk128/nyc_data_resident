@@ -41,7 +41,9 @@
     // Crash lookup: D1 only, one search per form submit, one per deep dive opened
     { "name": "CRASHES_RATE_LIMITER", "namespace_id": "1009", "simple": { "limit": 60, "period": 60 } },
     // Crash hotspots: D1 only; one summary and one map per view (place or filter change)
-    { "name": "HOTSPOTS_RATE_LIMITER", "namespace_id": "1010", "simple": { "limit": 60, "period": 60 } }
+    { "name": "HOTSPOTS_RATE_LIMITER", "namespace_id": "1010", "simple": { "limit": 60, "period": 60 } },
+    // Building Report Card: live Socrata; one lot lookup and eight sections per building viewed
+    { "name": "BUILDING_RATE_LIMITER", "namespace_id": "1011", "simple": { "limit": 90, "period": 60 } }
   ],
 
   // The deploy's version id, part of the Shop Diverse, Street Closures and Help Near Me edge cache keys

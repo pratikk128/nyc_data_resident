@@ -1,0 +1,71 @@
+---
+/*
+ * Building Report Card. Rendered on demand (not prerendered) so a shared
+ * link like ?bbl=2031070036 opens on that building with its own title and
+ * description: the server looks up the lot (address, buildings, whether HPD
+ * covers it) and the browser then loads every section at once, each on its
+ * own (BuildingReport.astro, /api/building-report/:section).
+ */
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+import BuildingReport from '../../components/building-report/BuildingReport.astro';
+import AboutSection from '../../components/building-report/AboutSection.astro';
+import { loadLot } from '../../lib/server/building-report.js';
+import { isBbl, buildingPath } from '../../lib/building-report/config.js';
+import { lotName } from '../../lib/building-report/summarize.js';
+import { RateLimited, RATE_LIMITED_TEXT } from '../../lib/server/rate-limit.js';
+import { UPSTREAM_TEXT } from '../../lib/building-report/render.js';
+
+export const prerender = false;
+
+const bbl = Astro.url.searchParams.get('bbl');
+let lot = null;
+let error: string | null = null;
+if (bbl !== null) {
+  if (!isBbl(bbl)) error = 'not-found';
+  else {
+    try {
+      lot = await loadLot(bbl, Astro.url, Astro.locals.cfContext, Astro.clientAddress);
+      if (!lot) error = 'not-found';
+    } catch (err) {
+      if (err instanceof RateLimited) error = 'rate-limited';
+      else {
+        console.error(err);
+        error = 'upstream';
+      }
+    }
+  }
+}
+if (error === 'not-found') Astro.response.status = 404;
+if (error === 'rate-limited') Astro.response.status = 429;
+Astro.response.headers.set('Cache-Control', error ? 'no-store' : 'public, max-age=300');
+
+const errorText = {
+  'not-found': 'We couldn’t find that building. Try searching for its address.',
+  'rate-limited': RATE_LIMITED_TEXT,
+  'upstream': UPSTREAM_TEXT
+}[error ?? ''] ?? null;
+
+const name = lot ? lotName(lot) : null;
+const title = name ? `${name} — Violations, Complaints & Bedbug History` : 'Building Report Card';
+const description = name
+  ? `HPD violations, complaints, bedbug reports, vacate orders, court cases, city repairs and the registered owner for ${name} (BBL ${lot.bbl}), from NYC Open Data.`
+  : 'Type an NYC address and see the building’s record: open HPD violations, complaints, bedbugs, red flags, court cases, city-paid repairs and who owns it.';
+---
+
+<DashboardLayout
+  title={title}
+  description={description}
+  path={lot ? buildingPath(lot.bbl) : '/building-report/'}
+  category="Housing & Development"
+>
+  <header class="page-head">
+    <h1>Building Report Card</h1>
+    <p>
+      Renting, buying or just curious? Type an address and see what the city has on file for the building:
+      repairs it ordered, complaints from tenants, bedbugs, court cases and who owns it. No score, just the records.
+    </p>
+  </header>
+
+  <BuildingReport lot={lot} errorText={errorText} />
+  <AboutSection />
+</DashboardLayout>

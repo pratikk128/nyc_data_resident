@@ -1,0 +1,49 @@
+---
+/*
+ * Building Report Card: what the terms mean, where every section comes
+ * from, and what the records can't tell you.
+ */
+import { CLASSES, DATASETS, LOT_DATASETS, datasetUrl } from '../../lib/building-report/config.js';
+const sources = [...Object.values(DATASETS), ...Object.values(LOT_DATASETS)];
+---
+
+<section class="dash-section" aria-labelledby="br-terms-title">
+  <header class="section-head">
+    <h2 id="br-terms-title">What the terms mean</h2>
+  </header>
+  <dl class="br-terms">
+    {CLASSES.map((c) => (
+      <div><dt>{c.label} violation</dt><dd>{c.text}</dd></div>
+    ))}
+    <div><dt>AEP (Alternative Enforcement Program)</dt><dd>Each year HPD picks the buildings with the most serious open violations. The owner has to fix the underlying problems (not just patch them); if they don’t, HPD can do the work and bill them. A building leaves (is “discharged”) when it meets the program’s requirements.</dd></div>
+    <div><dt>OMO (Open Market Order)</dt><dd>When an owner doesn’t fix an emergency, HPD hires an outside contractor to do it and bills the owner. Unpaid bills become a lien on the building.</dd></div>
+    <div><dt>HWO (Handyman Work Order)</dt><dd>A smaller emergency repair HPD orders and bills to the owner, the same way as an OMO.</dd></div>
+    <div><dt>Vacate order</dt><dd>An order to leave all or part of a building because it isn’t safe to live in, often after a fire.</dd></div>
+    <div><dt>ECB violation</dt><dd>A Department of Buildings violation heard at the city’s tribunal (OATH), which can fine the owner.</dd></div>
+    <div><dt>BBL and BIN</dt><dd>The city’s numbers for a tax lot (borough, block and lot) and for each building on it. HPD keeps records by lot, DOB by building.</dd></div>
+    <div><dt>No report filed vs. no bedbugs</dt><dd>Owners report bedbugs themselves once a year. A report with zero infested units says the owner found none; no report says nothing either way.</dd></div>
+  </dl>
+</section>
+
+<section class="dash-section" aria-labelledby="br-about-title">
+  <header class="section-head">
+    <h2 id="br-about-title">Where this comes from</h2>
+  </header>
+  <aside class="callout callout-heads-up" role="note">
+    <strong>Heads up:</strong> everything here comes from NYC Open Data, as the city publishes it. Records can lag by
+    days or weeks and can have mistakes. An “open” violation may already be fixed and not yet cleared in HPD’s system.
+    This is a summary of public records, not an inspection, and not legal advice. For a lease, a purchase or a dispute,
+    check with HPD (<a href="https://hpdonline.nyc.gov/" rel="noopener">HPD Online</a>), DOB or a lawyer.
+  </aside>
+  <p class="section-intro">
+    Each section shows its dataset and when the city last updated it. Addresses are looked up with NYC Planning Labs’
+    GeoSearch, which gives each address its tax lot (BBL). A link to a report holds only the BBL.
+  </p>
+  <ul class="ar-sources">
+    {sources.map((s) => <li><a href={datasetUrl(s.id)} rel="noopener">{s.name}</a> ({s.id})</li>)}
+  </ul>
+  <p class="ar-note">
+    DOB complaint categories are decoded with DOB’s published category list (revised September 2021). Newer codes
+    not on it show as “Other DOB complaint” with the code.
+  </p>
+</section>

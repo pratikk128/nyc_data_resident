@@ -2,7 +2,7 @@
 
 **asknycdata.com** · NYC's public data, made easy to understand.
 
-Interactive dashboards for NYC residents and businesses, built on public [NYC Open Data](https://opendata.cityofnewyork.us/): a landing page plus twelve dashboards (restaurant inspections, restaurant leads, 311 complaints, city payroll spending, what city jobs pay, drinking water, certified M/WBE firms, school quality, street closures, help near me, crash lookup, crash hotspots).
+Interactive dashboards for NYC residents and businesses, built on public [NYC Open Data](https://opendata.cityofnewyork.us/): a landing page plus thirteen dashboards (restaurant inspections, restaurant leads, 311 complaints, city payroll spending, what city jobs pay, drinking water, certified M/WBE firms, school quality, street closures, help near me, crash lookup, crash hotspots, building report card).
 
 Built with [Astro](https://docs.astro.build) and deployed to Cloudflare Workers. The page's interactivity is plain vanilla JavaScript. Most pages are prerendered; pages and API routes that read live NYC Open Data run in the Worker (`export const prerender = false`).
 
@@ -32,7 +32,10 @@ src/components/crash-lookup/  The lookup form, results and deep dive; method not
 src/pages/crash-hotspots/  NYC Crash Hotspots (rendered on demand)
 src/components/crash-hotspots/  Place and how you get around, stat cards, what to watch for, dangerous intersections and map; method notes
 src/lib/crashes/          Crash lookup logic: config (date range), schema, normalizing, form, scoring, search SQL, deep dive, rendering; crash hotspots' facts (facts.js) and hotspot-*.js
-src/pages/api/            API routes (Worker): /api/restaurants/search, /api/restaurants/:camis, /api/311/*, /api/water/stations, /api/shop-diverse/*, /api/schools/search, /api/street-closures/search
+src/pages/building-report/  Building Report Card: /building-report/?bbl=<BBL>, one page per tax lot (rendered on demand)
+src/components/building-report/  Address search, header and map, "At a glance", the eight sections; terms and sources
+src/lib/building-report/  Building report logic: datasets and labels (config.js), SoQL per section, summaries, rendering, address lookup
+src/pages/api/            API routes (Worker): /api/restaurants/search, /api/restaurants/:camis, /api/311/*, /api/water/stations, /api/shop-diverse/*, /api/schools/search, /api/street-closures/search, /api/building-report/:section
 src/lib/restaurants/      Restaurant logic: SoQL builders, inspection rules, violation categories, rendering
 src/lib/complaints311/    311 logic: config, SoQL, share math, labels, input parsing, geocoding, rendering
 src/lib/shop-diverse/     Certified women- and minority-owned firms logic: cleaning, ranking, filters, rendering, CSV export

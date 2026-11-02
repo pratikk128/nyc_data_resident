@@ -18,7 +18,8 @@ import { inCityLimits } from "../in-city.js";
 export const GEOSEARCH = "https://geosearch.planninglabs.nyc/v2";
 export const MAX_SUGGESTIONS = 5;
 
-// A GeoSearch feature → { lat, lon, houseNumber, street, name, borough, zip, label }.
+// A GeoSearch feature → { lat, lon, houseNumber, street, name, borough, zip, label, bbl, bin }.
+// bbl and bin (the tax lot and building, from the city's PAD file) are null for places that aren't addresses.
 export function normalizeFeature(f) {
   const p = f.properties ?? {};
   const [lon, lat] = f.geometry?.coordinates ?? [];
@@ -32,7 +33,7 @@ export function normalizeFeature(f) {
     borough,
     zip: p.postalcode ?? null
   };
-  return { ...place, label: placeLabel(place) };
+  return { ...place, label: placeLabel(place), bbl: p.addendum?.pad?.bbl ?? null, bin: p.addendum?.pad?.bin ?? null };
 }
 
 export async function geosearch(endpoint, text, { size = 10, signal, fetchFn = fetch } = {}) {

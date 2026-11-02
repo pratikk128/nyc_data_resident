@@ -4062,3 +4062,117 @@ a.hn-directions:hover { background: var(--accent-deep); }
 .hs-dot-killed { width: 13px; height: 13px; background: #B3261E; border: 2px solid var(--ink); }
 .hs-dot-serious { width: 9px; height: 9px; background: #F28C38; border: 1px solid #fff; box-shadow: 0 0 0 1px var(--line-strong); }
 .hs-pop { margin: 0; line-height: 1.5; }
+
+/* =========================================================
+   Building Report Card (/building-report/)
+   Builds on the address report's cards, lists, bars and "At a glance"
+   (.ar-*). Neutral by design: only Class C violations, open red flags,
+   infested units and open ECB violations get the warm "warn" tone.
+   ========================================================= */
+.br-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 22rem);
+  gap: var(--space-5);
+  align-items: start;
+  padding: var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+.br-head-text { min-width: 0; }
+.br-borough { margin-top: 2px; color: var(--ink-soft); font-weight: 600; }
+.br-facts { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); margin: var(--space-4) 0; }
+.br-facts div { min-width: 0; }
+.br-facts dt { font-size: .75rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-soft); }
+.br-facts dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.br-map { height: 220px; margin-top: 0; border-radius: var(--radius-md); overflow: hidden; isolation: isolate; }
+
+.br-glance .ar-glance-list { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.br-glance .ar-glance-item { flex-direction: column; gap: var(--space-1); }
+.br-glance-value { font-size: 1.75rem; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.br-glance .ar-glance-item[data-tone="warn"] .br-glance-value { color: var(--callout-heads-up-deep); }
+
+.br-sections { display: grid; gap: var(--space-5); margin-top: var(--space-6); }
+.br-section { scroll-margin-top: calc(var(--header-h) + var(--space-4)); }
+.br-section[hidden] { display: none; }
+.br-section:focus:not(:focus-visible) { outline: none; }
+.br-section-title { font-size: 1.25rem; }
+.br-text { max-width: 65ch; }
+.br-text + .br-text { margin-top: var(--space-2); }
+.br-source { margin-top: var(--space-4); padding-top: var(--space-3); border-top: 1px solid var(--line); font-size: .8125rem; color: var(--ink-soft); }
+
+/* Big numbers inside a section */
+.br-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); gap: var(--space-3); }
+.br-stat { display: grid; gap: 2px; padding: var(--space-3); border-radius: var(--radius-md); background: var(--blue-tint); }
+.br-stat[data-tone="warn"] { background: var(--callout-heads-up); }
+.br-stat-value { font-size: 1.5rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.br-stat-label { font-size: .875rem; color: var(--ink-soft); }
+
+/* Open violations by class; Class C stands out when there are any */
+.br-classes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); }
+.br-class { display: grid; gap: 2px; padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.br-class[data-tone="warn"] { border: 2px solid var(--callout-heads-up-deep); background: var(--callout-heads-up); }
+.br-class-n { font-size: 1.75rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.br-class-name { font-weight: 700; }
+.br-class-short { font-size: .8125rem; color: var(--ink-soft); }
+.br-pill {
+  display: inline-block;
+  margin-right: var(--space-1);
+  padding: 0 var(--space-2);
+  border-radius: 999px;
+  background: var(--line);
+  font-size: .75rem;
+  font-weight: 700;
+  white-space: nowrap;
+  vertical-align: 1px;
+}
+.br-pill[data-class="C"] { background: var(--callout-heads-up); color: var(--callout-heads-up-deep); }
+
+/* Column chart (HTML): violations by year, complaints by month */
+.br-cols-frame { margin: var(--space-3) 0 0; }
+.br-cols {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: 4px;
+  height: 150px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-bottom: 1px solid var(--line-strong);
+}
+.br-col-item { position: relative; display: grid; grid-template-rows: auto 1fr; min-width: 0; }
+.br-col-value { font-size: .6875rem; color: var(--ink-soft); text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; }
+.br-col { display: flex; align-items: flex-end; }
+.br-col span { display: block; width: 100%; border-radius: 3px 3px 0 0; background: var(--link); }
+/* Axis labels hang below the baseline, so bars of every item start level */
+.br-col-label { position: absolute; top: 100%; left: 0; right: 0; padding-top: 2px; font-size: .75rem; color: var(--ink-soft); text-align: center; white-space: nowrap; }
+.br-cols-frame figcaption { margin-top: var(--space-6); }
+
+.br-terms { display: grid; gap: var(--space-3); max-width: 75ch; margin-top: var(--space-4); }
+.br-terms dt { font-weight: 800; }
+.br-terms dd { margin: 2px 0 0; color: var(--ink-soft); }
+
+@media (max-width: 899px) {
+  .br-head { grid-template-columns: 1fr; }
+  .br-map { height: 180px; }
+  .br-glance .ar-glance-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 639px) {
+  .br-head { padding: var(--space-4); }
+  .br-classes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .br-col-value { display: none; }
+  .br-cols { height: 120px; gap: 2px; }
+}
+@media (max-width: 419px) {
+  .br-glance .ar-glance-list { grid-template-columns: 1fr; }
+  .br-glance .ar-glance-item { flex-direction: row; align-items: center; gap: var(--space-3); }
+  .br-glance-value { min-width: 3.5rem; font-size: 1.5rem; }
+}
+@media print {
+  .br-map { display: none; }
+  .br-section { break-inside: avoid; }
+}
+.br-bins summary { cursor: pointer; color: var(--link); }
+.br-bins[open] summary { margin-bottom: var(--space-1); }

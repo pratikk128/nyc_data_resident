@@ -1,0 +1,363 @@
+---
+/*
+ * The Building Report Card: an address box (with suggestions) and, for a
+ * building (?bbl=), its header and map, an "At a glance" row, then one
+ * section per topic. The server renders the header from the lot; the
+ * browser asks for every section at once (/api/building-report/:section),
+ * so each loads, fails and retries on its own. Red flags only show when the
+ * building has one. What each section says is in src/lib/building-report/render.js.
+ *
+ * Picking an address goes to the building's own page (?bbl=…), so every
+ * building has a link to share and the server can title it.
+ */
+import { MAX_INPUT_LENGTH } from '../../lib/complaints311/location-input.js';
+import { SECTIONS } from '../../lib/building-report/config.js';
+import { count } from '../../lib/format.js';
+
+interface Props {
+  lot: any;               // summarizeLot(), or null on the search page
+  errorText: string | null;
+}
+const { lot, errorText } = Astro.props;
+
+const INTROS: Record<string, string> = {
+  flags: 'Vacate orders, the city’s program for the worst-kept buildings, and open court cases.',
+  violations: 'Problems an HPD inspector saw and ordered fixed, from leaks to no heat.',
+  complaints: 'What tenants called 311 or HPD about. A complaint isn’t a violation until an inspector confirms it.',
+  bedbugs: 'The owner’s yearly bedbug report to HPD.',
+  dob: 'Department of Buildings complaints and violations: the structure, elevators, boilers, gas and construction.',
+  court: 'Cases HPD brought against the owner in Housing Court.',
+  repairs: 'Emergency repairs the city ordered when the owner didn’t make them.',
+  landlord: 'The owner’s registration with HPD and who’s listed on it.'
+};
+// The "At a glance" row: one card per question a renter asks first.
+const GLANCE = [
+  { key: 'violations', label: 'Open HPD violations' },
+  { key: 'complaints', label: 'HPD complaints, last 12 months' },
+  { key: 'bedbugs', label: 'Bedbugs' },
+  { key: 'flags', label: 'Red flags' },
+  { key: 'repairs', label: 'City had to step in' }
+];
+const lotJson = lot ? JSON.stringify(lot) : '';
+---
+
+<div class="ar br" data-br data-lot={lotJson}>
+  <section class="dash-section hn-find" id="find" aria-labelledby="br-find-title">
+    <h2 class="sr-only" id="br-find-title">Search</h2>
+    <form class="hn-search" data-form novalidate role="search" aria-label="Find a building by address" action="/building-report/">
+      <label class="filter-label" for="br-address">{lot ? 'Look up another building' : 'Building address'}</label>
+      <div class="hn-search-row br-search-row">
+        <div class="c311-combo hn-field">
+          <input class="search-input" id="br-address" name="q" type="text" role="combobox" aria-autocomplete="list"
+            aria-expanded="false" aria-controls="br-address-list" autocomplete="street-address" spellcheck="false"
+            maxlength={MAX_INPUT_LENGTH} placeholder="Try “1967 Marmion Ave, Bronx”" data-address />
+          <ul class="c311-suggest" id="br-address-list" role="listbox" aria-label="Address suggestions" hidden data-address-list></ul>
+        </div>
+        <button type="submit" class="c311-go">Get the report</button>
+      </div>
+    </form>
+    <div class="scl-suggest-chips" data-address-choices hidden></div>
+    <p class="rest-status" role="status" aria-live="polite" data-status>{errorText}</p>
+    <noscript><p class="rest-status">The report needs JavaScript to look up addresses and load its sections.</p></noscript>
+  </section>
+
+  {lot && (
+    <section class="ar-results" id="report" aria-labelledby="br-title">
+      <header class="br-head">
+        <div class="br-head-text">
+          <h2 class="ar-place" id="br-title">{lot.address ?? `Lot ${lot.bbl}`}</h2>
+          <p class="br-borough">{lot.borough}{lot.zip ? ` ${lot.zip}` : ''}</p>
+          <dl class="br-facts">
+            <div><dt>BBL</dt><dd>{lot.bbl}</dd></div>
+            <div>
+              <dt>{lot.bins.length > 1 ? 'BINs' : 'BIN'}</dt>
+              <dd>
+                {lot.bins.length > 3
+                  ? <details class="br-bins"><summary>{lot.bins.length} buildings</summary>{lot.bins.join(', ')}</details>
+                  : lot.bins.length ? lot.bins.join(', ') : 'None found'}
+              </dd>
+            </div>
+            {lot.units > 0 && <div><dt>Apartments</dt><dd>{count(lot.units)}{lot.unitsSource === 'pluto' ? ' (city tax records)' : ''}</dd></div>}
+            {lot.yearBuilt && <div><dt>Built</dt><dd>{lot.yearBuilt}</dd></div>}
+          </dl>
+          <div class="ar-actions">
+            <button type="button" class="near-btn" data-copy>Copy link</button>
+          </div>
+        </div>
+        {lot.lat != null && (
+          <div class="c311-map-frame br-map" data-map role="img" aria-label={`Map showing ${lot.address ?? 'the lot'}, ${lot.borough}`}></div>
+        )}
+      </header>
+
+      <nav class="ar-glance br-glance" aria-labelledby="br-glance-title">
+        <h3 class="ar-glance-title" id="br-glance-title">At a glance</h3>
+        <ul class="ar-glance-list">
+          {GLANCE.map((g) => (
+            <li>
+              <a class="ar-glance-item" href={`#br-${g.key}`} data-glance={g.key} data-tone="loading">
+                <span class="br-glance-value" data-glance-value>…</span>
+                <span class="ar-glance-words">
+                  <span class="ar-glance-topic">{g.label}</span>
+                  <span class="ar-glance-text" data-glance-text>Checking…</span>
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+
+      <div class="br-sections">
+        {SECTIONS.map((s) => (
+          <section class="ar-card br-section" id={`br-${s.key}`} tabindex="-1" data-section={s.key}
+            aria-labelledby={`br-${s.key}-title`} aria-busy="true" hidden={s.key === 'flags'}>
+            <h3 class="ar-card-title br-section-title" id={`br-${s.key}-title`}>{s.title}</h3>
+            <p class="ar-card-scope">{INTROS[s.key]}</p>
+            <div class="ar-body" data-body>
+              <span class="sk-line"></span><span class="sk-line sk-short"></span><span class="sk-line"></span>
+            </div>
+            <div data-sources></div>
+          </section>
+        ))}
+      </div>
+    </section>
+  )}
+</div>
+
+<script>
+  import {
+    flagsHtml, flagsGlance, violationsHtml, violationsGlance, complaintsHtml, complaintsGlance, bedbugsHtml, bedbugsGlance,
+    dobHtml, courtHtml, repairsHtml, repairsGlance, landlordHtml, sourcesHtml, escape, UPSTREAM_TEXT
+  } from '../../lib/building-report/render.js';
+  import { SECTION_KEYS, buildingPath, isBbl } from '../../lib/building-report/config.js';
+  import { findBuilding } from '../../lib/building-report/lookup.js';
+  import { parseLocationInput } from '../../lib/complaints311/location-input.js';
+  import { suggest } from '../../lib/complaints311/geocode.js';
+  import { mountNearbyMap } from '../../lib/maps/nearby-map.js';
+
+  const TIMEOUT_TEXT = 'NYC Open Data is taking too long to answer. Try again in a minute.';
+  // A few HPD queries take Socrata several seconds when its cache is cold.
+  const TIMEOUT_MS = 45000;
+
+  const root = document.querySelector<HTMLElement>('[data-br]')!;
+  const $ = <T extends HTMLElement = HTMLElement>(sel: string) => root.querySelector<T>(sel)!;
+  const form = $<HTMLFormElement>('[data-form]');
+  const input = $<HTMLInputElement>('[data-address]');
+  const list = $<HTMLUListElement>('[data-address-list]');
+  const choices = $('[data-address-choices]');
+  const status = $('[data-status]');
+  const lot = root.dataset.lot ? JSON.parse(root.dataset.lot) : null;
+
+  // ---------- The report ----------
+
+  async function getJson(url: string) {
+    const ctl = new AbortController();
+    let timedOut = false;
+    const timer = setTimeout(() => { timedOut = true; ctl.abort(); }, TIMEOUT_MS);
+    try {
+      const res = await fetch(url, { signal: ctl.signal });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data || data.error) throw new Error(data?.error && data.error !== 'upstream' ? data.error : UPSTREAM_TEXT);
+      return data;
+    } catch (err: any) {
+      throw timedOut ? new Error(TIMEOUT_TEXT) : err;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  type Glance = { tone: string; value: string; text: string };
+
+  function setGlance(key: string, g: Glance) {
+    const el = root.querySelector<HTMLElement>(`[data-glance="${key}"]`);
+    if (!el) return;
+    el.dataset.tone = g.tone;
+    el.querySelector('[data-glance-value]')!.textContent = g.value;
+    el.querySelector('[data-glance-text]')!.textContent = g.text;
+  }
+
+  // Each section: its HTML, and its "At a glance" card if it has one.
+  const VIEWS: Record<string, { html: (d: any, lot: any) => string; glance?: (d: any, lot: any) => Glance }> = {
+    flags: { html: flagsHtml, glance: flagsGlance },
+    violations: { html: violationsHtml, glance: violationsGlance },
+    complaints: { html: complaintsHtml, glance: complaintsGlance },
+    bedbugs: { html: bedbugsHtml, glance: bedbugsGlance },
+    dob: { html: dobHtml },
+    court: { html: courtHtml },
+    repairs: { html: repairsHtml, glance: repairsGlance },
+    landlord: { html: landlordHtml }
+  };
+
+  /*
+   * One section, loaded on its own. Red flags stay hidden unless the building
+   * has one (or the section couldn't load, so nobody reads "none" into a gap).
+   * A failed section offers "Try again", which loads just that section.
+   */
+  function loadSection(key: string) {
+    const el = root.querySelector<HTMLElement>(`[data-section="${key}"]`)!;
+    const body = el.querySelector<HTMLElement>('[data-body]')!;
+    const sources = el.querySelector<HTMLElement>('[data-sources]')!;
+    el.setAttribute('aria-busy', 'true');
+    body.innerHTML = '<span class="sk-line"></span><span class="sk-line sk-short"></span><span class="sk-line"></span>';
+    sources.innerHTML = '';
+    setGlance(key, { tone: 'loading', value: '…', text: 'Checking…' });
+    getJson(`/api/building-report/${key}?bbl=${lot.bbl}`).then(
+      (d) => {
+        const view = VIEWS[key];
+        if (key === 'flags') el.hidden = !d.any;
+        body.innerHTML = view.html(d, lot);
+        sources.innerHTML = sourcesHtml(d.sources ?? []);
+        if (view.glance) setGlance(key, view.glance(d, lot));
+      },
+      (err) => {
+        if (key === 'flags') el.hidden = false;
+        body.innerHTML = `<p class="ar-error"><strong>Couldn’t load this section.</strong> ${escape(err?.message || UPSTREAM_TEXT)}</p>` +
+          '<button type="button" class="near-btn ar-retry" data-retry>Try again</button>';
+        body.querySelector('[data-retry]')!.addEventListener('click', () => {
+          loadSection(key);
+          el.focus({ preventScroll: true });
+        });
+        setGlance(key, { tone: 'none', value: '?', text: 'Couldn’t load this' });
+      }
+    ).finally(() => el.removeAttribute('aria-busy'));
+  }
+
+  if (lot) {
+    for (const key of SECTION_KEYS) loadSection(key);
+
+    // "At a glance" scrolls to its section. With no red flags (their section hidden), that card goes to Court cases.
+    root.querySelector('.br-glance')!.addEventListener('click', (e: Event) => {
+      if (!(e instanceof MouseEvent)) return;
+      const link = (e.target as HTMLElement).closest<HTMLAnchorElement>('[data-glance]');
+      if (!link || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      let target = document.getElementById(`br-${link.dataset.glance}`)!;
+      if (target.hidden) target = document.getElementById('br-court')!;
+      e.preventDefault();
+      const smooth = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+      target.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' });
+      target.focus({ preventScroll: true });
+    });
+
+    const copyBtn = $<HTMLButtonElement>('[data-copy]');
+    copyBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(`${location.origin}${buildingPath(lot.bbl)}`);
+        copyBtn.textContent = 'Link copied';
+      } catch {
+        copyBtn.textContent = 'Copy it from the address bar';
+      }
+      setTimeout(() => { copyBtn.textContent = 'Copy link'; }, 2500);
+    });
+
+    const mapEl = root.querySelector<HTMLElement>('[data-map]');
+    if (mapEl && lot.lat != null) {
+      const point = { lat: lot.lat, lon: lot.lon };
+      // About a block each way, so the street grid shows around the dot.
+      const box: any = [[lot.lat + 0.0018, lot.lon + 0.0024], [lot.lat - 0.0018, lot.lon - 0.0024]];
+      mountNearbyMap(mapEl, { draw: () => [], drawHalo: () => {}, keyOf: () => '', fallback: 'The map couldn’t load.' })
+        .update({ items: [], point, radiusMeters: null, fitTo: box });
+    }
+  }
+
+  // ---------- Address box with suggestions ----------
+
+  type Option = { label: string; bbl: string };
+  let options: Option[] = [];
+  let active = -1;
+  let timer = 0;
+  let suggestAbort: AbortController | null = null;
+  let lookup = 0; // bumped by every search, so only the latest lookup counts
+
+  const go = (bbl: string) => { location.href = buildingPath(bbl); };
+
+  function renderOptions(next: Option[]) {
+    options = next;
+    active = -1;
+    list.innerHTML = next.map((o, i) =>
+      `<li role="option" id="br-opt-${i}" aria-selected="false" class="c311-option" data-i="${i}"><span>${escape(o.label)}</span></li>`).join('');
+    list.hidden = !next.length;
+    input.setAttribute('aria-expanded', String(next.length > 0));
+    input.removeAttribute('aria-activedescendant');
+  }
+  const closeOptions = () => { clearTimeout(timer); suggestAbort?.abort(); renderOptions([]); };
+
+  function highlightOption(i: number) {
+    active = i;
+    list.querySelectorAll('[role="option"]').forEach((el, j) => el.setAttribute('aria-selected', String(j === i)));
+    if (i >= 0) {
+      input.setAttribute('aria-activedescendant', `br-opt-${i}`);
+      list.children[i]?.scrollIntoView({ block: 'nearest' });
+    } else input.removeAttribute('aria-activedescendant');
+  }
+
+  // Only addresses with a tax lot: a street or a neighborhood has no building to report on.
+  async function updateSuggestions() {
+    const text = input.value.trim();
+    suggestAbort?.abort();
+    if (text.length < 3 || /^\d+$/.test(text)) { renderOptions([]); return; }
+    suggestAbort = new AbortController();
+    try {
+      const places = await suggest(text, { signal: suggestAbort.signal });
+      renderOptions(places.filter((p: any) => isBbl(p.bbl)).map((p: any) => ({ label: p.label, bbl: p.bbl })));
+    } catch (err: any) {
+      if (err.name !== 'AbortError') renderOptions([]); // typing still works; submitting looks it up
+    }
+  }
+
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    status.textContent = '';
+    timer = window.setTimeout(updateSuggestions, 250);
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' && options.length) { e.preventDefault(); highlightOption(Math.min(active + 1, options.length - 1)); }
+    else if (e.key === 'ArrowUp' && options.length) { e.preventDefault(); highlightOption(Math.max(active - 1, -1)); }
+    else if (e.key === 'Enter' && active >= 0) { e.preventDefault(); pick(options[active]); }
+    else if (e.key === 'Escape' && options.length) { e.preventDefault(); closeOptions(); }
+  });
+  // mousedown so the input keeps focus (a click would blur it first and close the list).
+  list.addEventListener('mousedown', (e) => {
+    const li = (e.target as HTMLElement).closest<HTMLElement>('[role="option"]');
+    if (!li) return;
+    e.preventDefault();
+    pick(options[Number(li.dataset.i)]);
+  });
+  input.addEventListener('blur', () => setTimeout(closeOptions, 150));
+
+  function pick(o: Option) {
+    input.value = o.label;
+    closeOptions();
+    status.textContent = 'Opening the report…';
+    go(o.bbl);
+  }
+
+  async function search() {
+    closeOptions();
+    choices.hidden = true;
+    const id = ++lookup;
+    status.textContent = 'Looking up that address…';
+    let result: any;
+    try {
+      result = await findBuilding(parseLocationInput({ text: input.value }));
+    } catch {
+      if (id === lookup) status.textContent = 'Couldn’t reach the address lookup. Try again in a minute.';
+      return;
+    }
+    if (id !== lookup) return;
+    if (result.status === 'resolved') { status.textContent = 'Opening the report…'; go(result.place.bbl); return; }
+    if (result.status === 'need-address') { status.textContent = result.text; input.focus(); return; }
+    if (result.status === 'not-found') { status.textContent = 'No matching NYC address. Check the house number and street, or add the borough.'; return; }
+    status.textContent = result.reason === 'ambiguous' ? 'That address is in more than one borough. Which one?' : 'No exact match. Did you mean one of these?';
+    choices.innerHTML = result.suggestions.map((p: any) =>
+      `<a class="pay-chip" href="${buildingPath(p.bbl)}">${escape(p.label)}</a>`).join('');
+    choices.hidden = false;
+  }
+
+  form.addEventListener('submit', (e) => { e.preventDefault(); search(); });
+
+  // Without JavaScript the form submits ?q=; with it, an address handed over that way is looked up here.
+  const handed = new URLSearchParams(location.search).get('q');
+  if (handed && !lot) {
+    input.value = handed.slice(0, input.maxLength);
+    search();
+  }
+</script>
