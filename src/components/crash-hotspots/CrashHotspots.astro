@@ -335,8 +335,9 @@ const radiusLabel = (m: number) => (m === 250 ? '250 m (about 3 blocks)' : '500 
       statusEl.textContent = '';
       const { latitude: lat, longitude: lon } = pos.coords;
       if (!inCityLimits(lat, lon)) { showProblem('You seem to be outside New York City. Type a street or ZIP in the five boroughs.'); return; }
-      // Rounded to about 100 m and with the neutral label (kept out of the URL): the link may be shared.
-      goTo(pointArea({ lat: Math.round(lat * 1e3) / 1e3, lon: Math.round(lon * 1e3) / 1e3, label: 'the spot you picked' }));
+      // Rounded to about 100 m, and "your location" only on screen (privateLabel keeps it out of the URL): the link may be shared.
+      const area = pointArea({ lat: Math.round(lat * 1e3) / 1e3, lon: Math.round(lon * 1e3) / 1e3, label: 'your location' });
+      goTo(area && { ...area, privateLabel: true });
     }, () => {
       statusEl.textContent = '';
       showProblem('We couldn’t get your location. Type a street or ZIP instead.');

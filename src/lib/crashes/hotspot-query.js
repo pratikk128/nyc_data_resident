@@ -6,6 +6,7 @@
  *
  *   Area (at most one; a spot wins, then streets, then a ZIP, then a borough):
  *     lat, lon, r, place    a spot and how far around it (r: RADII, meters); place labels it
+ *                           (left out when the area has privateLabel, as for "your location")
  *     street, cross         a street, or an intersection with cross; boro narrows either
  *     zip                   a ZIP code
  *     boro                  a borough (BOROUGHS values)
@@ -91,7 +92,7 @@ export function queryToParams({ area, mode }) {
     p.set("lat", String(area.lat));
     p.set("lon", String(area.lon));
     if (area.radius !== DEFAULT_RADIUS) p.set("r", String(area.radius));
-    if (area.label && area.label !== "the spot you picked") p.set("place", area.label);
+    if (area.label && area.label !== "the spot you picked" && !area.privateLabel) p.set("place", area.label);
   } else if (area?.kind === "street") {
     p.set("street", area.streets[0].label);
     if (area.streets[1]) p.set("cross", area.streets[1].label);

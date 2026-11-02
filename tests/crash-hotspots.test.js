@@ -207,6 +207,9 @@ test("query: a spot must be in the city; a spot beats a street beats a ZIP beats
   assert.equal(corner.label, "Broadway & W 72nd St, Manhattan");
   // The URL keeps the place, so a reload shows the same thing.
   assert.deepEqual(readQuery(queryToParams({ area: corner, mode: null })).area, corner);
+  // "Your location" shows on screen but never goes in the URL.
+  const mine = { ...q("lat=40.689&lon=-73.981&place=your location").area, privateLabel: true };
+  assert.equal(queryToParams({ area: mine, mode: null }).toString(), "lat=40.689&lon=-73.981");
 });
 
 test("place box: ZIP, borough, street and intersection need no lookup; an address does", () => {
