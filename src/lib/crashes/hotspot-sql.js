@@ -3,14 +3,13 @@
  * crash_streets for a street or intersection. Runs on D1 and on the local
  * SQLite build alike.
  *
- * Places and dates are bound parameters. Masks, severities and hours come
- * from facts.js and hotspot-query.js keys, never from what was typed, so
- * they're written into the SQL as integers.
+ * Places are bound parameters. Masks come from facts.js keys (through the
+ * mode, hotspot-query.js), never from what was typed, so they're written
+ * into the SQL as integers.
  *
  * Every function takes a query from readQuery() and returns { sql, params }.
  */
 import { DIMENSIONS, maskOf } from "./facts.js";
-import { SEVERITIES, TIMES } from "./hotspot-query.js";
 
 // Meters per degree of latitude / longitude at NYC's latitude.
 const M_LAT = 111320;
@@ -18,6 +17,7 @@ const M_LON = Math.round(111320 * Math.cos((40.7 * Math.PI) / 180));
 
 export const TOP_CORNERS = 10;
 export const MIN_CORNER_CRASHES = 3; // fewer isn't a pattern (DESIGN.md §7, small counts)
+export const MIN_CORNER_HURT = 2;    // a corner is listed for people getting hurt there, more than once
 export const MAX_POINTS = 6000;      // serious and fatal crashes on the map; a year citywide is about 3,000
 
 function areaWhere(area, params) {
@@ -53,35 +53,37 @@ function filterWhere(filters) {
     const mask = maskOf(d.groups, filters[d.param] ?? []);
     if (mask) parts.push(`(${d.column} & ${mask}) != 0`);
   }
-  const min = SEVERITIES.find((s) => s.key === filters.sev)?.min ?? 0;
-  if (min) parts.push(`severity >= ${min}`);
-  const hours = TIMES.filter((t) => filters.time?.includes(t.key)).flatMap((t) => t.hours);
-  if (hours.length) parts.push(`hour IN (${hours.join(",")})`);
   return parts;
 }
 
 // → { where: "WHERE …" or "", params }
-export function whereOf({ area, filters }, extra = []) {
+export function whereOf({ area, filters = {} }, extra = []) {
   const params = [];
   const parts = [...areaWhere(area, params), ...filterWhere(filters), ...extra];
   return { where: parts.length ? `WHERE ${parts.join(" AND ")}` : "", params };
 }
 
-const bitColumns = () => DIMENSIONS.flatMap((d) => d.groups.flatMap((g) => [
+const bitColumns = (withKsi = true) => DIMENSIONS.flatMap((d) => d.groups.flatMap((g) => [
   `sum((${d.column} >> ${g.bit}) & 1) AS "n:${d.column}:${g.key}"`,
-  `sum(((${d.column} >> ${g.bit}) & 1) * (severity >= 2)) AS "k:${d.column}:${g.key}"`
+  ...(withKsi ? [`sum(((${d.column} >> ${g.bit}) & 1) * (severity >= 2)) AS "k:${d.column}:${g.key}"`] : [])
 ]));
 
-// Counts for the stat cards, and per filter group (crashes, and those that seriously hurt or killed someone).
+const TOTALS = `count(*) AS crashes, coalesce(sum(injured), 0) AS injured, coalesce(sum(killed), 0) AS killed,
+      coalesce(sum(serious), 0) AS serious, coalesce(sum(severity >= 1), 0) AS hurt_crashes, coalesce(sum(severity >= 2), 0) AS ksi_crashes`;
+
+// Counts for the stat cards, and per kind of crash (crashes, and those that seriously hurt or killed someone).
 export function totalsSql(query) {
   const { where, params } = whereOf(query);
-  return {
-    sql: `SELECT count(*) AS crashes, coalesce(sum(injured), 0) AS injured, coalesce(sum(killed), 0) AS killed,
-      coalesce(sum(serious), 0) AS serious, coalesce(sum(severity >= 1), 0) AS hurt_crashes, coalesce(sum(severity >= 2), 0) AS ksi_crashes,
-      ${bitColumns().join(",\n      ")}
-      FROM crash_facts ${where}`,
-    params
-  };
+  return { sql: `SELECT ${TOTALS},\n      ${bitColumns().join(",\n      ")}\n      FROM crash_facts ${where}`, params };
+}
+
+/*
+ * The same counts for each borough (and the crashes with none), citywide
+ * with the query's mode: what an area and each of its corners are compared with.
+ */
+export function boroughTotalsSql({ filters }) {
+  const { where, params } = whereOf({ area: null, filters });
+  return { sql: `SELECT borough, ${TOTALS},\n      ${bitColumns().join(",\n      ")}\n      FROM crash_facts ${where} GROUP BY borough`, params };
 }
 
 /*
@@ -100,59 +102,64 @@ export function readTotals(row = {}) {
   };
 }
 
-export function hoursSql(query) {
-  const { where, params } = whereOf(query, ["hour IS NOT NULL"]);
-  return { sql: `SELECT dow, hour, count(*) AS n, sum(severity >= 2) AS ksi FROM crash_facts ${where} GROUP BY dow, hour`, params };
+// readTotals() results added together (the boroughs into all of NYC).
+export function addTotals(list) {
+  const out = readTotals();
+  for (const t of list) {
+    for (const k of ["crashes", "injured", "killed", "serious", "hurtCrashes", "ksiCrashes"]) out[k] += t[k];
+    for (const d of DIMENSIONS) for (const g of d.groups) {
+      out.groups[d.column][g.key].n += t.groups[d.column][g.key].n;
+      out.groups[d.column][g.key].ksi += t.groups[d.column][g.key].ksi;
+    }
+  }
+  return out;
 }
 
-export function monthsSql(query) {
-  const { where, params } = whereOf(query);
-  return {
-    sql: `SELECT substr(crash_date, 1, 7) AS month, count(*) AS n, sum(severity >= 1) AS hurt, sum(severity >= 2) AS ksi
-      FROM crash_facts ${where} GROUP BY month ORDER BY month`,
-    params
-  };
-}
-
-// The intersections with the most crashes ("crashes") or the most that seriously hurt or killed someone ("ksi").
-export function cornersSql(query, by = "crashes") {
+/*
+ * The intersections where crashes hurt people most often: ranked by crashes
+ * that hurt someone (with the mode, someone walking or on a bike), then by
+ * those that seriously hurt or killed someone. Each row carries its counts per
+ * kind of crash, so the page can say what goes wrong there.
+ */
+export function cornersSql(query) {
   const { where, params } = whereOf(query, ["corner IS NOT NULL"]);
-  const causes = DIMENSIONS.find((d) => d.column === "causes").groups
-    .map((g) => `sum((causes >> ${g.bit}) & 1) AS "c:${g.key}"`);
   return {
-    sql: `SELECT corner, min(corner_label) AS label, max(borough) AS borough, count(*) AS n,
-      sum(injured) AS injured, sum(killed) AS killed, sum(severity >= 2) AS ksi, ${causes.join(", ")}
+    sql: `SELECT corner, min(corner_label) AS label, max(borough) AS borough, round(avg(lat), 5) AS lat, round(avg(lon), 5) AS lon,
+      count(*) AS n, sum(severity >= 1) AS hurt, sum(injured) AS injured, sum(killed) AS killed, sum(severity >= 2) AS ksi,
+      ${bitColumns(false).join(", ")}
       FROM crash_facts ${where} GROUP BY corner
-      HAVING count(*) >= ${MIN_CORNER_CRASHES}${by === "ksi" ? " AND sum(severity >= 2) > 0" : ""}
-      ORDER BY ${by === "ksi" ? "ksi DESC, n DESC" : "n DESC, ksi DESC"}, corner LIMIT ${TOP_CORNERS}`,
+      HAVING count(*) >= ${MIN_CORNER_CRASHES} AND sum(severity >= 1) >= ${MIN_CORNER_HURT}
+      ORDER BY hurt DESC, ksi DESC, n DESC, corner LIMIT ${TOP_CORNERS}`,
     params
   };
 }
 
-// cornersSql()'s rows → [{ corner, label, borough, n, injured, killed, ksi, topCause: key | null }]
+// cornersSql()'s rows → [{ corner, label, borough, lat, lon, n, hurt, injured, killed, ksi, groups }]
 export function readCorners(rows) {
-  const causes = DIMENSIONS.find((d) => d.column === "causes").groups;
   return rows.map((r) => {
-    let topCause = null, most = 0;
-    for (const g of causes) if (r[`c:${g.key}`] > most) { most = r[`c:${g.key}`]; topCause = g.key; }
-    return { corner: r.corner, label: r.label, borough: r.borough, n: r.n, injured: r.injured, killed: r.killed, ksi: r.ksi, topCause };
+    const { groups } = readTotals(r);
+    return { corner: r.corner, label: r.label, borough: r.borough, lat: r.lat, lon: r.lon,
+      n: r.n, hurt: r.hurt, injured: r.injured, killed: r.killed, ksi: r.ksi, groups };
   });
 }
 
-// The borough most of an area's crashes are in (whatever the filters), to compare it with.
-export function areaBoroughSql({ area }) {
-  const { where, params } = whereOf({ area, filters: {} }, ["borough IS NOT NULL"]);
-  return { sql: `SELECT borough, count(*) AS n FROM crash_facts ${where} GROUP BY borough ORDER BY n DESC LIMIT 1`, params };
-}
-
-// The map's grid: [lat, lon, crashes, ksi] per square, at the middle of its crashes.
-export function cellsSql(query) {
-  const { where, params } = whereOf(query, ["cell IS NOT NULL"]);
+/*
+ * Where one intersection stands in its borough: how many intersections there
+ * had any crash that hurt someone (with the mode), and how many had more than `hurt`.
+ */
+export function cornerRankSql({ filters }, borough, hurt) {
+  const { where, params } = whereOf({ area: { kind: "borough", borough }, filters }, ["corner IS NOT NULL"]);
   return {
-    sql: `SELECT round(avg(lat), 5) AS lat, round(avg(lon), 5) AS lon, count(*) AS n, sum(severity >= 2) AS ksi
-      FROM crash_facts ${where} GROUP BY cell`,
+    sql: `SELECT count(*) AS total, coalesce(sum(hurt > ${Math.max(0, Math.floor(hurt))}), 0) AS above
+      FROM (SELECT sum(severity >= 1) AS hurt FROM crash_facts ${where} GROUP BY corner HAVING sum(severity >= 1) > 0)`,
     params
   };
+}
+
+// The borough most of an area's crashes are in (whatever the mode), to compare it with.
+export function areaBoroughSql({ area }) {
+  const { where, params } = whereOf({ area }, ["borough IS NOT NULL"]);
+  return { sql: `SELECT borough, count(*) AS n FROM crash_facts ${where} GROUP BY borough ORDER BY n DESC LIMIT 1`, params };
 }
 
 // Each crash that seriously hurt or killed someone, worst and newest first.

@@ -1,5 +1,6 @@
 /*
- * NYC Crash Hotspots: what the page asks for, as URL parameters. Browser-safe:
+ * NYC Crash Hotspots: what the page asks for (a place, and how you get
+ * around), as URL parameters. Browser-safe:
  * the page keeps its view in the URL with these, and the API routes read
  * the same ones.
  *
@@ -8,10 +9,8 @@
  *     street, cross         a street, or an intersection with cross; boro narrows either
  *     zip                   a ZIP code
  *     boro                  a borough (BOROUGHS values)
- *   Filters (each a comma list of facts.js keys; any of them matches, and every list must):
- *     who, cause, move, veh
- *     sev                   SEVERITIES key (default all)
- *     time                  TIMES keys
+ *   How you get around:
+ *     mode                  MODES key (walk, bike, drive); none means everyone
  *
  * readQuery() drops what it can't use rather than failing, so an old or
  * hand-edited link still shows something sensible.
@@ -25,33 +24,27 @@ import { inCityLimits } from "../in-city.js";
 export const RADII = [250, 500]; // meters
 export const DEFAULT_RADIUS = 250;
 
-export const SEVERITIES = [
-  { key: "all", label: "All crashes", min: 0 },
-  { key: "hurt", label: "Someone hurt", min: 1 },
-  { key: "serious", label: "Seriously hurt or killed", min: 2 }
+/*
+ * How the person gets around. It picks the crashes counted (walking: the
+ * ones that hurt a pedestrian) and who the tips talk to. Driving counts every
+ * crash, since a driver can be in any of them, including hitting someone on foot.
+ */
+export const MODES = [
+  { key: "walk", label: "I walk", who: ["pedestrian"], victim: "a pedestrian" },
+  { key: "bike", label: "I bike or ride an e-bike", who: ["cyclist", "e-rider"], victim: "a cyclist or e-rider" },
+  { key: "drive", label: "I drive", who: [], victim: "someone" }
 ];
+export const modeOf = (key) => MODES.find((m) => m.key === key) ?? null;
 
-const range = (from, to) => Array.from({ length: to - from }, (_, i) => from + i);
-export const TIMES = [
-  { key: "morning", label: "Morning rush (6–10 am)", hours: range(6, 10) },
-  { key: "midday", label: "Midday (10 am–4 pm)", hours: range(10, 16) },
-  { key: "evening", label: "Evening rush (4–8 pm)", hours: range(16, 20) },
-  { key: "night", label: "Night (8 pm–6 am)", hours: [...range(20, 24), ...range(0, 6)] }
-];
-
-// One tap to a common view. Each sets these filters and clears the others.
-export const PRESETS = [
-  { key: "walk", label: "I walk", filters: { who: ["pedestrian"] } },
-  { key: "bike", label: "I bike or ride an e-bike", filters: { who: ["cyclist", "e-rider"] } },
-  { key: "drive", label: "I drive", filters: { who: ["occupant"] } },
-  { key: "heavy", label: "Trucks and buses", filters: { veh: ["truck", "bus"] } }
-];
+// A mode → the crash_facts filters (hotspot-sql.js): { who, cause, move, veh: [key] }.
+export function filtersFor(mode) {
+  const filters = {};
+  for (const d of DIMENSIONS) filters[d.param] = [];
+  filters.who = [...(modeOf(mode)?.who ?? [])];
+  return filters;
+}
 
 const clean = (v) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, MAX_INPUT_LENGTH);
-const listOf = (params, name, allowed) => {
-  const keys = new Set(allowed);
-  return [...new Set(clean(params.get(name)).split(",").map((s) => s.trim()).filter((k) => keys.has(k)))];
-};
 
 /*
  * URLSearchParams → { area, filters }
@@ -60,14 +53,12 @@ const listOf = (params, name, allowed) => {
  *     | { kind: "street", streets: [{ key, base, label }] (1 or 2), borough, label }
  *     | { kind: "zip", zip, label }
  *     | { kind: "borough", borough, label }
- *   filters: { who, cause, move, veh: [key], sev, time: [key] }
+ *   mode: MODES key or null
+ *   filters: filtersFor(mode)
  */
 export function readQuery(params) {
   const get = (k) => clean(params.get(k));
-  const filters = {};
-  for (const d of DIMENSIONS) filters[d.param] = listOf(params, d.param, d.groups.map((g) => g.key));
-  filters.sev = SEVERITIES.some((s) => s.key === get("sev")) ? get("sev") : "all";
-  filters.time = listOf(params, "time", TIMES.map((t) => t.key));
+  const mode = modeOf(get("mode"))?.key ?? null;
 
   const borough = BOROUGHS.some((b) => b.value === get("boro")) ? get("boro") : null;
   let area = null;
@@ -90,11 +81,11 @@ export function readQuery(params) {
   } else if (borough) {
     area = { kind: "borough", borough, label: boroughLabel(borough) };
   }
-  return { area, filters };
+  return { area, mode, filters: filtersFor(mode) };
 }
 
-// { area, filters } → URLSearchParams, in one order, so equal views give equal strings (cache keys, links).
-export function queryToParams({ area, filters }) {
+// { area, mode } → URLSearchParams, in one order, so equal views give equal strings (cache keys, links).
+export function queryToParams({ area, mode }) {
   const p = new URLSearchParams();
   if (area?.kind === "point") {
     p.set("lat", String(area.lat));
@@ -110,9 +101,7 @@ export function queryToParams({ area, filters }) {
   } else if (area?.kind === "borough") {
     p.set("boro", area.borough);
   }
-  for (const d of DIMENSIONS) if (filters[d.param]?.length) p.set(d.param, [...filters[d.param]].sort().join(","));
-  if (filters.sev && filters.sev !== "all") p.set("sev", filters.sev);
-  if (filters.time?.length) p.set("time", [...filters.time].sort().join(","));
+  if (mode) p.set("mode", mode);
   return p;
 }
 
@@ -125,9 +114,6 @@ export function queryKey(query) {
   p.delete("place");
   return p.toString();
 }
-
-export const hasFilters = (filters) =>
-  DIMENSIONS.some((d) => filters[d.param]?.length) || filters.sev !== "all" || filters.time.length > 0;
 
 /*
  * What was typed in the place box →

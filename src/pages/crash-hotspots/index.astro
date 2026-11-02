@@ -27,7 +27,7 @@ if (import.meta.env.PROD && status) Astro.response.headers.set('Cache-Control', 
 
 <DashboardLayout
   title="NYC Crash Hotspots"
-  description="Where crashes happen in NYC, where people get badly hurt, and what to watch for on your street or in your ZIP code. Filter by pedestrians, cyclists, speeding, left turns, trucks and more."
+  description="The NYC intersections where crashes hurt people most, near your home, work or school, and what goes wrong at each. For people who walk, bike or drive."
   path="/crash-hotspots/"
   category="Public Safety"
   lastRefreshed={status?.lastSync ? date(status.lastSync.slice(0, 10)) : status?.lastFull ? date(status.lastFull.slice(0, 10)) : undefined}
@@ -36,15 +36,15 @@ if (import.meta.env.PROD && status) Astro.response.headers.set('Cache-Control', 
   <header class="page-head">
     <h1>NYC Crash Hotspots</h1>
     <p>
-      Where crashes happen in New York City, where they hurt people most, and what to watch for on your street.
-      Walk, bike or drive? Filter to the crashes that matter to you.
+      Look up your street, your corner or your kid’s school. See the intersections nearby where crashes hurt people most,
+      what usually goes wrong at each, and what to watch for whether you walk, bike or drive.
     </p>
   </header>
 
   <div class="callout callout-heads-up cl-heads-up" role="note">
     <p><strong>Heads up.</strong> These are NYPD-reported crashes from NYC Open Data, {date(range.from)} to {through ? date(through) : 'the latest report'}.
-    Recent weeks are still filling in, counts aren’t adjusted for how busy a street is, and “seriously hurt” is our reading of the
-    injury on the report, not an official grade (<a href="#hs-about">how</a>).</p>
+    Recent weeks are still filling in, counts aren’t adjusted for how busy a street is, and the tips are general safety advice
+    matched to what the reports show, not findings about any one crash (<a href="#hs-about">how this works</a>).</p>
   </div>
 
   <CrashHotspots />

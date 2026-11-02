@@ -105,7 +105,7 @@ export const dashboards = [
   {
     id: "crash-hotspots",
     title: "NYC Crash Hotspots",
-    description: "Where crashes happen, where people get badly hurt, and what to watch for on your street or ZIP. Filter by pedestrians, cyclists, speeding, left turns, trucks and more.",
+    description: "The intersections near you where crashes hurt people most, what goes wrong at each, and what to watch for when you walk, bike or drive.",
     category: "Public Safety",
     url: "/crash-hotspots/",
     audience: ["resident"]

@@ -1,17 +1,17 @@
 /*
- * NYC Crash Hotspots: the crash groups and severity (facts.js), the URL
- * (hotspot-query.js), the SQL on an in-memory database (hotspot-sql.js), the
- * sync's facts diff, and what the page says (hotspot-view.js, hotspot-render.js).
+ * NYC Crash Hotspots: the crash groups and severity (facts.js), the URL and
+ * modes (hotspot-query.js), the SQL on an in-memory database (hotspot-sql.js),
+ * the sync's facts diff, and what the page says (hotspot-view.js, hotspot-render.js).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 
 import { WHO, CAUSES, MANEUVERS, VEHICLES, DIMENSIONS, causeKey, maneuverKey, maskOf, keysOf, personSeverity, factsRow, cornerOf, cellOf, dayOfWeek, byCrash } from "../src/lib/crashes/facts.js";
-import { readQuery, queryToParams, queryKey, placeFromText, hasFilters } from "../src/lib/crashes/hotspot-query.js";
-import { totalsSql, readTotals, hoursSql, monthsSql, cornersSql, readCorners, areaBoroughSql, cellsSql, pointsSql } from "../src/lib/crashes/hotspot-sql.js";
-import { statCards, watchFor, breakdown, hourGrid, busiestHour, groupTitle, toCsv, WATCH } from "../src/lib/crashes/hotspot-view.js";
-import { watchHtml, cornerRowsHtml, breakdownHtml } from "../src/lib/crashes/hotspot-render.js";
+import { readQuery, queryToParams, queryKey, placeFromText, filtersFor } from "../src/lib/crashes/hotspot-query.js";
+import { totalsSql, boroughTotalsSql, readTotals, addTotals, cornersSql, readCorners, cornerRankSql, areaBoroughSql, pointsSql } from "../src/lib/crashes/hotspot-sql.js";
+import { statCards, watchFor, patterns, mostCommon, cornerFindings, tipFor, howOften, groupTitle, toCsv, WATCH, CORNER, TIPS } from "../src/lib/crashes/hotspot-view.js";
+import { watchHtml, spotsHtml } from "../src/lib/crashes/hotspot-render.js";
 import { crashRow, streetRows, vehicleRow, personRow } from "../src/lib/crashes/rows.js";
 import { TABLES, INDEXES, COLUMNS } from "../src/lib/crashes/schema.js";
 import { VEHICLE_TYPES } from "../src/lib/crashes/vehicle-types.js";
@@ -178,15 +178,18 @@ test("facts row: the hash changes when a vehicle or person changes", () => {
 
 // ---------- URL ----------
 
-test("query: filters and a place read from the URL, round-trip in one order", () => {
-  const r = q("veh=truck,bus,nope&who=pedestrian&sev=serious&time=night&zip=11211");
-  assert.deepEqual(r.filters.veh, ["truck", "bus"]);
-  assert.equal(r.filters.sev, "serious");
+test("query: a mode and a place read from the URL, round-trip in one order", () => {
+  const r = q("mode=walk&zip=11211&veh=truck");
+  assert.equal(r.mode, "walk");
+  assert.deepEqual(r.filters.who, ["pedestrian"]);
+  assert.deepEqual(r.filters.veh, [], "the old filter parameters are ignored");
   assert.deepEqual(r.area, { kind: "zip", zip: "11211", label: "ZIP 11211" });
-  assert.equal(queryToParams(r).toString(), "zip=11211&who=pedestrian&veh=bus%2Ctruck&sev=serious&time=night");
-  assert.equal(queryKey(q("veh=bus,truck&zip=11211")), queryKey(q("zip=11211&veh=truck,bus")));
-  assert.equal(hasFilters(q("").filters), false);
-  assert.equal(hasFilters(r.filters), true);
+  assert.equal(queryToParams(r).toString(), "zip=11211&mode=walk");
+  assert.equal(queryKey(q("mode=bike&zip=11211")), queryKey(q("zip=11211&mode=bike")));
+  assert.equal(q("mode=fly").mode, null);
+  assert.deepEqual(filtersFor("bike").who, ["cyclist", "e-rider"]);
+  assert.deepEqual(filtersFor("drive").who, [], "driving counts every crash");
+  assert.deepEqual(filtersFor(null).who, []);
 });
 
 test("query: a spot must be in the city; a spot beats a street beats a ZIP beats a borough", () => {
@@ -203,7 +206,7 @@ test("query: a spot must be in the city; a spot beats a street beats a ZIP beats
   assert.equal(corner.streets.length, 2);
   assert.equal(corner.label, "Broadway & W 72nd St, Manhattan");
   // The URL keeps the place, so a reload shows the same thing.
-  assert.deepEqual(readQuery(queryToParams({ area: corner, filters: q("").filters })).area, corner);
+  assert.deepEqual(readQuery(queryToParams({ area: corner, mode: null })).area, corner);
 });
 
 test("place box: ZIP, borough, street and intersection need no lookup; an address does", () => {
@@ -233,7 +236,7 @@ function memoryDb(raw = RAW) {
   return (stmt) => db.prepare(stmt.sql).all(...stmt.params);
 }
 
-test("SQL: totals and per-group counts follow the place and filters", () => {
+test("SQL: totals and per-group counts follow the place and mode", () => {
   const all = memoryDb();
   const city = readTotals(all(totalsSql(q("")))[0]);
   assert.equal(city.crashes, 5);
@@ -244,11 +247,10 @@ test("SQL: totals and per-group counts follow the place and filters", () => {
   assert.equal(city.groups.who.pedestrian.ksi, 1);
   assert.equal(city.groups.maneuvers["left-turn"].n, 1);
 
-  assert.equal(readTotals(all(totalsSql(q("who=pedestrian,cyclist")))[0]).crashes, 2, "any of a group's picks");
-  assert.equal(readTotals(all(totalsSql(q("who=pedestrian&cause=speeding")))[0]).crashes, 0, "every group must match");
-  assert.equal(readTotals(all(totalsSql(q("sev=hurt")))[0]).crashes, 3);
-  assert.equal(readTotals(all(totalsSql(q("sev=serious")))[0]).crashes, 2);
-  assert.equal(readTotals(all(totalsSql(q("time=night")))[0]).crashes, 2, "11:15 pm and 2:30 am");
+  assert.equal(readTotals(all(totalsSql(q("mode=walk")))[0]).crashes, 1, "crashes that hurt a pedestrian");
+  assert.equal(readTotals(all(totalsSql(q("mode=bike")))[0]).crashes, 2, "a cyclist or an e-rider");
+  assert.equal(readTotals(all(totalsSql(q("mode=drive")))[0]).crashes, 5, "every crash");
+  assert.equal(city.hurtCrashes, 3);
   assert.equal(readTotals(all(totalsSql(q("zip=10023")))[0]).crashes, 3);
   assert.equal(readTotals(all(totalsSql(q("boro=BROOKLYN")))[0]).crashes, 1);
   assert.equal(readTotals(all(totalsSql(q("street=Broadway&cross=W 72 St")))[0]).crashes, 3, "either order on the report");
@@ -259,31 +261,39 @@ test("SQL: totals and per-group counts follow the place and filters", () => {
   assert.deepEqual(readTotals(undefined).crashes, 0);
 });
 
-test("SQL: hours, months, corners, the area's borough, the map", () => {
+test("SQL: borough totals, ranked corners, an intersection's rank, the area's borough, the map", () => {
   const all = memoryDb();
-  const hours = all(hoursSql(q("")));
-  assert.equal(hours.reduce((s, r) => s + r.n, 0), 4, "the crash with no time is left out");
-  assert.deepEqual(all(monthsSql(q(""))).map((r) => [r.month, r.n]), [["2025-03", 2], ["2025-04", 1], ["2025-05", 2]]);
+  const rows = all(boroughTotalsSql(q("")));
+  const byBorough = Object.fromEntries(rows.map((r) => [r.borough, readTotals(r)]));
+  assert.equal(byBorough.MANHATTAN.crashes, 3);
+  assert.equal(byBorough.BROOKLYN.crashes, 1);
+  assert.equal(addTotals(rows.map((r) => readTotals(r))).crashes, 5, "the boroughs add up to NYC");
+  assert.equal(addTotals(rows.map((r) => readTotals(r))).groups.who.pedestrian.n, 1);
+  assert.equal(all(boroughTotalsSql(q("mode=walk&zip=10023"))).reduce((s, r) => s + r.crashes, 0), 1, "citywide whatever the area, with the mode");
+
   const corners = readCorners(all(cornersSql(q(""))));
   assert.equal(corners.length, 1);
   assert.equal(corners[0].n, 3);
+  assert.equal(corners[0].hurt, 2);
   assert.equal(corners[0].ksi, 1);
   assert.equal(corners[0].borough, "MANHATTAN");
-  assert.ok(["yield", "speeding", "backing", "distracted"].includes(corners[0].topCause));
-  assert.equal(all(cornersSql(q("sev=hurt"))).length, 0, "fewer than 3 crashes isn't listed");
-  assert.equal(all(cornersSql(q(""), "ksi")).length, 1);
-  assert.equal(all(areaBoroughSql(q("zip=10023")))[0].borough, "MANHATTAN");
-  const cells = all(cellsSql(q("")));
-  assert.equal(cells.reduce((s, c) => s + c.n, 0), 4, "the crash with no location isn't on the map");
-  assert.equal(cells.find((c) => c.n === 3).ksi, 1);
+  assert.ok(Math.abs(corners[0].lat - 40.7781) < 0.001);
+  assert.equal(corners[0].groups.vehicles.truck.n, 1);
+  assert.equal(all(cornersSql(q("mode=walk"))).length, 0, "fewer than 3 crashes isn't listed");
+
+  assert.deepEqual({ ...all(cornerRankSql(q(""), "MANHATTAN", 2))[0] }, { total: 1, above: 0 });
+  assert.deepEqual({ ...all(cornerRankSql(q(""), "MANHATTAN", 1))[0] }, { total: 1, above: 1 });
+  assert.equal(all(cornerRankSql(q(""), "BROOKLYN", 1))[0].total, 0, "the Brooklyn crash names no cross street");
+
+  assert.equal(all(areaBoroughSql(q("zip=10023&mode=walk")))[0].borough, "MANHATTAN");
   assert.deepEqual(all(pointsSql(q(""))).map((p) => p.severity), [3, 2], "killed first");
-  // A corner from the table, back through the URL, finds the same crashes.
+  // A corner from the list, back through the URL, finds the same crashes.
   const [street, cross] = corners[0].label.split(" & ");
   assert.equal(readTotals(all(totalsSql(q(new URLSearchParams({ street, cross, boro: corners[0].borough }).toString())))[0]).crashes, 3);
 });
 
 test("SQL: places are bound parameters; filter values never reach the SQL text", () => {
-  const stmt = totalsSql(q("street=Broadway'; DROP TABLE crashes;--&veh=truck"));
+  const stmt = totalsSql(q("street=Broadway'; DROP TABLE crashes;--&mode=walk"));
   assert.ok(!stmt.sql.includes("DROP"));
   assert.ok(stmt.params.length <= 100);
   assert.ok(stmt.params.every((p) => typeof p === "string" || typeof p === "number"));
@@ -316,58 +326,92 @@ const groupsWith = (counts) => {
 };
 const totals = (crashes, counts, extra = {}) => ({ crashes, injured: 0, killed: 0, serious: 0, hurtCrashes: 0, ksiCrashes: 0, groups: groupsWith(counts), ...extra });
 
-test("watch for: clearly more common here, enough of them, biggest gap first, filtered kinds left out", () => {
+test("watch for: clearly more common here, enough of them, biggest gap first, the mode's victims left out", () => {
   const summary = {
+    area: { kind: "zip", label: "ZIP 11211" },
     compareTo: { kind: "borough", label: "Brooklyn" },
-    here: totals(100, { "maneuvers:left-turn": 30, "causes:speeding": 12, "who:pedestrian": 4, "causes:distracted": 30, "maneuvers:straight": 80 }),
-    compare: totals(1000, { "maneuvers:left-turn": 100, "causes:speeding": 60, "who:pedestrian": 10, "causes:distracted": 290, "maneuvers:straight": 100 })
+    here: totals(100, { "maneuvers:left-turn": 30, "causes:speeding": 12, "who:pedestrian": 4, "who:cyclist": 20, "causes:distracted": 30, "maneuvers:straight": 80 }),
+    compare: totals(1000, { "maneuvers:left-turn": 100, "causes:speeding": 60, "who:pedestrian": 10, "who:cyclist": 50, "causes:distracted": 290, "maneuvers:straight": 100 })
   };
   const items = watchFor(summary);
-  assert.deepEqual(items.map((i) => i.id), ["maneuvers:left-turn", "causes:speeding"],
+  assert.deepEqual(items.map((i) => i.id), ["maneuvers:left-turn", "who:cyclist", "causes:speeding"],
     "distracted is about the same; 4 pedestrians is too few; going straight is never listed");
   assert.equal(items[0].title, "A vehicle turning left");
-  assert.ok(items[0].tip);
-  assert.deepEqual(watchFor(summary, { move: ["left-turn"] }).map((i) => i.id), ["causes:speeding"]);
+  assert.equal(items[0].of, 100);
+  assert.equal(watchFor(summary, "bike").some((i) => i.column === "who"), false, "with a mode, who was hurt is the given");
+  assert.match(watchFor(summary, "walk")[0].tip, /walk signal/, "the tip talks to someone walking");
   assert.deepEqual(watchFor({ ...summary, compare: null }), []);
-  assert.ok(WATCH.minLocal > 1);
+  // One intersection has fewer crashes, so CORNER's lower bar applies.
+  const corner = { ...summary, area: { kind: "corner", label: "A & B" },
+    here: totals(8, { "maneuvers:left-turn": 3 }), compare: totals(1000, { "maneuvers:left-turn": 100 }) };
+  assert.deepEqual(watchFor(corner).map((i) => i.id), ["maneuvers:left-turn"]);
+  assert.ok(CORNER.minLocal < WATCH.minLocal && CORNER.minLocal > 1);
+
   const html = watchHtml(items, { compareLabel: "Brooklyn", areaLabel: "ZIP 11211", enough: true });
-  assert.match(html, /30%<\/strong> of crashes here vs 10% across Brooklyn/);
+  assert.match(html, /3\.0× as common as across Brooklyn/);
+  assert.match(html, /30 of 100 crashes here \(30%\) vs 10% across Brooklyn/);
   assert.match(watchHtml([], { compareLabel: "Brooklyn", enough: true }), /Nothing stands out/);
   assert.match(watchHtml([], { compareLabel: "Brooklyn", areaLabel: "<b>", enough: false }), /&#60;b&#62;/);
+  const common = mostCommon(totals(9, { "causes:distracted": 4, "vehicles:truck": 6 }), totals(1000, { "causes:distracted": 400, "vehicles:truck": 50 }));
+  assert.equal(common.id, "causes:distracted", "a cause or action, not a vehicle, and in at least a third");
+  assert.match(watchHtml([], { compareLabel: "Brooklyn", enough: true, common }), /Most common here[\s\S]*Distracted driving/);
+  assert.equal(mostCommon(totals(9, { "causes:distracted": 2 }), totals(100, {})), null, "too few");
 });
 
-test("stat cards, breakdowns, hours and CSV", () => {
-  const summary = {
-    dateFrom: "2024-06-01", dataThrough: "2025-05-31",
-    compareTo: { kind: "borough", label: "Brooklyn" },
-    here: totals(730, { "causes:speeding": 73 }, { injured: 400, killed: 2, serious: 8, hurtCrashes: 365, ksiCrashes: 10 }),
-    compare: totals(10000, { "causes:speeding": 500 }, { hurtCrashes: 4000, ksiCrashes: 50 }),
-    hours: [[0, 17, 9, 1], [4, 17, 3, 0], [5, 23, 10, 0]]
-  };
-  const cards = statCards(summary);
-  assert.equal(cards[0].value, "730");
-  assert.match(cards[0].context, /About 2 a day/);
-  assert.match(cards[1].context, /50% of crashes hurt someone\. vs 40% across Brooklyn/);
-  assert.equal(cards[2].value, "10");
-  assert.equal(cards[3].value, "1 in 73");
-  assert.match(cards[3].context, /2\.7× the rate across Brooklyn \(1 in 200\)/);
-  const rows = breakdown(summary, "causes");
-  assert.deepEqual(rows.map((r) => [r.key, r.share, r.baseShare]), [["speeding", 0.1, 0.05]]);
-  assert.match(breakdownHtml(rows, { compareLabel: "Brooklyn" }), /vs 5\.0% across Brooklyn/);
-  const grid = hourGrid(summary.hours);
-  assert.equal(grid.max, 10);
-  assert.deepEqual(grid.peak, { dow: 5, hour: 23 });
-  assert.equal(busiestHour(summary.hours), "5 pm", "hours add up across days");
+test("tips: every one has a general line; a mode's line when there is one", () => {
+  for (const [id, t] of Object.entries(TIPS)) assert.ok(t.all, id);
+  assert.equal(tipFor("causes:aggressive", "walk"), TIPS["causes:aggressive"].all);
+  assert.notEqual(tipFor("maneuvers:right-turn", "bike"), TIPS["maneuvers:right-turn"].all);
+  assert.equal(tipFor("nope", "walk"), null);
+});
+
+test("stat cards: crashes that hurt the mode's someone, how often, killed or seriously hurt, an intersection's rank", () => {
+  const base = { dateFrom: "2024-06-01", dataThrough: "2025-05-31", area: { kind: "zip", label: "ZIP 11211" } };
+  const here = totals(730, {}, { injured: 400, killed: 2, serious: 8, hurtCrashes: 365, ksiCrashes: 10 });
+  const cards = statCards({ ...base, here });
+  assert.deepEqual(cards.map((c) => c.name), ["hurt", "ksi", "crashes"]);
+  assert.equal(cards[0].label, "Crashes that hurt someone");
+  assert.equal(cards[0].value, "365");
+  assert.equal(cards[0].context, "About 7 a week.", "under 1.5 a day reads as a week");
+  assert.equal(cards[1].value, "10");
+  assert.equal(statCards({ ...base, here }, "walk")[0].label, "Crashes that hurt a pedestrian");
+  assert.equal(statCards({ ...base, here }, "walk").length, 2, "walking: every crash counted hurt someone, so no all-crashes card");
+  const rank = statCards({ ...base, area: { kind: "corner", label: "A & B" }, here, rank: { label: "Brooklyn", total: 4000, above: 9 } });
+  assert.equal(rank[2].value, "#10");
+  assert.match(rank[2].context, /of 4,000 where a crash hurt someone\. In the worst 1%\./);
+  assert.equal(howOften(3, 365), "3 in the last year.");
+  assert.equal(howOften(40, 365), "About 3 a month.");
+  assert.equal(howOften(1000, 365), "About 3 a day.");
   assert.equal(toCsv(["a", "b"], [["x, y", 'say "hi"']]), 'a,b\n"x, y","say ""hi"""');
   assert.equal(groupTitle("vehicles", VEHICLES.find((v) => v.key === "suv")), "An SUV involved");
   assert.equal(groupTitle("vehicles", VEHICLES.find((v) => v.key === "e-bike")), "An e-bike involved");
   assert.equal(groupTitle("who", WHO[0]), "Pedestrians hurt");
 });
 
-test("corner rows: escaped, with the place for the click", () => {
-  const html = cornerRowsHtml([{ corner: "A&B", label: "Broadway & West 72nd <St>", borough: "MANHATTAN", n: 5, injured: 2, killed: 0, ksi: 1, topCause: "speeding" }]);
+test("dangerous intersections: each against its own borough, numbered, escaped, with the place for the click", () => {
+  const corner = (label, borough, counts) => ({ corner: label, label, borough, lat: 40.7, lon: -73.9, n: 10, hurt: 6, injured: 7, killed: 0, ksi: 1, groups: groupsWith(counts) });
+  const summary = {
+    city: totals(2000, { "vehicles:truck": 320 }),
+    boroughs: { MANHATTAN: totals(1000, { "vehicles:truck": 20 }), BROOKLYN: totals(1000, { "vehicles:truck": 300 }) },
+    corners: [
+      corner("Broadway & West 72nd <St>", "MANHATTAN", { "vehicles:truck": 4 }),
+      corner("Atlantic Ave & Flatbush Ave", "BROOKLYN", { "vehicles:truck": 4, "causes:yield": 4 }),
+      corner("A St & B St", null, { "vehicles:truck": 4 })
+    ]
+  };
+  const spots = cornerFindings(summary);
+  assert.deepEqual(spots[0].findings.map((f) => f.id), ["vehicles:truck"], "40% vs 2% across Manhattan");
+  assert.equal(spots[1].findings.find((f) => f.id === "vehicles:truck"), undefined, "40% vs 30% across Brooklyn isn't enough");
+  assert.deepEqual(spots[2].findings.map((f) => f.id), ["vehicles:truck"], "no borough: against NYC (16%)");
+  assert.ok(patterns({ crashes: 10, groups: groupsWith({ "vehicles:truck": 2 }) }, summary.city, null, CORNER).length === 0, "2 isn't enough at a corner");
+
+  const html = spotsHtml(spots, { victim: "a pedestrian", shown: 2 });
+  assert.match(html, /<span class="sr-only">1\. <\/span>Broadway &#38; West 72nd &#60;St&#62;/);
   assert.match(html, /data-corner-street="Broadway"/);
   assert.match(html, /data-corner-cross="West 72nd &#60;St&#62;"/);
-  assert.match(html, /Speeding/);
-  assert.match(cornerRowsHtml([]), /3 or more crashes/);
+  assert.match(html, /crashes hurt a pedestrian/);
+  assert.match(html, /What goes wrong here[\s\S]*A truck involved<\/strong>: 4 of 10 crashes, vs 2\.0% across Manhattan/);
+  assert.match(html, /data-extra hidden/, "past the first two, folded");
+  assert.match(html, /Show 1 more/);
+  assert.match(spotsHtml([]), /No intersection here/);
 });

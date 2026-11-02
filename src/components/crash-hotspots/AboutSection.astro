@@ -1,11 +1,13 @@
 ---
 /*
- * NYC Crash Hotspots: where the data comes from, how crashes are grouped,
- * what "seriously hurt" means here, and the limits (DESIGN.md §7).
+ * NYC Crash Hotspots: where the data comes from, how intersections are
+ * ranked, how "what goes wrong" and the tips are picked, what "seriously
+ * hurt" means here, and the limits (DESIGN.md §7).
  */
 import { DATASETS, SYNC_DAYS, dateRange, sourceUrl } from '../../lib/crashes/config.js';
 import { CAUSES, MANEUVERS } from '../../lib/crashes/facts.js';
-import { MIN_CORNER_CRASHES } from '../../lib/crashes/hotspot-sql.js';
+import { MIN_CORNER_CRASHES, MIN_CORNER_HURT, TOP_CORNERS } from '../../lib/crashes/hotspot-sql.js';
+import { WATCH, CORNER } from '../../lib/crashes/hotspot-view.js';
 import { date } from '../../lib/format.js';
 
 interface Props {
@@ -28,6 +30,23 @@ const range = dateRange();
       This dashboard covers the last year, from {date(range.from)}{dataThrough ? ` to ${date(dataThrough)}` : ''}; older crashes drop off each day.
       {lastSync && <>We check for new and changed reports from the last {SYNC_DAYS} days every day (last on {date(lastSync.slice(0, 10))}).{' '}</>}
       It uses the same data as <a href="/crash-lookup/">NYC Crash Lookup</a>, where you can look up a single crash.
+    </p>
+
+    <h3>How intersections are ranked</h3>
+    <p>
+      By the number of crashes there in the last year that hurt someone: with “I walk”, crashes that hurt a pedestrian; with
+      “I bike”, a cyclist or someone on an e-bike, e-scooter or moped. Ties go to the one with more crashes that seriously hurt or
+      killed someone. We list up to {TOP_CORNERS}, and only intersections with at least {MIN_CORNER_CRASHES} crashes, {MIN_CORNER_HURT} of them
+      hurting someone. “I drive” counts every crash, since a driver can be in any of them, and changes only who the tips speak to.
+    </p>
+
+    <h3>How “what goes wrong” and the tips are picked</h3>
+    <p>
+      For each place we compare the kinds of crash there (the cause police listed, what the vehicles were doing, the kinds of vehicle
+      and, unless you picked how you get around, who was hurt) with the same kinds across its borough. A kind is called out when it’s at
+      least {WATCH.minRatio}× as common there as across the borough, with at least {WATCH.minLocal} such crashes in an area or {CORNER.minLocal} at
+      one intersection. When nothing stands out, we name the most common cause or action if it’s in at least a third of crashes there.
+      Each kind comes with one plain safety tip. The tips are general advice, not a finding about any one crash.
     </p>
 
     <h3>What “seriously hurt” means here</h3>
@@ -55,7 +74,8 @@ const range = dateRange();
       <li>Only crashes the police reported are here: ones where someone was hurt or killed, or with at least $1,000 of damage.</li>
       <li>Counts aren’t adjusted for traffic. Busy streets and intersections rank higher partly because more people use them.</li>
       <li>About 3 in 10 crashes have no street name or borough on the report, and about 1 in 10 has no map location. Those count toward NYC’s totals but can’t be placed on a street, in a ZIP or on the map.</li>
-      <li>Intersections are the on and cross street the officer wrote down. We list an intersection only with {MIN_CORNER_CRASHES} or more crashes, and “What to watch for” needs at least 5 crashes of a kind.</li>
+      <li>Intersections are the on and cross street the officer wrote down, so crashes near a corner written as one street only aren’t counted there.</li>
+      <li>A year at one intersection is a small number of crashes. A corner with none listed isn’t proof it’s safe.</li>
       <li>Reports can be late or amended, so the last few weeks fill in over time.</li>
       <li>Contributing factors are the officer’s judgment at the scene, not a finding of fault.</li>
     </ul>
