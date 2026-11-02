@@ -1,5 +1,5 @@
 /*
- * The address report's nearest water station, help and schools in one small
+ * The address report's nearest water station, help, schools and park amenities in one small
  * response (src/lib/server/address-report.js, src/pages/api/address/nearest.js).
  * Runs the real modules on a fake Workers env (tests/support/workers.js).
  *   npm test
@@ -12,6 +12,7 @@ import assert from "node:assert/strict";
 import { env, fakeKv } from "./support/workers.js";
 
 const { helpNearMeDatasets } = await import("../src/lib/server/help-near-me.js");
+const { parkAmenitiesDatasets } = await import("../src/lib/server/park-amenities.js");
 const { indexJob } = await import("../src/lib/server/schools.js");
 const { monthlyJob, detectionsJob, stationsJob } = await import("../src/lib/server/water.js");
 const { GET } = await import("../src/pages/api/address/nearest.js");
@@ -40,6 +41,16 @@ const school = (i) => ({
   types: ["elementary"], reports: [], values: {}
 });
 
+// Two of each kind of park amenity, the second a few blocks further.
+function parkEntry(ds) {
+  const category = ds.id.replace("park-amenities-", "");
+  const amenity = (i) => ({
+    id: `${category}:${i}`, category, name: `${category} ${i}`, parkName: "Zerega Park", parkId: "X001", borough: "Bronx",
+    lat: SPOT.lat + 0.001 + i * 0.004, lon: SPOT.lon, details: {}, sourceDataset: ds.datasetId, sourceLastUpdated: NOW
+  });
+  return stored({ sourceUpdatedAt: NOW, rows: 2, amenities: [amenity(0), amenity(1)] });
+}
+
 function kv({ schools = true } = {}) {
   const entries = {
     [monthlyJob.key]: stored({ latestDate: "2026-09-30", completeMonth: "2026-09", gaps: [], months: [] }),
@@ -53,6 +64,7 @@ function kv({ schools = true } = {}) {
   };
   if (schools) entries[indexJob.key] = stored({ latestYear: 2025, years: [2025], schools: [1, 2, 3, 4, 5].map(school), cityAvg: {} });
   helpNearMeDatasets.forEach((ds, i) => { entries[ds.jobs[0].key] = helpEntry(ds, i); });
+  parkAmenitiesDatasets.filter((ds) => ds.id !== "park-amenities-park-names").forEach((ds) => { entries[ds.jobs[0].key] = parkEntry(ds); });
   for (const key of Object.keys(entries)) entries[`${key}:at`] = NOW;
   return fakeKv(entries);
 }
@@ -82,7 +94,7 @@ test("a part that fails says so on its own; the rest still come back, and nothin
   assert.equal(body.help.sites.length, helpNearMeDatasets.length);
 });
 
-test("only what the cards show: the nearest station with its months, the nearest help of each kind, 3 schools", async () => {
+test("only what the cards show: the nearest station with its months, the nearest help of each kind, 3 schools, the nearest park amenity of each kind", async () => {
   env.DATA_CACHE = kv();
 
   const res = await nearest();
@@ -103,7 +115,11 @@ test("only what the cards show: the nearest station with its months, the nearest
 
   assert.deepEqual(body.schools.schools.map((s) => s.dbn), ["08X001", "08X002", "08X003"]);
 
-  // The whole answer is a few KB, not every station, help site and school.
+  assert.deepEqual(body.parks.parks.map((a) => a.id).sort(), ["dog:0", "fountain:0", "playground:0", "pool:0"]);
+  assert.deepEqual(Object.keys(body.parks.parks[0]).sort(), ["borough", "category", "details", "id", "lat", "lon", "miles", "name", "parkName"]);
+  assert.equal(body.parks.partial, false);
+
+  // The whole answer is a few KB, not every station, help site, school and amenity.
   assert.ok(JSON.stringify(body).length < 5000);
 });
 

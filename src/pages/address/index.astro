@@ -1,7 +1,8 @@
 ---
 /*
- * The address report: your address → drinking water, 311, street closures,
- * help, schools and restaurant grades near it, each from its own dashboard.
+ * The address report: your address → your building, drinking water, 311,
+ * street closures, crashes, parks, help, schools and restaurant grades near
+ * it, each from its own dashboard.
  * A static page: everything loads in the browser (AddressReport.astro).
  */
 import DashboardLayout from '../../layouts/DashboardLayout.astro';
@@ -11,15 +12,16 @@ import { ALL } from '../../data/dashboards.js';
 
 <DashboardLayout
   title="Your address report"
-  description="Type an NYC address and see the drinking water, 311 requests, street closures, nearest help, nearest schools and restaurant grades around it."
+  description="Type an NYC address and see your building’s repair orders and complaints, crashes nearby, the drinking water, 311 requests, street closures, parks, help, schools and restaurant grades around it."
   path="/address/"
   category={ALL}
 >
   <header class="page-head">
     <h1>Your address report</h1>
     <p>
-      One address, the city’s data around it: the water, what neighbors call 311 about, which streets are closed,
-      the nearest help and schools, and how nearby restaurants did on inspection.
+      One address, the city’s data around it: your building’s records, the water, crashes on nearby streets,
+      what neighbors call 311 about, which streets are closed, the nearest parks, help and schools, and how
+      nearby restaurants did on inspection.
     </p>
   </header>
 
@@ -37,13 +39,16 @@ import { ALL } from '../../data/dashboards.js';
       <li><strong>Drinking water:</strong> the nearest DEP sampling station, routine samples over the last 12 months.</li>
       <li><strong>311:</strong> requests within ¼ mile (about a 5-minute walk), last 12 months.</li>
       <li><strong>Street closures:</strong> DOT construction permits closing a block within ¼ mile, today and this week.</li>
+      <li><strong>Your building:</strong> the Building Report Card’s key takeaways from HPD and DOB records, for a typed street address only.</li>
+      <li><strong>Street safety:</strong> NYPD-reported crashes within 250 m (about 3 blocks) over the last year, and the corners where they hurt people most.</li>
+      <li><strong>Parks:</strong> the nearest NYC Parks playground, dog run, drinking fountain and pool, by straight-line distance.</li>
       <li><strong>Help:</strong> the nearest open site of each kind within 2 miles, from seven city directories.</li>
       <li><strong>Schools:</strong> the nearest public schools by straight-line distance. Nearest isn’t the same as zoned.</li>
       <li><strong>Restaurants:</strong> up to 25 restaurants within about half a mile, nearest first, with their latest grade.</li>
     </ul>
     <p class="ar-note">
       Addresses are looked up with NYC Planning Labs’ GeoSearch. The link to a report holds only a spot rounded to
-      about a block, never the address. A shared link or “Use my location” is named by the neighborhood GeoSearch
+      about a block, never the address or its building, so a shared link asks for a street address before it shows a building. A shared link or “Use my location” is named by the neighborhood GeoSearch
       gives for that rounded spot.
     </p>
   </section>

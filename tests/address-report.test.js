@@ -9,12 +9,16 @@ import assert from "node:assert/strict";
 
 import {
   spotFromParams, spotToParams, dashboardLinks, complaintsCard, complaintsStandouts, closuresCard, helpCard, nearestStation, restaurantsCard, neighborhoodName,
-  nearestSchools, milesText
+  nearestSchools, milesText, safetyCard, nearestParks
 } from "../src/lib/address-report/report.js";
 import {
   complaintsHtml, complaintsGlance, standoutsHtml, closuresHtml, closuresGlance, helpHtml, helpGlance, schoolsHtml, schoolsGlance,
-  restaurantsHtml, restaurantsGlance, waterHtml, waterGlance
+  restaurantsHtml, restaurantsGlance, waterHtml, waterGlance, buildingHtml, buildingGlance, buildingAskGlance,
+  safetyHtml, safetyGlance, parksHtml, parksGlance
 } from "../src/lib/address-report/render.js";
+import { readTotals, readCorners } from "../src/lib/crashes/hotspot-sql.js";
+import { addressOutcome } from "../src/lib/location/near-search.js";
+import { placeToLocation, buildingBbl } from "../src/lib/complaints311/geocode.js";
 
 const TODAY = "2026-10-30"; // a Friday
 const EMPIRE = { lat: 40.748, lon: -73.986 };
@@ -39,6 +43,92 @@ test("links: each dashboard opens on the same spot", () => {
   assert.equal(dashboardLinks(EMPIRE).water, "/drinking-water/near-me/?lat=40.748&lon=-73.986");
   assert.equal(links.restaurants, "/restaurant-inspections/?lat=40.748&lng=-73.986");
   assert.equal(links.schools, "/school-quality/?view=map&lat=40.748&lon=-73.986");
+  assert.equal(links.safety, "/crash-hotspots/?lat=40.748&lon=-73.986&r=250");
+  assert.equal(links.parks, "/park-amenities/?lat=40.748&lon=-73.986");
+  assert.equal(links.building, "/building-report/");
+  assert.equal(dashboardLinks(EMPIRE, { bbl: "1008350041" }).building, "/building-report/?bbl=1008350041");
+});
+
+// ---------- Your building ----------
+
+test("building: only a house-numbered address names one, and it rides along with the spot", () => {
+  const place = { lat: 40.7, lon: -74, label: "1 Centre St", houseNumber: "1", bbl: "1001210001", borough: "MANHATTAN", zip: "10007" };
+  assert.equal(buildingBbl(place), "1001210001");
+  assert.equal(buildingBbl({ ...place, houseNumber: null }), null, "a spot GeoSearch picked along a street");
+  assert.equal(placeToLocation(place).bbl, "1001210001");
+  assert.equal("bbl" in placeToLocation({ ...place, houseNumber: null }), false);
+  assert.equal(addressOutcome({ status: "resolved", location: placeToLocation(place) }).bbl, "1001210001");
+});
+
+const LOT = { bbl: "2031070036", address: "1 Main St", borough: "Bronx", hpd: true, units: 40, yearBuilt: 1931, bins: ["2012951"] };
+const FLAGS = { active: false, any: false, activeVacates: [], aep: null, pendingCases: 0 };
+const VIOLATIONS = (open) => ({ open: { A: 0, B: 0, C: 0, I: 0, total: 0, ...open }, ever: 12 });
+const COMPLAINTS = { last12: 3, top: [{ label: "Heat/hot water" }], ever: 20 };
+const DOB = { bins: ["2012951"], complaints12: 1, ecb: { open: 0, due: 0 } };
+const parts = (over = {}) => ({ flags: FLAGS, violations: VIOLATIONS({}), complaints: COMPLAINTS, dob: DOB, ...over });
+
+test("building: a serious warning leads the glance, then urgent repairs, then any open ones", () => {
+  assert.deepEqual(buildingGlance(LOT, parts({ flags: { ...FLAGS, active: true, aep: { active: true } } })),
+    { tone: "warn", text: "Serious warning on file for this building" });
+  assert.deepEqual(buildingGlance(LOT, parts({ violations: VIOLATIONS({ C: 2, total: 5 }) })),
+    { tone: "warn", text: "2 urgent repair orders open in your building" });
+  assert.deepEqual(buildingGlance(LOT, parts({ violations: VIOLATIONS({ B: 1, total: 1 }) })),
+    { tone: "info", text: "1 repair order open in your building" });
+  assert.equal(buildingGlance(LOT, parts()).tone, "good");
+  assert.match(buildingGlance({ ...LOT, hpd: false }, parts({ violations: { ...VIOLATIONS({}), ever: 0 } })).text, /No housing agency records/);
+  assert.equal(buildingAskGlance().tone, "none");
+});
+
+test("building: four takeaways, and one that couldn't load says so on its own", () => {
+  const html = buildingHtml(LOT, parts({ dob: null }));
+  assert.match(html, /1 Main St, Bronx<\/strong> · 40 apartments, built 1931/);
+  assert.equal(html.match(/class="br-take"/g).length, 4);
+  assert.match(html, /Tenant complaints, last 12 months.*>3</);
+  assert.match(html, /data-tone="none".*Couldn’t load this/);
+});
+
+// ---------- Street safety ----------
+
+const crashSummary = (here, corners = []) => ({
+  dateFrom: "2025-11-01", dataThrough: "2026-10-31", compareTo: { kind: "borough", label: "Manhattan" },
+  here: readTotals(here), compare: readTotals({ crashes: 5000, hurt_crashes: 1500 }), city: readTotals({ crashes: 90000 }), boroughs: {},
+  corners: readCorners(corners)
+});
+const corner = (label, hurt) => ({ corner: label, label, borough: "MANHATTAN", lat: 40.7, lon: -74, n: hurt + 2, hurt, injured: hurt, killed: 0, ksi: 0 });
+
+test("street safety: crashes that hurt someone, the worst corners (3 at most), the date range", () => {
+  const c = safetyCard(crashSummary({ crashes: 40, hurt_crashes: 12, killed: 1, serious: 2 },
+    [corner("5 Ave & W 34 St", 6), corner("6 Ave & W 34 St", 4), corner("5 Ave & W 33 St", 3), corner("Madison Ave & E 34 St", 2)]));
+  assert.equal(c.hurt, 12);
+  assert.equal(c.corners.length, 3);
+  assert.deepEqual(safetyGlance(c), { tone: "warn", text: "12 crashes hurt someone within about 3 blocks; 3 people killed or seriously hurt" });
+  const html = safetyHtml(c);
+  assert.match(html, /5 Ave &#38; W 34 St<\/span><span class="ar-row-side">6 injury crashes/);
+  assert.match(html, /Crashes that hurt someone \(12 in the last year\)/);
+  assert.doesNotMatch(html, /Madison Ave/);
+  assert.match(html, /Police-reported crashes, Nov 1, 2025 to Oct 31, 2026\./);
+});
+
+test("street safety: no one hurt is good news, and says how many crashes there were", () => {
+  const c = safetyCard(crashSummary({ crashes: 4 }));
+  assert.equal(safetyGlance(c).tone, "good");
+  assert.match(safetyHtml(c), /No police-reported crash hurt anyone within about 3 blocks, out of 4 crashes reported\./);
+  assert.equal(safetyGlance(safetyCard(crashSummary({ crashes: 9, hurt_crashes: 1 }))).text, "1 crash hurt someone within about 3 blocks");
+});
+
+// ---------- Parks ----------
+
+const amenity = (id, category, miles, extra = {}) => ({ id, category, name: `Name ${id}`, parkName: "Bryant Park", borough: "Manhattan", lat: 40.75, lon: -73.98, details: {}, miles, sourceDataset: "x", ...extra });
+
+test("parks: the nearest of each kind, nearest first, with only what the card shows", () => {
+  const parks = nearestParks([amenity("p2", "playground", 0.4), amenity("f1", "fountain", 0.1), amenity("p1", "playground", 0.2), amenity("d1", "dog", 0.9)]);
+  assert.deepEqual(parks.map((a) => a.id), ["f1", "p1", "d1"]);
+  assert.equal("sourceDataset" in parks[0], false);
+  // The playground leads the glance even when a fountain is closer.
+  assert.deepEqual(parksGlance(parks), { tone: "info", text: "Nearest playground: 0.2 mi" });
+  assert.deepEqual(parksGlance([parks[0]]), { tone: "info", text: "Nearest water fountain: 0.1 mi" });
+  assert.equal(parksGlance([]).text, "No park amenities found nearby");
+  assert.match(parksHtml(parks), /Playground<\/span> Name p1/);
 });
 
 // ---------- 311 ----------
@@ -186,4 +276,7 @@ test("miles wording", () => {
 test("cards escape what the data says", () => {
   const html = restaurantsHtml(restaurantsCard({ results: [{ camis: "1", name: "<img onerror=x>", cuisine: "", grade: null }] }));
   assert.doesNotMatch(html, /<img/);
+  assert.doesNotMatch(buildingHtml({ ...LOT, address: "<img onerror=x>" }, parts()), /<img/);
+  assert.doesNotMatch(parksHtml([amenity("x", "dog", 0.3, { name: "<img onerror=x>" })]), /<img/);
+  assert.doesNotMatch(safetyHtml(safetyCard(crashSummary({ crashes: 3, hurt_crashes: 2 }, [corner("<img onerror=x>", 2)]))), /<img/);
 });

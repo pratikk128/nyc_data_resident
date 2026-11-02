@@ -3,13 +3,16 @@
  * The address report: an address (with suggestions), a ZIP or "Use my
  * location". Once there's a spot the search folds away behind "Change
  * address", and the report shows the place, an "At a glance" line per topic,
- * then the topics in three groups (right now, your block, around you). Each
+ * then the topics in three groups (right now, your building and block, around
+ * you). Each
  * topic loads on its own from its dashboard's API and links to it with the
  * same spot. What each shows is decided in src/lib/address-report/report.js;
  * its wording and HTML in render.js.
  *
  * The spot is in the URL (?lat=&lon=, about a block); the typed address
- * isn't. The landing page's box hands over the typed text as #q=… (a hash
+ * isn't, and neither is its building (BBL), which names the exact address:
+ * both live in history.state, so Back and reload keep them but a shared link
+ * shows "Type a street address" on the building card. The landing page's box hands over the typed text as #q=… (a hash
  * never reaches the server) or, without JavaScript, ?q=….
  *
  * Printing (or saving as PDF) drops the search and buttons, prints in the
@@ -26,17 +29,23 @@ const ICONS: Record<string, string> = {
   complaints: '<path d="M4 5h16v11H9l-5 4z"/>',
   restaurants: '<path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M17 3c-2 2-3 5-3 8h3v10"/>',
   help: '<path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/>',
-  schools: '<path d="M2 9l10-5 10 5-10 5zM6 11v5c3 2.5 9 2.5 12 0v-5"/>'
+  schools: '<path d="M2 9l10-5 10 5-10 5zM6 11v5c3 2.5 9 2.5 12 0v-5"/>',
+  building: '<path d="M4 21V9l8-5 8 5v12M9 21v-6h6v6"/>',
+  safety: '<path d="M12 3l9.5 17h-19z"/><path d="M12 10v4M12 17h.01"/>',
+  parks: '<path d="M12 22v-6"/><path d="M12 2l5 7h-3l4 6H6l4-6H7z"/>'
 };
 const GROUPS = [
   { key: 'now', title: 'Right now', intro: 'What could change your day.', topics: [
     { key: 'water', title: 'Drinking water', glance: 'Water', scope: 'The nearest sampling station', link: 'See the full results' },
     { key: 'closures', title: 'Street closures', glance: 'Streets', scope: 'Within ¼ mile, this week', link: 'See every closure nearby' }
   ] },
-  { key: 'block', title: 'Your block', intro: 'What neighbors call 311 about, within ¼ mile (about a 5-minute walk).', topics: [
-    { key: 'complaints', title: '311 requests', glance: '311', scope: 'Within ¼ mile, last 12 months', link: 'See all 311 requests here' }
+  { key: 'block', title: 'Your building and block', intro: 'Your building’s city records, crashes on the streets around it, and what neighbors call 311 about.', topics: [
+    { key: 'building', title: 'Your building', glance: 'Building', scope: 'The building at the address you typed', link: 'See the full building report' },
+    { key: 'safety', title: 'Street safety', glance: 'Street safety', scope: 'Within 250 m (about 3 blocks), the last year of police reports', link: 'See the corners to watch' },
+    { key: 'complaints', title: '311 requests', glance: '311', scope: 'Within ¼ mile (about a 5-minute walk), last 12 months', link: 'See all 311 requests here' }
   ] },
   { key: 'around', title: 'Around you', intro: 'Places nearby, when you need them. Each says how far it looks.', topics: [
+    { key: 'parks', title: 'Parks and playgrounds', glance: 'Parks', scope: 'The nearest playground, dog run, fountain and pool', link: 'See every park amenity nearby' },
     { key: 'restaurants', title: 'Restaurant grades', glance: 'Restaurants', scope: 'Up to 25 of the nearest, within about ½ mile', link: 'See every restaurant near here' },
     { key: 'help', title: 'Nearest help', glance: 'Help', scope: 'The nearest of each kind, within 2 miles', link: 'See all help nearby' },
     { key: 'schools', title: 'Nearest public schools', glance: 'Schools', scope: 'The 3 nearest, at any distance', link: 'See schools near here on a map' }
@@ -115,7 +124,7 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
               </h4>
               <p class="ar-card-scope">{t.scope}</p>
               <div class="ar-body" data-body></div>
-              <a class="ar-more" data-link href="#">{t.link} <span aria-hidden="true">→</span></a>
+              <a class="ar-more" data-link href="#"><span data-link-text>{t.link}</span> <span aria-hidden="true">→</span></a>
             </article>
           ))}
         </div>
@@ -125,15 +134,21 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
 </div>
 
 <script>
-  import { spotFromParams, spotToParams, dashboardLinks, complaintsCard, complaintsStandouts, closuresCard, restaurantsCard, neighborhoodName } from '../../lib/address-report/report.js';
+  import {
+    spotFromParams, spotToParams, dashboardLinks, complaintsCard, complaintsStandouts, closuresCard, restaurantsCard, neighborhoodName,
+    safetyCard, BUILDING_SECTIONS, CRASH_RADIUS
+  } from '../../lib/address-report/report.js';
   import {
     waterHtml, waterGlance, complaintsHtml, complaintsGlance, standoutsHtml, closuresHtml, closuresGlance,
-    helpHtml, helpGlance, schoolsHtml, schoolsGlance, restaurantsHtml, restaurantsGlance, escape
+    helpHtml, helpGlance, schoolsHtml, schoolsGlance, restaurantsHtml, restaurantsGlance, escape,
+    buildingHtml, buildingGlance, buildingAskHtml, buildingAskGlance, buildingMissingHtml, buildingMissingGlance,
+    safetyHtml, safetyGlance, parksHtml, parksGlance
   } from '../../lib/address-report/render.js';
+  import { isBbl } from '../../lib/building-report/config.js';
   import { nearSearch, addressOutcome } from '../../lib/location/near-search.js';
   import { parseLocationInput, isNycZip } from '../../lib/complaints311/location-input.js';
   import { inCityLimits } from '../../lib/in-city.js';
-  import { resolveLocation, suggest, GEOSEARCH } from '../../lib/complaints311/geocode.js';
+  import { resolveLocation, suggest, buildingBbl, GEOSEARCH } from '../../lib/complaints311/geocode.js';
   import zipFile from '../../data/zip-centroids.json';
 
   const ERROR_TEXT = 'Couldn’t reach NYC Open Data. Their servers might be stuck behind a double-parked truck. Try again in a minute.';
@@ -164,6 +179,8 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
   // get their neighborhood from GeoSearch instead ("Near Midtown West, Manhattan").
   const YOUR_LOCATION = 'your location';
   let placeLabel = (history.state?.placeLabel as string) || '';
+  // The typed address's building (BBL), for the building card. Like the address, never in the URL.
+  let placeBbl: string | null = isBbl(history.state?.bbl) ? history.state.bbl : null;
   const neighborhoods = new Map<string, string | null>(); // "lat,lon" → its neighborhood, once looked up
   let run = 0; // bumped by every report, so a slow card can't fill in an older one
   let reportAbort = new AbortController(); // cancels the last report's requests when a new one starts
@@ -200,7 +217,8 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
     el.querySelector('[data-glance-text]')!.textContent = g.text;
   }
 
-  type Loaded = { html: string; glance: Glance; href?: string }; // href: a better "See more" link, once the data names one
+  // href and linkText: a better "See more" link, once the data names one
+  type Loaded = { html: string; glance: Glance; href?: string; linkText?: string };
 
   /*
    * Each card loads on its own: a slow one doesn't hold up the rest. `after`
@@ -211,15 +229,19 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
     const el = root.querySelector<HTMLElement>(`[data-card="${key}"]`)!;
     const body = el.querySelector<HTMLElement>('[data-body]')!;
     const link = el.querySelector<HTMLAnchorElement>('[data-link]')!;
+    const linkText = link.querySelector<HTMLElement>('[data-link-text]')!;
+    linkText.dataset.default ??= linkText.textContent!;
     link.href = href;
+    linkText.textContent = linkText.dataset.default!;
     el.setAttribute('aria-busy', 'true');
     body.innerHTML = '<span class="sk-line"></span><span class="sk-line sk-short"></span><span class="sk-line"></span>';
     setGlance(key, { tone: 'loading', text: 'Checking…' });
     load().then(
-      ({ html, glance, href: better }) => {
+      ({ html, glance, href: better, linkText: words }) => {
         if (id !== run) return;
         body.innerHTML = html;
         if (better) link.href = better;
+        if (words) linkText.textContent = words;
         setGlance(key, glance);
         after?.();
       },
@@ -264,7 +286,7 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
     const get = (url: string, ms?: number) => getJson(url, signal, ms);
     shown = `${spot.lat},${spot.lon}`;
     const at = `lat=${spot.lat}&lon=${spot.lon}`;
-    const links = dashboardLinks(spot);
+    const links = dashboardLinks(spot, { bbl: placeBbl });
     if (!placeLabel || placeLabel === YOUR_LOCATION) {
       placeEl.textContent = headingFor(neighborhoods.get(shown) ?? null);
       nameSpot(spot, id, signal);
@@ -295,6 +317,27 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
         href: station ? dashboardLinks(spot, { waterSite: station.site }).water : undefined
       };
     }, id);
+    // The building: only for a typed street address. Its lot first, so the sections find it cached.
+    const bbl = placeBbl;
+    card('building', links.building, async () => {
+      if (!bbl) return { html: buildingAskHtml(), glance: buildingAskGlance(), linkText: 'Look up a building' };
+      let lot;
+      try {
+        ({ lot } = await get(`/api/building-report/lot?bbl=${bbl}`));
+      } catch (err: any) {
+        if (err?.message !== 'not-found') throw err;
+        return { html: buildingMissingHtml(), glance: buildingMissingGlance(), linkText: 'Look up a building' };
+      }
+      const got = await Promise.allSettled(BUILDING_SECTIONS.map((k) => get(`/api/building-report/${k}?bbl=${bbl}`)));
+      if (got.every((r) => r.status === 'rejected')) throw (got[0] as PromiseRejectedResult).reason;
+      const parts = Object.fromEntries(BUILDING_SECTIONS.map((k, i) => [k, got[i].status === 'fulfilled' ? (got[i] as PromiseFulfilledResult<any>).value : null]));
+      return { html: buildingHtml(lot, parts), glance: buildingGlance(lot, parts) };
+    }, id);
+    card('safety', links.safety, async () => {
+      const c = safetyCard(await get(`/api/crash-hotspots/summary?${at}&r=${CRASH_RADIUS}`));
+      return { html: safetyHtml(c), glance: safetyGlance(c) };
+    }, id);
+
     card('closures', links.closures, async () => {
       const c = closuresCard(await get(`/api/street-closures/search?${at}&r=0.25`));
       return { html: closuresHtml(c), glance: closuresGlance(c) };
@@ -326,6 +369,10 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
     card('restaurants', links.restaurants, async () => {
       const c = restaurantsCard(await get(`/api/restaurants/search?lat=${spot.lat}&lng=${spot.lon}`));
       return { html: restaurantsHtml(c), glance: restaurantsGlance(c) };
+    }, id);
+    card('parks', links.parks, async () => {
+      const { parks } = await nearestPart('parks');
+      return { html: parksHtml(parks), glance: parksGlance(parks) };
     }, id);
     card('help', links.help, async () => {
       const { sites } = await nearestPart('help');
@@ -398,14 +445,15 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
     setTimeout(() => { copyBtn.textContent = 'Copy link'; }, 2500);
   });
 
-  function useSpot(lat: number, lon: number, label: string) {
+  function useSpot(lat: number, lon: number, label: string, bbl: string | null = null) {
     ++lookup;
     closeOptions();
     choices.hidden = true;
     status.textContent = '';
     placeLabel = label;
+    placeBbl = isBbl(bbl) ? bbl : null;
     const params = spotToParams({ lat, lon });
-    history.pushState({ placeLabel, text: input.value }, '', `${location.pathname}?${params}`);
+    history.pushState({ placeLabel, text: input.value, bbl: placeBbl }, '', `${location.pathname}?${params}`);
     report(spotFromParams(params)!);
     document.getElementById('ar-report-title')!.focus({ preventScroll: true });
     results.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -416,6 +464,7 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
     // Same spot (a #hash someone typed or kept from an old link): leave the report as it is.
     if (spot && `${spot.lat},${spot.lon}` === shown) return;
     placeLabel = history.state?.placeLabel || '';
+    placeBbl = isBbl(history.state?.bbl) ? history.state.bbl : null;
     input.value = history.state?.text || '';
     if (spot) report(spot);
     else { ++run; reportAbort.abort(); shown = ''; results.hidden = true; find.hidden = false; cancelBtn.hidden = true; }
@@ -423,7 +472,7 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
 
   // ---------- Address box with suggestions ----------
 
-  type Option = { label: string; hint?: string; lat: number; lon: number };
+  type Option = { label: string; hint?: string; lat: number; lon: number; bbl?: string | null };
   let options: Option[] = [];
   let active = -1;
   let timer = 0;
@@ -461,7 +510,7 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
     suggestAbort = new AbortController();
     try {
       const places = await suggest(text, { signal: suggestAbort.signal });
-      renderOptions([...local, ...places.map((p: any) => ({ label: p.label, lat: p.lat, lon: p.lon }))].slice(0, 6));
+      renderOptions([...local, ...places.map((p: any) => ({ label: p.label, lat: p.lat, lon: p.lon, bbl: buildingBbl(p) }))].slice(0, 6));
     } catch (err: any) {
       if (err.name !== 'AbortError') renderOptions(local); // typing still works; submitting looks it up
     }
@@ -489,7 +538,7 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
 
   function pickOption(o: Option) {
     input.value = o.label;
-    useSpot(o.lat, o.lon, o.label.startsWith('ZIP code') ? `the middle of ${o.label.replace('ZIP code', 'ZIP')}` : o.label);
+    useSpot(o.lat, o.lon, o.label.startsWith('ZIP code') ? `the middle of ${o.label.replace('ZIP code', 'ZIP')}` : o.label, o.bbl ?? null);
   }
 
   // ---------- Search ----------
@@ -512,7 +561,7 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
       return;
     }
     if (id !== lookup) return;
-    if (result.kind === 'point') { useSpot(result.lat, result.lon, result.label); return; }
+    if (result.kind === 'point') { useSpot(result.lat, result.lon, result.label, result.bbl ?? null); return; }
     status.textContent = result.text;
     if (result.kind === 'choose') {
       choices.innerHTML = result.choices.map((p: any, i: number) =>
@@ -521,7 +570,7 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
       choices.querySelectorAll<HTMLButtonElement>('[data-pick]').forEach((b) => b.addEventListener('click', () => {
         const p = result.choices[Number(b.dataset.pick)];
         input.value = p.label;
-        useSpot(p.lat, p.lon, p.label);
+        useSpot(p.lat, p.lon, p.label, buildingBbl(p));
       }));
     }
   }

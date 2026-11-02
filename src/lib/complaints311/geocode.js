@@ -56,7 +56,12 @@ function dedupe(places) {
   return places.filter((p) => !seen.has(p.label) && seen.add(p.label));
 }
 
-export const placeToLocation = (p) => ({ kind: "point", lat: p.lat, lon: p.lon, label: p.label, borough: p.borough, zip: p.zip });
+// bbl only for a house-numbered address: a spot GeoSearch picked along a street or in a park isn't "your building".
+export const buildingBbl = (p) => (p.houseNumber && p.bbl ? p.bbl : null);
+export const placeToLocation = (p) => ({
+  kind: "point", lat: p.lat, lon: p.lon, label: p.label, borough: p.borough, zip: p.zip,
+  ...(buildingBbl(p) ? { bbl: buildingBbl(p) } : {})
+});
 
 // ---------- Matching ----------
 

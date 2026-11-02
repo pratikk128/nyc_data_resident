@@ -17,6 +17,10 @@ import { CATEGORIES as HELP_CATEGORIES } from "../help-near-me/config.js";
 import { nearestSites, distanceMiles } from "../water/stats.js";
 import { schoolPath } from "../schools/config.js";
 import { gradeInfo } from "../restaurants/inspections.js";
+import { buildingPath } from "../building-report/config.js";
+import { DEFAULT_RADIUS as CRASH_RADIUS } from "../crashes/hotspot-query.js";
+import { cornerFindings, watchFor } from "../crashes/hotspot-view.js";
+import { CATEGORY_KEYS as PARK_KINDS } from "../park-amenities/config.js";
 
 const round3 = (n) => Math.round(n * 1e3) / 1e3;
 
@@ -29,8 +33,12 @@ export function spotFromParams(params) {
 
 export const spotToParams = ({ lat, lon }) => new URLSearchParams({ lat: String(round3(lat)), lon: String(round3(lon)) });
 
-// Each dashboard, opened on the same spot.
-export function dashboardLinks({ lat, lon }, { waterSite = null } = {}) {
+// Street safety looks this far around the spot (meters): Crash Hotspots' default.
+export { CRASH_RADIUS };
+
+// Each dashboard, opened on the same spot. bbl: the typed address's building, which only its own report can name.
+/** @param {{ lat: number, lon: number }} spot @param {{ waterSite?: string | null, bbl?: string | null }} [opts] */
+export function dashboardLinks({ lat, lon }, { waterSite = null, bbl = null } = {}) {
   const at = `lat=${round3(lat)}&lon=${round3(lon)}`;
   return {
     complaints: `/311-complaints/?${at}&area=immediate`,
@@ -38,7 +46,10 @@ export function dashboardLinks({ lat, lon }, { waterSite = null } = {}) {
     help: `/help-near-me/?${at}`,
     water: `/drinking-water/near-me/?${at}${waterSite ? `&sites=${encodeURIComponent(waterSite)}` : ""}`,
     restaurants: `/restaurant-inspections/?lat=${round3(lat)}&lng=${round3(lon)}`,
-    schools: `/school-quality/?view=map&${at}`
+    schools: `/school-quality/?view=map&${at}`,
+    building: bbl ? buildingPath(bbl) : "/building-report/",
+    safety: `/crash-hotspots/?${at}&r=${CRASH_RADIUS}`,
+    parks: `/park-amenities/?${at}`
   };
 }
 
@@ -123,6 +134,47 @@ export function nearestSchools(points, spot, n = 3) {
     .map(([lat, lon, dbn, name, type]) => ({ dbn, name, type, miles: distanceMiles(spot, { lat, lon }), href: schoolPath(dbn) }))
     .sort((a, b) => a.miles - b.miles)
     .slice(0, n);
+}
+
+// ---------- Your building ----------
+
+// The Building Report Card sections whose key takeaways the card shows, in order.
+export const BUILDING_SECTIONS = ["flags", "violations", "complaints", "dob"];
+
+// ---------- Street safety ----------
+
+/*
+ * /api/crash-hotspots/summary around the spot (CRASH_RADIUS, everyone) →
+ *   { hurt, killed, serious, crashes, from, through, compareLabel: what watch is compared with,
+ *     watch: the first watchFor() item or null,
+ *     corners: up to n of cornerFindings(), most often hurt first }
+ */
+export function safetyCard(summary, n = 3) {
+  const { here } = summary;
+  return {
+    hurt: here.hurtCrashes, killed: here.killed, serious: here.serious, crashes: here.crashes,
+    from: summary.dateFrom ?? null, through: summary.dataThrough ?? null, compareLabel: summary.compareTo?.label ?? null,
+    watch: watchFor(summary)[0] ?? null,
+    corners: cornerFindings(summary).slice(0, n)
+  };
+}
+
+// ---------- Parks ----------
+
+/*
+ * /api/park-amenities/search's amenities (with .miles, nearest first) → the
+ * nearest of each kind, nearest first, with only what the card shows.
+ */
+export function nearestParks(amenities) {
+  const out = [];
+  for (const kind of PARK_KINDS) {
+    const a = amenities.filter((x) => x.category === kind && x.miles != null).sort((x, y) => x.miles - y.miles)[0];
+    if (a) {
+      const { id, category, name, parkName, borough, lat, lon, details, miles } = a;
+      out.push({ id, category, name, parkName, borough, lat, lon, details, miles });
+    }
+  }
+  return out.sort((a, b) => a.miles - b.miles);
 }
 
 // ---------- The place ----------

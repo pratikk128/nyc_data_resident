@@ -18,6 +18,14 @@ import { fullAddress, directionsUrl } from "../help-near-me/render.js";
 import { TYPE_BY_SLUG, LINKS } from "../schools/config.js";
 import { gradeInfo } from "../restaurants/inspections.js";
 import { detailHref } from "../restaurants/render.js";
+import { flagsTakeaway, violationsTakeaway, complaintsTakeaway, dobTakeaway, isEmptyHpd } from "../building-report/render.js";
+import { lotName } from "../building-report/summarize.js";
+import { daysCovered, howOften, pct } from "../crashes/hotspot-view.js";
+import { categoryOf as parkKind } from "../park-amenities/config.js";
+import { seasonOf } from "../park-amenities/nearby.js";
+import { placeText, directionsUrl as parkDirections } from "../park-amenities/render.js";
+import { PARKS_ONLY } from "../park-amenities/page-state.js";
+import { date } from "../format.js";
 
 export const escape = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
@@ -191,4 +199,106 @@ export function schoolsHtml(schools) {
     escape(milesText(s.miles)),
     escape(TYPE_BY_SLUG[s.type]?.label ?? "")
   ))) + note(zone);
+}
+
+// ---------- Your building ----------
+
+// The Building Report Card's key takeaways the card shows (report.js BUILDING_SECTIONS), with its labels.
+const BUILDING_TAKEAWAYS = [
+  { key: "flags", label: "Serious warnings", take: flagsTakeaway },
+  { key: "violations", label: "Open repair orders", take: violationsTakeaway },
+  { key: "complaints", label: "Tenant complaints, last 12 months", take: complaintsTakeaway },
+  { key: "dob", label: "Open building-safety violations", take: dobTakeaway }
+];
+
+// No building to show: the spot came from a ZIP, "Use my location" or a shared link (the URL never names one).
+export const buildingAskGlance = () => glance("none", "Type a street address to see your building");
+export const buildingAskHtml = () =>
+  lead("A building’s report needs its street address: house number, street and borough.") +
+  note("Type one above with “Change address”, or look it up on the Building Report Card.");
+
+// The address has no tax lot the city's building records know.
+export const buildingMissingGlance = () => glance("info", "No city building records for this address");
+export const buildingMissingHtml = () => lead("We couldn’t find city building records for this address.");
+
+/*
+ * lot: /api/building-report/lot's lot; parts: { flags, violations, complaints, dob },
+ * each that section's summary, or null when it couldn't load.
+ */
+export function buildingGlance(lot, parts) {
+  const { flags, violations: v } = parts;
+  if (flags?.active) return glance("warn", "Serious warning on file for this building");
+  if (!v) return glance("info", flags ? "No serious warnings on file" : "See your building’s records");
+  if (isEmptyHpd(lot, v.ever)) return glance("info", "No housing agency records for this building");
+  if (v.open.C) return glance("warn", `${plural(v.open.C, "urgent repair order")} open in your building`);
+  if (v.open.total) return glance("info", `${plural(v.open.total, "repair order")} open in your building`);
+  return glance("good", "No open repair orders in your building");
+}
+
+export function buildingHtml(lot, parts) {
+  const facts = [lot.units > 0 ? plural(lot.units, "apartment") : null, lot.yearBuilt ? `built ${lot.yearBuilt}` : null].filter(Boolean);
+  return lead(`<strong>${escape(lotName(lot))}</strong>${facts.length ? ` · ${escape(facts.join(", "))}` : ""}`) +
+    `<ul class="br-take-list ar-takes">${BUILDING_TAKEAWAYS.map(({ key, label, take }) => {
+      const t = parts[key] ? take(parts[key], lot) : { tone: "none", value: "—", text: "Couldn’t load this. The full report may have it." };
+      return `<li class="br-take" data-tone="${escape(t.tone)}"><span class="br-take-label">${escape(label)}</span>` +
+        `<span class="br-take-value${t.value.length > 6 ? " br-take-value-text" : ""}">${escape(t.value)}</span>` +
+        `<span class="br-take-text">${escape(t.text)}</span></li>`;
+    }).join("")}</ul>`;
+}
+
+// ---------- Street safety ----------
+
+const KSI = (c) => c.killed + c.serious;
+// report.js CRASH_RADIUS (250 m), in Crash Hotspots' words.
+const CRASH_AREA = "within about 3 blocks";
+
+// c: safetyCard()
+export function safetyGlance(c) {
+  if (!c.hurt) return glance("good", `No crashes hurt anyone ${CRASH_AREA}`);
+  const text = `${plural(c.hurt, "crash", "crashes")} hurt someone ${CRASH_AREA}`;
+  return KSI(c) ? glance("warn", `${text}; ${plural(KSI(c), "person", "people")} killed or seriously hurt`) : glance("info", text);
+}
+
+export function safetyHtml(c) {
+  const when = c.from && c.through ? note(`Police-reported crashes, ${escape(date(c.from))} to ${escape(date(c.through))}.`) : "";
+  if (!c.hurt) return lead(`No police-reported crash hurt anyone ${CRASH_AREA}${c.crashes ? `, out of ${plural(c.crashes, "crash", "crashes")} reported` : ""}.`) + when;
+  const days = Math.max(1, daysCovered({ dateFrom: c.from, dataThrough: c.through }));
+  const stat = (value, label, tone = "") =>
+    `<div class="br-stat"${tone ? ` data-tone="${tone}"` : ""}><span class="br-stat-value">${value}</span><span class="br-stat-label">${label}</span></div>`;
+  const w = c.watch;
+  return `<div class="br-stats">` +
+      stat(count(c.hurt), `Crashes that hurt someone (${escape(howOften(c.hurt, days).replace(/\.$/, "").replace(/^About/, "about"))})`) +
+      stat(count(KSI(c)), `People killed or seriously hurt${c.killed ? ` (${count(c.killed)} killed)` : ""}`, KSI(c) ? "warn" : "") +
+    `</div>` +
+    (w ? sub("Stands out here") +
+      `<p class="ar-lead"><strong>${escape(w.title)}</strong>: ${escape(`${pct(w.share)} of crashes here, vs ${pct(w.baseShare)} across ${c.compareLabel ?? "the borough"}`)}.</p>` +
+      (w.tip ? note(escape(w.tip)) : "") : "") +
+    (c.corners.length ? sub("Corners where crashes hurt people most") + list(c.corners.map((k) => {
+      const f = k.findings[0] ?? k.common;
+      return row(escape(k.label), plural(k.hurt, "injury crash", "injury crashes"), f ? `Most often: ${escape(f.title.toLowerCase())}` : "");
+    })) : "") +
+    when;
+}
+
+// ---------- Parks ----------
+
+// parks: nearestParks(). The playground leads the glance: it's what most people look for.
+export function parksGlance(parks) {
+  const a = parks.find((x) => x.category === "playground") ?? parks[0];
+  if (!a) return glance("info", "No park amenities found nearby");
+  return glance("info", `Nearest ${parkKind(a.category).one.toLowerCase()}: ${milesText(a.miles)}`);
+}
+
+export function parksHtml(parks, today = new Date()) {
+  if (!parks.length) return lead("No NYC Parks playgrounds, dog runs, fountains or pools found nearby.");
+  return lead("The nearest of each kind.") + list(parks.map((a) => {
+    const off = seasonOf(a, today)?.short;
+    const place = placeText(a);
+    return row(
+      `<span class="ar-kind">${escape(parkKind(a.category).one)}</span> ${escape(a.name)}`,
+      escape(milesText(a.miles)),
+      [place ? escape(place) : "", off ? escape(off) : ""].filter(Boolean).join(" · ") +
+        `<span class="ar-directions"> · <a href="${escape(parkDirections(a))}" target="_blank" rel="noopener">Directions</a></span>`
+    );
+  })) + note(escape(PARKS_ONLY));
 }

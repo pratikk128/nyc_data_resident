@@ -3899,7 +3899,19 @@ span.pa-near { border-style: dashed; background: var(--card); }
 .ar-grade[data-tone="c"] { background: var(--grade-c); }
 .ar-grade[data-tone="none"] { background: var(--card); box-shadow: inset 0 0 0 1.5px var(--line-strong); color: var(--ink-soft); }
 
+/* Your building: the Building Report Card's takeaway tiles (.br-take), two by two */
+.ar-takes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ar-takes .br-take-value { font-size: 1.5rem; }
+.ar-takes .br-take-value-text { font-size: 1.0625rem; }
+.ar-body .br-stats { margin-top: var(--space-3); }
+
 .ar-sources { display: grid; gap: var(--space-2); max-width: 75ch; margin-top: var(--space-4); padding-left: var(--space-5); }
+
+/* Two cards a row on wide screens; 311 (two columns of its own) takes a whole row */
+@media (min-width: 900px) {
+  .ar-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ar-card[data-card="complaints"] { grid-column: 1 / -1; }
+}
 
 @media (max-width: 899px) {
   .ar-glance-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -3915,6 +3927,7 @@ span.pa-near { border-style: dashed; background: var(--card); }
 }
 @media (max-width: 419px) {
   .ar-glance-list { grid-template-columns: 1fr; }
+  .ar-takes { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) {
   .ar-glance-item { transition: none; }
@@ -3940,13 +3953,13 @@ span.pa-near { border-style: dashed; background: var(--card); }
 
   .ar-glance-list { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); }
   .ar-glance-item, .ar-mix, .ar-mix-dot, .ar-grade, .ar-bar, .ar-kind, .ar-card-icon,
-  .water-card-verdict, .water-status-icon { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .water-card-verdict, .water-status-icon, .ar .br-take, .ar .br-stat { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   .ar-glance-item { padding: var(--space-2) var(--space-3); box-shadow: none; break-inside: avoid; }
 
   .ar-group { margin-top: var(--space-5); }
   .ar-group-head { break-inside: avoid; break-after: avoid; }
   .ar-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); break-before: avoid; }
-  .ar-card:only-child { grid-column: 1 / -1; }
+  .ar-card:only-child, .ar-card[data-card="complaints"] { grid-column: 1 / -1; }
   .ar-card { padding: var(--space-3) var(--space-4); box-shadow: none; break-inside: avoid; }
   .ar-split { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ar a { color: inherit; text-decoration: none; }

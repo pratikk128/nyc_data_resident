@@ -26,14 +26,14 @@ export function nearSearch(parsed, zips) {
 
 /*
  * resolveLocation()'s answer →
- *   { kind: "point", lat, lon, label }
+ *   { kind: "point", lat, lon, label, bbl? }   bbl: the building, for a house-numbered address
  *   { kind: "choose", text, choices }   choices: [{ lat, lon, label }]
  *   { kind: "message", text }
  */
 export function addressOutcome(result) {
   if (result.status === "resolved") {
-    const { lat, lon, label } = result.location;
-    return { kind: "point", lat, lon, label };
+    const { lat, lon, label, bbl } = result.location;
+    return { kind: "point", lat, lon, label, ...(bbl ? { bbl } : {}) };
   }
   if (result.status === "choose") {
     const text = result.reason === "ambiguous" ? "That could be a few places. Which one?" : "No exact match. Did you mean one of these?";
