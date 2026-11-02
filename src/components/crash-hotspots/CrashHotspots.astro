@@ -194,6 +194,8 @@ const radiusLabel = (m: number) => (m === 250 ? '250 m (about 3 blocks)' : '500 
     $('[data-stats]').innerHTML = '';
     $('[data-stats]').setAttribute('aria-busy', 'false');
     $('[data-watch-section]').hidden = true;
+    $('[data-spots-title]').textContent = 'Intersections where people get hurt most';
+    $('[data-spots-intro]').textContent = '';
     $('[data-spots-list]').innerHTML = '';
     $('[data-csv]').hidden = true;
     $('[data-map-note]').textContent = '';

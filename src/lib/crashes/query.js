@@ -163,6 +163,11 @@ function readPerson(p = {}, problems) {
 }
 
 // `today` (YYYY-MM-DD, New York) sets the rolling date range; tests pin it.
+// `dataThrough` (newest crash date) caps the range when given.
+/**
+ * @param {Record<string, any>} [body]
+ * @param {{ dataThrough?: string, today?: string }} [options]
+ */
 export function normalizeSearch(body = {}, { dataThrough, today = nycToday() } = {}) {
   const problems = [];
   const location = readLocation(body.location, problems);
