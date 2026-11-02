@@ -8,7 +8,9 @@
  * The amenities come from /api/park-amenities/search, once per spot; the
  * categories, radius and "Show more" are applied here
  * (src/lib/park-amenities/nearby.js), so they switch at once. The spot,
- * radius and categories are in the URL (page-state.js).
+ * radius and categories are in the URL (page-state.js); the URL's spot is
+ * rounded to about a block, so distances and the spot's pin use the exact
+ * address or GPS fix while this tab has it (history.state).
  */
 import { CATEGORIES, RADII } from '../../lib/park-amenities/config.js';
 import { radiusText } from '../../lib/park-amenities/nearby.js';
@@ -98,7 +100,7 @@ const { query } = Astro.props;
 
 <script>
   import { CATEGORIES, ERROR_TEXT, METERS_PER_MILE } from '../../lib/park-amenities/config.js';
-  import { selectView, pagesFor, milesText, radiusText } from '../../lib/park-amenities/nearby.js';
+  import { selectView, pagesFor, byDistance, milesText, radiusText } from '../../lib/park-amenities/nearby.js';
   import { cardHtml, nearestHtml, skeletonHtml, escape } from '../../lib/park-amenities/render.js';
   import { mountAmenityMap } from '../../lib/park-amenities/amenity-map.js';
   import {
@@ -136,6 +138,8 @@ const { query } = Astro.props;
   let query: any = normalizeQuery(new URLSearchParams(location.search));
   // The spot's name: never in the URL, so a shared or reloaded link says "the spot you picked".
   let placeLabel = (history.state?.placeLabel as string) || '';
+  // The exact spot behind the URL's rounded one: never in the URL either.
+  let exact: { lat: number; lon: number } | null = history.state?.exact ?? null;
   let data: { point: any; amenities: any[]; sources: any[] } | null = null;
   let loadedFor = '';
   let pages = 1;
@@ -150,7 +154,7 @@ const { query } = Astro.props;
     query = next;
     const qs = queryToParams(query).toString();
     const url = `${location.pathname}${qs ? `?${qs}` : ''}`;
-    const state = { placeLabel, text: input.value };
+    const state = { placeLabel, exact, text: input.value };
     if (push) history.pushState(state, '', url); else history.replaceState(state, '', url);
     update();
   }
@@ -158,6 +162,7 @@ const { query } = Astro.props;
   window.addEventListener('popstate', () => {
     query = normalizeQuery(new URLSearchParams(location.search));
     placeLabel = history.state?.placeLabel || '';
+    exact = history.state?.exact ?? null;
     input.value = history.state?.text || '';
     closeOptions();
     pages = 1;
@@ -165,6 +170,11 @@ const { query } = Astro.props;
   });
 
   const spotKey = () => searchKey(query);
+  // Where distances are measured from: the exact spot when it's the one the URL rounds, else the URL's.
+  function spot() {
+    const r = exact && pointQuery(query, exact.lat, exact.lon);
+    return r && r.lat === query.lat && r.lon === query.lon ? exact! : { lat: query.lat, lon: query.lon };
+  }
 
   // ---------- Address box with suggestions ----------
   type Option = { label: string; hint?: string; lat: number; lon: number };
@@ -249,6 +259,7 @@ const { query } = Astro.props;
     choices.hidden = true;
     status.textContent = '';
     placeLabel = label;
+    exact = { lat, lon };
     selected = null;
     pages = 1;
     show('list');
@@ -357,17 +368,23 @@ const { query } = Astro.props;
   });
   narrow.addEventListener('change', () => { if (data && spotKey() === loadedFor) render({ refit: true }); });
 
-  // Under the map on narrow screens: which amenity is picked, and the way back to its card.
+  // The map's pins: every amenity in the radius, and the nearest of a kind with none in it (its card says how far).
+  const pinned = () => (view ? [...view.inRadius, ...view.nearest.filter((n: any) => n.amenity && !n.inRadius).map((n: any) => n.amenity)] : []);
+  const pinOf = (id: string | null) => (id ? pinned().find((a: any) => a.id === id) ?? null : null);
+  const outside = (id: string | null) => Boolean(id) && !view?.inRadius.some((a: any) => a.id === id);
+
+  // Under the map on narrow screens: which amenity is picked, and the way back to its card (none outside the radius).
   function showPicked() {
-    const a = selected ? view?.inRadius.find((x: any) => x.id === selected) : null;
+    const a = pinOf(selected);
     picked.hidden = !a;
-    picked.innerHTML = a
-      ? `<strong>${escape(a.name)}</strong>, ${milesText(a.miles)} away. <button type="button" class="copy-link" data-to-list>See it in the list</button>`
-      : '';
+    picked.innerHTML = !a ? ''
+      : outside(a.id) ? `<strong>${escape(a.name)}</strong>, ${milesText(a.miles)} away, outside ${radiusText(query.r)}. <button type="button" class="copy-link" data-to-list>Back to the list</button>`
+      : `<strong>${escape(a.name)}</strong>, ${milesText(a.miles)} away. <button type="button" class="copy-link" data-to-list>See it in the list</button>`;
   }
 
   // ---------- Map and list in sync ----------
-  function select(id: string | null, { fromMap = false } = {}) {
+  // scroll: bring its card into the list's view on wide screens (picked from the "nearest of each" strip).
+  function select(id: string | null, { fromMap = false, scroll = false } = {}) {
     selected = id;
     // A pin past the list's first page: grow the list to reach its card.
     const need = id ? pagesFor(view, id) : null;
@@ -383,17 +400,20 @@ const { query } = Astro.props;
       layout.scrollIntoView({ behavior: 'smooth', block: 'start' });
       return;
     }
-    map.highlight(id, { pan: !fromMap, popup: !fromMap });
-    if (fromMap && card && !narrow.matches) {
+    // One outside the radius: fit the map to it and the spot, so both show.
+    const far = !fromMap && outside(id) ? pinOf(id) : null;
+    if (far) drawMap(pinned(), { refit: true, fitTo: [[far.lat, far.lon]] })?.then(() => map.highlight(id, { popup: true }));
+    else map.highlight(id, { pan: !fromMap, popup: !fromMap });
+    if ((fromMap || scroll) && card && !narrow.matches) {
       card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      card.querySelector<HTMLButtonElement>('[data-locate]')?.focus({ preventScroll: true });
+      if (fromMap) card.querySelector<HTMLButtonElement>('[data-locate]')?.focus({ preventScroll: true });
     }
   }
   // The list's names and the "nearest of each" cards both pick an amenity.
   for (const el of [cards, nearest]) {
     el.addEventListener('click', (e) => {
       const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-locate]');
-      if (b) select(b.dataset.locate!);
+      if (b) select(b.dataset.locate!, { scroll: el === nearest });
     });
   }
   cards.addEventListener('mouseover', (e) => {
@@ -440,10 +460,10 @@ const { query } = Astro.props;
   }
 
   // Only while it's on screen: Leaflet can't size a hidden map (show() draws it when it appears).
-  function drawMap(amenities: any[], { refit }: { refit: boolean }) {
+  // fitTo: points to fit along with the spot, instead of the radius.
+  function drawMap(amenities: any[], { refit, fitTo = null }: { refit: boolean; fitTo?: number[][] | null }) {
     if (!showsMap()) return null;
-    const point = { lat: query.lat, lon: query.lon };
-    return map.update({ amenities, point, radiusMeters: query.r * METERS_PER_MILE, refit });
+    return map.update({ amenities, point: spot(), radiusMeters: query.r * METERS_PER_MILE, refit, fitTo });
   }
 
   async function update() {
@@ -501,7 +521,8 @@ const { query } = Astro.props;
   // ---------- Drawing ----------
   function render({ refit }: { refit: boolean }) {
     const { amenities, sources } = data!;
-    view = selectView(amenities, { categories: query.cats, radius: query.r, pages });
+    // The API measured from the rounded spot; measure again from the exact one.
+    view = selectView(byDistance(amenities, spot()), { categories: query.cats, radius: query.r, pages });
 
     for (const c of CATEGORIES) {
       const n = view.counts[c.key];
@@ -524,19 +545,21 @@ const { query } = Astro.props;
     nearest.hidden = !near.length;
 
     cards.innerHTML = view.list.map((a: any) => cardHtml(a)).join('');
-    if (selected && !view.inRadius.some((a: any) => a.id === selected)) selected = null;
+    if (!pinOf(selected)) selected = null;
     if (selected) cardFor(selected)?.classList.add('is-selected');
     showPicked();
     more.hidden = !view.more;
-    empty.hidden = view.list.length > 0;
-    if (!view.list.length) {
-      const e = emptyText(view, query);
-      empty.innerHTML = `<p><strong>${escape(e.text)}</strong></p>` +
+    // No kinds picked: the summary asks for one, so the list says nothing more.
+    const e = view.list.length ? null : emptyText(view, query);
+    empty.hidden = !e;
+    if (e) {
+      empty.innerHTML = `<p><strong>${escape(e.text)}</strong></p><p>${escape(e.note)}</p>` +
         (e.widen ? `<button type="button" class="copy-link" data-widen="${e.widen}">Widen to ${radiusText(e.widen)}</button>` : '');
     }
 
-    // Redrawing clears the halo; the picked amenity keeps it.
-    return drawMap(view.inRadius, { refit })?.then(() => map.highlight(selected));
+    // Redrawing clears the halo; the picked amenity keeps it. One picked outside the radius stays in view.
+    const far = outside(selected) ? pinOf(selected) : null;
+    return drawMap(pinned(), { refit, fitTo: far ? [[far.lat, far.lon]] : null })?.then(() => map.highlight(selected));
   }
 
   update();

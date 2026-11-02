@@ -8,7 +8,7 @@
  * The spot is rounded to about a block; a typed address never goes in the URL.
  */
 import { RADII, DEFAULT_RADIUS, MAX_RADIUS, CATEGORY_KEYS, categoryOf, boroughOf } from "./config.js";
-import { milesText, radiusText } from "./distance.js";
+import { milesPast, radiusText } from "./distance.js";
 import { inCityLimits } from "../in-city.js";
 import { count } from "../format.js";
 
@@ -91,7 +91,7 @@ export function missingNotes(view, query = {}) {
       ? `No ${label} listed ${boroughOf(query.boro).inText}.`
       : miles == null
       ? `No ${label} found in the city’s list.`
-      : `No ${label} within ${radiusText(view.radius)}. The nearest is ${milesText(miles)} away.`;
+      : `No ${label} within ${radiusText(view.radius)}. The nearest is ${milesPast(miles, view.radius)} away.`;
     return { key, text, miles };
   });
 }

@@ -17,10 +17,11 @@
  *
  * To add a dataset, export a definition from its server module and add it
  * to DATASETS:
- *   { id, dashboard, datasetId, cadence, rolling?, snapshots?, metadataJob, jobs }
+ *   { id, dashboard, datasetId, cadence, rolling?, snapshots?, dependsOn?, metadataJob, jobs }
  *     cadence    a key of CADENCES in cadence.js
  *     rolling    true when a job's window ends "today", so it rebuilds daily
  *     snapshots  ids of bundled snapshots a job joins in (snapshots.js)
+ *     dependsOn  keys of other datasets' jobs its jobs read; it rebuilds the run after one does
  *     jobs       [{ key, maxAgeHours, run, after? }], read with dailyValue()
  *     attention  optional async (now) → [sentence], upkeep for the status page
  */
@@ -57,10 +58,16 @@ const publicError = (err) => {
 
 const readState = async () => (await env.DATA_CACHE?.get(STATE_KEY, "json")) ?? { datasets: {}, snapshots: {} };
 
+// { [job key]: builtAt } from a run's state, for dependsOn.
+const jobBuiltTimes = (state) => Object.fromEntries(
+  Object.values(state.datasets ?? {}).flatMap((d) => Object.entries(d.jobs ?? {}).map(([key, j]) => [key, j?.builtAt ?? null])));
+
 export async function runEtl(now = Date.now()) {
   const state = await readState();
   const failures = [];
   const metadata = new Map(); // datasetId → metadata, shared with the snapshot check
+  // The last run's, so a job rebuilt in this run reaches the jobs that read it on the next.
+  const jobBuiltAt = jobBuiltTimes(state);
 
   const datasets = {};
   await Promise.all(DATASETS.map(async (ds) => {
@@ -82,7 +89,7 @@ export async function runEtl(now = Date.now()) {
       console.warn(`${ds.id}: ${ds.datasetId} last updated ${s.source.rowsUpdatedAt}, late for a ${cadenceOf(ds.cadence).label.toLowerCase()} dataset`);
     }
 
-    const version = sourceVersion(ds, s.source?.rowsUpdatedAt, snapshotBuiltAt);
+    const version = sourceVersion(ds, s.source?.rowsUpdatedAt, snapshotBuiltAt, jobBuiltAt);
     // The metadata job shows the "Data updated" date, so it follows the source at once.
     const due = [];
     if (meta) due.push([{ ...ds.metadataJob, run: () => meta }, { ...ds, minGapHours: 0 }]);
@@ -151,12 +158,13 @@ async function checkSnapshots(metadata, prev, now) {
 export async function etlStatus(now = Date.now()) {
   const state = await readState();
   const attention = [];
+  const jobBuiltAt = jobBuiltTimes(state);
   const cron = cronProblem(state.updatedAt, now);
   if (cron) attention.push(cron);
   const datasets = DATASETS.map((ds) => {
     const s = state.datasets?.[ds.id] ?? {};
     const updated = s.source?.rowsUpdatedAt ?? null;
-    const version = sourceVersion(ds, updated, snapshotBuiltAt);
+    const version = sourceVersion(ds, updated, snapshotBuiltAt, jobBuiltAt);
     const overdue = isOverdue(ds.cadence, updated, now);
     if (s.sourceError) attention.push(`${ds.id}: couldn't read the source's metadata (${s.sourceError})`);
     if (overdue) attention.push(`${ds.id}: the source hasn't updated since ${updated.slice(0, 10)}, late for its schedule`);

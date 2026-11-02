@@ -56,6 +56,12 @@ export function milesText(miles) {
   return miles < 10 ? `${miles.toFixed(1)} mi` : `${Math.round(miles)} mi`;
 }
 
+// A distance past the radius, never rounded down to it: 0.51 mi outside ½ mi reads "0.51 mi", not "0.5 mi".
+export function milesPast(miles, radius) {
+  const t = milesText(miles);
+  return parseFloat(t) <= radius ? `${(Math.ceil(miles * 100) / 100).toFixed(2)} mi` : t;
+}
+
 // "½ mi", "1 mi", "2 mi"
 export const radiusText = (r) => (r === 0.5 ? "½ mi" : r === 0.25 ? "¼ mi" : `${r} mi`);
 

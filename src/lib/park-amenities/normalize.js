@@ -10,13 +10,18 @@
  * (playgrounds, dog runs, pools) at its centroid. details is the category's
  * own (config.js map()). Missing values stay null; nothing is filled in. A
  * category with withPark is named after its park as well ("Drinking fountain
- * at Bryant Park"), so a list of them isn't the same name over and over.
+ * at Bryant Park"), so a list of them isn't the same name over and over; one
+ * with together has its rows a few metres apart in one park merged.
  */
 import { CATEGORIES, boroughName } from "./config.js";
 import { inCityLimits } from "../in-city.js";
 
 const text = (v) => String(v ?? "").replace(/\s+/g, " ").trim() || null;
 const round6 = (n) => Math.round(n * 1e6) / 1e6;
+
+// Metres between two { lat, lon } a few metres apart (flat at that scale).
+const metersApart = (p, q) =>
+  Math.hypot(p.lat - q.lat, (p.lon - q.lon) * Math.cos((p.lat * Math.PI) / 180)) * 111320;
 
 // Signed area and area-weighted centroid sums of one ring of [lon, lat] (shoelace).
 function ringSums(ring) {
@@ -74,7 +79,10 @@ export function centroid(geometry) {
  *   parkNames  { [gispropnum]: "Joyce Kilmer Park" }, from Parks Properties
  *   updatedAt  the dataset's rowsUpdatedAt ("2026-10-07")
  * Rows the category's map() drops (fountain sinks), with no usable
- * geometry, or outside the city are left out; a repeated id keeps its first row.
+ * geometry, or outside the city are left out; a repeated id keeps its first
+ * row. With category.together, a row within its meters of an earlier one in
+ * the same park (that can() merge) joins it: the first row's id and point,
+ * the details merged.
  */
 export function normalizeRows(category, rows, { parkNames = {}, updatedAt = null } = {}) {
   const out = new Map();
@@ -100,7 +108,21 @@ export function normalizeRows(category, rows, { parkNames = {}, updatedAt = null
       sourceLastUpdated: updatedAt
     });
   }
-  return [...out.values()];
+  return category.together ? mergeClose(category.together, [...out.values()]) : [...out.values()];
+}
+
+function mergeClose({ meters, can, merge }, amenities) {
+  const kept = [];
+  const byPark = new Map(); // park name → its kept amenities
+  for (const a of amenities) {
+    const park = byPark.get(a.parkName) ?? [];
+    const into = park.find((k) => metersApart(k, a) <= meters && can(k.details, a.details));
+    if (into) { into.details = merge(into.details, a.details); continue; }
+    park.push(a);
+    byPark.set(a.parkName, park);
+    kept.push(a);
+  }
+  return kept;
 }
 
 // Parks Properties rows ({ gispropnum, signname }) → { [gispropnum]: signname }.

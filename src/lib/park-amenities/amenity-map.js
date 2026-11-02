@@ -8,7 +8,7 @@
  * results (DESIGN.md "Maps").
  *
  * mountAmenityMap(canvas, { onPick(id) }) →
- *   update({ amenities, point, radiusMeters, refit })  draws the amenities, the spot and its radius
+ *   update({ amenities, point, radiusMeters, refit, fitTo })  draws the amenities, the spot and its radius
  *   highlight(id, { pan, popup })                       rings one amenity (null: none), and opens its popup
  *   invalidate()                                        after the frame changes size
  */
@@ -49,10 +49,11 @@ export function mountAmenityMap(canvas, { onPick }) {
     }
   });
 
-  function update({ amenities, point, radiusMeters, refit = true }) {
+  /** @param {{ amenities: any[], point: any, radiusMeters: number, refit?: boolean, fitTo?: number[][] | null }} opts */
+  function update({ amenities, point, radiusMeters, refit = true, fitTo = null }) {
     markers.clear();
     // Farthest first, so the nearest pins draw on top.
-    return base.update({ items: [...amenities].reverse(), point, radiusMeters, refit });
+    return base.update({ items: [...amenities].reverse(), point, radiusMeters, refit, fitTo });
   }
 
   function highlight(id, { pan = false, popup = false } = {}) {

@@ -7,11 +7,12 @@
  *
  * The datasets are small (under 4,000 rows) and change at most monthly. The
  * hourly ETL check (etl.js) rebuilds a dataset's amenities job when it
- * changes, keeping its normalized amenities (one point each) in KV, so the
+ * changes (or the park names do, the run after), keeping its normalized amenities (one point each) in KV, so the
  * geometry is fetched once per change, not per search. A search reads all
- * four (built on the request only when KV has none yet: first deploy, local
- * dev), keeps what's near the rounded spot, and is cached at the edge for an
- * hour, so requests don't wait on Socrata.
+ * four (built on the request only when KV has none yet: local dev, or a
+ * fresh deploy before its first search or cron run), keeps what's near the
+ * rounded spot, and is cached at the edge for an hour, so requests don't wait
+ * on Socrata.
  */
 import { env } from "cloudflare:workers";
 import { soql, datasetMetadata } from "./socrata.js";
@@ -20,7 +21,7 @@ import { requestMaxAgeHours } from "../etl/cadence.js";
 import { checkRateLimit } from "./rate-limit.js";
 import { CATEGORIES, PARK_NAMES, datasetUrl } from "../park-amenities/config.js";
 import { normalizeRows, parkNameIndex } from "../park-amenities/normalize.js";
-import { amenitiesNear } from "../park-amenities/nearby.js";
+import { amenitiesNear, seasonOutdated } from "../park-amenities/nearby.js";
 
 export const SEARCH_TTL = 3600;
 const FETCH_PAGE = 5000;
@@ -61,11 +62,12 @@ function definition(category) {
   const maxAgeHours = requestMaxAgeHours(category.cadence);
   const metadataJob = { key: `park-amenities:metadata:${id}`, maxAgeHours, run: () => datasetMetadata(id) };
   const amenitiesJob = {
-    key: `park-amenities:amenities:${id}:v2`,
+    key: `park-amenities:amenities:${id}:v3`,
     maxAgeHours,
+    after: metadataJob, // the ETL has just read the metadata; this reads it from there
     async run() {
       const [meta, rows, parkNames] = await Promise.all([
-        datasetMetadata(id),
+        dailyValue(metadataJob),
         allRows(id, { $select: category.select.join(", ") }),
         // A category whose rows name their park doesn't need these; a failure here shouldn't stop it.
         dailyValue(parkNamesJob).catch((err) => { console.warn(`park names: ${err.message}`); return {}; })
@@ -80,8 +82,15 @@ function definition(category) {
     dashboard: "park-amenities",
     datasetId: id,
     cadence: category.cadence,
+    // New park names rebuild the amenities named from them.
+    dependsOn: [parkNamesJob.key],
     metadataJob,
-    jobs: [amenitiesJob]
+    jobs: [amenitiesJob],
+    // For the data status page: season dates (config.js) are published yearly and kept by hand.
+    async attention(now = Date.now()) {
+      if (!seasonOutdated(category, new Date(now))) return [];
+      return [`park-amenities-${category.key}: the season dates in src/lib/park-amenities/config.js are for ${category.season.year}; the page uses the usual ones until they're updated to this year's`];
+    }
   };
 }
 
@@ -112,19 +121,21 @@ const round3 = (n) => Math.round(n * 1e3) / 1e3;
 /*
  * { lat, lon } → the amenities near that spot: everything within MAX_RADIUS,
  * plus the nearest of any category with none that close (nearby.js
- * amenitiesNear()). A dataset that fails to load is reported in sources and
- * left out; the rest still show. Cached at the edge per rounded spot (about a
- * block), data version and code version; misses are rate limited per client.
- * Throws RateLimited.
+ * amenitiesNear()), measured from the rounded spot with SPOT_SLACK to spare,
+ * so the page can measure again from the exact one. A dataset that fails to
+ * load is reported in sources and left out; the rest still show. Cached at
+ * the edge per rounded spot (about a block) and code version, so a hit reads
+ * nothing from KV; a rebuilt dataset shows once the hour is up (they change
+ * at most monthly). An answer missing a dataset isn't cached. Misses are rate
+ * limited per client. Throws RateLimited.
  * → { point, amenities, sources: [{ key, datasetId, name, url, updatedAt, error }] }
  */
 export async function loadSearch(where, requestUrl, ctx, clientAddress) {
   const point = { lat: round3(where.lat), lon: round3(where.lon) };
-  const loaded = await Promise.allSettled(CATEGORIES.map((c) => dailyValue(byKey.get(c.key).jobs[0])));
-  const versions = loaded.map((r) => (r.status === "fulfilled" ? r.value.computedAt : "x")).join(",");
-  const key = `park-amenities/search/${codeVersion()}/${versions}/${point.lat},${point.lon}`;
+  const key = `park-amenities/search/${codeVersion()}/${point.lat},${point.lon}`;
   return edgeCached(requestUrl, key, SEARCH_TTL, async () => {
     await checkRateLimit("PARKS_RATE_LIMITER", clientAddress);
+    const loaded = await Promise.allSettled(CATEGORIES.map((c) => dailyValue(byKey.get(c.key).jobs[0])));
     const sources = CATEGORIES.map((c, i) => {
       const r = loaded[i];
       if (r.status === "rejected") console.error(`park-amenities ${c.datasetId}: ${r.reason?.message ?? r.reason}`);
@@ -132,5 +143,5 @@ export async function loadSearch(where, requestUrl, ctx, clientAddress) {
     });
     const all = loaded.flatMap((r) => (r.status === "fulfilled" ? r.value.amenities : []));
     return { point, amenities: amenitiesNear(all, point), sources };
-  }, ctx);
+  }, ctx, (body) => !body.sources.some((s) => s.error));
 }

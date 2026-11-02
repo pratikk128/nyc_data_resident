@@ -499,3 +499,8 @@ test("card: hours and phone fall back to plain words; tap-to-call and directions
   assert.equal(directionsUrl({ address: null, lat: 40.1, lon: -73.9 }), "https://www.google.com/maps/dir/?api=1&destination=40.1%2C-73.9");
   assert.doesNotMatch(cardHtml({ ...s, name: "<b>x</b>" }), /<b>x<\/b>/, "data is escaped");
 });
+
+test("the nearest past the radius never reads as inside it", () => {
+  const [note] = missingNotes({ radius: 0.5, missing: [{ key: CATEGORIES[0].key, miles: 0.503 }] });
+  assert.equal(note.text, `No ${CATEGORIES[0].label} within ½ mi. The nearest is 0.51 mi away.`);
+});

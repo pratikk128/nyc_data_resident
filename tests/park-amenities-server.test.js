@@ -75,7 +75,7 @@ test("empty KV: built from Socrata on the first search; a dataset that fails sho
   for (const k of ["playground", "dog", "fountain"]) assert.ok(body.amenities.some((a) => a.category === k), k);
   assert.ok(body.amenities.every((a, i, xs) => i === 0 || xs[i - 1].miles <= a.miles));
   // The amenities and park names are in KV now.
-  assert.ok(env.DATA_CACHE.store.has("park-amenities:amenities:qnv7-p7a2:v2"));
+  assert.ok(env.DATA_CACHE.store.has("park-amenities:amenities:qnv7-p7a2:v3"));
   assert.ok(env.DATA_CACHE.store.has("park-amenities:park-names:enfh-gkve:v1"));
   failing = new Set();
 });
@@ -101,4 +101,39 @@ test("all four in KV: the search reads them without calling Socrata, cached for 
   assert.equal(pool.id, "pool:1");
   assert.ok(pool.miles > 0.1 && pool.miles < 0.2);
   assert.equal(body.amenities[0], pool); // the nearest of everything
+});
+
+test("edge cache: a hit reads nothing from KV; an answer missing a dataset isn't kept", async () => {
+  const { edgeCached } = await import("../src/lib/server/cache.js");
+  const stored = new Map();
+  globalThis.caches = { default: {
+    match: async (req) => stored.get(req.url)?.clone(),
+    put: async (req, res) => { stored.set(req.url, res); }
+  } };
+  try {
+    const url = new URL("https://example.test/");
+    const failed = { sources: [{ error: true }] };
+    const keep = (body) => !body.sources.some((s) => s.error);
+    assert.deepEqual(await edgeCached(url, "t", 60, async () => failed, {}, keep), failed);
+    assert.equal(stored.size, 0);
+
+    // The search: the first is built from what's in memory and kept; the next is a hit and touches neither KV nor Socrata.
+    const qs = `lat=${SPOT.lat}&lon=${SPOT.lon + 0.01}`;
+    const first = await (await get(qs)).json();
+    assert.ok(first.sources.every((s) => !s.error));
+    assert.equal(stored.size, 1);
+    env.DATA_CACHE = { get: async () => { throw new Error("read KV on a hit"); }, put: async () => {} };
+    fetches = [];
+    assert.deepEqual(await (await get(qs)).json(), first);
+    assert.deepEqual(fetches, []);
+  } finally {
+    delete globalThis.caches;
+  }
+});
+
+test("the status page asks for the pool season dates once their year is over", async () => {
+  const pool = parkAmenitiesDatasets.find((d) => d.id === "park-amenities-pool");
+  assert.deepEqual(await pool.attention(Date.parse("2026-11-02T12:00:00Z")), []);
+  assert.match((await pool.attention(Date.parse("2027-01-05T12:00:00Z")))[0], /season dates .* are for 2026/);
+  assert.deepEqual(await parkAmenitiesDatasets[0].attention(Date.parse("2027-01-05T12:00:00Z")), []); // playgrounds
 });

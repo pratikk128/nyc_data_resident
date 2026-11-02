@@ -19,10 +19,11 @@ export function badgeHtml(category) {
   return `<span class="hn-badge" data-tone="${c.tone}">${iconSvg(c.icon)}${escape(c.one)}</span>`;
 }
 
-// "Joyce Kilmer Park, Bronx" (the park left out when the amenity's name already says it).
+// "Joyce Kilmer Park, Bronx" (the park left out when the amenity's name already says it),
+// after where in the park it is when the category says ("W. 43 St between 8 Ave and 9 Ave, Manhattan").
 export function placeText(a) {
   const park = a.parkName && !a.name.includes(a.parkName) ? a.parkName : null;
-  return [park, a.borough].filter(Boolean).join(", ");
+  return [categoryOf(a.category)?.address?.(a.details ?? {}), park, a.borough].filter(Boolean).join(", ");
 }
 
 // Its usual season on `date` (seasonOf()), then where to check today's status.
@@ -45,7 +46,8 @@ const directionsHtml = (a) =>
 // The name's label adds the distance and first detail, so a row of fountains in one park sounds different.
 export function cardHtml(a, date = new Date()) {
   const place = placeText(a);
-  const label = [a.name, milesText(a.miles), categoryOf(a.category).lines(a.details)[0]].filter(Boolean).join(", ");
+  const c = categoryOf(a.category);
+  const label = [a.name, milesText(a.miles), c.address?.(a.details) ?? c.lines(a.details)[0]].filter(Boolean).join(", ");
   return (
     `<li class="hn-card" data-id="${escape(a.id)}" data-category="${escape(a.category)}">` +
       `<div class="hn-card-top">${badgeHtml(a.category)}<span class="hn-dist">${milesText(a.miles)}</span></div>` +
@@ -75,10 +77,10 @@ export function popupHtml(a, date = new Date()) {
 }
 
 /*
- * One "nearest of each" card. n: a selectView() nearest entry. In the radius
- * it's a button that picks the amenity; outside it, the distance and its
- * directions; none in the data, a plain card. Out of season it says so
- * ("Closed for the season"), since it's still the nearest.
+ * One "nearest of each" card. n: a selectView() nearest entry. A button that
+ * picks the amenity on the map (outside the radius it has a pin too, and its
+ * popup has the directions); none in the data, a plain card. Out of season
+ * it says so ("Closed for the season"), since it's still the nearest.
  */
 export function nearestHtml(n, radius, date = new Date()) {
   const c = categoryOf(n.key);
@@ -93,11 +95,9 @@ export function nearestHtml(n, radius, date = new Date()) {
     (off ? `<span class="pa-near-note" data-season="off">${escape(off)}</span>` : "") +
     `</span>`;
   const attrs = `class="pa-near" data-tone="${c.tone}" style="--hn-pin:${c.color}"`;
-  if (n.amenity && n.inRadius) {
-    return `<li><button type="button" ${attrs} data-locate="${escape(n.amenity.id)}" aria-label="${said(milesText(n.amenity.miles))}. Show on map">${inner}</button></li>`;
-  }
   if (n.amenity) {
-    return `<li><a ${attrs} href="${escape(directionsUrl(n.amenity))}" target="_blank" rel="noopener" aria-label="${said(milesPast(n.amenity.miles, radius))}, outside your radius. Directions (opens Google Maps)">${inner}</a></li>`;
+    const label = n.inRadius ? said(milesText(n.amenity.miles)) : `${said(milesPast(n.amenity.miles, radius))}, outside your radius`;
+    return `<li><button type="button" ${attrs} data-locate="${escape(n.amenity.id)}" aria-label="${label}. Show on map">${inner}</button></li>`;
   }
   return `<li><span ${attrs}>${inner}</span></li>`;
 }

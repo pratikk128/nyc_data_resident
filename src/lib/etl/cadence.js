@@ -46,12 +46,19 @@ export const requestMaxAgeHours = (cadence, rolling = false) => rebuildHours(cad
 /*
  * What a job was built from: the source's rowsUpdatedAt, plus the build time
  * of any bundled snapshot the job joins in (a deploy with a refreshed
- * snapshot then rebuilds it). null when the source couldn't be read.
+ * snapshot then rebuilds it) and of any other dataset's job it reads
+ * (dependsOn: when that one is rebuilt, the next run rebuilds this one). null
+ * when the source couldn't be read.
  *   snapshotBuiltAt  { [snapshot id]: builtAt } from src/data/snapshots.json
+ *   jobBuiltAt       { [job key]: builtAt } from the last run's ETL state
  */
-export function sourceVersion(dataset, rowsUpdatedAt, snapshotBuiltAt = {}) {
+export function sourceVersion(dataset, rowsUpdatedAt, snapshotBuiltAt = {}, jobBuiltAt = {}) {
   if (!rowsUpdatedAt) return null;
-  return [rowsUpdatedAt, ...(dataset.snapshots ?? []).map((id) => `${id}@${snapshotBuiltAt[id] ?? "?"}`)].join(" ");
+  return [
+    rowsUpdatedAt,
+    ...(dataset.snapshots ?? []).map((id) => `${id}@${snapshotBuiltAt[id] ?? "?"}`),
+    ...(dataset.dependsOn ?? []).map((key) => `${key}@${jobBuiltAt[key] ?? "?"}`)
+  ].join(" ");
 }
 
 /*

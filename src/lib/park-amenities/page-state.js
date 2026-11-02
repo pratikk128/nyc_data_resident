@@ -53,13 +53,15 @@ const where = (label) => (label ? `of ${label}` : "of the spot you picked");
 /*
  * The line above the list, from selectView()'s answer:
  *   "38 amenities within ½ mi of 350 5th Avenue, nearest first."
+ *   "80 amenities within 1 mi of 350 5th Avenue. Showing the nearest of each kind first."
  *   "Nothing within ½ mi of 350 5th Avenue."
  */
 export function summaryText(view, query, placeLabel) {
   if (!query.cats.length) return "Pick at least one kind of amenity above.";
   const n = view.inRadius.length;
   if (!n) return `Nothing within ${radiusText(query.r)} ${where(placeLabel)}.`;
-  return `${plural(n, "amenity", "amenities")} within ${radiusText(query.r)} ${where(placeLabel)}, nearest first.`;
+  const found = `${plural(n, "amenity", "amenities")} within ${radiusText(query.r)} ${where(placeLabel)}`;
+  return view.list.length < n ? `${found}. Showing the nearest of each kind first.` : `${found}, nearest first.`;
 }
 
 /*
@@ -77,14 +79,18 @@ export function nearestText(n, radius) {
 /*
  * The empty list: what to say, and the wider radius to offer (null: none wider).
  *   "No pools within ½ mi. The nearest is 0.8 mi away." + widen to 1 mi
+ * null with no kinds picked: the summary already asks for one.
+ * note: the lists cover NYC Parks sites only, so a missing one isn't a failed search.
  */
+export const PARKS_ONLY = "This page lists sites run by NYC Parks only, so playgrounds or fountains in other public spaces (like Bryant Park) aren’t here.";
+
 export function emptyText(view, query) {
-  if (!query.cats.length) return { text: "Pick at least one kind of amenity above to see what’s nearby.", widen: null };
+  if (!query.cats.length) return null;
   const kinds = query.cats.length === CATEGORY_KEYS.length ? "park amenities" : CATEGORY_KEYS.filter((k) => query.cats.includes(k)).map((k) => categoryOf(k).label.toLowerCase()).join(" or ");
   const miles = view.nearest.map((n) => n.amenity?.miles).filter((m) => m != null);
   // Nothing's inside the radius, so the nearest is past it.
   const nearest = miles.length ? ` The nearest is ${milesPast(Math.min(...miles), query.r)} away.` : "";
-  return { text: `No ${kinds} within ${radiusText(query.r)}.${nearest}`, widen: view.widenTo };
+  return { text: `No ${kinds} within ${radiusText(query.r)}.${nearest}`, note: PARKS_ONLY, widen: view.widenTo };
 }
 
 export const chipLabel = (label, n, radius) => `${label}: ${count(n)} within ${radiusText(radius)}`;

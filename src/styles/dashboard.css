@@ -3641,8 +3641,8 @@ a.hn-directions:hover { background: var(--accent-deep); }
   text-align: left;
   text-decoration: none;
 }
-button.pa-near, a.pa-near { cursor: pointer; transition: box-shadow var(--speed) var(--ease); }
-button.pa-near:hover, a.pa-near:hover { box-shadow: var(--shadow-hover); }
+button.pa-near { cursor: pointer; transition: box-shadow var(--speed) var(--ease); }
+button.pa-near:hover { box-shadow: var(--shadow-hover); }
 span.pa-near { border-style: dashed; background: var(--card); }
 .pa-near-icon {
   flex: none;

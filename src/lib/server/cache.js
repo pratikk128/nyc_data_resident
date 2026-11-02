@@ -27,7 +27,8 @@ const CACHE_VERSION = "v1";
 const KV_EXPIRY_SECONDS = 90 * 24 * 3600;
 const RECHECK_MS = 5 * 60e3; // how long an isolate trusts its in-memory copy
 
-export async function edgeCached(requestUrl, key, ttl, compute, ctx) {
+// keep(data): false leaves an answer out of the cache (one missing a dataset that failed to load).
+export async function edgeCached(requestUrl, key, ttl, compute, ctx, keep = () => true) {
   const cache = globalThis.caches?.default;
   if (!cache) return compute();
 
@@ -36,6 +37,7 @@ export async function edgeCached(requestUrl, key, ttl, compute, ctx) {
   if (hit) return hit.json();
 
   const data = await compute();
+  if (!keep(data)) return data;
   const stored = new Response(JSON.stringify(data), {
     headers: { "Content-Type": "application/json", "Cache-Control": `public, max-age=${ttl}` }
   });

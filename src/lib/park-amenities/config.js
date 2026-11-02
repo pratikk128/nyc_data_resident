@@ -49,14 +49,21 @@ const SINK = /^(food prep|slop|bathroom) sink$/i;
  *   cadence   how often the city says it publishes (src/lib/etl/cadence.js)
  *   select    the columns the ETL asks for
  *   map(row)  → { id, name, parkName?, parkId?, borough, geometry, details } or null to leave the row out
+ *   address(d)  optional: where in the park it is, the card's place line ("W. 43 St between 8 Ave and 9 Ave")
  *   lines(d)  the details as short phrases for a card
  *   seasonal(d)  true when the amenity runs only part of the year (gets the season note)
  *   season    when it usually runs, as [month, day] ranges within one calendar year:
  *               on     the usual season
  *               maybe  around it (it may have started or ended); outside it: off
- *             and the note for each state, plus short (the "nearest of each" card, off only)
+ *             and the note for each state, plus short (the "nearest of each" card, off only).
+ *             year: on and maybe are that year's published dates; in another year the page uses
+ *             usual ({ on, maybe }) and the data status page asks for this year's
  *   withPark  name it after its park too ("Drinking fountain at Bryant Park"): its own
  *             name is the same for every one
+ *   together  rows this close in one park are one spot (one pin, one card):
+ *               meters      how close
+ *               can(d, e)   whether two rows' details may be merged
+ *               merge(d, e) the merged details
  */
 export const CATEGORIES = [
   {
@@ -69,7 +76,8 @@ export const CATEGORIES = [
       id: r.system, name: r.publicname, parkId: r.gispropnum, borough: r.borough, geometry: r.shape,
       details: { where: text(r.publiclocation) || null }
     }),
-    lines: (d) => (d.where ? [d.where] : []),
+    address: (d) => d.where,
+    lines: () => [],
     seasonal: () => false
   },
   {
@@ -119,6 +127,19 @@ export const CATEGORIES = [
       d.dogBowl ? "Dog bowl" : null,
       d.count > 1 ? `${d.count} fountains together` : null
     ].filter(Boolean),
+    // Many fountains are listed as several rows at nearly one point (a pair side by side, or a
+    // building's fountains at its middle). Indoor and outdoor ones stay apart: only one is seasonal.
+    together: {
+      meters: 5,
+      can: (d, e) => d.indoor === e.indoor,
+      merge: (d, e) => ({
+        ...d,
+        bottleFiller: d.bottleFiller || e.bottleFiller,
+        dogBowl: d.dogBowl || e.dogBowl,
+        twoHeights: d.twoHeights || e.twoHeights,
+        count: d.count + e.count
+      })
+    },
     seasonal: (d) => !d.indoor,
     // NYC Parks publishes no fountain schedule: outdoor ones are turned off in the cold months
     // (frozen pipes) and back on in spring, park by park, so only "usually".
@@ -147,9 +168,12 @@ export const CATEGORIES = [
     lines: (d) => [d.indoor ? "Indoor" : "Outdoor", d.size ? `${sentence(d.size.replace(/&/g, "and"))} pool` : null].filter(Boolean),
     seasonal: (d) => !d.indoor,
     // The 2026 season (nyc.gov): June 27 to September 13. Earlier ones ran from late June to about Labor Day.
+    // Update all three each year once NYC Parks announces the dates.
     season: {
+      year: 2026,
       on: [[6, 27], [9, 13]],
       maybe: [[6, 20], [9, 20]],
+      usual: { on: [[7, 1], [9, 1]], maybe: [[6, 20], [9, 15]] },
       text: {
         on: "Outdoor pools are open in summer, daily.",
         maybe: "The outdoor pool season starts or ends around now.",
@@ -166,8 +190,10 @@ export const categoryOf = (key) => CATEGORIES.find((c) => c.key === key) ?? null
 export const RADII = [0.5, 1];
 export const DEFAULT_RADIUS = 0.5;
 export const MAX_RADIUS = 1;        // the API sends every amenity within this
+export const SPOT_SLACK = 0.05;     // plus this, since it measures from the spot rounded to 3 decimals (≤ ~70 m off)
 export const FAR_PER_CATEGORY = 1;  // and, for a category with none that close, its nearest one anywhere
-export const PAGE_SIZE = 25;        // list: this many, then "Show more" adds as many again
+export const PER_CATEGORY = 8;      // list: the nearest this many of each kind, then "Show more" adds as many again of each
+                                    // (so fountains, the most numerous, don't push the rest out of view)
 export const METERS_PER_MILE = 1609.344;
 
 export const PARKS_URL = "https://www.nycgovparks.org/";

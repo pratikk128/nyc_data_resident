@@ -10,9 +10,9 @@ import { readFileSync } from "node:fs";
 
 import { CATEGORIES, CATEGORY_KEYS, categoryOf, boroughName, DEFAULT_RADIUS } from "../src/lib/park-amenities/config.js";
 import { centroid, normalizeRows, parkNameIndex } from "../src/lib/park-amenities/normalize.js";
-import { byDistance, amenitiesNear, selectView, pagesFor, haversineMiles, milesPast, seasonOf } from "../src/lib/park-amenities/nearby.js";
+import { byDistance, amenitiesNear, selectView, pagesFor, haversineMiles, milesPast, seasonOf, seasonOutdated } from "../src/lib/park-amenities/nearby.js";
 import {
-  normalizeQuery, queryToParams, pointQuery, searchKey, toggleCategory, summaryText, nearestText, emptyText
+  normalizeQuery, queryToParams, pointQuery, searchKey, toggleCategory, summaryText, nearestText, emptyText, PARKS_ONLY
 } from "../src/lib/park-amenities/page-state.js";
 import { cardHtml, popupHtml, nearestHtml, directionsUrl, placeText } from "../src/lib/park-amenities/render.js";
 
@@ -171,11 +171,17 @@ test("selectView: the radius, the chosen kinds, the nearest of each, paging", ()
   assert.equal(pools.widenTo, 1); // the pool at 0.8 mi
   assert.equal(selectView(sorted, { categories: ["dog"], radius: 0.5 }).widenTo, null); // 2 mi: past the widest
 
-  const paged = selectView(sorted, { categories: [...CATEGORY_KEYS], radius: 1, pageSize: 2 });
-  assert.equal(paged.list.length, 2);
+  // The nearest of each kind first: a lot of fountains don't push the playground and pool out.
+  const crowd = byDistance([...Array.from({ length: 5 }, (_, i) => at("fountain", `f${i}`, 0.05 * (i + 1))), at("playground", "g1", 0.4), at("pool", "p1", 0.8)], SPOT);
+  const paged = selectView(crowd, { categories: [...CATEGORY_KEYS], radius: 1, perCategory: 2 });
+  assert.deepEqual(paged.list.map((a) => a.id), ["fountain:f0", "fountain:f1", "playground:g1", "pool:p1"]);
   assert.ok(paged.more);
-  assert.equal(pagesFor(paged, "pool:p1", 2), 2);
+  assert.equal(pagesFor(paged, "fountain:f4", 2), 3);
+  assert.equal(pagesFor(paged, "pool:p1", 2), 1);
   assert.equal(pagesFor(paged, "dog:d1", 2), null);
+  const q = { lat: 1, lon: 1, r: 1, cats: [...CATEGORY_KEYS] };
+  assert.equal(summaryText(paged, q, ""), "7 amenities within 1 mi of the spot you picked. Showing the nearest of each kind first.");
+  assert.equal(selectView(crowd, { categories: [...CATEGORY_KEYS], radius: 1, perCategory: 2, pages: 3 }).more, false);
 
   const none = selectView(sorted, { categories: [], radius: 0.5 });
   assert.deepEqual([none.list, none.nearest, none.widenTo], [[], [], null]);
@@ -222,10 +228,14 @@ test("wording: the summary, the nearest cards and the empty list", () => {
   const pq = { ...q, cats: ["pool"] };
   const pv = selectView(sorted, { categories: pq.cats, radius: 0.5 });
   assert.equal(summaryText(pv, pq, ""), "Nothing within ½ mi of the spot you picked.");
-  assert.deepEqual(emptyText(pv, pq), { text: "No pools within ½ mi. The nearest is 0.8 mi away.", widen: 1 });
+  assert.deepEqual(emptyText(pv, pq), { text: "No pools within ½ mi. The nearest is 0.8 mi away.", note: PARKS_ONLY, widen: 1 });
+  assert.match(PARKS_ONLY, /run by NYC Parks only/);
   const dq = { ...q, r: 1, cats: ["dog", "playground"] };
-  assert.deepEqual(emptyText(selectView(sorted, { categories: dq.cats, radius: 1 }), dq), { text: "No playgrounds or dog runs within 1 mi.", widen: null });
-  assert.equal(summaryText(selectView(sorted, { categories: [], radius: 0.5 }), { ...q, cats: [] }, ""), "Pick at least one kind of amenity above.");
+  assert.deepEqual(emptyText(selectView(sorted, { categories: dq.cats, radius: 1 }), dq), { text: "No playgrounds or dog runs within 1 mi.", note: PARKS_ONLY, widen: null });
+  // No kinds picked: only the summary asks for one.
+  const none = selectView(sorted, { categories: [], radius: 0.5 });
+  assert.equal(summaryText(none, { ...q, cats: [] }, ""), "Pick at least one kind of amenity above.");
+  assert.equal(emptyText(none, { ...q, cats: [] }), null);
 });
 
 // ---------- Cards ----------
@@ -247,6 +257,11 @@ test("cards: distance, park, details, the season note only where it applies, dir
   assert.match(cardHtml(chelsea), /Chelsea Recreation Center, Manhattan/);
   const [playground] = byDistance([byId(all.playground, "playground:DCA-1001")], SPOT);
   assert.doesNotMatch(cardHtml(playground, NOV), /seasonal/i);
+  // A playground's spot in its park is its place line, not a tag.
+  const where = playground.details.where;
+  assert.ok(where);
+  assert.match(cardHtml(playground), new RegExp(`<p class="hn-addr">${where.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}, `));
+  assert.doesNotMatch(cardHtml(playground), /hn-tags/);
   // A park named like the amenity isn't said twice.
   assert.equal(placeText(byId(all.pool, "pool:X236-POOL-0027")), "Mapes Pool, Bronx"); // Mapes Wading Pool
   assert.equal(placeText({ name: "Stop & Go Playground", parkName: "Stop & Go Playground", borough: "Bronx" }), "Bronx");
@@ -260,10 +275,10 @@ test("cards escape what the data says", () => {
   assert.match(html, /A &#38; B/);
 });
 
-test("nearest cards: a button in the radius, directions outside it, plain when none", () => {
+test("nearest cards: a button that shows it on the map, in the radius or outside it; plain when none", () => {
   const [p] = byDistance([at("pool", "p1", 0.8)], SPOT);
   assert.match(nearestHtml({ key: "pool", amenity: p, inRadius: true }, 1), /^<li><button[^>]*data-locate="pool:p1"/);
-  assert.match(nearestHtml({ key: "pool", amenity: p, inRadius: false }, 0.5), /^<li><a [^>]*href="https:\/\/www\.google\.com\/maps/);
+  assert.match(nearestHtml({ key: "pool", amenity: p, inRadius: false }, 0.5), /^<li><button[^>]*data-locate="pool:p1"[^>]*aria-label="[^"]*outside your radius\. Show on map"/);
   assert.match(nearestHtml({ key: "pool", amenity: null, inRadius: false }, 0.5), /^<li><span[^>]*>.*None listed/);
 });
 
@@ -281,6 +296,14 @@ test("season: outdoor pools and fountains by the New York date; indoor ones neve
   assert.equal(seasonOf(fountain, day("2026-05-10")).state, "maybe");
   // 1 a.m. UTC on Sept 14 is still Sept 13 in New York: the pool season's last day.
   assert.equal(seasonOf(pool, new Date("2026-09-14T01:00:00Z")).state, "on");
+  // Another year: the usual season (July to Labor Day for sure), not 2026's dates.
+  assert.equal(seasonOf(pool, day("2026-06-28")).state, "on");
+  assert.equal(seasonOf(pool, day("2027-06-28")).state, "maybe");
+  assert.equal(seasonOf(pool, day("2027-07-15")).state, "on");
+  assert.equal(seasonOf(pool, day("2027-09-10")).state, "maybe");
+  assert.equal(seasonOutdated(categoryOf("pool"), day("2026-12-31")), false);
+  assert.equal(seasonOutdated(categoryOf("pool"), day("2027-01-02")), true);
+  assert.equal(seasonOutdated(categoryOf("fountain"), day("2030-01-02")), false); // no published dates to update
   assert.equal(seasonOf(byId(all.pool, "pool:M260-POOL-0032"), day("2026-11-02")), null); // indoor
   assert.equal(seasonOf(byId(all.playground, "playground:DCA-1001"), day("2026-11-02")), null);
 });
@@ -308,4 +331,24 @@ test("a distance past the radius never reads as inside it", () => {
   assert.deepEqual(nearestText(fountain, 0.5), { head: "Water fountain", dist: "0.51 mi", note: "Outside ½ mi" });
   assert.equal(emptyText(v, q).text, "No park amenities within ½ mi. The nearest is 0.51 mi away.");
   assert.match(nearestHtml(fountain, 0.5), /, 0\.51 mi, outside your radius/);
+});
+
+test("fountains a few metres apart in one park are one spot; indoor and outdoor ones, or other parks, stay apart", () => {
+  const fountain = categoryOf("fountain");
+  const row = (system, lon, extra = {}) => ({
+    system, fountainty: "A", position: "Out in Open", propertyna: "Some Park", borough: "M",
+    the_geom: { type: "Point", coordinates: [lon, 40.75] }, ...extra
+  });
+  const out = normalizeRows(fountain, [
+    row("F1", -73.98),
+    row("F2", -73.98003, { fountainty: "Bottle Filler" }),          // ~2.5 m east
+    row("F3", -73.98003, { position: "Indoor" }),                    // same spot, indoors
+    row("F4", -73.98, { propertyna: "Other Park" }),                 // same spot, another park
+    row("F5", -73.9801)                                              // ~8 m west
+  ]);
+  assert.deepEqual(out.map((a) => a.id), ["fountain:F1", "fountain:F3", "fountain:F4", "fountain:F5"]);
+  const f1 = out[0];
+  assert.equal(f1.details.count, 2);
+  assert.ok(f1.details.bottleFiller);
+  assert.ok(fountain.lines(f1.details).includes("2 fountains together"));
 });
