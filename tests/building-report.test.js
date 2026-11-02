@@ -13,11 +13,11 @@ import {
 } from "../src/lib/building-report/soql.js";
 import {
   dobDate, ecbDate, plainViolation, summarizeLot, summarizeViolations, summarizeComplaints, summarizeBedbugs,
-  summarizeFlags, summarizeRepairs, summarizeLandlord, summarizeDob, summarizeHygiene, hygieneKind, lastMonths, lotName
+  summarizeFlags, summarizeRepairs, summarizeLandlord, summarizeDob, summarizeHygiene, summarizeCourt, hygieneKind, lastMonths, lotName
 } from "../src/lib/building-report/summarize.js";
 import {
   violationsTakeaway, violationsHtml, complaintsHtml, bedbugsHtml, bedbugsTakeaway, flagsTakeaway, landlordHtml, landlordTakeaway,
-  repairsHtml, hygieneHtml, hygieneTakeaway, columnsHtml, severityLabel, NO_HPD_TEXT
+  repairsHtml, repairsTakeaway, courtHtml, hygieneHtml, hygieneTakeaway, columnsHtml, severityLabel, NO_HPD_TEXT
 } from "../src/lib/building-report/render.js";
 import { findBuilding } from "../src/lib/building-report/lookup.js";
 import { normalizeFeature } from "../src/lib/complaints311/geocode.js";
@@ -40,6 +40,8 @@ test("BBLs: ten digits, borough 1–5; split into borough, block and lot", () =>
 test("each dataset gets the bbl in its own format", () => {
   assert.match(violationsQueries(LOT, TODAY).ever.params.$where, /^bbl = '2031070036'$/);
   assert.match(complaintsQueries(LOT, TODAY).ever.params.$where, /^bbl = 2031070036$/);
+  // Rows are problems: the all-time total counts complaints, like the 12-month one.
+  assert.equal(complaintsQueries(LOT, TODAY).ever.params.$select, "count(distinct complaint_id) AS n");
   assert.match(flagsQueries(LOT).vacate.params.$where, /^bbl = 2031070036$/);
   assert.match(flagsQueries(LOT).pendingCases.params.$where, /^bbl = '2031070036' AND casestatus = 'PENDING'$/);
   // Registrations have no bbl column.
@@ -122,9 +124,11 @@ test("open violations by class; urgent (Class C) gets the warn tone", () => {
     issued12: [{ n: "28" }], ever: [{ n: "3670" }],
     byYear: [{ year: "2024", n: "326" }, { year: "2026", n: "10" }], recentOpen: []
   }, TODAY);
-  assert.deepEqual(v.open, { A: 7, B: 37, C: 30, I: 1, total: 75 });
+  // Class I (a city notice) isn't a repair, so it's left out of the total.
+  assert.deepEqual(v.open, { A: 7, B: 37, C: 30, I: 1, total: 74 });
   assert.deepEqual(v.byYear, [{ year: 2024, n: 326 }, { year: 2025, n: 0 }, { year: 2026, n: 10 }]);
-  assert.deepEqual(violationsTakeaway(v, LOT), { tone: "warn", value: "75", text: "30 urgent, like no heat or lead paint (24 hours to fix)" });
+  assert.deepEqual(violationsTakeaway(v, LOT), { tone: "warn", value: "74", text: "30 urgent, like no heat or lead paint (24 hours to fix)" });
+  assert.match(violationsHtml(v, LOT), /74 open repair orders, plus 1 open city notice\./);
   assert.match(violationsHtml(v, LOT), /Urgent<\/span><span class="br-class-short">Owner has 24 hours · Class C/);
 });
 
@@ -181,6 +185,10 @@ test("city repairs: OMO and HWO combined, dollars only where the work got done",
   assert.equal(r.amount, 42539.02);
   assert.equal(r.latest, "2023-01-19");
   assert.match(repairsHtml(r, LOT), /101<\/span><span class="br-stat-label">emergency repair orders/);
+  // The takeaway counts the times the work got done, not every order.
+  assert.deepEqual(repairsTakeaway(r, LOT), { tone: "info", value: "51", text: "Out of 101 emergency orders. $43K of work, billed to the owner" });
+  const none = summarizeRepairs({ omo: [{ reason: "No Access", n: "3", amount: "900" }], hwo: [] });
+  assert.deepEqual(repairsTakeaway(none, LOT), { tone: "info", value: "0", text: "None done by the city’s contractors, out of 3 emergency orders" });
 });
 
 test("landlord: owners first, names only, an expired registration flagged", () => {
@@ -293,10 +301,30 @@ test("pests, mold and garbage: violations sorted by their wording, complaints by
   assert.deepEqual(hygieneTakeaway(d, LOT), { tone: "info", value: "3", text: "Mostly roaches. 6 tenant complaints in the last year" });
   assert.match(hygieneHtml(d, LOT), /In 2 apartments/);
 
-  const none = summarizeHygiene({ openViolations: [], complaintTypes: [], complaints12: [{ n: "0" }] }, TODAY);
+  const none = summarizeHygiene({ openViolations: [], complaintTypes: [], complaints12: [{ n: "0" }], everViolations: [{ n: "0" }], everComplaints: [{ n: "0" }] }, TODAY);
   assert.equal(hygieneTakeaway(none, { ...LOT, hpd: false }).text, NO_HPD_TEXT);
+  // A lot HPD no longer lists, with older records: not "No HPD records".
+  const past = summarizeHygiene({ openViolations: [], complaintTypes: [], complaints12: [{ n: "0" }], everViolations: [{ n: "12" }], everComplaints: [{ n: "0" }] }, TODAY);
+  assert.equal(past.ever, 12);
+  assert.deepEqual(hygieneTakeaway(past, { ...LOT, hpd: false }), { tone: "info", value: "0", text: "No tenant complaints in the last year" });
+  assert.doesNotMatch(hygieneHtml(past, { ...LOT, hpd: false }), /No HPD records/);
 
   const q = hygieneQueries(LOT, TODAY);
   assert.match(q.openViolations.params.$where, /^bbl = '2031070036' AND violationstatus = 'Open' AND \(novdescription like '%INFEST%' OR /);
+  assert.match(q.everViolations.params.$where, /^bbl = '2031070036'$/);
+  assert.match(q.everComplaints.params.$where, /^bbl = 2031070036$/);
   assert.match(q.complaints12.params.$where, /^bbl = 2031070036 AND received_date >= '2025-11-02' AND minor_category in \('PESTS', 'MOLD', /);
+});
+
+test("court: a harassment finding is \"After Trial\" or \"After Inquest\", not \"No Harassment\"", () => {
+  const d = summarizeCourt({
+    total: [{ n: "3" }],
+    cases: [
+      { litigationid: "1", casetype: "Tenant Action/Harrassment", casestatus: "CLOSED", findingofharassment: "After Trial" },
+      { litigationid: "2", casetype: "Tenant Action/Harrassment", casestatus: "CLOSED", findingofharassment: "After Inquest" },
+      { litigationid: "3", casetype: "Tenant Action/Harrassment", casestatus: "CLOSED", findingofharassment: "No Harassment" }
+    ]
+  });
+  assert.deepEqual(d.cases.map((c) => c.harassment), [true, true, null]);
+  assert.equal(courtHtml(d, LOT).match(/Harassment found/g).length, 2);
 });

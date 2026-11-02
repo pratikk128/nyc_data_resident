@@ -27,7 +27,7 @@ import {
   summarizeCourt, summarizeRepairs, summarizeLandlord, summarizeDob
 } from "../building-report/summarize.js";
 
-const CACHE_VERSION = "v2";
+const CACHE_VERSION = "v3";
 const LIMITER = "BUILDING_RATE_LIMITER";
 
 // ---------- Daily jobs (see src/lib/server/etl.js) ----------

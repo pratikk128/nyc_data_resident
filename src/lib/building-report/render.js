@@ -132,7 +132,7 @@ export function violationsHtml(d, lot) {
     `<div class="br-class" data-class="${c.key}"${c.key === "C" && d.open.C ? ' data-tone="warn"' : ""}>` +
     `<span class="br-class-n">${count(d.open[c.key])}</span>` +
     `<span class="br-class-name">${c.label}</span><span class="br-class-short">${c.short} · ${c.code}</span></div>`).join("")}</div>`);
-  out.push(note(`${plural(d.open.total, "open repair order")}. ${count(d.issued12)} issued in the last 12 months (since ${date(d.since)}), ${count(d.ever)} on record in all.`));
+  out.push(note(`${plural(d.open.total, "open repair order")}${d.open.I ? `, plus ${plural(d.open.I, "open city notice")}` : ""}. ${count(d.issued12)} issued in the last 12 months (since ${date(d.since)}), ${count(d.ever)} on record in all.`));
   out.push(note("“Open” means the city hasn’t recorded it as fixed. Owners certify their own repairs and inspectors may not have checked yet, so some may already be done."));
 
   if (d.byYear.length > 1) {
@@ -218,14 +218,14 @@ export function bedbugsHtml(d, lot) {
 // ---------- Pests, mold and garbage ----------
 
 export function hygieneTakeaway(d, lot) {
-  if (isEmptyHpd(lot, d.open + d.complaints12)) return takeaway("info", "—", NO_HPD_TEXT);
+  if (isEmptyHpd(lot, d.ever)) return takeaway("info", "—", NO_HPD_TEXT);
   const complaints = d.complaints12 ? `${plural(d.complaints12, "tenant complaint")} in the last year` : "No tenant complaints in the last year";
   if (!d.open) return takeaway("info", "0", complaints);
   return takeaway("info", count(d.open), `Mostly ${d.byKind[0].label.toLowerCase()}. ${complaints}`);
 }
 
 export function hygieneHtml(d, lot) {
-  if (isEmptyHpd(lot, d.open + d.complaints12)) return noHpdHtml("pest, mold or garbage records");
+  if (isEmptyHpd(lot, d.ever)) return noHpdHtml("pest, mold or garbage records");
   const out = [stats([
     stat(count(d.open), "open repair orders for pests, mold or garbage"),
     stat(count(d.complaints12), "tenant complaints about them in the last 12 months")
@@ -316,7 +316,11 @@ export function courtHtml(d, lot) {
 
 export function repairsTakeaway(d, lot) {
   if (!d.orders) return takeaway("info", "0", lot.hpd ? "The city hasn’t had to step in" : NO_HPD_TEXT);
-  return takeaway("info", count(d.orders), d.amount ? `${money(d.amount)} of work the city did and billed to the owner` : "No work done by the city’s contractors");
+  // The count is the orders where the city's contractor did the work; many end with none done.
+  const of = `of ${plural(d.orders, "emergency order")}`;
+  return takeaway("info", count(d.done), d.done
+    ? `Out ${of}. ${money(d.amount)} of work, billed to the owner`
+    : `None done by the city’s contractors, out ${of}`);
 }
 
 export function repairsHtml(d, lot) {

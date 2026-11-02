@@ -117,7 +117,8 @@ export function summarizeViolations(r, today) {
 
   return {
     ever: firstN(r.ever),
-    open: { ...open, total: open.A + open.B + open.C + open.I },
+    // Class I is a city notice, not a repair: shown on its own, not in the total.
+    open: { ...open, total: open.A + open.B + open.C },
     issued12: firstN(r.issued12),
     since: yearAgo(today),
     byYear,
@@ -167,7 +168,8 @@ export function hygieneKind(text) {
 
 /*
  * → { open, byKind: [{ key, label, n }] (most first, only kinds with any),
- *     apartments, recent, complaints12, complaintTypes: [{ label, n }], since }
+ *     apartments, recent, complaints12, complaintTypes: [{ label, n }], since, ever }
+ * ever: HPD's violations and complaints for the lot, of any kind and any year.
  */
 export function summarizeHygiene(r, today) {
   const counts = new Map();
@@ -196,7 +198,8 @@ export function summarizeHygiene(r, today) {
     recent,
     complaints12: firstN(r.complaints12),
     complaintTypes: [...types].map(([label, n]) => ({ label, n })).sort((a, b) => b.n - a.n),
-    since: yearAgo(today)
+    since: yearAgo(today),
+    ever: firstN(r.everViolations) + firstN(r.everComplaints)
   };
 }
 
@@ -279,7 +282,8 @@ export function summarizeCourt(r) {
       status: c.casestatus ? titleCase(c.casestatus).replace(/[\s-]+$/, "") : null,
       pending: c.casestatus === "PENDING",
       judgement: c.casejudgement === "YES",
-      harassment: /yes/i.test(c.findingofharassment ?? "") ? true : null,
+      // "After Trial" or "After Inquest" is a finding; "No Harassment" and blank aren't.
+      harassment: /^After (Trial|Inquest)/i.test(c.findingofharassment ?? "") ? true : null,
       penalty: c.penalty ?? null
     }))
   };

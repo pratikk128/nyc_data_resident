@@ -69,7 +69,7 @@ export function complaintsQueries(lot, today) {
       $where: `${where} AND received_date >= ${quote(yearAgo(today))}`,
       $group: "major_category", $order: "n DESC", $limit: "8"
     }),
-    ever: q("complaints", { $select: "count(*) AS n", $where: where })
+    ever: q("complaints", { $select: "count(distinct complaint_id) AS n", $where: where })
   };
 }
 
@@ -77,6 +77,7 @@ export function complaintsQueries(lot, today) {
  * Pests, mold and garbage: the open violations whose text names one (sorted
  * by kind in summarize.js), and the last 12 months' complaints about them.
  * Complaint rows are problems: types count problems, the total complaints.
+ * everViolations and everComplaints: whether HPD has any record of the lot at all.
  */
 export function hygieneQueries(lot, today) {
   const words = HYGIENE_WORDS.map((w) => `novdescription like ${quote(`%${w}%`)}`).join(" OR ");
@@ -92,7 +93,9 @@ export function hygieneQueries(lot, today) {
       $select: "minor_category, problem_code, count(*) AS n",
       $where: complaints, $group: "minor_category, problem_code", $order: "n DESC"
     }),
-    complaints12: q("complaints", { $select: "count(distinct complaint_id) AS n", $where: complaints })
+    complaints12: q("complaints", { $select: "count(distinct complaint_id) AS n", $where: complaints }),
+    everViolations: q("violations", { $select: "count(*) AS n", $where: bblText(lot) }),
+    everComplaints: q("complaints", { $select: "count(*) AS n", $where: bblNumber(lot) })
   };
 }
 
