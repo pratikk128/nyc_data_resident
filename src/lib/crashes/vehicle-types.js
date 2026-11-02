@@ -10,7 +10,7 @@
  */
 export const VEHICLE_TYPES = [
   { key: "e-bike", label: "E-bike", pattern: /^E[- ]?BIKE|ELECTRIC BI|PEDAL ASSIST|^EBIKE/ },
-  { key: "e-scooter", label: "E-scooter", pattern: /^E[- ]?SCOOT|ELECTRIC SCOOT|^ESCOOT|STAND ?UP SCOOT/ },
+  { key: "e-scooter", label: "E-scooter", pattern: /^E[- ]?SCOOT|ELECTRIC SCOOT|^ESCOOT|STAND ?UP SCOOT|STANDING SCOOT/ },
   { key: "bike", label: "Bicycle", pattern: /^(BIKE|BICYCLE|BICY|BIC|PEDAL|CITI ?BIKE)/ },
   { key: "moped", label: "Moped or motor scooter", pattern: /MOPED|MOTOR ?SCOOT|MINIBIKE|MINI BIKE|^SCOOTER|^SCOOT|^GAS SCOOT/ },
   { key: "motorcycle", label: "Motorcycle", pattern: /MOTORCYCLE|MOTORBIKE|DIRT ?BIKE|^MC$|^MOTOR ?CYC/ },
@@ -19,11 +19,12 @@ export const VEHICLE_TYPES = [
   { key: "bus", label: "Bus", pattern: /\bBUS\b|^BUS|SCHOOL ?BUS|OMNIBUS|MTA/ },
   { key: "pickup", label: "Pickup truck", pattern: /PICK[- ]?UP|^PK$|^PICK/ },
   { key: "van", label: "Van", pattern: /^VAN|MINIVAN|CARGO VAN|PASSENGER VAN|\bVAN$/ },
-  // Before trucks: "Station Wagon/Sport Utility Vehicle" isn't a utility truck.
-  { key: "suv", label: "SUV or station wagon", pattern: /SPORT UTILITY|STATION WAGON|^SUV|^SUBN|SUBURBAN|CROSSOVER|WAGON/ },
+  // Before trucks: "Station Wagon/Sport Utility Vehicle" isn't a utility truck,
+  // and the data's bare "Utility" and "Utility Task Vehicle" are nearly all cars' makes.
+  { key: "suv", label: "SUV or station wagon", pattern: /SPORT UTILITY|STATION WAGON|^SUV|^SUBN|SUBURBAN|CROSSOVER|WAGON|^UTILITY( TASK VEHICLE)?$/ },
   { key: "truck", label: "Truck (box, tractor-trailer, dump, delivery…)",
-    pattern: /TRUCK|TRACTOR|DUMP|FLAT ?BED|FLAT RACK|GARBAGE|REFUSE|TOW|WRECKER|TANKER|CONCRETE|MIXER|CARRY ?ALL|CHASSIS|STAKE|LIFT BOOM|TRAILER|SEMI|DELIV|ARMORED|BEVERAGE|REFRIG|SANITATION|DSNY|BOX/ },
-  { key: "sedan", label: "Car (sedan, coupe, hatchback…)", pattern: /SEDAN|^\d ?DR|DOOR|CONVERTIBLE|COUPE|HATCH|PASSENGER VEH|^CAR$|^AUTO/ }
+    pattern: /TRUCK|TRACTOR|DUMP|FLAT ?BED|FLAT RACK|GARBAGE|REFUSE|TOW|WRECKER|TANKER|CONCRETE|MIXER|CARRY ?ALL|CHASSIS|STAKE|LIFT BOOM|TRAILER|SEMI|DELIV|ARMORED|BEVERAGE|REFRIG|SANITATION|DSNY|BOX|SNOW ?PLOW|SWEEPER/ },
+  { key: "sedan", label: "Car (sedan, coupe, hatchback…)", pattern: /SEDAN|^\d ?DR|DOOR|CONVERTIBLE|COUPE|HATCH|PASSENGER VEH|^CAR$|^UNKNOWN CAR$|^AUTO/ }
 ];
 
 /*

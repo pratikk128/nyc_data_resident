@@ -4,8 +4,8 @@
  *
  * Since 2024 the city writes a make as an NCIC code plus a body class,
  * padded to four letters: "TOYT -CAR/SUV", "BMW  -CAR/SUV",
- * "FORD-TRUCK/BUS". A few rows (and older ones) spell it out: "FORD",
- * "Ford", "RAM", "Moped". The ingest lists the most common raw values
+ * "FORD-TRUCK/BUS", "YAMA -MCL". A few rows (and older ones) spell it
+ * out: "FORD", "Ford", "RAM", "Moped", "ZHILO". The ingest lists the most common raw values
  * nothing here matches (npm run data:crashes), which is how this list grows.
  *
  *   key     what the database stores in vehicles.make_key
@@ -25,6 +25,7 @@ export const MAKES = [
   { key: "DODGE", label: "Dodge", codes: ["DODG"] },
   { key: "FERRARI", label: "Ferrari", codes: ["FERR"] },
   { key: "FIAT", label: "Fiat", codes: ["FIAT"] },
+  { key: "FISKER", label: "Fisker", codes: ["FISK"] },
   { key: "FORD", label: "Ford", codes: ["FORD"] },
   { key: "GENESIS", label: "Genesis", codes: ["GENS", "GENE"] },
   { key: "GMC", label: "GMC", codes: ["GMC"] },
@@ -50,7 +51,7 @@ export const MAKES = [
   { key: "POLESTAR", label: "Polestar", codes: ["POLE", "PLSR"] },
   { key: "PONTIAC", label: "Pontiac", codes: ["PONT"] },
   { key: "PORSCHE", label: "Porsche", codes: ["PORS"] },
-  { key: "RAM", label: "Ram", codes: ["RAM"] },
+  { key: "RAM", label: "Ram", codes: ["RAM", "RAMB"] }, // RAMB is Rambler's code, but the data's are new pickups and vans
   { key: "RIVIAN", label: "Rivian", codes: ["RIVI", "RIVN"] },
   { key: "ROLLS-ROYCE", label: "Rolls-Royce", codes: ["ROL", "ROLS"], names: ["ROLLS ROYCE"] },
   { key: "SAAB", label: "Saab", codes: ["SAAB"] },
@@ -67,23 +68,30 @@ export const MAKES = [
   { key: "BLUE BIRD", label: "Blue Bird", codes: ["BLUI", "BLBI"] },
   { key: "FREIGHTLINER", label: "Freightliner", codes: ["FRHT"] },
   { key: "HINO", label: "Hino", codes: ["HINO"] },
+  { key: "IC BUS", label: "IC Bus", codes: ["IC"], names: ["IC CORP"] },
   { key: "INTERNATIONAL", label: "International", codes: ["INTL"], names: ["NAVISTAR"] },
   { key: "ISUZU", label: "Isuzu", codes: ["ISU", "ISUZ"] },
   { key: "KENWORTH", label: "Kenworth", codes: ["KW", "KENW"] },
   { key: "MACK", label: "Mack", codes: ["MACK"] },
   { key: "MOTOR COACH INDUSTRIES", label: "Motor Coach Industries", codes: ["MCI", "MCIN"] },
-  { key: "NEW FLYER", label: "New Flyer", codes: ["NEWF", "NFLY"] },
+  { key: "NEW FLYER", label: "New Flyer", codes: ["NEWF", "NFLY"], names: ["NE FL"] },
   { key: "NOVA BUS", label: "Nova Bus", codes: ["NOVA"] },
   { key: "PETERBILT", label: "Peterbilt", codes: ["PTRB", "PETE"] },
   { key: "PREVOST", label: "Prevost", codes: ["PREV"] },
+  { key: "STARCRAFT", label: "Starcraft", codes: [] },
   { key: "STERLING", label: "Sterling", codes: ["STER"] },
+  { key: "THOMAS BUILT", label: "Thomas Built", codes: ["THMS"], names: ["THOMAS"] },
   { key: "WESTERN STAR", label: "Western Star", codes: ["WSTR"] },
   { key: "WORKHORSE", label: "Workhorse", codes: ["WORK"] },
   // Motorcycles and scooters
+  { key: "JIAJUE", label: "Jiajue", codes: [], names: ["JIAJU"] },
   { key: "HARLEY-DAVIDSON", label: "Harley-Davidson", codes: ["HD", "HARL"], names: ["HARLEY", "HARLEY DAVIDSON"] },
   { key: "KAWASAKI", label: "Kawasaki", codes: ["KAWK", "KAWA"] },
+  { key: "TRIUMPH", label: "Triumph", codes: ["TRUM", "TRIU"] },
   { key: "VESPA", label: "Vespa", codes: ["VESP"] },
-  { key: "YAMAHA", label: "Yamaha", codes: ["YAMA"] }
+  { key: "YAMAHA", label: "Yamaha", codes: ["YAMA"] },
+  { key: "ZHILO", label: "Zhilo", codes: [] },
+  { key: "ZNEN", label: "Znen", codes: [] }
 ];
 
 const letters = (s) => String(s ?? "").toUpperCase().replace(/[^A-Z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
@@ -99,15 +107,16 @@ export const makeLabel = (key) => MAKES.find((m) => m.key === key)?.label ?? nul
 
 /*
  * A raw vehicle_make → { key, class }: key null when the make isn't known
- * here, class "car" | "truck" from the code's suffix (null without one).
+ * here, class "car" | "truck" | "motorcycle" from the code's suffix (null
+ * without one).
  */
 export function makeOf(raw) {
   const s = String(raw ?? "").toUpperCase().trim();
   if (!s) return { key: null, class: null };
-  const coded = s.match(/^([A-Z0-9&]+)\s*-\s*(CAR\/SUV|TRUCK\/BUS)\s*$/);
+  const coded = s.match(/^([A-Z0-9&]+)\s*-\s*(CAR\/SUV|TRUCK\/BUS|MCL)\s*$/);
   if (coded) {
     const make = BY_CODE.get(coded[1]) ?? BY_NAME.get(coded[1]);
-    return { key: make?.key ?? null, class: coded[2] === "CAR/SUV" ? "car" : "truck" };
+    return { key: make?.key ?? null, class: { "CAR/SUV": "car", "TRUCK/BUS": "truck", MCL: "motorcycle" }[coded[2]] };
   }
   const name = letters(s);
   const make = BY_NAME.get(name) ?? BY_CODE.get(name) ?? uniquePrefix(name, 4);

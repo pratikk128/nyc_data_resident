@@ -54,7 +54,7 @@ export const TABLES = {
     type_key TEXT,                     -- vehicle-types.js
     make_raw TEXT,
     make_key TEXT,                     -- makes.js
-    make_class TEXT,                   -- car | truck, from the make's suffix
+    make_class TEXT,                   -- car | truck | motorcycle, from the make's suffix
     vehicle_year INTEGER,
     travel_direction TEXT,
     occupants INTEGER,

@@ -84,6 +84,14 @@ test("makes: the data's codes with their body class, and spelled-out names", () 
   assert.deepEqual(makeOf("TOYOT"), { key: "TOYOTA", class: null }, "a truncated name");
   assert.deepEqual(makeOf("MERCEDES BENZ"), { key: "MERCEDES-BENZ", class: null });
   assert.deepEqual(makeOf("ZZZZ -CAR/SUV"), { key: null, class: "car" });
+  assert.deepEqual(makeOf("YAMA -MCL"), { key: "YAMAHA", class: "motorcycle" });
+  assert.deepEqual(makeOf("HD -MCL"), { key: "HARLEY-DAVIDSON", class: "motorcycle" });
+  assert.deepEqual(makeOf("RAMB -CAR/SUV"), { key: "RAM", class: "car" });
+  assert.deepEqual(makeOf("THMS-TRUCK/BUS"), { key: "THOMAS BUILT", class: "truck" });
+  assert.equal(makeOf("NE/FL").key, "NEW FLYER");
+  assert.equal(makeOf("Zhilo").key, "ZHILO");
+  assert.equal(makeOf("FISKE").key, "FISKER", "a truncated name");
+  assert.equal(makeOf("UNK").key, null);
   assert.deepEqual(makeOf(""), { key: null, class: null });
 });
 
@@ -107,6 +115,10 @@ test("vehicle types: the form's spellings grouped", () => {
   assert.equal(t("PK"), "pickup");
   assert.equal(t("Pick-up Truck"), "pickup", "a pickup, not a truck");
   assert.equal(t("Box Truck"), "truck");
+  assert.equal(t("Utility"), "suv", "the data's bare Utility is nearly all cars");
+  assert.equal(t("Utility Truck"), "truck");
+  assert.equal(t("Standing Scooter"), "e-scooter");
+  assert.equal(t("Unknown Car"), "sedan");
   assert.equal(t("Tractor Truck Diesel"), "truck");
   assert.equal(t("AMBULANCE"), "emergency");
   assert.equal(t("Ambulance"), "emergency");
