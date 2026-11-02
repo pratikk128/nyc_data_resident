@@ -7,7 +7,7 @@
  * Leaflet loads on first draw (complaints311/heatmap.js). Browser only; the
  * list is the non-map alternative.
  *
- * mountHotspotMap(canvas) → { update({ spots, points, area }), showSpot(i) }
+ * mountHotspotMap(canvas) → { update({ spots, points, area, victim }), showSpot(i) }
  */
 import { loadLeaflet } from "../complaints311/heatmap.js";
 import { escape } from "./render.js";
@@ -27,7 +27,7 @@ export function mountHotspotMap(canvas) {
   let L = null, map = null, dots = null, pins = null, ring = null, renderer = null;
   let markers = [], request = 0;
 
-  function draw({ spots, points, area }) {
+  function draw({ spots, points, area, victim = "someone" }) {
     dots.clearLayers();
     pins.clearLayers();
     ring.clearLayers();
@@ -46,7 +46,7 @@ export function mountHotspotMap(canvas) {
       const icon = L.divIcon({ className: "water-pin hs-pin", html: `<span>${i + 1}</span>`, iconSize: [28, 28], iconAnchor: [14, 14] });
       return L.marker([c.lat, c.lon], { icon, title: `${i + 1}. ${c.label}`, zIndexOffset: 1000 - i })
         .bindPopup(`<p class="hs-pop"><strong>${i + 1}. ${escape(c.label)}</strong><br>${escape(boroughLabel(c.borough) ?? "")}<br>
-          ${escape(count(c.hurt))} crash${c.hurt === 1 ? "" : "es"} hurt someone, ${escape(count(c.n))} in all</p>`)
+          ${escape(count(c.hurt))} crash${c.hurt === 1 ? "" : "es"} hurt ${escape(victim)}, ${escape(count(c.n))} in all</p>`)
         .addTo(pins);
     });
     if (area?.kind === "point") {

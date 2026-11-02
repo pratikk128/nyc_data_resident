@@ -20,6 +20,13 @@ const dl = (rows, cls = "") => `<dl class="cl-dl ${cls}">${rows.map(([k, v]) => 
 
 const STRENGTH_WORDS = { exact: "", close: "close", partial: "partial" };
 
+// Words, not a percent: one matching detail could otherwise read as a "100% match".
+export function matchWords({ percent, chips }) {
+  if (percent == null) return null;
+  if (percent >= 75 && chips.length >= 2) return "Strong match";
+  return percent >= 40 ? "Partial match" : "Weak match";
+}
+
 export function chipsHtml(chips) {
   if (!chips.length) return "";
   return `<ul class="cl-chips" aria-label="Details that match">${chips.map((c) => `<li class="cl-chip cl-chip-${c.strength}">${escape(c.label)}${STRENGTH_WORDS[c.strength] ? ` <span class="cl-chip-how">${STRENGTH_WORDS[c.strength]}</span>` : ""}</li>`).join("")}</ul>`;
@@ -33,7 +40,7 @@ export function cardHtml(r, rank, search = "") {
   <article aria-labelledby="cl-card-${escape(r.collisionId)}">
     <div class="cl-card-top">
       <p class="cl-rank">#${rank}</p>
-      ${r.percent != null ? `<p class="cl-score"><strong>${r.percent}%</strong> match</p>` : ""}
+      ${matchWords(r) ? `<p class="cl-score"><strong>${matchWords(r)}</strong></p>` : ""}
     </div>
     <h3 class="cl-card-title" id="cl-card-${escape(r.collisionId)}">${when(r.date, r.time)}</h3>
     <p class="cl-card-place">${escape(place)}${r.area ? ` · ${escape(r.area)}` : ""}</p>
@@ -55,7 +62,7 @@ export function broadHtml(total) {
 
 export const emptyHtml = () => `<div class="cl-empty">
   <p><strong>No crashes fit those details.</strong></p>
-  <p>Try fewer details, a wider date range, or a street name without the direction (“72 St” instead of “W 72 St”).
+  <p>Try fewer details, a wider date range, or a cross street instead of an exact address. Check the street’s spelling too.
   Not every crash is in this data: it has police-reported crashes only.</p>
 </div>`;
 
@@ -120,7 +127,7 @@ function recognizeHtml(d) {
         ["Street", r.onStreet], ["Cross street", r.crossStreet], ["Off-street location", r.offStreet],
         ["Borough", r.borough], ["ZIP code", r.zip]
       ])}
-      ${r.point ? `<div class="cl-map" data-crash-map role="img" aria-label="Map of where the crash happened"></div>` : `<p class="cl-note">No map point recorded for this crash.</p>`}
+      ${r.point ? `<div class="cl-map" data-crash-map role="region" aria-label="Map of where the crash happened"></div>` : `<p class="cl-note">No map point recorded for this crash.</p>`}
     </div>
   </section>
   <section class="cl-group" aria-labelledby="cl-vehicles-title">

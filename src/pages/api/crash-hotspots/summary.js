@@ -1,7 +1,7 @@
 /*
  * GET /api/crash-hotspots/summary?{place and filters}
  * Stat-card counts, counts per kind of crash (here and in the area it's
- * compared with), when crashes happen, by month, and the top intersections.
+ * compared with), and the top intersections.
  * Parameters are described in src/lib/crashes/hotspot-query.js.
  * → loadSummary() in src/lib/server/crash-hotspots.js, or { error }
  *

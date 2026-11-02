@@ -243,6 +243,7 @@ const radiusLabel = (m: number) => (m < 1000 ? `${m} m (about ${Math.max(1, Math
   let lastSearch = '';
   let searchRequest = 0;
   let detailRequest = 0;
+  let openId: string | null = null;
 
   // ---------- Form ⇄ URL ----------
 
@@ -366,6 +367,7 @@ const radiusLabel = (m: number) => (m < 1000 ? `${m} m (about ${Math.max(1, Math
 
   async function showCrash(id: string | null) {
     const req = ++detailRequest;
+    openId = id;
     if (!id) {
       detailEl.hidden = true;
       detailEl.innerHTML = '';
@@ -399,9 +401,19 @@ const radiusLabel = (m: number) => (m < 1000 ? `${m} m (about ${Math.max(1, Math
 
   function syncFromUrl() {
     const params = new URLSearchParams(location.search);
+    // Closing a crash (Back, or "Back to results"): focus returns to it in the list.
+    const closed = openCrash(params) ? null : openId;
     fillForm(paramsToValues(params));
-    if (hasSearch(params)) runSearch(params); else { resultsEl.hidden = true; results = []; lastSearch = ''; }
+    if (hasSearch(params)) {
+      runSearch(params).then((outcome) => { if (closed && outcome === 'done') focusResult(closed); });
+    } else { resultsEl.hidden = true; results = []; lastSearch = ''; }
     showCrash(openCrash(params));
+  }
+
+  function focusResult(id: string) {
+    const el = resultsEl.querySelector<HTMLElement>(`[data-open="${CSS.escape(id)}"]`) ?? $<HTMLElement>('#cl-results-title');
+    el.scrollIntoView({ block: 'center' });
+    el.focus();
   }
 
   form.addEventListener('submit', (e) => {

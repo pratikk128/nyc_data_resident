@@ -211,8 +211,9 @@ export function statCards(summary, mode = null) {
   const cards = [
     { name: "hurt", label: `Crashes that hurt ${victim}`, value: count(here.hurtCrashes), context: howOften(here.hurtCrashes, days) },
     {
-      name: "ksi", label: "People killed or seriously hurt", value: count(here.killed + here.serious),
-      context: `${count(here.killed)} killed, ${count(here.serious)} seriously hurt.`
+      // With a mode, these count everyone in the crashes that hurt the mode's someone, drivers included.
+      name: "ksi", label: modeOf(mode)?.who.length ? "People killed or seriously hurt in these crashes" : "People killed or seriously hurt", value: count(here.killed + here.serious),
+      context: `${count(here.killed)} killed, ${count(here.serious)} seriously hurt${modeOf(mode)?.who.length ? `, ${victim} or anyone else in them` : ""}.`
     }
   ];
   if (rank && here.hurtCrashes) {
@@ -250,7 +251,13 @@ export function patterns(here, base, mode = null, rules = WATCH) {
       items.push({ id, column: d.column, key: g.key, title: groupTitle(d.column, g), n, of: here.crashes, ksi, share: s, baseShare: b, ratio, tip: tipFor(id, mode) });
     }
   }
-  return items.sort((a, b) => (b.share - b.baseShare) - (a.share - a.baseShare) || b.ratio - a.ratio).slice(0, rules.max);
+  // Some kinds share a tip (backing up as a cause and as a maneuver); show it once.
+  const tips = new Set();
+  return items.sort((a, b) => (b.share - b.baseShare) - (a.share - a.baseShare) || b.ratio - a.ratio).slice(0, rules.max)
+    .map((item) => {
+      if (!item.tip || !tips.has(item.tip)) { tips.add(item.tip); return item; }
+      return { ...item, tip: null };
+    });
 }
 
 // "What to watch for here": the area against its borough (or a borough against NYC).

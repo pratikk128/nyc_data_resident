@@ -15,7 +15,7 @@
  *   leave out whatever couldn't be read.
  */
 import { dateRange } from "./config.js";
-import { nycToday } from "../format.js";
+import { nycToday, date as longDate } from "../format.js";
 import { streetMatchKey, streetBaseKey, minuteOf, INVOLVED_ROLES, POSITIONS } from "./normalize.js";
 import { resolveMake } from "./makes.js";
 import { resolveVehicleType } from "./vehicle-types.js";
@@ -82,7 +82,7 @@ function readDates(date = {}, problems, dataThrough, today) {
   const lo = range.from, hi = range.to ?? dataThrough ?? today;
   let from = clean(date.from), to = clean(date.to);
   for (const [name, v] of [["start", from], ["end", to]]) {
-    if (v && !isDate(v)) problems.push(`The ${name} date should look like 2024-06-15.`);
+    if (v && !isDate(v)) problems.push(`The ${name} date should look like ${hi}.`);
   }
   from = isDate(from) ? from : lo;
   to = isDate(to) ? to : hi;
@@ -90,7 +90,7 @@ function readDates(date = {}, problems, dataThrough, today) {
     problems.push("The start date is after the end date.");
     [from, to] = [to, from];
   }
-  if (to < lo || from > hi) problems.push(`This lookup covers crashes from ${lo} to ${hi}.`);
+  if (to < lo || from > hi) problems.push(`This lookup covers crashes from ${longDate(lo)} to ${longDate(hi)}.`);
   return { from: from < lo ? lo : from, to: to > hi ? hi : to, given: Boolean(clean(date.from) || clean(date.to)) };
 }
 

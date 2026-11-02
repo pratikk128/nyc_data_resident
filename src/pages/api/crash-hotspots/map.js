@@ -1,7 +1,6 @@
 /*
  * GET /api/crash-hotspots/map?{place and filters}
- * The map: crashes per ~165 m square, and each crash that seriously hurt or
- * killed someone. Parameters are described in src/lib/crashes/hotspot-query.js.
+ * The map: each crash that seriously hurt or killed someone. Parameters are described in src/lib/crashes/hotspot-query.js.
  * → loadMap() in src/lib/server/crash-hotspots.js, or { error }
  *
  * Reads D1 only. Cached at the edge per view; misses are rate limited per
