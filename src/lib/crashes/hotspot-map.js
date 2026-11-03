@@ -14,6 +14,8 @@ import { escape } from "./render.js";
 import { boroughLabel } from "../complaints311/config.js";
 import { count, date } from "../format.js";
 
+// Esri has tiles up to zoom 16 only (past it: "Map data not yet available"), so
+// tile layers keep the map's maxZoom and enlarge zoom-16 tiles (maxNativeZoom).
 const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas";
 const BASE_TILES = `${ESRI}/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}`;
 const LABEL_TILES = `${ESRI}/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}`;
@@ -77,9 +79,9 @@ export function mountHotspotMap(canvas) {
       if (!map) {
         map = L.map(canvas, { scrollWheelZoom: false, zoomSnap: 0.25, maxZoom: 17 });
         map.fitBounds(NYC_BOUNDS);
-        L.tileLayer(BASE_TILES, { attribution: ATTRIBUTION, maxZoom: 17 }).addTo(map);
+        L.tileLayer(BASE_TILES, { attribution: ATTRIBUTION, maxZoom: 17, maxNativeZoom: 16 }).addTo(map);
         map.createPane("labels").style.zIndex = "450"; // street names above the dots
-        L.tileLayer(LABEL_TILES, { pane: "labels", maxZoom: 17 }).addTo(map);
+        L.tileLayer(LABEL_TILES, { pane: "labels", maxZoom: 17, maxNativeZoom: 16 }).addTo(map);
         renderer = L.canvas({ tolerance: 6 });
         dots = L.layerGroup().addTo(map);
         pins = L.layerGroup().addTo(map);

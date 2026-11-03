@@ -14,6 +14,8 @@
  */
 import { schoolPath, TYPE_BY_SLUG } from "./config.js";
 
+// Esri has tiles up to zoom 16 only (past it: "Map data not yet available"), so
+// tile layers keep the map's maxZoom and enlarge zoom-16 tiles (maxNativeZoom).
 const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas";
 const BASE_TILES = `${ESRI}/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}`;
 const LABEL_TILES = `${ESRI}/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}`;
@@ -33,10 +35,10 @@ const escape = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCode
 
 function baseMap(L, canvas, options = {}) {
   const map = L.map(canvas, { scrollWheelZoom: false, zoomSnap: 0.25, maxZoom: 17, preferCanvas: true, ...options });
-  L.tileLayer(BASE_TILES, { attribution: ATTRIBUTION, maxZoom: 16 }).addTo(map);
+  L.tileLayer(BASE_TILES, { attribution: ATTRIBUTION, maxZoom: 17, maxNativeZoom: 16 }).addTo(map);
   map.createPane("labels").style.zIndex = "450";
   map.getPane("labels").style.pointerEvents = "none";
-  L.tileLayer(LABEL_TILES, { pane: "labels", maxZoom: 16 }).addTo(map);
+  L.tileLayer(LABEL_TILES, { pane: "labels", maxZoom: 17, maxNativeZoom: 16 }).addTo(map);
   return map;
 }
 
