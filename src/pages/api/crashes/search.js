@@ -37,3 +37,10 @@ export async function POST({ request, url, locals, clientAddress }) {
     return upstreamError(err);
   }
 }
+
+// Any other method (a GET from the address bar, say): JSON like the other routes, not the HTML 404.
+export function ALL() {
+  const res = json({ error: "This search takes a POST with a JSON body." }, { status: 405 });
+  res.headers.set("Allow", "POST");
+  return res;
+}

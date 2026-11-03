@@ -6,7 +6,7 @@
  * → { section, ...summary, sources: [{ id, name, url, updatedAt }] }, or { error }
  */
 import { loadLot, loadSection } from "../../../lib/server/building-report.js";
-import { isBbl, SECTION_KEYS, SECTION_TTL } from "../../../lib/building-report/config.js";
+import { bblProblem, SECTION_KEYS, SECTION_TTL } from "../../../lib/building-report/config.js";
 import { json, upstreamError } from "../../../lib/server/json.js";
 import { RateLimited, RATE_LIMITED_TEXT } from "../../../lib/server/rate-limit.js";
 
@@ -15,7 +15,8 @@ export const prerender = false;
 export async function GET({ params, url, locals, clientAddress }) {
   if (!SECTION_KEYS.includes(params.section)) return json({ error: "not-found" }, { status: 404 });
   const bbl = url.searchParams.get("bbl");
-  if (!isBbl(bbl)) return json({ error: "Pick a building: ?bbl= takes a 10-digit BBL." }, { status: 400 });
+  const problem = bblProblem(bbl);
+  if (problem) return json({ error: problem }, { status: 400 });
   try {
     const lot = await loadLot(bbl, url, locals.cfContext, clientAddress);
     if (!lot) return json({ error: "not-found" }, { status: 404, maxAge: SECTION_TTL });

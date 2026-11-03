@@ -298,11 +298,14 @@ export function mostCommon(here, base, mode = null) {
     .sort((a, b) => b.n - a.n)[0] ?? null;
 }
 
-// Rows → CSV text (values quoted when needed).
+// Rows → CSV text (values quoted when needed). A text cell starting with
+// =, +, -, @, tab or CR would run as a formula in a spreadsheet, so it gets a
+// leading apostrophe (intersection names come from the crash data).
 export function toCsv(header, rows) {
   const cell = (v) => {
-    const s = String(v ?? "");
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    let s = String(v ?? "");
+    if (typeof v === "string" && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+    return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   return [header, ...rows].map((r) => r.map(cell).join(",")).join("\n");
 }

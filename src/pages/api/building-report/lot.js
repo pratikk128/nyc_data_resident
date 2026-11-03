@@ -7,7 +7,7 @@
  * → { lot }, or { error }
  */
 import { loadLot } from "../../../lib/server/building-report.js";
-import { isBbl, BUILDING_TTL } from "../../../lib/building-report/config.js";
+import { bblProblem, BUILDING_TTL } from "../../../lib/building-report/config.js";
 import { json, upstreamError } from "../../../lib/server/json.js";
 import { RateLimited, RATE_LIMITED_TEXT } from "../../../lib/server/rate-limit.js";
 
@@ -15,7 +15,8 @@ export const prerender = false;
 
 export async function GET({ url, locals, clientAddress }) {
   const bbl = url.searchParams.get("bbl");
-  if (!isBbl(bbl)) return json({ error: "Pick a building: ?bbl= takes a 10-digit BBL." }, { status: 400 });
+  const problem = bblProblem(bbl);
+  if (problem) return json({ error: problem }, { status: 400 });
   try {
     const lot = await loadLot(bbl, url, locals.cfContext, clientAddress);
     if (!lot) return json({ error: "not-found" }, { status: 404, maxAge: BUILDING_TTL });

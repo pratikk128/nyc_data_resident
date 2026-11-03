@@ -7,14 +7,12 @@
  */
 import DashboardLayout from '../../layouts/DashboardLayout.astro';
 import AddressReport from '../../components/address-report/AddressReport.astro';
-import { ALL } from '../../data/dashboards.js';
 ---
 
 <DashboardLayout
   title="Your address report"
   description="Type an NYC address and see your building’s repair orders and complaints, crashes nearby, the drinking water, 311 requests, street closures, parks, help, schools and restaurant grades around it."
   path="/address/"
-  category={ALL}
 >
   <header class="page-head">
     <h1>Your address report</h1>

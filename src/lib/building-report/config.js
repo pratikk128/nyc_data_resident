@@ -95,6 +95,16 @@ export const SECTION_TTL = 3600;
 // "2031070036": borough digit, 5-digit block, 4-digit lot. Block and lot start at 1
 // (all zeros is a placeholder in some datasets).
 export const isBbl = (value) => /^[1-5](?!00000)\d{5}(?!0000)\d{4}$/.test(String(value ?? ""));
+// Why ?bbl= isn't a BBL, for the API's 400. null when it is one.
+export function bblProblem(value) {
+  const v = String(value ?? "");
+  if (!v) return "Pick a building: ?bbl= takes a 10-digit BBL.";
+  if (!/^\d{10}$/.test(v)) return "?bbl= takes a 10-digit BBL (borough digit, 5-digit block, 4-digit lot).";
+  if (!/^[1-5]/.test(v)) return "The BBL's first digit is the borough and has to be 1–5.";
+  if (v.slice(1, 6) === "00000") return "The BBL's block (digits 2–6) can't be 00000.";
+  if (v.slice(6) === "0000") return "The BBL's lot (the last 4 digits) can't be 0000.";
+  return null;
+}
 export const bblParts = (bbl) => ({ boro: Number(bbl[0]), block: Number(bbl.slice(1, 6)), lot: Number(bbl.slice(6)) });
 
 export const BOROUGH_NAMES = { 1: "Manhattan", 2: "Bronx", 3: "Brooklyn", 4: "Queens", 5: "Staten Island" };

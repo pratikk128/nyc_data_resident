@@ -15,7 +15,7 @@ interface Props {
   title: string;        // Dashboard name, e.g. "City Payroll Spending"
   description: string;  // Meta description
   path: string;         // e.g. "/city-payroll/"
-  category: string;     // Sidebar category on the landing page (CATEGORIES in src/data/dashboards.js)
+  category?: string;    // Sidebar category on the landing page (CATEGORIES in src/data/dashboards.js); without one (a page across categories) the breadcrumb ends with the title
   lastRefreshed?: string; // Formatted date this site last pulled the data; in the footer when it isn't dataUpdated's
   dataUpdated?: string; // ISO date the source dataset was last updated; shown top right
 }
@@ -68,7 +68,9 @@ const canonical = new URL(path, 'https://asknycdata.com').href;
       <nav class="breadcrumb" aria-label="Breadcrumb">
         <ol>
           <li><a href="/">All dashboards</a></li>
-          <li><a class="tag" data-tone={categoryTone(category)} href={categoryHref(category)}>{category}</a></li>
+          {category
+            ? <li><a class="tag" data-tone={categoryTone(category)} href={categoryHref(category)}>{category}</a></li>
+            : <li aria-current="page">{title}</li>}
         </ol>
       </nav>
       {dataUpdated && (

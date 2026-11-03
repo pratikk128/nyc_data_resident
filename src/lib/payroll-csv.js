@@ -17,8 +17,12 @@ const PAY_COLUMNS = [
 
 export const CITYWIDE_LABEL = "All agencies (citywide)";
 
-// Quote fields with commas or quotes, e.g. "Borough President, Bronx".
-const field = (value) => (/[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value);
+// Quote fields with commas or quotes, e.g. "Borough President, Bronx". One
+// starting with = + - @ (a formula to a spreadsheet) gets a leading apostrophe.
+const field = (value) => {
+  const s = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
 
 export function payrollCsvHref(years, cpi, payTypes = PAY_COLUMNS.map(([key]) => key), agencyLabel = CITYWIDE_LABEL) {
   const columns = PAY_COLUMNS.filter(([key]) => payTypes.includes(key));
