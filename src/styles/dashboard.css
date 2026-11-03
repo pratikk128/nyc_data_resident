@@ -350,6 +350,27 @@
   color: var(--ink-soft);
 }
 
+/* Phones: shown on a one-finger swipe over a map (src/lib/maps/touch.js) */
+.map-touch-hint {
+  position: absolute;
+  inset: 0;
+  z-index: 1001; /* above Leaflet's panes and controls */
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: var(--space-4);
+  background: rgb(28 42 68 / .55);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--speed) var(--ease);
+}
+.map-touch-hint.is-shown { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .map-touch-hint { transition: none; } }
+
 .chart-tooltip {
   position: absolute;
   z-index: 2;

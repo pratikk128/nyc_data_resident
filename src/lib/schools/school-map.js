@@ -13,6 +13,7 @@
  * mountMiniMap(canvas, { lat, lon, label })  School page: one marker.
  */
 import { schoolPath, TYPE_BY_SLUG } from "./config.js";
+import { touchOptions, addTouchHint } from "../maps/touch.js";
 
 // Esri has tiles up to zoom 16 only (past it: "Map data not yet available"), so
 // tile layers keep the map's maxZoom and enlarge zoom-16 tiles (maxNativeZoom).
@@ -34,7 +35,8 @@ function loadLeaflet() {
 const escape = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 function baseMap(L, canvas, options = {}) {
-  const map = L.map(canvas, { scrollWheelZoom: false, zoomSnap: 0.25, maxZoom: 17, preferCanvas: true, ...options });
+  const map = L.map(canvas, { ...touchOptions(L), scrollWheelZoom: false, zoomSnap: 0.25, maxZoom: 17, preferCanvas: true, ...options });
+  addTouchHint(map);
   L.tileLayer(BASE_TILES, { attribution: ATTRIBUTION, maxZoom: 17, maxNativeZoom: 16 }).addTo(map);
   map.createPane("labels").style.zIndex = "450";
   map.getPane("labels").style.pointerEvents = "none";
@@ -91,7 +93,7 @@ export async function mountMiniMap(canvas, { lat, lon, label }) {
     canvas.innerHTML = '<p class="chart-fallback">The map couldn’t load.</p>';
     return;
   }
-  const map = baseMap(L, canvas, { dragging: !L.Browser.mobile, tap: false });
+  const map = baseMap(L, canvas);
   L.circleMarker([lat, lon], { radius: 8, color: INK, weight: 3, fillColor: YELLOW, fillOpacity: 1 })
     .bindTooltip(escape(label), { direction: "top" })
     .addTo(map);

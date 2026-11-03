@@ -20,6 +20,8 @@
  * ctx: { L, map, layer, halo, renderer } (renderer: a canvas renderer with a wide tap tolerance)
  * fitTo: points to fit instead of the radius (items outside it, say)
  */
+import { touchOptions, addTouchHint } from "./touch.js";
+
 // Esri has tiles up to zoom 16 only (past it: "Map data not yet available"), so
 // tile layers keep the map's maxZoom and enlarge zoom-16 tiles (maxNativeZoom).
 const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas";
@@ -53,7 +55,8 @@ export function mountNearbyMap(canvas, { draw, drawHalo, keyOf, fallback, minPic
     }
     if (id !== request) return;
     if (!map) {
-      map = L.map(canvas, { scrollWheelZoom: false, zoomSnap: 0.25, maxZoom: 18, preferCanvas: true });
+      map = L.map(canvas, { ...touchOptions(L), scrollWheelZoom: false, zoomSnap: 0.25, maxZoom: 18, preferCanvas: true });
+      addTouchHint(map);
       L.tileLayer(BASE_TILES, { attribution: ATTRIBUTION, maxZoom: 18, maxNativeZoom: 16 }).addTo(map);
       map.createPane("labels").style.zIndex = "450";
       map.getPane("labels").style.pointerEvents = "none";

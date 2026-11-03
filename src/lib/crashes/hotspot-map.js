@@ -13,6 +13,7 @@ import { loadLeaflet } from "../complaints311/heatmap.js";
 import { escape } from "./render.js";
 import { boroughLabel } from "../complaints311/config.js";
 import { count, date } from "../format.js";
+import { touchOptions, addTouchHint } from "../maps/touch.js";
 
 // Esri has tiles up to zoom 16 only (past it: "Map data not yet available"), so
 // tile layers keep the map's maxZoom and enlarge zoom-16 tiles (maxNativeZoom).
@@ -77,7 +78,8 @@ export function mountHotspotMap(canvas) {
       }
       if (id !== request) return;
       if (!map) {
-        map = L.map(canvas, { scrollWheelZoom: false, zoomSnap: 0.25, maxZoom: 17 });
+        map = L.map(canvas, { ...touchOptions(L), scrollWheelZoom: false, zoomSnap: 0.25, maxZoom: 17 });
+        addTouchHint(map);
         map.fitBounds(NYC_BOUNDS);
         L.tileLayer(BASE_TILES, { attribution: ATTRIBUTION, maxZoom: 17, maxNativeZoom: 16 }).addTo(map);
         map.createPane("labels").style.zIndex = "450"; // street names above the dots

@@ -17,6 +17,7 @@ import { typeLabel } from "./labels.js";
 import { escape } from "./render.js";
 import { RADII, HEATMAP_CELLS_PER_DEGREE } from "./config.js";
 import { count } from "../format.js";
+import { touchOptions, addTouchHint } from "../maps/touch.js";
 
 // Esri's Light Gray Canvas (no API key): a muted base, and its street names drawn above the heat.
 const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas";
@@ -101,7 +102,8 @@ export function mountHeatmap(root) {
     const bounds = L.latLng(c).toBounds(p.radiusMeters * 2);
     // The view has to be set before the heat layer is added; it reads the map's position on add.
     if (!map) {
-      map = L.map(canvas, { scrollWheelZoom: false, zoomSnap: 0.25, maxZoom: 16 });
+      map = L.map(canvas, { ...touchOptions(L), scrollWheelZoom: false, zoomSnap: 0.25, maxZoom: 16 });
+      addTouchHint(map);
       map.fitBounds(bounds, { padding: [8, 8] });
       L.tileLayer(BASE_TILES, { attribution: ATTRIBUTION, maxZoom: 16 }).addTo(map);
       map.createPane("labels").style.zIndex = "450"; // above the heat (overlayPane is 400)

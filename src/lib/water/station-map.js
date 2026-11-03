@@ -13,6 +13,7 @@
  *             reader's view stays (the first draw always fits)
  */
 import { escape } from "./near-me.js";
+import { touchOptions, addTouchHint } from "../maps/touch.js";
 
 // Esri has tiles up to zoom 16 only (past it: "Map data not yet available"), so
 // tile layers keep the map's maxZoom and enlarge zoom-16 tiles (maxNativeZoom).
@@ -47,7 +48,8 @@ export function mountStationMap(canvas, { onPick }) {
     }
     if (id !== request) return;
     if (!map) {
-      map = L.map(canvas, { scrollWheelZoom: false, zoomSnap: 0.25, maxZoom: 17 });
+      map = L.map(canvas, { ...touchOptions(L), scrollWheelZoom: false, zoomSnap: 0.25, maxZoom: 17 });
+      addTouchHint(map);
       L.tileLayer(BASE_TILES, { attribution: ATTRIBUTION, maxZoom: 17, maxNativeZoom: 16 }).addTo(map);
       map.createPane("labels").style.zIndex = "450";
       map.getPane("labels").style.pointerEvents = "none";
