@@ -48,6 +48,8 @@ test("phones: ten digits are formatted with a tel: link; anything else is shown 
   assert.deepEqual(phone("718 8159200"), { display: "(718) 815-9200", tel: "+17188159200" });
   assert.deepEqual(phone("1-212-555-0100"), { display: "(212) 555-0100", tel: "+12125550100" });
   assert.deepEqual(phone("555-0100"), { display: "555-0100", tel: null });
+  assert.equal(phone("(555) 555-5555"), null, "placeholders are dropped");
+  assert.equal(phone("000-000-0000"), null);
   assert.equal(phone(""), null);
 });
 

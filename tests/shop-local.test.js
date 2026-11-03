@@ -10,7 +10,7 @@ import { KINDS, CATEGORIES } from "../src/lib/shop-local/config.js";
 import {
   normalizeQuery, queryToParams, searchLocal, kindOf, ownersOf, ownerLabels, placeName, localDetail
 } from "../src/lib/shop-local/filter.js";
-import { cardsHtml, detailHtml, distanceText, statusText, businessMeta } from "../src/lib/shop-local/render.js";
+import { cardsHtml, detailHtml, distanceText, statusText, businessMeta, placeLine } from "../src/lib/shop-local/render.js";
 import { pageUrl, formQuery, zipState, popstateAction, closeAction, nearestZip, startQuery } from "../src/lib/shop-local/page-state.js";
 import { indexRecord } from "../src/lib/shop-diverse/clean.js";
 
@@ -135,9 +135,13 @@ test("localDetail leaves out procurement fields and home addresses", () => {
   assert.equal(localDetail({ ...full, title: "Engineering Services" }, TODAY), null);
   assert.equal(localDetail({ ...full, renewals: ["2025-01-01"] }, TODAY), null);
   const html = detailHtml(localDetail({ ...full, title: "Child Care Services" }, TODAY));
-  assert.match(html, /comes to you/);
+  assert.match(html, /don’t show the street/);
   assert.doesNotMatch(html, /Nostrand/);
   assert.match(businessMeta(d).description, /^Acme Kitchen: restaurant in Brooklyn\. Women-owned/);
+  assert.match(businessMeta({ ...d, kind: "Accountant (CPA)", place: "" }).description, /^Acme Kitchen: accountant \(CPA\)\./);
+  const outside = detailHtml({ ...d, place: "Bloomfield, NJ", zip: "07003" });
+  assert.match(outside, /Bloomfield, NJ 07003/);
+  assert.doesNotMatch(outside, /NJ, NY/);
 });
 
 test("text helpers", () => {
@@ -145,9 +149,11 @@ test("text helpers", () => {
   assert.equal(distanceText(1.44), "About 1.4 mi away");
   assert.equal(distanceText(12.6), "About 13 mi away");
   assert.equal(distanceText(null), "");
-  assert.equal(statusText({ total: 38, pages: 2, page: 1 }, q("near=11216")), "38 businesses near 11216 · page 1 of 2");
+  assert.equal(statusText({ total: 38, pages: 2, page: 1 }, q("near=11216")), "38 businesses · nearest to 11216 first · page 1 of 2");
   assert.equal(statusText({ total: 1, pages: 1, page: 1 }, q("boro=queens"), "Queens"), "1 business in Queens");
   assert.equal(statusText({ total: 0 }, q("")), "No matches.");
+  assert.equal(placeLine("Astoria, Queens", "11105"), "Astoria, Queens, NY 11105");
+  assert.equal(placeLine("Bloomfield, NJ", "07003"), "Bloomfield, NJ 07003");
 });
 
 test("page state", () => {

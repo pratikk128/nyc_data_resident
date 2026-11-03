@@ -2497,6 +2497,7 @@ a.sd-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
 .sl-chip input { width: 18px; height: 18px; margin: 0; accent-color: var(--ink); }
 .sl-chip:hover { background: var(--tone-tint, var(--yellow-tint)); }
 .sl-chip:has(input:checked) { background: var(--tone-tint, var(--accent)); box-shadow: inset 0 0 0 1.5px var(--tone-deep, var(--ink)); }
+.sl-chip:has(input:disabled) { opacity: .5; cursor: default; background: var(--card); }
 .sl-chip-plain:has(input:checked) { background: var(--accent); color: var(--ink-on-fill); }
 .sl-chip-plain:has(input:checked) .sd-count { color: var(--ink-on-fill); }
 .sl-chip:has(input:focus-visible) { outline: 3px solid var(--link); outline-offset: 2px; }

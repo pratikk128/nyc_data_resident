@@ -75,6 +75,8 @@ export function phone(value) {
   let digits = raw.replace(/\D/g, "");
   if (digits.length === 11 && digits[0] === "1") digits = digits.slice(1);
   if (digits.length !== 10) return raw ? { display: raw, tel: null } : null;
+  // Placeholders: one digit repeated, or the unassigned 555 area code (555-555-5555)
+  if (/^(\d)\1{9}$/.test(digits) || digits.startsWith("555")) return null;
   return {
     display: `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`,
     tel: `+1${digits}`

@@ -10,7 +10,7 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
 import LocalFinder from '../../components/shop-local/LocalFinder.astro';
 import { getMetadata } from '../../lib/server/shop-diverse.js';
 import { loadLocalSearch, loadLocalBusiness, isAccount } from '../../lib/server/shop-local.js';
-import { RateLimited } from '../../lib/server/rate-limit.js';
+import { RateLimited, RATE_LIMITED_TEXT } from '../../lib/server/rate-limit.js';
 import { normalizeQuery, defaultQuery } from '../../lib/shop-local/filter.js';
 import { businessMeta } from '../../lib/shop-local/render.js';
 import { date } from '../../lib/format.js';
@@ -30,6 +30,7 @@ const [meta, initial, shared] = await Promise.allSettled([
 if (meta.status === 'rejected') console.error(meta.reason);
 for (const r of [initial, shared]) if (r.status === 'rejected' && !(r.reason instanceof RateLimited)) console.error(r.reason);
 const metaValue = meta.status === 'fulfilled' ? meta.value : null;
+const loadError = initial.status === 'rejected' && initial.reason instanceof RateLimited ? RATE_LIMITED_TEXT : null;
 const business = shared.status === 'fulfilled' ? shared.value : null;
 const bizMeta = business && !business.missing ? businessMeta(business) : null;
 const pageTitle = 'Support Women- and Minority-Owned Businesses Near You';
@@ -63,6 +64,7 @@ if (import.meta.env.PROD && initial.status === 'fulfilled' && shared.status === 
     query={query}
     initial={initial.status === 'fulfilled' ? initial.value : null}
     inputError={normalized.error ?? null}
+    loadError={loadError}
     business={business}
   />
 

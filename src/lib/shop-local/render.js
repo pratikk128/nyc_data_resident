@@ -36,16 +36,24 @@ export function ownerBadges(labels) {
   }).join("");
 }
 
-// "38 businesses near 11216", "No matches."
+// "38 businesses in Queens", "38 businesses · nearest to 11216 first", "No matches."
+// A ZIP only sorts, so the count is never "near" it.
 export function statusText(data, query, boroLabel) {
   if (!data.total) return "No matches.";
-  const where = query.near ? ` near ${query.near}` : boroLabel ? ` in ${boroLabel}` : query.outside ? "" : " in NYC";
+  const where = query.near ? ` · nearest to ${query.near} first` : boroLabel ? ` in ${boroLabel}` : query.outside ? "" : " in NYC";
   const pages = data.pages > 1 ? ` · page ${count(data.page)} of ${count(data.pages)}` : "";
   return `${plural(data.total, "business", "businesses")}${where}${pages}`;
 }
 
+// "Astoria, Queens, NY 11105"; a place outside NYC already ends in its state
+// (placeName in filter.js), so it gets only the ZIP: "Bloomfield, NJ 07003".
+export function placeLine(place, zip) {
+  if (/(^|, )[A-Z]{2}$/.test(place ?? "")) return [place, zip].filter(Boolean).join(" ");
+  return [place, `NY ${zip ?? ""}`.trim()].filter(Boolean).join(", ");
+}
+
 export const mapsUrl = (street, place, zip) =>
-  `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([street, place, `NY ${zip ?? ""}`.trim()].filter(Boolean).join(", "))}`;
+  `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([street, placeLine(place, zip)].filter(Boolean).join(", "))}`;
 
 const ICONS = {
   call: '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/>',
@@ -108,7 +116,9 @@ const row = (label, html) => (html ? `<div class="sd-dl-row"><dt>${label}</dt><d
 
 // Page title and link preview for a shared ?biz= link.
 export function businessMeta(d) {
-  const lead = `${d.name}: ${d.kind.toLowerCase()} in ${d.place}.${d.owners.length ? ` ${d.owners.join(", ")}, certified by NYC Small Business Services.` : ""}`;
+  // Only the first letter is lowered, so "Accountant (CPA)" keeps its acronym.
+  const kind = d.kind.charAt(0).toLowerCase() + d.kind.slice(1);
+  const lead = `${d.name}: ${kind}${d.place ? ` in ${d.place}` : ""}.${d.owners.length ? ` ${d.owners.join(", ")}, certified by NYC Small Business Services.` : ""}`;
   const about = String(d.description ?? "").replace(/\s+/g, " ").trim();
   const text = about ? `${lead} ${about}` : lead;
   return { title: d.name, description: text.length > 200 ? `${text.slice(0, 199).replace(/\s+\S*$/, "")}…` : text };
@@ -120,8 +130,8 @@ export function businessMeta(d) {
  */
 export function detailHtml(d) {
   const where = d.street
-    ? `${escape(d.street)}<br>${escape(d.place)}${d.zip ? `, NY ${escape(d.zip)}` : ""}`
-    : `${escape(d.place)}${d.zip ? ` (ZIP ${escape(d.zip)})` : ""}<br><span class="sd-muted">Works by appointment or comes to you. Call or check the website for where.</span>`;
+    ? `${escape(d.street)}<br>${escape(placeLine(d.place, d.zip))}`
+    : `${escape(d.place)}${d.zip ? ` (ZIP ${escape(d.zip)})` : ""}<br><span class="sd-muted">We don’t show the street. Call or check the website for where they work.</span>`;
   const cert = d.renewal
     ? `Certified by NYC Small Business Services, with a renewal date of ${date(d.renewal)}.`
     : "Certified by NYC Small Business Services.";
