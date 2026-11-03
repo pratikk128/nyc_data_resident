@@ -268,6 +268,7 @@ export function detailHtml(d, { benchmark = "citywide" } = {}) {
       `<div class="rest-head-side">` +
         `<p class="rest-inspected">${latest ? `Inspected <strong>${date(latest.date)}</strong>` : "Not yet inspected"}</p>` +
         `<button type="button" class="copy-link" data-copy-link>Copy link to this restaurant</button>` +
+        `<button type="button" class="copy-link" data-print>Print or save as PDF</button>` +
         `<p class="sr-only" role="status" data-copy-status></p>` +
         // Clipboard blocked: the link goes here so it can be selected and copied by hand.
         `<label class="copy-fallback" data-copy-fallback hidden><span>Copy this link:</span>` +

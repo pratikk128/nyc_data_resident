@@ -91,7 +91,8 @@ export function lotHeadHtml(lot) {
     `<div><dt>Tax lot (BBL)</dt><dd>${escape(lot.bbl)}</dd></div>` +
     `<div><dt>${lot.bins.length > 1 ? "Buildings (BINs)" : "Building (BIN)"}</dt><dd>${lot.bins.length ? escape(lot.bins.join(", ")) : "None found"}</dd></div>` +
     `</dl></details>` +
-    `<div class="ar-actions"><button type="button" class="near-btn" data-copy>Copy link</button></div>` +
+    `<div class="ar-actions"><button type="button" class="near-btn" data-copy>Copy link</button>` +
+    `<button type="button" class="near-btn" data-print>Print or save as PDF</button></div>` +
     `</div>` +
     (lot.lat != null
       ? `<div class="c311-map-frame br-map" data-map role="region" aria-label="Map showing ${place}, ${escape(lot.borough)}"></div>`

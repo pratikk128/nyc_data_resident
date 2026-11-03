@@ -76,6 +76,48 @@
 .report-link { margin: 0 0 0 auto; font-size: .875rem; font-weight: 600; }
 .report-link + .data-updated { margin-left: 0; }
 
+/* "Copy link" and "Print or save as PDF" (ShareActions): last in the top bar, on the right */
+.share-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+/* With them, the breadcrumb takes the free space so the address link, date and buttons pack to the right */
+.dash-topbar:has(.share-actions) .breadcrumb { margin-right: auto; }
+.dash-topbar:has(.share-actions) .report-link { margin-left: 0; }
+.share-btn {
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  border: 1.5px solid var(--link);
+  border-radius: var(--radius-pill);
+  background: var(--card);
+  color: var(--link);
+  font-size: .875rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.share-btn:hover { background: var(--link-tint); }
+@media (max-width: 639px) {
+  .share-actions { width: 100%; margin-left: 0; }
+  .share-btn { flex: 1; min-height: 44px; }
+}
+
+/* Printed or saved as PDF, on any dashboard: the page on white, without the
+   site header, buttons that only work on screen or in-page navigation, with
+   the date and link (.print-meta, filled by src/lib/share.js, which also
+   switches to the light theme). Colors print, so charts and grades keep
+   theirs. Dashboards add their own rules below theirs. */
+.print-meta { display: none; }
+@media print {
+  @page { margin: 14mm 12mm; }
+  html { font-size: 13px; }
+  body { background: #fff; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  :is(.site-header, .skip-link, .theme-toggle, .share-actions, .report-link, .section-nav, .section-pager,
+    .back-link, .leaflet-control-container, .copy-link, .copy-fallback, .rest-keys) { display: none !important; }
+  .dash-main { padding-top: 0; }
+  .print-meta { display: block; margin: var(--space-2) 0 0; font-size: 9pt; color: var(--ink-soft); overflow-wrap: anywhere; }
+  .page-head { margin-top: var(--space-3); }
+  .stat-card, .dash-section > .section-head, .about-data { box-shadow: none; break-inside: avoid; }
+  :is(h2, h3) { break-after: avoid; }
+}
+
 /* Site header: the way into the address report, from every dashboard */
 .header-address {
   display: inline-flex;
@@ -1017,6 +1059,10 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
 
 /* ---------- Detail ---------- */
 .rest-detail { scroll-margin-top: var(--space-4); }
+/* Printed with a restaurant open: just the restaurant, not the search or the notes on the data */
+@media print {
+  body:has(.rest-detail:not([hidden])) :is(#lookup, .rest-about) { display: none; }
+}
 .back-link { display: inline-flex; align-items: center; gap: var(--space-1); min-height: 44px; font-weight: 700; }
 .rest-detail-body[aria-busy="true"] { min-height: 300px; }
 .rest-loading, .rest-error { margin-top: var(--space-3); color: var(--ink-soft); }
@@ -4498,6 +4544,6 @@ span.pa-near { border-style: dashed; background: var(--card); }
   .br-cols { height: 120px; gap: 2px; }
 }
 @media print {
-  .br-map, .br-find-compact, .br .section-nav, .br .section-pager, .br-take-more, .br-all-link { display: none; }
+  .br-map, .br-find-compact, .br .section-nav, .br .section-pager, .br-take-more, .br-all-link, .br .ar-actions { display: none; }
   .br-section { break-inside: avoid; }
 }

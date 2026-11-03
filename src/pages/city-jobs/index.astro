@@ -23,6 +23,7 @@ if (import.meta.env.PROD) Astro.response.headers.set('Cache-Control', 'public, m
   category="City Government"
   lastRefreshed={date(payroll.byYear.refreshedAt)}
   dataUpdated={payroll.byYear.dataset.sourceUpdatedAt}
+  share
 >
   <header class="page-head">
     <h1>What NYC City Jobs Pay</h1>

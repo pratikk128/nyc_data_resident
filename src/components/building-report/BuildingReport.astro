@@ -158,6 +158,7 @@ const lotJson = lot ? JSON.stringify(lot) : '';
   import { suggest } from '../../lib/complaints311/geocode.js';
   import { mountNearbyMap } from '../../lib/maps/nearby-map.js';
   import { showReportLink } from '../../lib/address-report/link.js';
+  import { copyLink } from '../../lib/share.js';
 
   const TIMEOUT_TEXT = 'NYC Open Data is taking too long to answer. Try again in a minute.';
   // The API's not-found: the lot dropped out of every dataset since the page loaded.
@@ -286,18 +287,11 @@ const lotJson = lot ? JSON.stringify(lot) : '';
     ).finally(() => el?.removeAttribute('aria-busy'));
   }
 
-  // The header's "Copy link" and map, once it's drawn from the lot.
+  // The header's "Copy link", "Print or save as PDF" and map, once it's drawn from the lot.
   function wireHead() {
     const copyBtn = $<HTMLButtonElement>('[data-copy]');
-    copyBtn.addEventListener('click', async () => {
-      try {
-        await navigator.clipboard.writeText(`${location.origin}${buildingPath(bbl!, part)}`);
-        copyBtn.textContent = 'Link copied';
-      } catch {
-        copyBtn.textContent = 'Copy it from the address bar';
-      }
-      setTimeout(() => { copyBtn.textContent = 'Copy link'; }, 2500);
-    });
+    copyBtn.addEventListener('click', () => copyLink(copyBtn, `${location.origin}${buildingPath(bbl!, part)}`));
+    $<HTMLButtonElement>('[data-print]').addEventListener('click', () => window.print());
 
     showReportLink(lot.lat != null ? { lat: lot.lat, lon: lot.lon } : null);
     const mapEl = root.querySelector<HTMLElement>('[data-map]');

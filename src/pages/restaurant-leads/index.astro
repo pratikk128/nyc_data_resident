@@ -29,6 +29,7 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=300');
   category="Business"
   lastRefreshed={meta?.rowsUpdatedAt ? date(meta.rowsUpdatedAt) : undefined}
   dataUpdated={meta?.rowsUpdatedAt ?? undefined}
+  share
 >
   <header class="page-head">
     <h1>Restaurant Leads by Service Type</h1>

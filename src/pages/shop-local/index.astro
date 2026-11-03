@@ -47,6 +47,7 @@ if (import.meta.env.PROD && initial.status === 'fulfilled' && shared.status === 
   category="Business"
   lastRefreshed={metaValue?.rowsUpdatedAt ? date(metaValue.rowsUpdatedAt) : undefined}
   dataUpdated={metaValue?.rowsUpdatedAt ?? undefined}
+  share
 >
   <header class="page-head sd-head">
     <p class="sd-eyebrow">For New Yorkers</p>

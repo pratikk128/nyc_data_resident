@@ -445,6 +445,7 @@ const deepLink = Boolean(initial || initialError);
       syncCompareUrl();
       return;
     }
+    if (target.closest('[data-print]')) { window.print(); return; }
     const copy = target.closest<HTMLButtonElement>('[data-copy-link]');
     if (copy && current) {
       const link = new URL(detailHref(current.camis), location.origin).href;

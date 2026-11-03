@@ -80,6 +80,7 @@ const json = JSON.stringify({ name: school?.name, loc: loc?.lat != null ? { lat:
   category="Education"
   lastRefreshed={metaValue?.rowsUpdatedAt ? date(metaValue.rowsUpdatedAt) : undefined}
   dataUpdated={metaValue?.rowsUpdatedAt ?? undefined}
+  share
 >
   <p class="sq-back"><a href={BASE_PATH}>← All schools</a></p>
 

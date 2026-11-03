@@ -1,0 +1,22 @@
+---
+/*
+ * "Copy link" and "Print or save as PDF", top right of a dashboard whose URL
+ * holds what's on screen (its place, filters, the school or business open).
+ * DashboardLayout draws it with the share prop; the printout itself is set up
+ * there too (src/lib/share.js).
+ */
+---
+
+<div class="share-actions" data-share>
+  <button type="button" class="share-btn" data-share-copy>Copy link</button>
+  <button type="button" class="share-btn" data-share-print>Print or save as PDF</button>
+</div>
+
+<script>
+  import { copyLink } from '../lib/share.js';
+
+  for (const el of document.querySelectorAll<HTMLElement>('[data-share]')) {
+    el.querySelector<HTMLButtonElement>('[data-share-copy]')!.addEventListener('click', (e) => copyLink(e.currentTarget));
+    el.querySelector<HTMLButtonElement>('[data-share-print]')!.addEventListener('click', () => window.print());
+  }
+</script>

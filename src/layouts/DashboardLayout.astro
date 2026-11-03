@@ -8,6 +8,7 @@ import '../styles/landing.css';
 import '../styles/dashboard.css';
 import ThemeInit from '../components/ThemeInit.astro';
 import ThemeToggle from '../components/ThemeToggle.astro';
+import ShareActions from '../components/ShareActions.astro';
 import { date } from '../lib/format.js';
 import { categoryHref, categoryTone } from '../data/dashboards.js';
 
@@ -19,9 +20,12 @@ interface Props {
   lastRefreshed?: string; // Formatted date this site last pulled the data; in the footer when it isn't dataUpdated's
   dataUpdated?: string; // ISO date the source dataset was last updated; shown top right
   reportLink?: boolean; // A dashboard that works on a spot: "See everything about this address" once it's on one (src/lib/address-report/link.js)
+  share?: boolean;      // A page worth sending or keeping: "Copy link" and "Print or save as PDF" top right (ShareActions)
 }
 
-const { title, description, path, category, lastRefreshed, dataUpdated, reportLink } = Astro.props;
+const { title, description, path, category, lastRefreshed, dataUpdated, reportLink, share } = Astro.props;
+// The address report prints its own date and link, in its header.
+const printMeta = path !== '/address/';
 // Most pages read the source's own date for both; say it once, at the top.
 const pulledOn = lastRefreshed && !(dataUpdated && date(dataUpdated) === lastRefreshed) ? lastRefreshed : undefined;
 const fullTitle = `${title} | Ask NYC Data`;
@@ -89,7 +93,9 @@ const canonical = new URL(path, 'https://asknycdata.com').href;
       {dataUpdated && (
         <p class="data-updated">Data updated as of <time datetime={dataUpdated}>{date(dataUpdated)}</time></p>
       )}
+      {share && <ShareActions />}
     </div>
+    {printMeta && <p class="print-meta" data-print-meta></p>}
 
     <slot />
   </main>
@@ -101,5 +107,11 @@ const canonical = new URL(path, 'https://asknycdata.com').href;
       {pulledOn && <> Ask NYC Data last pulled it on {pulledOn}.</>}
     </p>
   </footer>
+  {printMeta && (
+    <script>
+      import { preparePrint } from '../lib/share.js';
+      preparePrint();
+    </script>
+  )}
 </body>
 </html>

@@ -43,6 +43,7 @@ if (import.meta.env.PROD && initialValue) Astro.response.headers.set('Cache-Cont
   lastRefreshed={metaValue?.rowsUpdatedAt ? date(metaValue.rowsUpdatedAt) : undefined}
   dataUpdated={metaValue?.rowsUpdatedAt ?? undefined}
   reportLink
+  share
 >
   <header class="page-head">
     <p class="sq-eyebrow">From NYC DOE School Quality Reports</p>

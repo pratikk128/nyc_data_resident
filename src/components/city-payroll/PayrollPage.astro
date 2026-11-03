@@ -45,6 +45,7 @@ if (import.meta.env.PROD) Astro.response.headers.set('Cache-Control', 'public, m
   category="City Government"
   lastRefreshed={date(byYear.refreshedAt)}
   dataUpdated={byYear.dataset.sourceUpdatedAt ?? undefined}
+  share
 >
   <header class="page-head">
     <h1>City Payroll Spending</h1>
