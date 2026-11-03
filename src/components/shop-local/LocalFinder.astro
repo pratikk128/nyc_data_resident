@@ -173,6 +173,9 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
   import zipFile from '../../data/zip-centroids.json';
 
   const DEBOUNCE_MS = 350;
+  // Arrow keys move through a radio group, checking each option on the way, so
+  // a run of them waits for the last one: one search, one history entry.
+  const ARROW_DELAY_MS = 500;
   // Only a slow search says "Loading", so screen readers hear the count, not a message per keystroke.
   const LOADING_DELAY_MS = 1000;
 
@@ -181,6 +184,8 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
   const qInput = $<HTMLInputElement>('[data-q]');
   const nearInput = $<HTMLInputElement>('[data-near]');
   const nearError = $('[data-near-error]');
+  const nearHint = $('[data-near-hint]');
+  const NEAR_HINT = nearHint.textContent;
   const locate = $<HTMLButtonElement>('[data-locate]');
   const locateError = $('[data-locate-error]');
   const outsideWrap = $('[data-outside-wrap]');
@@ -199,6 +204,8 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
   let current: any = null;
   let openedId: string | null = null;
   let typingTimer = 0;
+  let arrowTimer = 0;
+  let arrowKey = false;
   let loadingTimer = 0;
   const coarsePointer = matchMedia('(pointer: coarse)');
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
@@ -216,7 +223,15 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
     qInput.value = q.q;
     nearInput.value = q.near;
     showZipError(false);
+    markStale(false);
     outsideWrap.hidden = Boolean(q.boro);
+  }
+
+  // While the ZIP box holds a half-typed or non-NYC ZIP, the list still shows
+  // the last one: dim it and say so (in the hint, not the live status).
+  function markStale(stale: boolean) {
+    list.classList.toggle('is-stale', stale);
+    nearHint.textContent = stale ? `Still showing businesses nearest to ${query.near}. Finish the 5-digit ZIP to update.` : NEAR_HINT;
   }
 
   function showZipError(show: boolean) {
@@ -256,6 +271,9 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
   async function search({ push = false, scroll = false, state = null as any } = {}) {
     clearTimeout(typingTimer);
     typingTimer = 0;
+    clearTimeout(arrowTimer);
+    arrowTimer = 0;
+    markStale(false);
     searchAbort?.abort();
     searchAbort = new AbortController();
     const defaults = pageUrl(defaultQuery());
@@ -319,8 +337,18 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
     if (target === nearInput) { showZipError(zipState(nearInput.value) === 'outside'); return endTyping(); }
     if (target === qInput) return endTyping();
     if (target.name === 'boro' && target.value) { nearInput.value = ''; showZipError(false); }
+    if (arrowKey && target.type === 'radio') {
+      arrowKey = false;
+      clearTimeout(arrowTimer);
+      arrowTimer = window.setTimeout(() => applyForm(), ARROW_DELAY_MS);
+      return;
+    }
     applyForm();
   });
+  form.addEventListener('keydown', (e) => {
+    arrowKey = e.key.startsWith('Arrow') && (e.target as HTMLInputElement).type === 'radio';
+  });
+  form.addEventListener('pointerdown', () => { arrowKey = false; });
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     showZipError(zipState(nearInput.value) === 'outside' || zipState(nearInput.value) === 'short');
@@ -336,6 +364,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), business: 
     input.addEventListener('input', () => {
       if (input === nearInput) {
         const s = zipState(nearInput.value);
+        markStale((s === 'short' || s === 'outside') && Boolean(query.near));
         if (s === 'short') return;
         showZipError(s === 'outside');
         if (s === 'outside') return;

@@ -190,7 +190,9 @@ export function searchLocal(vendors, query, { today, zips, seed = today, pageSiz
   }
 
   // Nearest first (to a tenth of a mile, so a whole ZIP ties), then the best
-  // keyword match, then the easiest to reach, then a shuffle that changes daily.
+  // keyword match, then places customers visit (walk; most of the list is
+  // contractors and agencies), then the easiest to reach, then a shuffle that
+  // changes daily.
   // A business whose ZIP has no centroid goes after every measured one.
   const byDistance = (a, b) => {
     if (a.tenth === b.tenth) return 0;
@@ -201,6 +203,7 @@ export function searchLocal(vendors, query, { today, zips, seed = today, pageSiz
   const ranked = matches.map((m) => ({ ...m, tenth: m.miles == null ? null : Math.round(m.miles * 10), tie: tieBreak(m.row.record.id, seed) }))
     .sort((a, b) => byDistance(a, b) ||
       (MATCH_RANK[b.match] ?? 0) - (MATCH_RANK[a.match] ?? 0) ||
+      Number(b.row.kind.walk) - Number(a.row.kind.walk) ||
       reach(b.row.record) - reach(a.row.record) ||
       a.tie - b.tie || a.row.record.id.localeCompare(b.row.record.id));
 

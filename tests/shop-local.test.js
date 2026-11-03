@@ -96,6 +96,15 @@ test("a ZIP sorts nearest first, with distances", () => {
   assert.equal(d.results[3].miles, undefined);
 });
 
+test("places customers visit rank ahead of contractors, after distance", () => {
+  const electrician = vendor({ id: "1", title: "Electrical Contractors and Other Wiring Installation Contractors", website: "https://a.example.com", phone: { tel: "+17185550100" } });
+  const salon = vendor({ id: "2", title: "Beauty Salons" });
+  const ids = (vendors, s) => searchLocal(vendors, q(s), { today: TODAY, zips: ZIPS }).results.map((r) => r.id);
+  assert.deepEqual(ids([electrician, salon], ""), ["2", "1"], "a salon with no website beats an electrician with one");
+  const farSalon = { ...salon, zip: "10001", borough: "Manhattan", city: "New York" };
+  assert.deepEqual(ids([electrician, farSalon], "near=11216"), ["1", "2"], "distance still comes first");
+});
+
 test("cards show the street only for walk-in businesses", () => {
   const vendors = [
     vendor({ id: "1", address1: "12 Nostrand Ave" }),

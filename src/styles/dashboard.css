@@ -2527,6 +2527,7 @@ a.sd-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
   gap: var(--space-4);
   margin-top: var(--space-4);
+  transition: opacity var(--speed) var(--ease);
 }
 .sl-card {
   display: flex;
@@ -2539,6 +2540,7 @@ a.sd-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
   background: var(--card);
   box-shadow: var(--shadow);
 }
+.sl-results.is-stale { opacity: .5; }
 .sl-card.is-skeleton { min-height: 200px; box-shadow: none; border-top-color: var(--line); }
 .sl-kind { display: inline-flex; align-items: center; gap: var(--space-2); font-size: .875rem; font-weight: 700; color: var(--tone-deep, var(--ink-soft)); }
 .sl-card-name { font-size: 1.125rem; font-weight: 800; line-height: 1.25; overflow-wrap: anywhere; }
