@@ -32,6 +32,7 @@ if (import.meta.env.PROD && status) Astro.response.headers.set('Cache-Control', 
   category="Public Safety"
   lastRefreshed={status?.lastSync ? date(status.lastSync.slice(0, 10)) : status?.lastFull ? date(status.lastFull.slice(0, 10)) : undefined}
   dataUpdated={through ?? undefined}
+  reportLink
 >
   <header class="page-head">
     <h1>NYC Crash Hotspots</h1>

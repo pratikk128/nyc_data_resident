@@ -98,6 +98,7 @@ const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(
   import { BOROUGHS, NEAREST_COUNT, MAX_SELECTED, ERROR_TEXT, boroughLabel } from '../../lib/water/config.js';
   import { parseLocationInput } from '../../lib/complaints311/location-input.js';
   import { inCityLimits } from '../../lib/in-city.js';
+  import { syncReportLink } from '../../lib/address-report/link.js';
   import { resolveLocation } from '../../lib/complaints311/geocode.js';
   import zipFile from '../../data/zip-centroids.json';
 
@@ -152,6 +153,7 @@ const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(
       else if (point) { p.set('lat', round(point.lat)); p.set('lon', round(point.lon)); }
       const query = p.toString();
       history.replaceState(null, '', query ? `?${query}` : location.pathname);
+      syncReportLink();
     }
 
     // ---------- Drawing ----------
@@ -353,6 +355,7 @@ const range = months.length ? `${monthLabel(months[0], 'short')}–${monthLabel(
     });
 
     readUrl();
+    syncReportLink();
     if (point?.zip) input.value = point.zip;
     render();
   }

@@ -12,7 +12,7 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { env, fakeKv } from "./support/workers.js";
 
-const { helpNearMeDatasets } = await import("../src/lib/server/help-near-me.js");
+const { helpNearMeDatasets, getSources } = await import("../src/lib/server/help-near-me.js");
 const { GET } = await import("../src/pages/api/help-near-me/search.js");
 const { RATE_LIMITED_TEXT } = await import("../src/lib/server/rate-limit.js");
 
@@ -51,6 +51,13 @@ beforeEach(() => {
   // Nothing on a search should reach Socrata or GeoSearch.
   globalThis.fetch = async (url) => { fetches.push(String(url)); throw new Error(`unexpected fetch ${url}`); };
   delete env.HELP_RATE_LIMITER;
+});
+
+test("the page's sources: nothing built and Socrata down gives no dates, so the header shows none", async () => {
+  env.DATA_CACHE = fakeKv({});
+  const sources = await getSources();
+  assert.equal(sources.length, helpNearMeDatasets.length);
+  assert.ok(sources.every((s) => s.updatedAt === null && s.loadedAt === null));
 });
 
 test("a directory the ETL hasn't built yet shows as failed; the search never builds it, and isn't cached", async () => {

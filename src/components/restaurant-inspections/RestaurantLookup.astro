@@ -165,6 +165,7 @@ const deepLink = Boolean(initial || initialError);
   import { detailHtml, resultCardsHtml, categoryListHtml, benchmarkNote, detailHref, similarAvailable, searchStatusText, UPSTREAM_TEXT } from '../../lib/restaurants/render.js';
   import { normalizeSearch } from '../../lib/restaurants/soql.js';
   import { inCityLimits } from '../../lib/in-city.js';
+  import { syncReportLink } from '../../lib/address-report/link.js';
 
   const MSG = {
     loading: 'Checking the kitchen…',
@@ -212,6 +213,7 @@ const deepLink = Boolean(initial || initialError);
     if (url.href === location.href) return;
     if (push) history.pushState(state, '', url);
     else history.replaceState(history.state, '', url);
+    syncReportLink();
   }
 
   // Fill the search fields from the URL. True when anything changed.
@@ -475,6 +477,7 @@ const deepLink = Boolean(initial || initialError);
   }
   // The server already ran the search in the URL, unless the browser kept edited fields.
   const changed = fillSearch(params);
+  syncReportLink();
   if (list.dataset.ssr === undefined || changed || near) runSearch();
   if (!current && params.get('camis') && detail.hidden) openRestaurant(params.get('camis')!);
 </script>

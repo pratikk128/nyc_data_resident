@@ -16,10 +16,11 @@ export const prerender = false;
 
 const sources = await getSources();
 const query = normalizeQuery(Astro.url.searchParams);
-// The newest of the seven, for the header; each one's own date is in the sources list.
-const newest = sources.map((s) => s.updatedAt).filter(Boolean).sort().at(-1) ?? undefined;
+// The newest of the seven a search can show, for the header (none built, no date); each one's own
+// date is in the sources list. The finder corrects it to what the search actually loaded.
+const newest = sources.map((s) => s.loadedAt).filter(Boolean).sort().at(-1) ?? undefined;
 
-if (import.meta.env.PROD && sources.every((s) => s.updatedAt)) Astro.response.headers.set('Cache-Control', 'public, max-age=300');
+if (import.meta.env.PROD && sources.every((s) => s.updatedAt && s.loadedAt)) Astro.response.headers.set('Cache-Control', 'public, max-age=300');
 ---
 
 <DashboardLayout
@@ -28,6 +29,7 @@ if (import.meta.env.PROD && sources.every((s) => s.updatedAt)) Astro.response.he
   path="/help-near-me/"
   category="Social Services"
   dataUpdated={newest}
+  reportLink
 >
   <header class="page-head">
     <h1>Where can I get help near me?</h1>

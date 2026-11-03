@@ -191,6 +191,7 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
   import { inCityLimits } from '../../lib/in-city.js';
   import { resolveLocation } from '../../lib/complaints311/geocode.js';
   import { count, nycToday, shortDate } from '../../lib/format.js';
+  import { syncReportLink } from '../../lib/address-report/link.js';
   import zipFile from '../../data/zip-centroids.json';
 
   // The decisions about modes, searches, widening and wording are in page-state.js, with tests.
@@ -243,6 +244,7 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
     // The spot's name rides in history state (not the URL), so Back shows the right one.
     const state = { placeLabel: query.mode === 'near' ? placeLabel : '' };
     if (push) history.pushState(state, '', url); else history.replaceState(state, '', url);
+    syncReportLink();
     update();
   }
 
@@ -613,5 +615,6 @@ const radiusLabel = (r: number) => (r === 0.25 ? '¼ mi' : r === 0.5 ? '½ mi' :
   });
 
   fillForm();
+  syncReportLink();
   update();
 </script>

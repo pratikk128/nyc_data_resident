@@ -146,6 +146,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), inputError
   import { readShortlist, writeShortlist } from '../../lib/schools/shortlist.js';
   import { escape } from '../../lib/schools/render.js';
   import { count } from '../../lib/format.js';
+  import { showReportLink } from '../../lib/address-report/link.js';
 
   const BASE = '/school-quality/';
   const DEBOUNCE_MS = 300;
@@ -186,6 +187,7 @@ const initialJson = JSON.stringify({ query, loaded: Boolean(initial), inputError
   let schoolsMap: ReturnType<typeof mountSchoolsMap> | null = null;
   // From the address report's link (?lat=&lon=): the map stays on that spot, and every URL the page writes keeps it.
   const spot = spotFromParams(new URLSearchParams(location.search));
+  showReportLink(spot);
   const coarsePointer = matchMedia('(pointer: coarse)');
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 

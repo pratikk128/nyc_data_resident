@@ -45,6 +45,7 @@ const title = initialLabel ? `311 complaints ${location?.kind === 'zip' ? `aroun
   category="City Government"
   lastRefreshed={meta?.rowsUpdatedAt ? date(meta.rowsUpdatedAt) : undefined}
   dataUpdated={meta?.rowsUpdatedAt ?? undefined}
+  reportLink
 >
   <header class="page-head">
     <h1>311 Complaints in My Neighborhood</h1>

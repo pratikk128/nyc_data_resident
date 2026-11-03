@@ -91,13 +91,21 @@ const byKey = new Map(CATEGORIES.map((c, i) => [c.key, helpNearMeDatasets[i]]));
 
 /*
  * Each directory's name, page and last update, for the page footer (from the
- * metadata jobs). A directory that can't be read has updatedAt null.
+ * metadata jobs), and loadedAt: the source date of the sites a search would
+ * show now (what the ETL stored), for the header. Either is null when it
+ * can't be read; loadedAt also when the sites aren't built yet.
  */
 export async function getSources() {
   return Promise.all(CATEGORIES.map(async (c) => {
-    let meta = null;
-    try { meta = await dailyValue(byKey.get(c.key).metadataJob); } catch (err) { console.error(err); }
-    return { key: c.key, datasetId: c.datasetId, name: c.datasetName, url: datasetUrl(c.datasetId), updatedAt: meta?.rowsUpdatedAt ?? null };
+    const ds = byKey.get(c.key);
+    const [meta, stored] = await Promise.all([
+      dailyValue(ds.metadataJob).catch((err) => { console.error(err); return null; }),
+      storedValue(ds.jobs[0]).catch((err) => { console.error(err); return null; })
+    ]);
+    return {
+      key: c.key, datasetId: c.datasetId, name: c.datasetName, url: datasetUrl(c.datasetId),
+      updatedAt: meta?.rowsUpdatedAt ?? null, loadedAt: stored?.sourceUpdatedAt ?? null
+    };
   }));
 }
 

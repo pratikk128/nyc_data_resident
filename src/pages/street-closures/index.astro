@@ -39,6 +39,7 @@ if (import.meta.env.PROD && index.status === 'fulfilled') Astro.response.headers
   category="Transportation"
   lastRefreshed={metaValue?.rowsUpdatedAt ? date(metaValue.rowsUpdatedAt) : undefined}
   dataUpdated={metaValue?.rowsUpdatedAt ?? undefined}
+  reportLink
 >
   <header class="page-head">
     <h1>{pageTitle}</h1>

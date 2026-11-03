@@ -157,6 +157,7 @@ const lotJson = lot ? JSON.stringify(lot) : '';
   import { parseLocationInput } from '../../lib/complaints311/location-input.js';
   import { suggest } from '../../lib/complaints311/geocode.js';
   import { mountNearbyMap } from '../../lib/maps/nearby-map.js';
+  import { showReportLink } from '../../lib/address-report/link.js';
 
   const TIMEOUT_TEXT = 'NYC Open Data is taking too long to answer. Try again in a minute.';
   // The API's not-found: the lot dropped out of every dataset since the page loaded.
@@ -298,6 +299,7 @@ const lotJson = lot ? JSON.stringify(lot) : '';
       setTimeout(() => { copyBtn.textContent = 'Copy link'; }, 2500);
     });
 
+    showReportLink(lot.lat != null ? { lat: lot.lat, lon: lot.lon } : null);
     const mapEl = root.querySelector<HTMLElement>('[data-map]');
     if (mapEl && lot.lat != null) {
       const point = { lat: lot.lat, lon: lot.lon };

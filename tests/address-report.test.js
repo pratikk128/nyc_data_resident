@@ -16,6 +16,7 @@ import {
   restaurantsHtml, restaurantsGlance, waterHtml, waterGlance, buildingHtml, buildingGlance, buildingAskGlance,
   safetyHtml, safetyGlance, parksHtml, parksGlance
 } from "../src/lib/address-report/render.js";
+import { reportHref, placeFromParams } from "../src/lib/address-report/link.js";
 import { readTotals, readCorners } from "../src/lib/crashes/hotspot-sql.js";
 import { addressOutcome } from "../src/lib/location/near-search.js";
 import { placeToLocation, buildingBbl } from "../src/lib/complaints311/geocode.js";
@@ -32,6 +33,18 @@ test("spot: rounded to about a block, and only inside the city", () => {
   assert.equal(spotFromParams(qs("lat=abc&lon=-73.98")), null);
   assert.equal(spotFromParams(qs("")), null);
   assert.equal(spotToParams({ lat: 40.74844, lon: -73.98566 }).toString(), "lat=40.748&lon=-73.986");
+});
+
+test("back to the report: a dashboard's spot (Restaurant Inspections' lat/lng too) opens the report on it", () => {
+  assert.deepEqual(spotFromParams(qs("lat=40.74844&lng=-73.98566&name=pizza")), EMPIRE);
+  assert.equal(spotFromParams(qs("boro=BRONX&zip=10457")), null); // a borough or ZIP alone has no spot
+  assert.equal(reportHref({ lat: 40.74844, lon: -73.98566 }), "/address/?lat=40.748&lon=-73.986");
+  // A ZIP alone goes over as the landing page's box sends it; a spot wins over its ZIP; a ZIP outside NYC is nothing.
+  assert.deepEqual(placeFromParams(qs("boro=BRONX&zip=10457")), { zip: "10457" });
+  assert.equal(reportHref({ zip: "10457" }), "/address/#q=10457");
+  assert.deepEqual(placeFromParams(qs("lat=40.74844&lon=-73.98566&zip=10001")), EMPIRE);
+  assert.equal(placeFromParams(qs("zip=07302")), null);
+  assert.equal(placeFromParams(qs("boro=BRONX")), null);
 });
 
 test("links: each dashboard opens on the same spot", () => {

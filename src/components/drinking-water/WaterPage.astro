@@ -51,6 +51,7 @@ else if (import.meta.env.PROD) Astro.response.headers.set('Cache-Control', 'publ
   category="Environment"
   lastRefreshed={meta?.rowsUpdatedAt ? date(meta.rowsUpdatedAt) : undefined}
   dataUpdated={meta?.rowsUpdatedAt ?? undefined}
+  reportLink={section === 'near-me'}
 >
   <header class="page-head">
     <h1>NYC Drinking Water Quality</h1>

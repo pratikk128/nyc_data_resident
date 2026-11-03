@@ -114,6 +114,7 @@ const all = query.cats.length === CATEGORIES.length;
   import { parseLocationInput, isNycZip } from '../../lib/complaints311/location-input.js';
   import { inCityLimits } from '../../lib/in-city.js';
   import { resolveLocation, suggest } from '../../lib/complaints311/geocode.js';
+  import { syncReportLink } from '../../lib/address-report/link.js';
   import zipFile from '../../data/zip-centroids.json';
 
   // The decisions about the list and its wording are in nearby.js and page-state.js, with tests.
@@ -160,6 +161,7 @@ const all = query.cats.length === CATEGORIES.length;
     const url = `${location.pathname}${qs ? `?${qs}` : ''}`;
     const state = { placeLabel, exact, text: input.value };
     if (push) history.pushState(state, '', url); else history.replaceState(state, '', url);
+    syncReportLink();
     update();
   }
 
@@ -573,5 +575,6 @@ const all = query.cats.length === CATEGORIES.length;
     return drawMap(pinned(), { refit, fitTo: far ? [[far.lat, far.lon]] : null })?.then(() => map.highlight(selected));
   }
 
+  syncReportLink();
   update();
 </script>

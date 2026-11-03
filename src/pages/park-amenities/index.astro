@@ -28,6 +28,7 @@ if (import.meta.env.PROD && sources.every((s) => s.updatedAt)) Astro.response.he
   path="/park-amenities/"
   category="Recreation"
   dataUpdated={newest}
+  reportLink
 >
   <header class="page-head">
     <h1>Find park amenities near you</h1>

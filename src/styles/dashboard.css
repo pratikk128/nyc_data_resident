@@ -72,6 +72,34 @@
   color: var(--ink-soft);
 }
 .data-updated time { font-weight: 600; color: var(--ink); }
+/* "See everything about this address": pushes the date right, sits under the breadcrumb when stacked */
+.report-link { margin: 0 0 0 auto; font-size: .875rem; font-weight: 600; }
+.report-link + .data-updated { margin-left: 0; }
+
+/* Site header: the way into the address report, from every dashboard */
+.header-address {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  margin-left: auto;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--header-ink);
+  font-size: .9375rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+.header-address:hover { background: var(--header-hover); }
+.header-address svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.header-address + .theme-toggle { margin-left: 0; }
+.header-address-short { display: none; }
+@media (max-width: 479px) {
+  .header-address { padding: 0 var(--space-2); }
+  .header-address-long { display: none; }
+  .header-address-short { display: inline; }
+}
 
 .page-head { margin-top: var(--space-4); }
 .page-head h1 {

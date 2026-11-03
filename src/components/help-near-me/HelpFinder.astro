@@ -120,7 +120,8 @@ const all = query.cats.length === 0;
   import { inCityLimits } from '../../lib/in-city.js';
   import { resolveLocation, suggest } from '../../lib/complaints311/geocode.js';
   import { boroughLabel } from '../../lib/complaints311/config.js';
-  import { count } from '../../lib/format.js';
+  import { count, date } from '../../lib/format.js';
+  import { syncReportLink } from '../../lib/address-report/link.js';
   import zipFile from '../../data/zip-centroids.json';
 
   // The decisions about the list and its wording are in distance.js and page-state.js, with tests.
@@ -145,6 +146,18 @@ const all = query.cats.length === 0;
   const radiusBlock = $('[data-radius-block]');
   const narrow = matchMedia('(max-width: 1023px)'); // matches the CSS breakpoint
 
+  // The layout's "Data updated as of": the newest directory this search loaded, gone when none did.
+  const stamp = document.querySelector<HTMLElement>('.data-updated');
+  const stampTime = stamp?.querySelector('time');
+  function setStamp(sources: any[] | null) {
+    if (!stamp || !stampTime) return;
+    const newest = (sources ?? []).filter((s) => !s.error && s.updatedAt).map((s) => s.updatedAt).sort().at(-1);
+    stamp.hidden = !newest;
+    if (!newest) return;
+    stampTime.dateTime = newest;
+    stampTime.textContent = date(newest);
+  }
+
   const map = mountHelpMap($('[data-map]'), { onPick: (id: string) => select(id, { fromMap: true }) });
 
   let query: any = normalizeQuery(new URLSearchParams(location.search));
@@ -166,6 +179,7 @@ const all = query.cats.length === 0;
     const url = `${location.pathname}${qs ? `?${qs}` : ''}`;
     const state = { placeLabel, text: input.value };
     if (push) history.pushState(state, '', url); else history.replaceState(state, '', url);
+    syncReportLink();
     if (reload || spotKey() !== loadedFor) pages = 1;
     update();
   }
@@ -505,12 +519,14 @@ const all = query.cats.length === 0;
       if (id !== request) return;
       data = body;
       loadedFor = key;
+      setStamp(body.sources);
       selected = null;
       root.removeAttribute('aria-busy');
       render({ refit: true });
     } catch (err: any) {
       if (id !== request) return;
       root.removeAttribute('aria-busy');
+      setStamp(null);
       cards.innerHTML = '';
       summary.textContent = '';
       empty.innerHTML = `<p>${escape(err.message || ERROR_TEXT)}</p><button type="button" class="copy-link" data-retry>Try again</button>`;
@@ -537,6 +553,10 @@ const all = query.cats.length === 0;
   function render({ refit }: { refit: boolean }) {
     const { sites, sources } = data!;
     view = selectView(sites, { categories: query.cats, radius: query.boro ? null : query.r, pages });
+    const broken = sources.filter((s: any) => s.error && (!query.cats.length || query.cats.includes(s.key)));
+    // Every kind asked for failed: no counts, and one message below instead of a line per kind; never
+    // "0 places" or "couldn't find", which would read as there being none.
+    const allBroken = broken.length > 0 && broken.length === (query.cats.length || CATEGORIES.length);
 
     // Chip counts: within the radius used (the chosen one, or the wider one we fell back to).
     let total = 0;
@@ -554,9 +574,13 @@ const all = query.cats.length === 0;
     allCount.closest('button')!.setAttribute('aria-label', chipLabel('All kinds of help', total, query));
 
     summary.textContent = summaryText(view, query, placeLabel);
+    if (allBroken) {
+      clearCounts();
+      summary.textContent = '';
+    }
 
     // When the list isn't for the picked radius, the buttons say so (the summary has the full story).
-    const note = radiusNote(view, query);
+    const note = allBroken ? null : radiusNote(view, query);
     radiusNoteEl.textContent = note ?? '';
     radiusNoteEl.hidden = !note;
     root.querySelectorAll<HTMLButtonElement>('[data-radius]').forEach((b) => {
@@ -568,7 +592,6 @@ const all = query.cats.length === 0;
 
     // Chosen kinds with nothing close, how far the nearest is, and a button to reach it.
     const notes = missingNotes(view, query);
-    const broken = sources.filter((s: any) => s.error && (!query.cats.length || query.cats.includes(s.key)));
     missing.innerHTML =
       broken.map((s: any) => `<li class="hn-missing-error">${escape(CATEGORIES.find((c) => c.key === s.key)!.label)} couldn’t load right now. Try again later.</li>`).join('') +
       notes.filter((n: any) => !broken.some((s: any) => s.key === n.key)).map((n: any) => {
@@ -578,7 +601,7 @@ const all = query.cats.length === 0;
           : n.miles != null && !r && query.cats.length !== 1 ? ` <button type="button" class="copy-link" data-only="${n.key}">Show the nearest ${escape(lowerFirst(label))}</button>` : '';
         return `<li>${escape(n.text)}${btn}</li>`;
       }).join('');
-    missing.hidden = !missing.innerHTML;
+    missing.hidden = !missing.innerHTML || allBroken;
 
     cards.innerHTML = view.list.map(cardHtml).join('');
     if (selected && !view.list.some((s: any) => s.id === selected)) selected = null;
@@ -587,12 +610,16 @@ const all = query.cats.length === 0;
     more.hidden = !view.more;
     more.textContent = moreText(view);
     empty.hidden = view.list.length > 0;
-    if (!view.list.length) empty.innerHTML = '<p><strong>We couldn’t find any of these places in the city’s lists.</strong> Call 311 and ask for help finding services near you.</p>';
+    if (!view.list.length) empty.innerHTML = allBroken
+      ? '<p><strong>We couldn’t load the city’s lists right now.</strong> Try again in a few minutes, or call 311 and ask for help finding services near you.</p><button type="button" class="copy-link" data-retry>Try again</button>'
+      : '<p><strong>We couldn’t find any of these places in the city’s lists.</strong> Call 311 and ask for help finding services near you.</p>';
+    empty.querySelector('[data-retry]')?.addEventListener('click', () => { loadedFor = ''; update(); });
 
     const fitTo = view.widened === 'anywhere' ? view.list.slice(0, 6).map((s: any) => [s.lat, s.lon]) : null;
     // Redrawing clears the halo; the picked place keeps it.
     return drawMap(view.list, { radius: view.radius, refit, fitTo })?.then(() => map.highlight(selected));
   }
 
+  syncReportLink();
   update();
 </script>

@@ -9,6 +9,7 @@
  * and state.borough is the borough the comparisons use (from the geocoder, the
  * ZIP, or the most common borough among nearby requests).
  */
+import { syncReportLink } from "../address-report/link.js";
 import { locationFromParams, locationToParams } from "./location-input.js";
 
 const IDLE = Object.freeze({ status: "idle", data: null, error: null });
@@ -138,6 +139,7 @@ function writeUrl(push) {
   // onStreet isn't in the URL, so the history entry keeps it for Back and Forward.
   if (push) history.pushState({ onStreet: state.onStreet }, "", url);
   else history.replaceState(history.state, "", url);
+  syncReportLink();
 }
 
 export function readUrl() {
@@ -170,3 +172,4 @@ export function setView(changes) {
 }
 
 window.addEventListener("popstate", readUrl);
+syncReportLink();

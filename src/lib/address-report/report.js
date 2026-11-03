@@ -7,7 +7,7 @@
  * URL: ?lat=40.748&lon=-73.986, rounded to about a block. A typed address
  * never goes in the URL (it would sit in browser history and shared links).
  */
-import { inCityLimits } from "../in-city.js";
+import { spotFromParams, spotToParams } from "./link.js";
 import { topTypes, openShare, compareShares } from "../complaints311/stats.js";
 import { typeLabel } from "../complaints311/labels.js";
 import { MIN_IMMEDIATE_REQUESTS } from "../complaints311/config.js";
@@ -24,14 +24,8 @@ import { CATEGORY_KEYS as PARK_KINDS } from "../park-amenities/config.js";
 
 const round3 = (n) => Math.round(n * 1e3) / 1e3;
 
-// The spot in the URL, or null.
-export function spotFromParams(params) {
-  const lat = Number(params.get("lat")), lon = Number(params.get("lon"));
-  if (!params.get("lat") || !params.get("lon") || !Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-  return inCityLimits(lat, lon) ? { lat: round3(lat), lon: round3(lon) } : null;
-}
-
-export const spotToParams = ({ lat, lon }) => new URLSearchParams({ lat: String(round3(lat)), lon: String(round3(lon)) });
+// The spot in the URL, or null; and back (link.js, shared with the dashboards' links here).
+export { spotFromParams, spotToParams };
 
 // Street safety looks this far around the spot (meters): Crash Hotspots' default.
 export { CRASH_RADIUS };

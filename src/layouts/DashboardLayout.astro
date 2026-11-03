@@ -18,9 +18,10 @@ interface Props {
   category?: string;    // Sidebar category on the landing page (CATEGORIES in src/data/dashboards.js); without one (a page across categories) the breadcrumb ends with the title
   lastRefreshed?: string; // Formatted date this site last pulled the data; in the footer when it isn't dataUpdated's
   dataUpdated?: string; // ISO date the source dataset was last updated; shown top right
+  reportLink?: boolean; // A dashboard that works on a spot: "See everything about this address" once it's on one (src/lib/address-report/link.js)
 }
 
-const { title, description, path, category, lastRefreshed, dataUpdated } = Astro.props;
+const { title, description, path, category, lastRefreshed, dataUpdated, reportLink } = Astro.props;
 // Most pages read the source's own date for both; say it once, at the top.
 const pulledOn = lastRefreshed && !(dataUpdated && date(dataUpdated) === lastRefreshed) ? lastRefreshed : undefined;
 const fullTitle = `${title} | Ask NYC Data`;
@@ -60,6 +61,13 @@ const canonical = new URL(path, 'https://asknycdata.com').href;
       <span class="wordmark">Ask <span class="wordmark-accent">NYC</span> Data</span>
     </a>
     <p class="tagline">NYC's public data, made easy to understand.</p>
+    {path !== '/address/' && (
+      <a class="header-address" href="/address/" aria-label="Look up an address">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+        <span class="header-address-long" aria-hidden="true">Look up an address</span>
+        <span class="header-address-short" aria-hidden="true">Address</span>
+      </a>
+    )}
     <ThemeToggle />
   </header>
 
@@ -73,6 +81,11 @@ const canonical = new URL(path, 'https://asknycdata.com').href;
             : <li aria-current="page">{title}</li>}
         </ol>
       </nav>
+      {reportLink && (
+        <p class="report-link" data-report-link hidden>
+          <a href="/address/">See everything about this address <span aria-hidden="true">→</span></a>
+        </p>
+      )}
       {dataUpdated && (
         <p class="data-updated">Data updated as of <time datetime={dataUpdated}>{date(dataUpdated)}</time></p>
       )}
