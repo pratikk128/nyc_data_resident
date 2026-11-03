@@ -8,7 +8,7 @@
  */
 import { escape } from "../address-report/render.js";
 import { count, money, date, shortDate } from "../format.js";
-import { CLASSES, partById } from "./config.js";
+import { CLASSES, partById, buildingPath } from "./config.js";
 import { classInfo, lotName } from "./summarize.js";
 
 export { escape };
@@ -427,5 +427,48 @@ export function landlordHtml(d, lot) {
     out.push(note("As the owner listed them with the city. A company owner is often an LLC set up for this one building."));
   }
   if (r.count > 1) out.push(note(`This lot has ${r.count} registrations (one per building); the most recent is shown.`));
+  return out.join("");
+}
+
+// ---------- The owner's other buildings ----------
+
+const searchedNames = (d) => d.searched.map((k) => escape(k.name)).join(", ");
+const PORTFOLIO_METHOD = "Linked when another building’s registration from the last two years names the same owning company, or the same head officer or individual owner, spelled the same way. Two different people with the same name would be linked by mistake, and an owner who registers each building under a different company and officer isn’t linked at all. Managing agents aren’t counted: they run buildings for many owners.";
+
+export function portfolioTakeaway(d, lot) {
+  if (!d.registered) return takeaway("info", "—", lot.hpd ? "Not registered with the city" : NO_HPD_TEXT);
+  if (!d.total) return takeaway("info", "0", d.searched.length ? "No other buildings registered under the same owner" : "No owner named on the registration");
+  let text;
+  if (!d.withUrgent) text = d.total === 1 ? "It has no urgent repair orders open" : "None have urgent repair orders open";
+  else if (d.total === 1) text = "It has urgent repair orders open";
+  else text = `${d.withUrgent === d.total ? "All" : count(d.withUrgent)} of them ${d.withUrgent === 1 ? "has" : "have"} urgent repair orders open`;
+  return takeaway(d.withUrgent ? "warn" : "info", count(d.total), text);
+}
+
+export function portfolioHtml(d, lot) {
+  if (!d.registered) {
+    return p(lot.hpd ? "<strong>Not registered with the city</strong>, so there’s no owner to look up." : "<strong>No HPD records for this building.</strong> There’s no registration, so no owner to look up.");
+  }
+  if (!d.searched.length) return p("The registration doesn’t name an owning company or person we can look up.");
+  if (!d.total) {
+    return p(`No other buildings registered with the city in the last two years name ${searchedNames(d)}.`) + note(PORTFOLIO_METHOD);
+  }
+  const out = [p(`Buildings whose registration names ${searchedNames(d)}.`), stats([
+    stat(count(d.total), d.total === 1 ? "other building" : "other buildings"),
+    stat(d.units ? count(d.units) : "—", "apartments in them"),
+    stat(count(d.open.C), "urgent repair orders open", d.open.C ? "warn" : ""),
+    stat(count(d.open.B), "serious repair orders open")
+  ])];
+  out.push(sub(d.total > d.buildings.length ? `The ${d.buildings.length} with the most urgent and serious repair orders open` : "Their buildings, most urgent and serious repair orders first"));
+  out.push(list(d.buildings.map((b) => {
+    const place = escape(`${b.address ?? `Lot ${b.bbl}`}${b.borough ? `, ${b.borough}` : ""}`);
+    const side = b.open.total
+      ? [b.open.C ? `${count(b.open.C)} urgent` : "", b.open.B ? `${count(b.open.B)} serious` : "", b.open.A ? `${count(b.open.A)} minor` : ""].filter(Boolean).join(" · ")
+      : "No open repair orders";
+    const below = [b.units ? plural(b.units, "apartment") : "", `Linked by ${b.via.map(escape).join(", ")}`].filter(Boolean).join(" · ");
+    return row(`<a href="${buildingPath(b.bbl)}">${place}</a>`, side, below);
+  })));
+  if (d.capped) out.push(note("This owner has more registrations than we look up at once, so the totals cover only part of the list."));
+  out.push(note(PORTFOLIO_METHOD));
   return out.join("");
 }

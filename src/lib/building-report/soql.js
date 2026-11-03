@@ -216,3 +216,61 @@ export function lotQueries(bbl, parts) {
     }
   };
 }
+
+// ---------- The owner's other buildings ----------
+
+/*
+ * Owner names from one registration's contacts → the contacts on every
+ * other registration with the same names. keys: ownerKeys() in
+ * summarize.js, a company owner by its name, a person (head officer,
+ * individual or joint owner) by first and last name. Both sides upper-cased:
+ * HPD has names in capitals and in mixed case.
+ */
+export const OWNER_TYPES = ["CorporateOwner", "HeadOfficer", "IndividualOwner", "JointOwner"];
+const PERSON_TYPES = OWNER_TYPES.filter((t) => t !== "CorporateOwner");
+
+export function ownerMatchQuery(keys) {
+  const byName = keys.map((k) => k.kind === "company"
+    ? `(type = 'CorporateOwner' AND upper(corporationname) = ${quote(k.company)})`
+    : `(type in (${PERSON_TYPES.map(quote).join(", ")}) AND upper(firstname) = ${quote(k.first)} AND upper(lastname) = ${quote(k.last)})`);
+  return q("contacts", {
+    $select: "registrationid, type, corporationname, firstname, lastname",
+    $where: byName.join(" OR "),
+    $order: "registrationid DESC", $limit: "5000"
+  });
+}
+
+// `in (…)` lists in pieces short enough for a URL.
+export const IN_CHUNK = 150;
+export function chunks(values, size = IN_CHUNK) {
+  const out = [];
+  for (let i = 0; i < values.length; i += size) out.push(values.slice(i, i + size));
+  return out;
+}
+
+// Only registrations filed since `since`: an owner who sold years ago is still on the old one.
+export function portfolioRegistrationsQueries(registrationIds, since) {
+  return chunks(registrationIds).map((ids) => q("registrations", {
+    $select: "registrationid, buildingid, boroid, block, lot, housenumber, streetname, lastregistrationdate",
+    $where: `registrationid in (${ids.map(Number).join(", ")}) AND lastregistrationdate >= ${quote(since)}`,
+    $limit: "5000"
+  }));
+}
+
+export function portfolioViolationsQueries(bbls) {
+  return chunks(bbls).map((list) => q("violations", {
+    $select: "bbl, class, count(*) AS n",
+    $where: `bbl in (${list.map(quote).join(", ")}) AND violationstatus = 'Open'`,
+    $group: "bbl, class", $limit: "5000"
+  }));
+}
+
+// Apartments per building, from HPD's building list (as the lot's header counts them).
+export function portfolioUnitsQueries(buildingIds) {
+  return chunks(buildingIds).map((ids) => ({
+    params: {
+      $select: "buildingid, legalclassa, legalclassb, recordstatus",
+      $where: `buildingid in (${ids.map(Number).join(", ")})`, $limit: "5000"
+    }
+  }));
+}

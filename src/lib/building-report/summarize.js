@@ -361,6 +361,141 @@ export function summarizeLandlord(registrations, contacts, today) {
   };
 }
 
+// ---------- The owner's other buildings ----------
+
+// How far back a registration still counts: owners register every year, and some file late.
+export const PORTFOLIO_YEARS = 2;
+// The most buildings looked up, and listed.
+export const PORTFOLIO_MAX = 500;
+export const PORTFOLIO_SHOWN = 20;
+const MAX_KEYS = 6;
+
+const upper = (v) => String(v ?? "").trim().toUpperCase();
+// At least two letters: HPD has placeholders like "#", "NA" or a lone initial.
+const realName = (v) => /[A-Z].*[A-Z]/.test(v) && !/^(N\/?A|NONE|UNKNOWN)$/.test(v);
+
+/*
+ * The names to look for on other registrations: the owning company, and the
+ * people who own or head it. Managing agents and site managers aren't owners
+ * and run many owners' buildings, so they're left out.
+ * contacts: rows from contactsQuery(). → [{ kind: "company", company } | { kind: "person", first, last }, …, label]
+ */
+export function ownerKeys(contacts) {
+  const keys = new Map();
+  for (const role of CONTACT_ROLES) {
+    for (const c of contacts ?? []) {
+      if (c.type !== role.type) continue;
+      if (role.type === "CorporateOwner") {
+        const company = upper(c.corporationname);
+        if (realName(company)) keys.set(`c|${company}`, { kind: "company", company, label: role.label });
+      } else if (["HeadOfficer", "IndividualOwner", "JointOwner"].includes(role.type)) {
+        const first = upper(c.firstname), last = upper(c.lastname);
+        if (realName(first) && realName(last)) keys.set(`p|${first}|${last}`, { kind: "person", first, last, label: role.label });
+      }
+    }
+  }
+  return [...keys.values()].slice(0, MAX_KEYS);
+}
+
+const keyName = (k) => (k.kind === "company" ? k.company : `${k.first} ${k.last}`);
+const displayName = (k) => titleCase(keyName(k));
+
+// Which of the keys a matched contact row is.
+function matchKey(keys, c) {
+  if (c.type === "CorporateOwner") return keys.find((k) => k.kind === "company" && k.company === upper(c.corporationname));
+  return keys.find((k) => k.kind === "person" && k.first === upper(c.firstname) && k.last === upper(c.lastname));
+}
+
+const pad = (v, n) => String(Number(v)).padStart(n, "0");
+export const registrationBbl = (r) => `${Number(r.boroid)}${pad(r.block, 5)}${pad(r.lot, 4)}`;
+
+/*
+ * The registrations that share an owner name with this lot's, as lots.
+ *   keys: ownerKeys(); matches: rows from ownerMatchQuery()
+ *   registrations: rows from portfolioRegistrationsQueries(), recent only
+ *   ownIds: this lot's own registration IDs, left out
+ * → [{ bbl, address, borough, buildingIds, via: [names] }], at most PORTFOLIO_MAX, by BBL
+ */
+export function portfolioLots(lot, keys, matches, registrations, ownIds = []) {
+  const viaById = new Map();
+  for (const c of matches ?? []) {
+    const k = matchKey(keys, c);
+    if (!k) continue;
+    const id = String(c.registrationid);
+    if (!viaById.has(id)) viaById.set(id, new Set());
+    viaById.get(id).add(displayName(k));
+  }
+  const own = new Set(ownIds.map(String));
+  const lots = new Map();
+  for (const r of registrations ?? []) {
+    const id = String(r.registrationid);
+    if (own.has(id) || !viaById.has(id)) continue;
+    const bbl = registrationBbl(r);
+    if (bbl === lot.bbl || !/^[1-5]\d{9}$/.test(bbl)) continue;
+    if (!lots.has(bbl)) {
+      lots.set(bbl, {
+        bbl,
+        address: r.housenumber && r.streetname ? titleCase(`${r.housenumber} ${r.streetname}`) : null,
+        borough: BOROUGH_NAMES[Number(r.boroid)] ?? null,
+        buildingIds: [],
+        via: new Set()
+      });
+    }
+    const entry = lots.get(bbl);
+    if (r.buildingid && !entry.buildingIds.includes(String(r.buildingid))) entry.buildingIds.push(String(r.buildingid));
+    for (const name of viaById.get(id)) entry.via.add(name);
+  }
+  return [...lots.values()].sort((a, b) => a.bbl.localeCompare(b.bbl)).slice(0, PORTFOLIO_MAX)
+    .map((l) => ({ ...l, via: [...l.via].sort() }));
+}
+
+/*
+ * The lots from portfolioLots(), with their open repair orders and
+ * apartments, for the section.
+ *   violations: rows { bbl, class, n } from portfolioViolationsQueries()
+ *   units: rows from portfolioUnitsQueries()
+ * → { searched: [names], registered, total, units, open: { A, B, C, total }, withUrgent,
+ *     buildings: the PORTFOLIO_SHOWN with the most urgent, then serious, open orders,
+ *     capped, since }
+ */
+export function summarizePortfolio({ registered, keys, lots, violations, units, capped, since }) {
+  const open = new Map(lots.map((l) => [l.bbl, { A: 0, B: 0, C: 0 }]));
+  for (const row of violations ?? []) {
+    const o = open.get(String(row.bbl));
+    if (o && row.class in o) o[row.class] += num(row.n);
+  }
+  const unitsById = new Map();
+  for (const b of units ?? []) {
+    if (b.recordstatus === "Inactive") continue;
+    unitsById.set(String(b.buildingid), num(b.legalclassa) + num(b.legalclassb));
+  }
+  const buildings = lots.map((l) => {
+    const o = open.get(l.bbl);
+    const apartments = l.buildingIds.reduce((s, id) => s + (unitsById.get(id) ?? 0), 0);
+    return {
+      bbl: l.bbl, address: l.address, borough: l.borough, via: l.via,
+      units: apartments || null,
+      open: { ...o, total: o.A + o.B + o.C }
+    };
+  });
+  const totals = { A: 0, B: 0, C: 0 };
+  for (const b of buildings) for (const c of ["A", "B", "C"]) totals[c] += b.open[c];
+  return {
+    registered,
+    searched: keys.map((k) => ({ label: k.label, name: displayName(k) })),
+    total: buildings.length,
+    units: buildings.reduce((s, b) => s + (b.units ?? 0), 0),
+    open: { ...totals, total: totals.A + totals.B + totals.C },
+    withUrgent: buildings.filter((b) => b.open.C > 0).length,
+    buildings: [...buildings]
+      .sort((a, b) => b.open.C - a.open.C || b.open.B - a.open.B || b.open.total - a.open.total ||
+        String(a.address ?? a.bbl).localeCompare(String(b.address ?? b.bbl)))
+      .slice(0, PORTFOLIO_SHOWN),
+    capped: Boolean(capped),
+    since
+  };
+}
+
 // ---------- DOB ----------
 
 export function summarizeDob(r, today, bins) {

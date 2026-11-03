@@ -20,12 +20,14 @@ import {
   DATASETS, LOT_DATASETS, SECTIONS, BUILDING_TTL, SECTION_TTL, bblParts, datasetUrl, isBbl
 } from "../building-report/config.js";
 import {
-  lotQueries, violationsQueries, complaintsQueries, hygieneQueries, bedbugsQueries, flagsQueries, courtQueries,
-  repairsQueries, registrationQuery, contactsQuery, dobQueries
+  yearAgo, lotQueries, violationsQueries, complaintsQueries, hygieneQueries, bedbugsQueries, flagsQueries, courtQueries,
+  repairsQueries, registrationQuery, contactsQuery, dobQueries, ownerMatchQuery, portfolioRegistrationsQueries,
+  portfolioViolationsQueries, portfolioUnitsQueries
 } from "../building-report/soql.js";
 import {
   summarizeLot, summarizeViolations, summarizeComplaints, summarizeHygiene, summarizeBedbugs, summarizeFlags,
-  summarizeCourt, summarizeRepairs, summarizeLandlord, summarizeDob
+  summarizeCourt, summarizeRepairs, summarizeLandlord, summarizeDob, ownerKeys, portfolioLots, summarizePortfolio,
+  PORTFOLIO_YEARS, PORTFOLIO_MAX
 } from "../building-report/summarize.js";
 
 const CACHE_VERSION = "v4";
@@ -70,6 +72,24 @@ async function runAll(queries) {
   const names = Object.keys(queries);
   const results = await Promise.all(names.map((n) => soql(queries[n].dataset, queries[n].params)));
   return Object.fromEntries(names.map((n, i) => [n, results[i]]));
+}
+
+// [{ dataset, params }, …] → every query's rows, in one list.
+async function runList(queries) {
+  return (await Promise.all(queries.map((x) => soql(x.dataset, x.params)))).flat();
+}
+
+// The lot's registrations (one per building) and who's on them. Contacts are keyed by the registration, so they wait for it.
+async function lotRegistration(lot) {
+  const reg = registrationQuery(lot);
+  const registrations = await soql(reg.dataset, reg.params);
+  const ids = [...new Set(registrations.map((r) => String(r.registrationid ?? "")).filter(Boolean))].slice(0, 10);
+  let contacts = [];
+  if (ids.length) {
+    const c = contactsQuery(ids);
+    contacts = await soql(c.dataset, c.params);
+  }
+  return { registrations, contacts, ids };
 }
 
 // ---------- The lot ----------
@@ -148,17 +168,36 @@ const LOADERS = {
   flags: async (lot) => summarizeFlags(await runAll(flagsQueries(lot))),
   court: async (lot, today) => summarizeCourt(await runAll(courtQueries(lot)), today),
   repairs: async (lot) => summarizeRepairs(await runAll(repairsQueries(lot))),
-  // Contacts are keyed by the registration, so they wait for it.
   async landlord(lot, today) {
-    const reg = registrationQuery(lot);
-    const registrations = await soql(reg.dataset, reg.params);
-    const ids = [...new Set(registrations.map((r) => r.registrationid).filter(Boolean))].slice(0, 10);
-    let contacts = [];
-    if (ids.length) {
-      const c = contactsQuery(ids);
-      contacts = await soql(c.dataset, c.params);
-    }
+    const { registrations, contacts } = await lotRegistration(lot);
     return summarizeLandlord(registrations, contacts, today);
+  },
+  /*
+   * The owner's other buildings: this lot's owner names, the recent
+   * registrations that list the same names, then those lots' open repair
+   * orders and apartments (in pieces, all at once).
+   */
+  async portfolio(lot, today) {
+    let since = today;
+    for (let i = 0; i < PORTFOLIO_YEARS; i++) since = yearAgo(since);
+    const { registrations, contacts, ids } = await lotRegistration(lot);
+    const keys = ownerKeys(contacts);
+    const empty = { registered: registrations.length > 0, keys, lots: [], since };
+    if (!keys.length) return summarizePortfolio(empty);
+    const m = ownerMatchQuery(keys);
+    const matches = await soql(m.dataset, m.params);
+    const matchedIds = [...new Set(matches.map((c) => String(c.registrationid)))]
+      .filter((id) => id && !ids.includes(id));
+    // Highest registration IDs first (ownerMatchQuery's order): a cap drops the oldest filings.
+    const capped = matchedIds.length > PORTFOLIO_MAX * 2;
+    const regs = matchedIds.length ? await runList(portfolioRegistrationsQueries(matchedIds.slice(0, PORTFOLIO_MAX * 2), since)) : [];
+    const lots = portfolioLots(lot, keys, matches, regs, ids);
+    if (!lots.length) return summarizePortfolio({ ...empty, capped });
+    const [violations, units] = await Promise.all([
+      runList(portfolioViolationsQueries(lots.map((l) => l.bbl))),
+      runList(portfolioUnitsQueries(lots.flatMap((l) => l.buildingIds)).map((u) => ({ dataset: LOT_DATASETS.hpdBuildings.id, ...u })))
+    ]);
+    return summarizePortfolio({ ...empty, lots, violations, units, capped: capped || lots.length >= PORTFOLIO_MAX });
   },
   // DOB keys every record to one building (BIN): the lot's BINs, all at once.
   async dob(lot, today) {

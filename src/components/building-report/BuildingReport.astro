@@ -38,7 +38,8 @@ const INTROS: Record<string, string> = {
   hygiene: 'Open repair orders for pests, mold and garbage, and what tenants complained about.',
   dob: 'From the Department of Buildings: the structure, elevators, boilers, gas and construction.',
   court: 'Cases the city brought against the owner in Housing Court.',
-  landlord: 'The owner’s yearly registration with the city, and who’s listed on it.'
+  landlord: 'The owner’s yearly registration with the city, and who’s listed on it.',
+  portfolio: 'Other buildings whose yearly registration names the same owner, and the repair orders open at each.'
 };
 // The overview's key takeaways, grouped by the part that has the details.
 const TAKEAWAYS: Record<string, { key: string; label: string }[]> = {
@@ -54,7 +55,8 @@ const TAKEAWAYS: Record<string, { key: string; label: string }[]> = {
   legal: [
     { key: 'flags', label: 'Serious warnings' },
     { key: 'dob', label: 'Open building-safety violations' },
-    { key: 'landlord', label: 'Owner' }
+    { key: 'landlord', label: 'Owner' },
+    { key: 'portfolio', label: 'Other buildings, same owner' }
   ]
 };
 
@@ -149,7 +151,7 @@ const lotJson = lot ? JSON.stringify(lot) : '';
   import {
     flagsHtml, flagsTakeaway, flagsSummary, violationsHtml, violationsTakeaway, complaintsHtml, complaintsTakeaway,
     repairsHtml, repairsTakeaway, bedbugsHtml, bedbugsTakeaway, hygieneHtml, hygieneTakeaway, dobHtml, dobTakeaway,
-    courtHtml, landlordHtml, landlordTakeaway, sourcesHtml, lotHeadHtml, reportTitle, escape, UPSTREAM_TEXT,
+    courtHtml, landlordHtml, landlordTakeaway, portfolioHtml, portfolioTakeaway, sourcesHtml, lotHeadHtml, reportTitle, escape, UPSTREAM_TEXT,
     LOT_NOT_FOUND_TEXT
   } from '../../lib/building-report/render.js';
   import { buildingPath, isBbl, partById } from '../../lib/building-report/config.js';
@@ -224,7 +226,8 @@ const lotJson = lot ? JSON.stringify(lot) : '';
     hygiene: { html: hygieneHtml, takeaway: hygieneTakeaway },
     dob: { html: dobHtml, takeaway: dobTakeaway },
     court: { html: courtHtml },
-    landlord: { html: landlordHtml, takeaway: landlordTakeaway }
+    landlord: { html: landlordHtml, takeaway: landlordTakeaway },
+    portfolio: { html: portfolioHtml, takeaway: portfolioTakeaway }
   };
 
   // A serious warning shows on every part but the one that has it in full.

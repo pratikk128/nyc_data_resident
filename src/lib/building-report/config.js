@@ -53,7 +53,8 @@ export const SECTIONS = [
   { key: "hygiene",    title: "Mice, roaches, mold and garbage", datasets: ["violations", "complaints"], hpd: true },
   { key: "dob",        title: "Building safety",                datasets: ["dobComplaints", "ecb"], hpd: false },
   { key: "court",      title: "Housing Court cases",            datasets: ["litigation"], hpd: true },
-  { key: "landlord",   title: "Who owns it",                    datasets: ["registrations", "contacts"], hpd: true }
+  { key: "landlord",   title: "Who owns it",                    datasets: ["registrations", "contacts"], hpd: true },
+  { key: "portfolio",  title: "The owner’s other buildings",    datasets: ["registrations", "contacts", "violations"], hpd: true }
 ];
 export const SECTION_KEYS = SECTIONS.map((s) => s.key);
 
@@ -82,8 +83,8 @@ export const PARTS = [
   },
   {
     id: "legal", path: "legal/", label: "Safety, court & owner",
-    blurb: "Vacate orders, building safety, court cases and who owns it.",
-    sections: ["flags", "dob", "court", "landlord"]
+    blurb: "Vacate orders, building safety, court cases, who owns it and their other buildings.",
+    sections: ["flags", "dob", "court", "landlord", "portfolio"]
   }
 ];
 export const ALL_PART = { id: "all", path: "all/", label: "Everything", sections: SECTION_KEYS };

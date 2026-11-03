@@ -9,15 +9,18 @@ import assert from "node:assert/strict";
 
 import { isBbl, bblParts, dobCategoryLabel, buildingPath, SECTIONS, SECTION_KEYS, PARTS } from "../src/lib/building-report/config.js";
 import {
-  yearAgo, violationsQueries, complaintsQueries, hygieneQueries, flagsQueries, registrationQuery, contactsQuery, dobQueries, lotQueries
+  yearAgo, violationsQueries, complaintsQueries, hygieneQueries, flagsQueries, registrationQuery, contactsQuery, dobQueries, lotQueries,
+  ownerMatchQuery, portfolioRegistrationsQueries, chunks
 } from "../src/lib/building-report/soql.js";
 import {
   dobDate, ecbDate, plainViolation, summarizeLot, summarizeViolations, summarizeComplaints, summarizeBedbugs,
-  summarizeFlags, summarizeRepairs, summarizeLandlord, summarizeDob, summarizeHygiene, summarizeCourt, hygieneKind, chartMonths, lotName
+  summarizeFlags, summarizeRepairs, summarizeLandlord, summarizeDob, summarizeHygiene, summarizeCourt, hygieneKind, chartMonths, lotName,
+  ownerKeys, portfolioLots, summarizePortfolio, registrationBbl
 } from "../src/lib/building-report/summarize.js";
 import {
   violationsTakeaway, violationsHtml, complaintsHtml, bedbugsHtml, bedbugsTakeaway, flagsTakeaway, landlordHtml, landlordTakeaway,
-  repairsHtml, repairsTakeaway, courtHtml, dobHtml, dobTakeaway, howLong, hygieneHtml, hygieneTakeaway, columnsHtml, severityLabel, NO_HPD_TEXT
+  repairsHtml, repairsTakeaway, courtHtml, dobHtml, dobTakeaway, howLong, hygieneHtml, hygieneTakeaway, columnsHtml, severityLabel, NO_HPD_TEXT,
+  portfolioHtml, portfolioTakeaway
 } from "../src/lib/building-report/render.js";
 import { findBuilding } from "../src/lib/building-report/lookup.js";
 import { normalizeFeature } from "../src/lib/complaints311/geocode.js";
@@ -355,4 +358,82 @@ test("court: a pending case says how long it has been open", () => {
   assert.equal(howLong("2025-11-02", TODAY), "1 year");
   const d = summarizeCourt({ total: [{ n: "1" }], cases: [{ litigationid: "1", casetype: "Heat and Hot Water", casestatus: "PENDING", caseopendate: "2023-01-15T00:00:00.000" }] }, TODAY);
   assert.match(courtHtml(d, LOT), /Pending for 3 years, 9 months/);
+});
+
+test("owner's other buildings: owners and officers by name, not agents; placeholders skipped", () => {
+  const keys = ownerKeys([
+    { type: "Agent", corporationname: "BIG MANAGEMENT LLC" },
+    { type: "SiteManager", firstname: "ARGENIS", lastname: "PAULINO" },
+    { type: "CorporateOwner", corporationname: "Marmion Realty 1967-1971 LLC " },
+    { type: "HeadOfficer", firstname: "Alexander", lastname: "HOFFMAN" },
+    { type: "HeadOfficer", firstname: "#", lastname: "#" },
+    { type: "Officer", firstname: "JANE", lastname: "DOE" }
+  ]);
+  assert.deepEqual(keys.map((k) => k.kind === "company" ? k.company : `${k.first} ${k.last}`),
+    ["MARMION REALTY 1967-1971 LLC", "ALEXANDER HOFFMAN"]);
+  const where = ownerMatchQuery(keys).params.$where;
+  assert.match(where, /type = 'CorporateOwner' AND upper\(corporationname\) = 'MARMION REALTY 1967-1971 LLC'/);
+  assert.match(where, /upper\(firstname\) = 'ALEXANDER' AND upper\(lastname\) = 'HOFFMAN'/);
+  assert.doesNotMatch(where, /'Agent'/);
+  // Quotes in a name can't break out of the string.
+  assert.match(ownerMatchQuery([{ kind: "person", first: "MARY", last: "O'BRIEN" }]).params.$where, /'O''BRIEN'/);
+  assert.deepEqual(chunks([1, 2, 3, 4, 5], 2), [[1, 2], [3, 4], [5]]);
+  assert.match(portfolioRegistrationsQueries(["7", "8"], "2024-11-03")[0].params.$where, /registrationid in \(7, 8\) AND lastregistrationdate >= '2024-11-03'/);
+});
+
+test("owner's other buildings: grouped by lot, this lot left out, worst open orders first", () => {
+  const keys = [{ kind: "company", company: "ACME LLC", label: "Owner (company)" }, { kind: "person", first: "ALEX", last: "HOFFMAN", label: "Head officer" }];
+  const matches = [
+    { registrationid: "1", type: "CorporateOwner", corporationname: "ACME LLC" },
+    { registrationid: "2", type: "HeadOfficer", firstname: "Alex", lastname: "Hoffman" },
+    { registrationid: "3", type: "HeadOfficer", firstname: "ALEX", lastname: "HOFFMAN" },
+    { registrationid: "4", type: "IndividualOwner", firstname: "ALEX", lastname: "HOFFMAN" },
+    // An agent row with a matching name isn't a match.
+    { registrationid: "5", type: "Agent", corporationname: "ACME LLC" }
+  ];
+  const regs = [
+    { registrationid: "1", buildingid: "11", boroid: "2", block: "3107", lot: "36", housenumber: "1967", streetname: "MARMION AVENUE" },
+    { registrationid: "2", buildingid: "21", boroid: "2", block: "3150", lot: "1", housenumber: "2108", streetname: "RYER AVENUE" },
+    { registrationid: "3", buildingid: "22", boroid: "2", block: "3150", lot: "1", housenumber: "2110", streetname: "RYER AVENUE" },
+    { registrationid: "4", buildingid: "31", boroid: "1", block: "100", lot: "7502", housenumber: "1", streetname: "WALL ST" },
+    { registrationid: "5", buildingid: "41", boroid: "3", block: "1", lot: "1", housenumber: "9", streetname: "AGENT ST" }
+  ];
+  assert.equal(registrationBbl(regs[3]), "1001007502");
+  const lots = portfolioLots(LOT, keys, matches, regs, []);
+  assert.deepEqual(lots.map((l) => [l.bbl, l.buildingIds, l.via]), [
+    ["1001007502", ["31"], ["Alex Hoffman"]],
+    ["2031500001", ["21", "22"], ["Alex Hoffman"]]
+  ]);
+  const d = summarizePortfolio({
+    registered: true, keys, lots, since: "2024-11-03",
+    violations: [
+      { bbl: "2031500001", class: "B", n: "4" }, { bbl: "2031500001", class: "C", n: "2" },
+      { bbl: "2031500001", class: "I", n: "1" }, { bbl: "1001007502", class: "A", n: "3" }
+    ],
+    units: [
+      { buildingid: "21", legalclassa: "30", legalclassb: "0" }, { buildingid: "22", legalclassa: "3" },
+      { buildingid: "31", legalclassa: "50", recordstatus: "Inactive" }
+    ]
+  });
+  assert.equal(d.total, 2);
+  assert.equal(d.units, 33);
+  assert.deepEqual(d.open, { A: 3, B: 4, C: 2, total: 9 });
+  assert.equal(d.withUrgent, 1);
+  assert.deepEqual(d.buildings.map((b) => [b.address, b.units, b.open.total]), [["2108 Ryer Avenue", 33, 6], ["1 Wall St", null, 3]]);
+  assert.deepEqual(portfolioTakeaway(d, LOT), { tone: "warn", value: "2", text: "1 of them has urgent repair orders open" });
+  const html = portfolioHtml(d, LOT);
+  assert.match(html, /href="\/building-report\/\?bbl=2031500001">2108 Ryer Avenue, Bronx<\/a>/);
+  assert.match(html, /2 urgent · 4 serious/);
+  assert.match(html, /Linked by Alex Hoffman/);
+});
+
+test("owner's other buildings: nothing found, no owner, not registered", () => {
+  const keys = [{ kind: "company", company: "ACME LLC", label: "Owner (company)" }];
+  const none = summarizePortfolio({ registered: true, keys, lots: [], since: "2024-11-03" });
+  assert.deepEqual(portfolioTakeaway(none, LOT), { tone: "info", value: "0", text: "No other buildings registered under the same owner" });
+  assert.match(portfolioHtml(none, LOT), /No other buildings registered with the city in the last two years name Acme LLC/);
+  assert.match(portfolioHtml(summarizePortfolio({ registered: true, keys: [], lots: [], since: "2024-11-03" }), LOT), /doesn’t name an owning company/);
+  const unregistered = summarizePortfolio({ registered: false, keys: [], lots: [], since: "2024-11-03" });
+  assert.equal(portfolioTakeaway(unregistered, LOT).text, "Not registered with the city");
+  assert.match(portfolioHtml(unregistered, { ...LOT, hpd: false }), /No HPD records/);
 });
