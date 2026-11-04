@@ -8,7 +8,7 @@ import { dailyValue } from "./cache.js";
 import { requestMaxAgeHours } from "../etl/cadence.js";
 import { nycToday } from "../format.js";
 import {
-  SEARCH_LIMIT, searchParams, milesBetween, gradesParams, detailParams,
+  SEARCH_LIMIT, searchParams, cuisinesParams, milesBetween, gradesParams, detailParams,
   restaurantCountParams, familyCountParams, similarKey,
   latestInspectionParams, leadViolationParams, leadInspectionParams
 } from "../restaurants/soql.js";
@@ -37,6 +37,16 @@ export const metadataJob = {
   key: `restaurants:metadata:${DATASET_ID}`,
   maxAgeHours: MAX_AGE_HOURS,
   run: () => datasetMetadata(DATASET_ID)
+};
+
+// The search's Cuisine list, as the data spells each one.
+export const cuisinesJob = {
+  key: `restaurants:cuisines:${DATASET_ID}`,
+  maxAgeHours: MAX_AGE_HOURS,
+  async run() {
+    const rows = await soql(DATASET_ID, cuisinesParams());
+    return rows.map((r) => r.cuisine_description.trim()).filter(Boolean);
+  }
 };
 
 // Citywide and same-cuisine-and-borough violation totals per category, plus the number
@@ -127,11 +137,15 @@ export const restaurantsDataset = {
   cadence: CADENCE,
   rolling: true,
   metadataJob,
-  jobs: [benchmarksJob, leadsJob]
+  jobs: [benchmarksJob, leadsJob, cuisinesJob]
 };
 
 export function getLeads() {
   return dailyValue(leadsJob);
+}
+
+export function getCuisines() {
+  return dailyValue(cuisinesJob);
 }
 
 export function getMetadata() {

@@ -1,5 +1,5 @@
 /*
- * GET /api/restaurants/search?name=joe&boro=Manhattan&place=123+Broadway&lat=&lng=
+ * GET /api/restaurants/search?name=joe&boro=Manhattan&cuisine=Pizza&place=123+Broadway&lat=&lng=
  * Up to 25 restaurants (one per camis) with their latest grade.
  * → { results: [...], more: boolean } or { error }
  *
@@ -17,7 +17,7 @@ export const prerender = false;
 export async function GET({ url, locals, clientAddress }) {
   const p = url.searchParams;
   const { error, query } = normalizeSearch({
-    name: p.get("name"), boro: p.get("boro"), where: p.get("place"), lat: p.get("lat"), lng: p.get("lng")
+    name: p.get("name"), boro: p.get("boro"), where: p.get("place"), cuisine: p.get("cuisine"), lat: p.get("lat"), lng: p.get("lng")
   });
   if (error) return json({ error }, { status: 400 });
 

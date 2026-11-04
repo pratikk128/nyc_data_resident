@@ -1,17 +1,17 @@
 ---
 /*
- * "Look up a restaurant": search by name (plus borough, street or ZIP, or
- * near me) or browse near me, pick a result, see its latest grade and inspection and the
+ * "Look up a restaurant": search by name (plus borough, cuisine, street or
+ * ZIP, or near me) or browse near me, pick a result, see its latest grade and inspection and the
  * categories cited at 2+ inspections and at least twice as often per inspection as the average.
  *
  * Search and detail data come from /api/restaurants/* (server-side, cached).
  * A deep link (?camis=50066715) is rendered on the server and passed in as
  * `initial`, so a shared link shows the restaurant without waiting for script.
- * A search in the URL (?name=&boro=&place=) is rendered there too, as
+ * A search in the URL (?name=&boro=&cuisine=&place=) is rendered there too, as
  * `initialSearch`, so the form also works as a plain GET without JavaScript.
  */
 import { BOROUGHS } from '../../lib/restaurants/inspections.js';
-import { MAX_NAME_LENGTH, MAX_PLACE_LENGTH } from '../../lib/restaurants/soql.js';
+import { MAX_NAME_LENGTH, MAX_PLACE_LENGTH, MAX_CUISINE_LENGTH } from '../../lib/restaurants/soql.js';
 import { RATE_LIMITED_TEXT } from '../../lib/server/rate-limit.js';
 import RestaurantDetail from './RestaurantDetail.astro';
 import { resultCardsHtml, searchStatusText } from '../../lib/restaurants/render.js';
@@ -22,11 +22,17 @@ interface Props {
   initial: any;               // restaurantDetail() result for ?camis=, or null
   initialError: string | null; // 'not-found' | 'upstream' when ?camis= couldn't be loaded
   benchmark: 'citywide' | 'similar';
-  searchInput: { name: string; boro: string; place: string }; // from the URL, to fill the form
+  searchInput: { name: string; boro: string; cuisine: string; place: string }; // from the URL, to fill the form
   initialSearch: { data?: { results: any[]; more: boolean }; error?: string } | null;
+  cuisines: string[];         // every cuisine in the data, as it spells them
 }
 
-const { meta, initial, initialError, benchmark, searchInput, initialSearch } = Astro.props;
+const { meta, initial, initialError, benchmark, searchInput, initialSearch, cuisines } = Astro.props;
+// A cuisine from a shared link stays selectable even if the daily list is missing it.
+const urlCuisine = searchInput.cuisine.trim();
+const cuisineOptions = urlCuisine && urlCuisine !== 'All' && urlCuisine.length <= MAX_CUISINE_LENGTH && !cuisines.includes(urlCuisine)
+  ? [...cuisines, urlCuisine].sort()
+  : cuisines;
 const initialResults = initialSearch?.data?.results ?? [];
 const initialStatus = initialSearch?.data
   ? searchStatusText(initialSearch.data, { named: Boolean(searchInput.name.trim()), near: false })
@@ -63,7 +69,7 @@ const deepLink = Boolean(initial || initialError);
       <input class="search-input" id="rest-name" name="name" type="search" minlength="2" maxlength={MAX_NAME_LENGTH} value={searchInput.name}
         autocomplete="off" spellcheck="false" placeholder="Try “Joe’s Pizza”"
         aria-describedby="rest-name-hint" aria-controls="rest-results" />
-      <p class="field-hint" id="rest-name-hint">At least 2 letters, or leave it blank and search by street, ZIP or “Near me”. Results update as you type.</p>
+      <p class="field-hint" id="rest-name-hint">At least 2 letters, or leave it blank and search by cuisine, street, ZIP or “Near me”. Results update as you type.</p>
     </div>
     <div class="field">
       <label class="filter-label" for="rest-boro">Borough</label>
@@ -73,6 +79,13 @@ const deepLink = Boolean(initial || initialError);
       </select>
     </div>
     <div class="field">
+      <label class="filter-label" for="rest-cuisine">Cuisine</label>
+      <select class="filter-select" id="rest-cuisine" name="cuisine">
+        <option value="All">All cuisines</option>
+        {cuisineOptions.map((c) => <option value={c} selected={c === urlCuisine}>{c}</option>)}
+      </select>
+    </div>
+    <div class="field field-place">
       <label class="filter-label" for="rest-place">Street or ZIP <span class="field-optional">(optional)</span></label>
       <input class="search-input" id="rest-place" name="place" type="search" maxlength={MAX_PLACE_LENGTH} value={searchInput.place} autocomplete="off" spellcheck="false"
         placeholder="Try “123 Broadway” or “11211”" aria-controls="rest-results" />
@@ -182,6 +195,7 @@ const deepLink = Boolean(initial || initialError);
   const form = document.querySelector<HTMLFormElement>('[data-search-form]')!;
   const nameInput = form.querySelector<HTMLInputElement>('#rest-name')!;
   const boroSelect = form.querySelector<HTMLSelectElement>('#rest-boro')!;
+  const cuisineSelect = form.querySelector<HTMLSelectElement>('#rest-cuisine')!;
   const placeInput = form.querySelector<HTMLInputElement>('#rest-place')!;
   const nearBtn = form.querySelector<HTMLButtonElement>('[data-near]')!;
   const nearLabel = nearBtn.querySelector<HTMLElement>('[data-near-label]')!;
@@ -203,7 +217,7 @@ const deepLink = Boolean(initial || initialError);
   let searchAbort: AbortController | null = null;
   let detailAbort: AbortController | null = null;
 
-  // ---------- URL state: ?name=&boro=&place= for the search, ?camis= for a restaurant ----------
+  // ---------- URL state: ?name=&boro=&cuisine=&place= for the search, ?camis= for a restaurant ----------
   // A restaurant opened from the results pushes { fromSearch: true }, so "Back
   // to search" can tell whether the previous history entry is the search on
   // this page. Replacing keeps the entry's state.
@@ -218,11 +232,13 @@ const deepLink = Boolean(initial || initialError);
 
   // Fill the search fields from the URL. True when anything changed.
   function fillSearch(params: URLSearchParams) {
-    const fields = () => [nameInput.value.trim(), boroSelect.value, placeInput.value.trim()].join('\n');
+    const fields = () => [nameInput.value.trim(), boroSelect.value, cuisineSelect.value, placeInput.value.trim()].join('\n');
     const before = fields();
     nameInput.value = params.get('name') ?? '';
     const boro = params.get('boro');
     boroSelect.value = boro && Array.from(boroSelect.options).some((o) => o.value === boro) ? boro : 'All';
+    const cuisine = params.get('cuisine');
+    cuisineSelect.value = cuisine && Array.from(cuisineSelect.options).some((o) => o.value === cuisine) ? cuisine : 'All';
     placeInput.value = params.get('place') ?? '';
     return fields() !== before;
   }
@@ -238,6 +254,7 @@ const deepLink = Boolean(initial || initialError);
     const p = new URLSearchParams();
     if (nameInput.value.trim()) p.set('name', nameInput.value.trim());
     if (boroSelect.value !== 'All') p.set('boro', boroSelect.value);
+    if (cuisineSelect.value !== 'All') p.set('cuisine', cuisineSelect.value);
     if (placeInput.value.trim()) p.set('place', placeInput.value.trim());
     if (near) { p.set('lat', String(near.lat)); p.set('lng', String(near.lng)); }
     return `/api/restaurants/search?${p}`;
@@ -247,11 +264,16 @@ const deepLink = Boolean(initial || initialError);
     clearTimeout(searchTimer);
     searchAbort?.abort();
     const name = nameInput.value.trim();
-    setUrl({ name: name || null, boro: boroSelect.value === 'All' ? null : boroSelect.value, place: placeInput.value.trim() || null });
+    setUrl({
+      name: name || null,
+      boro: boroSelect.value === 'All' ? null : boroSelect.value,
+      cuisine: cuisineSelect.value === 'All' ? null : cuisineSelect.value,
+      place: placeInput.value.trim() || null
+    });
 
-    // The server's rules: an empty name works with "near me" or a street or ZIP.
+    // The server's rules: an empty name works with "near me", a street or ZIP, or a cuisine.
     const place = placeInput.value.trim();
-    const invalid = normalizeSearch({ name, boro: boroSelect.value, where: place, lat: near?.lat, lng: near?.lng }).error;
+    const invalid = normalizeSearch({ name, boro: boroSelect.value, cuisine: cuisineSelect.value, where: place, lat: near?.lat, lng: near?.lng }).error;
     if (invalid) {
       list.replaceChildren();
       keysHint.hidden = true;
@@ -292,6 +314,7 @@ const deepLink = Boolean(initial || initialError);
   nameInput.addEventListener('input', scheduleSearch);
   placeInput.addEventListener('input', scheduleSearch);
   boroSelect.addEventListener('change', runSearch);
+  cuisineSelect.addEventListener('change', runSearch);
 
   // "Near me": a ~0.5 mile box around the browser's location, with or without
   // a name. Press again to turn off. A link from the address report starts it

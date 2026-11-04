@@ -12,7 +12,7 @@ import {
   latestScored, closesRestaurant, inspectionsByCategory, MIN_REPEAT_INSPECTIONS
 } from "../src/lib/restaurants/inspections.js";
 import { categoryFor, violationFamily, CATEGORIES, OTHER } from "../src/lib/restaurants/violation-categories.js";
-import { parseLocation, searchWhere, searchParams, nameRank, milesBetween, normalizeSearch, soqlString, MAX_NAME_LENGTH, MAX_PLACE_LENGTH } from "../src/lib/restaurants/soql.js";
+import { parseLocation, searchWhere, searchParams, nameRank, milesBetween, normalizeSearch, soqlString, MAX_NAME_LENGTH, MAX_PLACE_LENGTH, MAX_CUISINE_LENGTH } from "../src/lib/restaurants/soql.js";
 import { categoryListHtml, detailHtml, historyHtml, rateText, resultCardsHtml } from "../src/lib/restaurants/render.js";
 
 const row = (o) => ({ camis: "1", ...o });
@@ -410,4 +410,16 @@ test("inspection history lists scored inspections and says which way the score m
   assert.match(many, /Show 2 older inspections/);
   assert.equal(historyHtml([]), "");
   assert.match(detailHtml(detail({ history: [insp("2026-10-01", 24)] })), /only scored inspection/);
+});
+
+test("a cuisine filters exactly and works without a name", () => {
+  assert.equal(searchWhere(normalizeSearch({ name: "joe", cuisine: "Pizza" }).query),
+    "upper(dba) like '%JOE%' AND cuisine_description = 'Pizza'");
+  assert.equal(searchWhere(normalizeSearch({ cuisine: "Coffee/Tea", boro: "Brooklyn" }).query),
+    "boro = 'Brooklyn' AND cuisine_description = 'Coffee/Tea'");
+  assert.equal(searchWhere(normalizeSearch({ cuisine: "Bob's" }).query), "cuisine_description = 'Bob''s'");
+  assert.equal(normalizeSearch({ name: "joe", cuisine: "All" }).query.cuisine, undefined);
+  assert.ok(normalizeSearch({ cuisine: "All" }).error);
+  assert.ok(normalizeSearch({ name: "j", cuisine: "Thai" }).error);
+  assert.ok(normalizeSearch({ cuisine: "a".repeat(MAX_CUISINE_LENGTH + 1) }).error);
 });

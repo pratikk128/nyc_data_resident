@@ -3,11 +3,11 @@
  * NYC Restaurant Inspections. Rendered on demand (not prerendered) so the
  * "Data updated" date comes from the dataset's live metadata, a shared
  * link like ?camis=50066715 opens straight to that restaurant, and a search
- * (?name=&boro=&place=) shows its results even without JavaScript.
+ * (?name=&boro=&cuisine=&place=) shows its results even without JavaScript.
  */
 import DashboardLayout from '../../layouts/DashboardLayout.astro';
 import RestaurantLookup from '../../components/restaurant-inspections/RestaurantLookup.astro';
-import { getMetadata } from '../../lib/server/restaurants.js';
+import { getMetadata, getCuisines } from '../../lib/server/restaurants.js';
 import { loadRestaurant, loadSearch, isCamis } from '../../lib/server/restaurant-page.js';
 import { normalizeSearch } from '../../lib/restaurants/soql.js';
 import { RateLimited, RATE_LIMITED_TEXT } from '../../lib/server/rate-limit.js';
@@ -21,6 +21,12 @@ try {
   meta = await getMetadata();
 } catch (err) {
   console.error(err); // the page still works; it just can't show the date
+}
+let cuisines: string[] = [];
+try {
+  cuisines = await getCuisines();
+} catch (err) {
+  console.error(err); // the Cuisine list only offers "All cuisines" (and one from the URL)
 }
 
 const camis = Astro.url.searchParams.get('camis');
@@ -43,11 +49,15 @@ if (camis) {
 }
 // A submitted search. "Near me" needs the browser's location, so it's script-only.
 const params = Astro.url.searchParams;
-const searchInput = { name: params.get('name') ?? '', boro: params.get('boro') ?? 'All', place: params.get('place') ?? '' };
+const searchInput = {
+  name: params.get('name') ?? '', boro: params.get('boro') ?? 'All', cuisine: params.get('cuisine') ?? 'All', place: params.get('place') ?? ''
+};
 let initialSearch: { data?: any; error?: string } | null = null;
 let searchFailed = false; // Socrata or the rate limit, not the reader's input
-if (searchInput.name.trim() || searchInput.place.trim() || params.has('boro')) {
-  const { error, query } = normalizeSearch({ name: searchInput.name, boro: searchInput.boro, where: searchInput.place });
+if (searchInput.name.trim() || searchInput.place.trim() || params.has('boro') || params.has('cuisine')) {
+  const { error, query } = normalizeSearch({
+    name: searchInput.name, boro: searchInput.boro, cuisine: searchInput.cuisine, where: searchInput.place
+  });
   if (error) initialSearch = { error };
   else {
     try {
@@ -86,5 +96,5 @@ const description = initial
   </header>
 
   <RestaurantLookup meta={meta} initial={initial} initialError={initialError} benchmark={benchmark}
-    searchInput={searchInput} initialSearch={initialSearch} />
+    searchInput={searchInput} initialSearch={initialSearch} cuisines={cuisines} />
 </DashboardLayout>

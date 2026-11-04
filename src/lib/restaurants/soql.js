@@ -13,6 +13,7 @@ const NEAR_ME_MILES = 0.5;
 // Longer than any name or address in the data; keeps LIKE patterns small.
 export const MAX_NAME_LENGTH = 80;
 export const MAX_PLACE_LENGTH = 100;
+export const MAX_CUISINE_LENGTH = 60; // the longest in the data is ~30
 
 // A SoQL string literal: single quotes doubled.
 export function soqlString(value) {
@@ -55,13 +56,15 @@ export function boundingBox(lat, lng, miles = NEAR_ME_MILES) {
 export const TOO_SHORT_TEXT = "Type at least 2 letters of the restaurant name, or a street or ZIP code.";
 
 // Validates and normalizes raw search input. Returns { error } or { query }.
-// The name can be left out with "near me" or a street or ZIP (2+ characters),
-// to see everything there.
-export function normalizeSearch({ name, boro, where, lat, lng } = {}) {
+// The name can be left out with "near me", a street or ZIP (2+ characters)
+// or a cuisine, to see everything there.
+export function normalizeSearch({ name, boro, where, cuisine, lat, lng } = {}) {
   const cleanName = likeTerm(name);
+  const cleanCuisine = String(cuisine ?? "").trim();
+  const hasCuisine = Boolean(cleanCuisine) && cleanCuisine !== "All";
   const hasNear = lat != null && lng != null && lat !== "" && lng !== "";
   const hasPlace = likeTerm(where).length >= 2;
-  if (cleanName.length < 2 && !(!cleanName && (hasNear || hasPlace))) return { error: TOO_SHORT_TEXT };
+  if (cleanName.length < 2 && !(!cleanName && (hasNear || hasPlace || hasCuisine))) return { error: TOO_SHORT_TEXT };
   if (cleanName.length > MAX_NAME_LENGTH) return { error: `Keep the restaurant name under ${MAX_NAME_LENGTH} characters.` };
   if (likeTerm(where).length > MAX_PLACE_LENGTH) return { error: `Keep the street or ZIP under ${MAX_PLACE_LENGTH} characters.` };
   const query = {};
@@ -69,6 +72,11 @@ export function normalizeSearch({ name, boro, where, lat, lng } = {}) {
   if (boro && boro !== "All") {
     if (!BOROUGHS.includes(boro)) return { error: "Pick a borough from the list." };
     query.boro = boro;
+  }
+  // Matched exactly, as the data spells it ("Coffee/Tea"); the page lists them.
+  if (hasCuisine) {
+    if (cleanCuisine.length > MAX_CUISINE_LENGTH) return { error: "Pick a cuisine from the list." };
+    query.cuisine = cleanCuisine;
   }
   const location = parseLocation(where);
   if (location) query.location = location;
@@ -85,6 +93,7 @@ export function normalizeSearch({ name, boro, where, lat, lng } = {}) {
 export function searchWhere(query) {
   const parts = query.name ? [contains("dba", query.name)] : [];
   if (query.boro) parts.push(`boro = ${soqlString(query.boro)}`);
+  if (query.cuisine) parts.push(`cuisine_description = ${soqlString(query.cuisine)}`);
   const loc = query.location;
   if (loc?.zipcode) parts.push(`zipcode = ${soqlString(loc.zipcode)}`);
   if (loc?.building) parts.push(`upper(building) = ${soqlString(loc.building)}`);
@@ -162,6 +171,17 @@ export function detailParams(camis) {
     $where: `camis = ${soqlString(camis)}`,
     $order: "inspection_date DESC, violation_code",
     $limit: "5000"
+  };
+}
+
+// Every cuisine in the data, for the search's Cuisine list (run once a day).
+export function cuisinesParams() {
+  return {
+    $select: "cuisine_description",
+    $where: "cuisine_description IS NOT NULL",
+    $group: "cuisine_description",
+    $order: "cuisine_description",
+    $limit: "1000"
   };
 }
 

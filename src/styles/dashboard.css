@@ -959,7 +959,7 @@ th[aria-sort="none"] .sort-btn:hover .sort-icon::after { content: "↕"; color: 
 /* ---------- Search ---------- */
 .rest-search {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1.5fr) auto;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1.25fr) minmax(0, 1.5fr) auto;
   align-items: start;
   gap: var(--space-3) var(--space-4);
   margin-top: var(--space-5);
@@ -1181,7 +1181,7 @@ a.rest-card:focus-visible { outline: 3px solid var(--link); outline-offset: 2px;
 
 @media (max-width: 1023px) {
   .rest-search { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  .field-name { grid-column: 1 / -1; }
+  .field-name, .field-place { grid-column: 1 / -1; }
   .field-near { grid-column: 1 / -1; padding-top: 0; }
 }
 @media (max-width: 639px) {
