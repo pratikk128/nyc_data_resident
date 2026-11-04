@@ -23,6 +23,14 @@
 
 export const dashboards = [
   {
+    id: "address",
+    title: "Your Address Report",
+    description: "Type an address and see the city’s data around it: your building’s records, the water, crashes, 311, street closures, parks, help, schools and restaurant grades.",
+    category: "Housing & Development",
+    url: "/address/",
+    audience: ["resident"]
+  },
+  {
     id: "restaurant-inspections",
     title: "NYC Restaurant Inspections",
     description: "Look up any restaurant’s health inspection grade and latest violations, and see how it compares with similar places.",
