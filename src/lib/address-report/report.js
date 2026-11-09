@@ -27,6 +27,12 @@ const round3 = (n) => Math.round(n * 1e3) / 1e3;
 // The spot in the URL, or null; and back (link.js, shared with the dashboards' links here).
 export { spotFromParams, spotToParams };
 
+// The drinking water card is switched off: the Drinking Water Quality
+// dashboard is hidden (hidden: true in src/data/dashboards.js). Its code
+// stays; true brings back the card, its glance line, its server lookup in
+// /api/address/nearest and its mentions on the address page.
+export const SHOW_WATER = false;
+
 // Street safety looks this far around the spot (meters): Crash Hotspots' default.
 export { CRASH_RADIUS };
 

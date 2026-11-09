@@ -16,16 +16,18 @@
  *   audience    Who it's for: ["resident"], ["business"], or both.
  *               Drives the For NYC Residents / For NYC Businesses
  *               switch in the header.
+ *   hidden      Optional. true keeps the dashboard's code and pages
+ *               but leaves it off the landing page and the sitemap.
  *
  * The sidebar counts, category filter, and "N dashboards" heading
  * all update automatically. No other file needs to change.
  */
 
-export const dashboards = [
+export const allDashboards = [
   {
     id: "address",
     title: "Your Address Report",
-    description: "Type an address and see the city’s data around it: your building’s records, the water, crashes, 311, street closures, parks, help, schools and restaurant grades.",
+    description: "Type an address and see the city’s data around it: your building’s records, crashes, 311, street closures, parks, help, schools and restaurant grades.",
     category: "Housing & Development",
     url: "/address/",
     audience: ["resident"]
@@ -76,7 +78,8 @@ export const dashboards = [
     description: "Is the water safe right now? Monthly test results for bacteria, chlorine and more, citywide and near you.",
     category: "Environment",
     url: "/drinking-water/",
-    audience: ["resident"]
+    audience: ["resident"],
+    hidden: true
   },
   {
     id: "shop-diverse",
@@ -151,6 +154,9 @@ export const dashboards = [
     audience: ["resident"]
   }
 ];
+
+// The dashboards shown on the landing page and listed in the sitemap.
+export const dashboards = allDashboards.filter((d) => !d.hidden);
 
 export const ALL = "All Categories";
 

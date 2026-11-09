@@ -113,7 +113,7 @@ const plural = (n: number) => `${n} ${n === 1 ? 'dashboard' : 'dashboards'}`;
         <!-- The address report looks the text up; with JavaScript it's handed over in the hash, which never reaches the server. -->
         <form class="hero-address" action="/address/" method="get" role="search" aria-label="Get the report for an address" id="hero-address">
           <label class="hero-address-label" for="hero-q">Your address or ZIP code</label>
-          <p class="hero-address-hint" id="hero-q-hint">See your building’s records, street safety, 311, water, closures, parks, schools and more around it.</p>
+          <p class="hero-address-hint" id="hero-q-hint">See your building’s records, street safety, 311, closures, parks, schools and more around it.</p>
           <div class="hero-address-row">
             <input class="hero-address-input" id="hero-q" name="q" type="text" autocomplete="street-address" spellcheck="false"
               maxlength="120" aria-describedby="hero-q-hint" placeholder="Try “350 5th Ave, Manhattan” or “11211”" required>

@@ -9,7 +9,7 @@ import { schoolPath } from "../lib/schools/config.js";
 
 const SITE = "https://asknycdata.com";
 // Section pages beyond each dashboard's url
-const EXTRA_PAGES = ["/drinking-water/near-me/", "/city-payroll/overtime/"];
+const EXTRA_PAGES = ["/city-payroll/overtime/"];
 // Every school in the quality reports that has a location (the snapshot
 // scripts/refresh-school-locations.mjs builds); each has a page.
 const SCHOOL_PAGES = Object.keys(schoolLocations).sort().map(schoolPath);

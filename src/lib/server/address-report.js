@@ -14,7 +14,7 @@ import { loadSearch as loadHelp } from "./help-near-me.js";
 import { loadSearch as loadSchools } from "./schools.js";
 import { loadSearch as loadParks } from "./park-amenities.js";
 import { RateLimited, RATE_LIMITED_TEXT } from "./rate-limit.js";
-import { nearestStation, helpCard, nearestSchools, nearestParks } from "../address-report/report.js";
+import { nearestStation, helpCard, nearestSchools, nearestParks, SHOW_WATER } from "../address-report/report.js";
 import { normalizeQuery } from "../schools/filter.js";
 import { plainDescription } from "../water/stats.js";
 import sitesFile from "../../data/water-sites.json";
@@ -70,17 +70,18 @@ function failed(err, text = null) {
 
 /*
  * spot: { lat, lon }, rounded to about a block (report.js spotFromParams()).
- * → { water, help, schools, parks }, each as above or { failed: true, error: text or null }
+ * → { water, help, schools, parks }, each as above or { failed: true, error: text or null };
+ * no water while SHOW_WATER is off (the water dataset isn't asked).
  */
 export async function loadNearest(spot, requestUrl, ctx, clientAddress) {
   const [w, h, s, p] = await Promise.allSettled([
-    water(spot),
+    SHOW_WATER ? water(spot) : null,
     help(spot, requestUrl, ctx, clientAddress),
     schools(spot, requestUrl, ctx, clientAddress),
     parks(spot, requestUrl, ctx, clientAddress)
   ]);
   return {
-    water: w.status === "fulfilled" ? w.value : failed(w.reason, WATER_DOWN_TEXT),
+    ...(SHOW_WATER && { water: w.status === "fulfilled" ? w.value : failed(w.reason, WATER_DOWN_TEXT) }),
     help: h.status === "fulfilled" ? h.value : failed(h.reason),
     schools: s.status === "fulfilled" ? s.value : failed(s.reason),
     parks: p.status === "fulfilled" ? p.value : failed(p.reason)

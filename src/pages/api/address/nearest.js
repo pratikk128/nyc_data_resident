@@ -5,6 +5,7 @@
  * items instead of every station, help site, school and amenity.
  * → { water: { station, data }, help: { sites }, schools: { schools }, parks: { parks } }, any of them
  *   { failed: true, error } on its own; or { error }
+ * No water while SHOW_WATER (src/lib/address-report/report.js) is off.
  *
  * Reads KV through each dashboard's own cached, rate-limited loader.
  */

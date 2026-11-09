@@ -19,6 +19,7 @@
  * light theme and adds the date and the link back to the report.
  */
 import { MAX_INPUT_LENGTH } from '../../lib/complaints311/location-input.js';
+import { SHOW_WATER } from '../../lib/address-report/report.js';
 
 // Topics in the order a resident asks about them: what affects today, then
 // the block itself, then what's around. Each has a line in "At a glance",
@@ -34,7 +35,7 @@ const ICONS: Record<string, string> = {
   safety: '<path d="M12 3l9.5 17h-19z"/><path d="M12 10v4M12 17h.01"/>',
   parks: '<path d="M12 22v-6"/><path d="M12 2l5 7h-3l4 6H6l4-6H7z"/>'
 };
-const GROUPS = [
+const ALL_GROUPS = [
   { key: 'now', title: 'Right now', intro: 'What could change your day.', topics: [
     { key: 'water', title: 'Drinking water', glance: 'Water', scope: 'The nearest sampling station', link: 'See the full results' },
     { key: 'closures', title: 'Street closures', glance: 'Streets', scope: 'Within ¼ mile, this week', link: 'See every closure nearby' }
@@ -51,6 +52,10 @@ const GROUPS = [
     { key: 'schools', title: 'Nearest public schools', glance: 'Schools', scope: 'The 3 nearest, at any distance', link: 'See schools near here on a map' }
   ] }
 ];
+// Hidden topics (SHOW_WATER) leave no card or glance line.
+const GROUPS = ALL_GROUPS
+  .map((g) => ({ ...g, topics: g.topics.filter((t) => t.key !== 'water' || SHOW_WATER) }))
+  .filter((g) => g.topics.length);
 const TOPICS = GROUPS.flatMap((g) => g.topics);
 ---
 
@@ -136,7 +141,7 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
 <script>
   import {
     spotFromParams, spotToParams, dashboardLinks, complaintsCard, complaintsStandouts, closuresCard, restaurantsCard, neighborhoodName,
-    safetyCard, BUILDING_SECTIONS, CRASH_RADIUS
+    safetyCard, BUILDING_SECTIONS, CRASH_RADIUS, SHOW_WATER
   } from '../../lib/address-report/report.js';
   import {
     waterHtml, waterGlance, complaintsHtml, complaintsGlance, standoutsHtml, closuresHtml, closuresGlance,
@@ -310,7 +315,7 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
       }
     };
 
-    card('water', links.water, async () => {
+    if (SHOW_WATER) card('water', links.water, async () => {
       const { station, data } = await nearestPart('water');
       return {
         html: waterHtml(station, data), glance: waterGlance(station, data),

@@ -17,6 +17,13 @@ const { indexJob } = await import("../src/lib/server/schools.js");
 const { monthlyJob, detectionsJob, stationsJob } = await import("../src/lib/server/water.js");
 const { GET } = await import("../src/pages/api/address/nearest.js");
 const { RATE_LIMITED_TEXT } = await import("../src/lib/server/rate-limit.js");
+const { SHOW_WATER } = await import("../src/lib/address-report/report.js");
+
+// The water card is switched off (SHOW_WATER): then the answer has no water part at all.
+function assertWater(body) {
+  if (SHOW_WATER) assert.equal(body.water.station.site, "10150");
+  else assert.equal(body.water, undefined);
+}
 
 const SPOT = { lat: 40.8252, lon: -73.8433 }; // Zerega Ave, the Bronx: next to water station 10150
 const NOW = new Date().toISOString();
@@ -90,7 +97,7 @@ test("a part that fails says so on its own; the rest still come back, and nothin
   assert.equal(res.headers.get("Cache-Control"), "no-store");
   const body = await res.json();
   assert.deepEqual(body.schools, { failed: true, error: null });
-  assert.equal(body.water.station.site, "10150");
+  assertWater(body);
   assert.equal(body.help.sites.length, helpNearMeDatasets.length);
 });
 
@@ -103,11 +110,13 @@ test("only what the cards show: the nearest station with its months, the nearest
   const body = await res.json();
   assert.deepEqual(fetches, []);
 
-  const { station, data } = body.water;
-  assert.equal(station.site, "10150");
-  assert.ok(station.miles < 0.1 && station.place);
-  assert.deepEqual(Object.keys(data.stations), ["10150"]);
-  assert.deepEqual(data.months, MONTHS);
+  assertWater(body);
+  if (SHOW_WATER) {
+    const { station, data } = body.water;
+    assert.ok(station.miles < 0.1 && station.place);
+    assert.deepEqual(Object.keys(data.stations), ["10150"]);
+    assert.deepEqual(data.months, MONTHS);
+  }
 
   assert.equal(body.help.sites.length, helpNearMeDatasets.length);
   assert.deepEqual(Object.keys(body.help.sites[0]).sort(), ["address", "borough", "kind", "lat", "lon", "miles", "name", "zip"]);
@@ -129,7 +138,7 @@ test("a client over a dashboard's limit gets that part's words to show", async (
 
   const body = await (await nearest()).json();
   assert.deepEqual(body.help, { failed: true, error: RATE_LIMITED_TEXT });
-  assert.equal(body.water.station.site, "10150");
+  assertWater(body);
 });
 
 test("a spot outside NYC, or no spot, is a 400", async () => {
