@@ -1,24 +1,23 @@
 ---
 /*
- * The address report: your address → your building, drinking water, 311,
+ * The address report: your address → your building, 311,
  * street closures, crashes, parks, help, schools and restaurant grades near
  * it, each from its own dashboard.
  * A static page: everything loads in the browser (AddressReport.astro).
  */
 import DashboardLayout from '../../layouts/DashboardLayout.astro';
 import AddressReport from '../../components/address-report/AddressReport.astro';
-import { SHOW_WATER } from '../../lib/address-report/report.js';
 ---
 
 <DashboardLayout
   title="Your address report"
-  description={`Type an NYC address and see your building’s repair orders and complaints, crashes nearby, ${SHOW_WATER ? "the drinking water, " : ""}311 requests, street closures, parks, help, schools and restaurant grades around it.`}
+  description="Type an NYC address and see your building’s repair orders and complaints, crashes nearby, 311 requests, street closures, parks, help, schools and restaurant grades around it."
   path="/address/"
 >
   <header class="page-head">
     <h1>Your address report</h1>
     <p>
-      One address, the city’s data around it: your building’s records,{SHOW_WATER && ' the water,'} crashes on nearby streets,
+      One address, the city’s data around it: your building’s records, crashes on nearby streets,
       what neighbors call 311 about, which streets are closed, the nearest parks, help and schools, and how
       nearby restaurants did on inspection.
     </p>
@@ -35,7 +34,6 @@ import { SHOW_WATER } from '../../lib/address-report/report.js';
       Open a card’s link for the details, the method and the caveats.
     </p>
     <ul class="ar-sources">
-      {SHOW_WATER && <li><strong>Drinking water:</strong> the nearest DEP sampling station, routine samples over the last 12 months.</li>}
       <li><strong>311:</strong> requests within ¼ mile (about a 5-minute walk), last 12 months.</li>
       <li><strong>Street closures:</strong> DOT construction permits closing a block within ¼ mile, today and this week.</li>
       <li><strong>Your building:</strong> the Building Report Card’s key takeaways from HPD and DOB records, for a typed street address only.</li>

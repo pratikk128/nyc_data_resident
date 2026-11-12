@@ -2,7 +2,7 @@
 
 **asknycdata.com** · NYC's public data, made easy to understand.
 
-Interactive dashboards for NYC residents and businesses, built on public [NYC Open Data](https://opendata.cityofnewyork.us/): a landing page plus fourteen dashboards (restaurant inspections, restaurant leads, 311 complaints, city payroll spending, what city jobs pay, drinking water, certified M/WBE firms, school quality, street closures, help near me, crash lookup, crash hotspots, building report card, park amenities near me).
+Interactive dashboards for NYC residents, built on public [NYC Open Data](https://opendata.cityofnewyork.us/): a landing page plus thirteen dashboards (your address report, restaurant inspections, 311 complaints, city payroll spending, what city jobs pay, women- and minority-owned businesses near you, school quality, street closures, help near me, crash lookup, crash hotspots, building report card, park amenities near me).
 
 Built with [Astro](https://docs.astro.build) and deployed to Cloudflare Workers. The page's interactivity is plain vanilla JavaScript. Most pages are prerendered; pages and API routes that read live NYC Open Data run in the Worker (`export const prerender = false`).
 
@@ -17,15 +17,10 @@ src/layouts/DashboardLayout.astro   Shared shell for dashboard pages
 src/lib/                  Formatting helpers, payroll stats, chart code
 src/lib/payroll/build.js  Payroll queries and checks, shared by the cron and npm run data:payroll
 src/pages/restaurant-inspections/   NYC Restaurant Inspections (rendered on demand)
-src/pages/restaurant-leads/   Restaurant Leads by Service Type, from the same inspection data (rendered on demand)
 src/pages/311-complaints/  311 Complaints in My Neighborhood (rendered on demand)
-src/pages/drinking-water/  NYC Drinking Water Quality, one page per section (rendered on demand)
-src/components/drinking-water/  WaterPage.astro (heading, section nav, context box, method notes) and the sections
-src/pages/shop-diverse/    Find Certified Women- and Minority-Owned Firms (rendered on demand)
 src/pages/shop-local/      Support Women- and Minority-Owned Businesses Near You (rendered on demand)
 src/pages/school-quality/  NYC School Quality Explorer: browse page and /school-quality/<DBN>/ (rendered on demand)
 src/components/school-quality/  Finder, the school page's "now" and "over time" sections, method notes
-src/components/shop-diverse/  The finder (filters, results, detail panel, shortlist) and method notes
 src/pages/street-closures/  Street Closures Near You (rendered on demand)
 src/components/street-closures/  The finder (search, window tabs, map + cards, breakdown) and method notes
 src/pages/crash-lookup/    NYC Crash Lookup (rendered on demand)
@@ -36,14 +31,13 @@ src/lib/crashes/          Crash lookup logic: config (date range), schema, norma
 src/pages/building-report/  Building Report Card: /building-report/?bbl=<BBL> (key takeaways), plus repairs/, pests/, legal/ and all/ per tax lot (rendered on demand)
 src/components/building-report/  Page shell, address search, header and map, part cards, key takeaways, the nine sections; terms and sources
 src/lib/building-report/  Building report logic: datasets and labels (config.js), SoQL per section, summaries, rendering, address lookup
-src/pages/api/            API routes (Worker): /api/restaurants/search, /api/restaurants/:camis, /api/311/*, /api/water/stations, /api/shop-diverse/*, /api/shop-local/*, /api/schools/search, /api/street-closures/search, /api/building-report/:section
+src/pages/api/            API routes (Worker): /api/restaurants/search, /api/restaurants/:camis, /api/311/*, /api/shop-local/*, /api/schools/search, /api/street-closures/search, /api/building-report/:section
 src/lib/restaurants/      Restaurant logic: SoQL builders, inspection rules, violation categories, rendering
 src/lib/complaints311/    311 logic: config, SoQL, share math, labels, input parsing, geocoding, rendering
-src/lib/shop-diverse/     Certified women- and minority-owned firms logic: cleaning, ranking, filters, rendering, CSV export
-src/lib/shop-local/       The resident side of the same list: categories, filters, distance ranking, rendering
+src/lib/shop-diverse/     Certified business list data layer shared by Shop Local: cleaning, ranking helpers
+src/lib/shop-local/       Women- and minority-owned businesses near you: categories, filters, distance ranking, rendering
 src/lib/schools/          School Quality Explorer logic: curated metrics (metrics.js), values, search, charts, maps
 src/lib/street-closures/  Street closures logic: street names, purposes, blocks, windows and status, URL state, rendering, map
-src/lib/water/            Drinking water logic: reference values (config.js), lab value parser, SoQL, stats, charts, map
 src/lib/server/           Server-only: Socrata client (holds the token), caches, the data refresh pipeline (etl.js)
 src/lib/etl/              Refresh policy: cadences and when to rebuild (cadence.js), build-time snapshots (snapshots.js)
 src/worker.js             Worker entry: Astro for requests, hourly cron for the data refresh
@@ -72,7 +66,7 @@ Production build: `npm run build` (output in `dist/`), preview with `npm run pre
 Live data needs no setup locally (Socrata allows anonymous requests at low volume). To use a token, copy `.dev.vars.example` to `.dev.vars` and fill in `SOCRATA_APP_TOKEN`.
 
 ```sh
-npm test             # restaurant, 311, drinking water, certified M/WBE firms, school quality and street closures logic tests
+npm test             # restaurant, 311, shop local, school quality, street closures and other logic tests
 ```
 
 ## Deploy (Cloudflare Workers)
@@ -95,7 +89,7 @@ All Socrata calls go through `src/lib/server/socrata.js`, which adds the `X-App-
 |---|---|---|
 | Search results | Workers Cache API, keyed by the normalized query | 1 hour |
 | One restaurant | Workers Cache API | 1 hour |
-| Benchmarks (category averages), 311 borough and city baselines and citywide distributions, drinking water monthly/detections/station aggregates, Shop Diverse and School Quality indexes, dataset metadata | KV `DATA_CACHE`, rebuilt by the hourly cron when the source changes (see [Data refresh pipeline](#data-refresh-pipeline)) | Until the source changes, or the cadence's safety rebuild (a request recomputes only if the cron is 2 h past due; if Socrata is down the last value is served, kept up to 90 days) |
+| Benchmarks (category averages), 311 borough and city baselines and citywide distributions, the certified business list and School Quality indexes, dataset metadata | KV `DATA_CACHE`, rebuilt by the hourly cron when the source changes (see [Data refresh pipeline](#data-refresh-pipeline)) | Until the source changes, or the cadence's safety rebuild (a request recomputes only if the cron is 2 h past due; if Socrata is down the last value is served, kept up to 90 days) |
 | 311 areas (¼ and 1 mile) and ZIPs | Workers Cache API, keyed by lat/lon rounded to 3 decimals + radius + window | 6 hours |
 
 ## Data refresh pipeline
@@ -113,8 +107,7 @@ Each dashboard's data reaches the site one of two ways, and both are tracked in 
 |---|---|---|---|---|
 | Restaurant Inspections | `43nn-pn8j` | daily | yes | 24 h |
 | 311 Complaints | `erm2-nwe9` | daily | yes | 24 h |
-| Drinking Water | `bkwf-xfky` | monthly | no | 7 days |
-| Shop Diverse | `ci93-uc8s` | biweekly | no | 7 days |
+| Shop Local | `ci93-uc8s` | biweekly | no | 7 days |
 | School Quality | `dnpx-dfnc` (+ `school-locations.json`) | yearly | no | 30 days |
 | City Payroll | `k397-673e` | yearly | no | 30 days |
 | Street Closures | `i6b5-j7bu` | weekly | no | 7 days |
@@ -122,9 +115,9 @@ Each dashboard's data reaches the site one of two ways, and both are tracked in 
 
 Cadences are `daily`, `weekly`, `biweekly`, `monthly`, `quarterly`, `yearly` and `as-needed`. Each also sets when the source counts as **late** (`overdueDays`: 3 days for daily data, 45 for monthly, 400 for yearly, never for as-needed), which is logged and reported. Every source is checked hourly whatever its cadence, so an off-schedule or as-needed update is picked up within the hour.
 
-A job that fails keeps its last good value in KV and is retried the next hour; the run throws so the failure shows in the Worker's cron events. Within a dataset jobs run in parallel, except a job with `after` (water stations waits for the monthly aggregate). What each job was built from is kept in the `etl:state` KV entry. A job that joins a bundled snapshot (`snapshots: ["school-locations"]`) also rebuilds after a deploy that refreshed that snapshot. Each isolate checks a small `<key>:at` KV entry every 5 minutes, so a rebuilt value reaches every request within minutes.
+A job that fails keeps its last good value in KV and is retried the next hour; the run throws so the failure shows in the Worker's cron events. Within a dataset jobs run in parallel, except a job with `after`, which waits for that job. What each job was built from is kept in the `etl:state` KV entry. A job that joins a bundled snapshot (`snapshots: ["school-locations"]`) also rebuilds after a deploy that refreshed that snapshot. Each isolate checks a small `<key>:at` KV entry every 5 minutes, so a rebuilt value reaches every request within minutes.
 
-**2. Build-time snapshots, checked automatically and refreshed by command.** School addresses and water station locations join several datasets, so they're committed JSON in `src/data/`. The Worker can't rewrite them. `src/lib/etl/snapshots.js` lists each snapshot, its sources and its refresh command. Each script records when it ran in `src/data/snapshots.json`, and the hourly cron flags a snapshot as stale when a source's rows (or, for the water sites, the attached spreadsheet) changed after that.
+**2. Build-time snapshots, checked automatically and refreshed by command.** School addresses and the NYC outline join several datasets, so they're committed JSON in `src/data/`. The Worker can't rewrite them. `src/lib/etl/snapshots.js` lists each snapshot, its sources and its refresh command. Each script records when it ran in `src/data/snapshots.json`, and the hourly cron flags a snapshot as stale when a source's rows (or a watched attachment) changed after that.
 
 ```sh
 npm run data:check                # which snapshots are stale; exits 1 if any
@@ -145,12 +138,12 @@ Open `src/data/dashboards.js` and append one object to the `dashboards` array:
   id: "street-trees",
   title: "Street Trees Near You",
   description: "See what kinds of trees line your block and how healthy they are.",
-  category: "Environment",
+  category: "Recreation",
   url: "#"   // placeholder until the dashboard page exists
 }
 ```
 
-- `category` must exactly match a sidebar category name: Business, City Government, Education, Environment, Health, Housing & Development, Public Safety, Recreation, Social Services, Transportation.
+- `category` must exactly match a sidebar category name: Business, City Government, Education, Health, Housing & Development, Public Safety, Recreation, Social Services, Transportation.
 - The card, sidebar counts, and filter update automatically. Cards are rendered at build time, so they show without JavaScript; `public/js/app.js` only filters them.
 - Each category has a shareable URL, `/?category=<slug>` (e.g. `/?category=city-government`); the dashboard breadcrumb links there.
 
@@ -170,8 +163,6 @@ Two dashboards built on the same payroll data (`src/lib/server/payroll.js`), eac
 `/city-jobs/` keeps its state in the URL so views can be shared: `?chip=firefighter`, `?q=nurse`, `?sort=base-desc` (sort keys: `label`, `employees`, `base`, `extra`, `change`; direction `asc` or `desc`).
 
 ## NYC Restaurant Inspections
-
-`/restaurant-leads/` (Restaurant Leads by Service Type, for businesses) is a separate dashboard on the same dataset; `/restaurant-inspections/leads/` redirects there with its query string.
 
 `/restaurant-inspections/` looks up a restaurant from NYC Open Data's [DOHMH New York City Restaurant Inspection Results](https://data.cityofnewyork.us/d/43nn-pn8j) (`43nn-pn8j`), live. `?camis=50066715` opens a restaurant directly (rendered on the server, so shared links work); `?name=&boro=&place=` restores a search; `&compare=similar` picks the "Similar restaurants" benchmark.
 
@@ -309,51 +300,11 @@ Quick-filter chips (`JOB_CHIPS` in `build.js`). A chip with no matching title in
 | City Planner | CITY PLANNER |
 | Civil Engineer | CIVIL ENGINEER, ASSISTANT CIVIL ENGINEER |
 
-## NYC Drinking Water Quality
+## Support Women- and Minority-Owned Businesses Near You
 
-`/drinking-water/` explains DEP's street-side water samples from [Drinking Water Quality Distribution Monitoring Data](https://data.cityofnewyork.us/d/bkwf-xfky) (`bkwf-xfky`). Two sections, each its own page (`SECTIONS` in `WaterPage.astro`):
+**Data.** NYC Small Business Services' [SBS Certified Business List](https://data.cityofnewyork.us/d/ci93-uc8s) (`ci93-uc8s`, updated about every two weeks). A job (`shop-diverse:vendors:v5`, rebuilt when the list changes, in `src/lib/server/shop-diverse.js`) pages through the dataset with SoQL, cleans every row (`src/lib/shop-diverse/clean.js`) and keeps a slim index in KV. Searches filter and rank that index in the Worker and never call Socrata per request; a business's detail reads one vendor live by `account_number`.
 
-| URL | Question | Section |
-|---|---|---|
-| `/drinking-water/` | Is my water safe right now? (report card for the latest full month, then "Has it always been this good?": one takeaway line and, behind a toggle, coliform % and median chlorine for every month) | `ReportCardSection.astro`, `HistorySection.astro` |
-| `/drinking-water/near-me/` | What about near me? (3 nearest stations, 12-month sparklines) | `NearMeSection.astro` |
-
-The old `/drinking-water/history/` URL redirects to `/drinking-water/#history` (`astro.config.mjs`), which opens the history toggle.
-
-**Data.** Every measurement column is text (chlorine included). `parseMeasurement()` in `src/lib/water/parse.js` reads `<X` and `ND` as not detected (0 for bacteria), `>X` as at least X, and blanks and negative placeholders (`-9`, `-9.99`) as missing; `soql.js` applies the same rules inside SoQL so all aggregation happens on Socrata. Shares and medians use routine samples (Compliance, Operational); detections list every class. Four jobs in `src/lib/server/water.js`, rebuilt when the dataset changes, (`water:*` in KV) hold everything the pages read, so readers don't wait on Socrata.
-
-**Reference values** (with sources, checked Oct 2026) and the tile color cutoffs are in `src/lib/water/config.js`. They're labeled as reference values, not a compliance determination.
-
-**Station locations** come from DEP's 2021 sampling site spreadsheet, converted to `src/data/water-sites.json` (State Plane EPSG:2263 → lat/lon, borough by point-in-polygon), with ZIP points in `src/data/zip-centroids.json`. Rebuild both with `npm run data:water-sites`; it also lists dataset site codes missing from the spreadsheet.
-
-## Find Certified Women- and Minority-Owned Firms
-
-`/shop-diverse/` helps contractors and agency buyers find certified Women-owned (WBE) and Minority-owned (MBE) firms to meet M/WBE goals, from NYC Small Business Services' [SBS Certified Business List](https://data.cityofnewyork.us/d/ci93-uc8s) (`ci93-uc8s`, ~11,850 rows, updated about every two weeks). About 55% of firms with a sector are in professional services or construction, and about 5% in retail or food, so the page is a procurement directory: filters for NAICS/NIGP code, bonding limit, largest past contract and union status, and a shortlist to download as CSV. The header links residents to `/shop-local/`.
-
-**Architecture.** A job (`shop-diverse:vendors:v5`, rebuilt when the list changes, in `src/lib/server/shop-diverse.js`) pages through the dataset with SoQL, cleans every row (`src/lib/shop-diverse/clean.js`) and keeps a slim index in KV (about 7 MB): the fields search, ranking and cards use, each industry name once in a shared table, and each description reduced to its card excerpt plus, for keyword search, the other words it holds (each once, without filler words or words the name and industry already hold). The index also keeps each firm's NAICS code, NIGP codes (one space-separated string), bonding limit, largest contract and whether it names a union. The job also stores the share of businesses outside NYC and how many firms give each capacity field, for the About section. `/api/shop-diverse/search` filters, ranks and pages that index in the Worker and caches each view at the edge for an hour (keyed by query, NYC date, data version and deploy version), with `SHOP_SEARCH_RATE_LIMITER` on misses. It never calls Socrata per request. Ranking has to run over every match before a page is cut, which SoQL can't do here: renewal dates are text, and ties use a seeded hash. `/api/shop-diverse/business/:id` reads one vendor live by `account_number` (edge-cached 6 h per deploy, `SHOP_DETAIL_RATE_LIMITER` on misses). Shop Diverse has its own rate limiters, so busy use doesn't block the other dashboards. `/api/shop-diverse/export` returns a CSV (`src/lib/shop-diverse/export.js`) for `?ids=` (the shortlist, up to 100, in order) or for a search's query (its first 100 results); it reads those vendors live by `account_number` in chunks of 50, uncached, on `SHOP_DETAIL_RATE_LIMITER`. Fields starting with `= + - @` get a leading apostrophe so spreadsheets don't run them as formulas. The shortlist itself is `[{ id, name }]` in the visitor's `localStorage` (`shop-diverse:shortlist`) and appears only with JavaScript. The page script's URL, form, history and shortlist decisions are in `src/lib/shop-diverse/page-state.js`, with tests. The page renders the first view on the server, so shared links and the form work without JavaScript; it's cached for an hour only when that view (and any `?biz=` business) loaded.
-
-**Shop Local** (`/shop-local/`) is the resident side of the same list: about 2,300 NYC businesses a resident would eat at, shop at or hire. `src/lib/shop-local/config.js` maps each NAICS title to a plain label ("Hair or beauty salon") and one of nine categories; titles not listed (office construction, wholesalers, consulting, the "All Other Personal Services" junk drawer) are left out, and so are lapsed certifications. Each title is also marked walk-in or not: only walk-in businesses (restaurants, shops, salons, doctors, auto shops) show a street address and Directions, since many others are one-person businesses at a home address. The vendor index keeps street lines for walk-in businesses only (`indexRecord(v, { street })`). Search (`/api/shop-local/search`) runs over Shop Diverse's KV index in the Worker, on the same rate limiters: `what` (category), `own=women,black,hispanic,asian,native` (any of), `q`, `near` (a NYC ZIP: nearest first, ZIP middle to ZIP middle from `src/data/zip-centroids.json`), `boro`, `outside=1`, `page`, `biz`. Ties go to the best keyword match, then businesses with a website and phone, then a daily shuffle. "Use my location" turns the spot into the nearest NYC ZIP in the browser, so only the ZIP reaches the URL. `/api/shop-local/business/:id` reads one vendor live and returns `localDetail()`, without procurement fields or contact names.
-
-**URL state** (`src/lib/shop-diverse/filter.js`): `who=wbe,mbe`, `match=all` (both, default either), `eth=black,asian` (narrows the MBE side), `cat`/`sub` (NAICS sector/subsector as spelled in the data), `q`, `code=238210,914` (NAICS or NIGP codes, any of, each matching the start of the firm's NAICS code or any of its NIGP codes), `bond`/`contract` (a minimum: `100k`, `500k`, `1m`, `5m`, `10m`, `25m`; firms that give none drop out), `union=1`, `boro` (`manhattan` … `staten-island`, `outside`), `zip`, `sort` (`recommended`, `az`, `newest`, `oldest`, `bonding`, `contract`; blanks sort last), `lapsed=1`, `page`, and `biz=<account>` for the open business.
-
-**Fields used.** `account_number`, `vendor_formal_name`, `vendor_dba`, `certification`, `cert_renewal_date`, `ethnicity`, `naics_sector`/`naics_subsector`/`naics_title`/`id6_digit_naics_code`, `nigp_codes`, `business_description`, `first_name`/`last_name`, `telephone`, `website`, address fields, `borough`, `date_of_establishment`, `aggregate_bonding_limit`, `signatory_to_union_contracts`, `largest_value_of_contract`, the three past-job blocks, `enrolled_in_passport`.
-
-**Recommended order** (`src/lib/shop-diverse/ranking.js`, tested in `tests/shop-diverse.test.js`). Points are summed, highest first:
-
-| Rule | Points |
-|---|---|
-| Subcategory picked / category picked (the same for every result) | +30 / +20 |
-| Keyword in the industry title / only its sector or subsector / business name / only the description | +25 / +20 / +15 / +8 |
-| Valid website, description of 40+ characters, usable phone | +6, +5, +2 |
-| Holds both MBE and WBE, only when the visitor picked both | +3 |
-| Years in business | +0.5 per year, max +5 |
-| In one of the five boroughs | +10 |
-| Same ZIP as the one entered / else same borough | +12 / +6 |
-| Ties | FNV-1a hash of id + NYC date (stable all day, reshuffled daily) |
-
-A firm whose renewal dates have all passed is hidden unless `lapsed=1`, and then sorts last in every order; it isn't scored.
-
-Ethnicity and gender never score. **No renewal date scores the same as a current one**, because every WBE-only firm has no renewal date; penalizing that would bury women-owned businesses. The MBE+WBE bonus is limited to visitors who asked for both because most firms max out the other points, so an always-on bonus decided nearly every tie. The NYC bonus exists because about a third of the list is outside the five boroughs and, with no keyword, the order is mostly the daily tie shuffle; it's kept below the 12-point gap between an industry and a description keyword match. The industry title outscores the sector and subsector so `plumber` puts plumbing contractors (title) above hardware and HVAC wholesalers (whose subsector mentions plumbing); that 5-point gap is under the NYC bonus, so it orders firms within NYC and outside it, not across. Keywords of one or two letters (`it`, `av`) must match a whole word, since a word-start match finds nearly everything.
+**Shop Local** (`/shop-local/`) covers about 2,300 NYC businesses a resident would eat at, shop at or hire. `src/lib/shop-local/config.js` maps each NAICS title to a plain label ("Hair or beauty salon") and one of nine categories; titles not listed (office construction, wholesalers, consulting, the "All Other Personal Services" junk drawer) are left out, and so are lapsed certifications. Each title is also marked walk-in or not: only walk-in businesses (restaurants, shops, salons, doctors, auto shops) show a street address and Directions, since many others are one-person businesses at a home address. The vendor index keeps street lines for walk-in businesses only (`indexRecord(v, { street })`). Search (`/api/shop-local/search`) runs over Shop Diverse's KV index in the Worker, on the same rate limiters: `what` (category), `own=women,black,hispanic,asian,native` (any of), `q`, `near` (a NYC ZIP: nearest first, ZIP middle to ZIP middle from `src/data/zip-centroids.json`), `boro`, `outside=1`, `page`, `biz`. Ties go to the best keyword match, then businesses with a website and phone, then a daily shuffle. "Use my location" turns the spot into the nearest NYC ZIP in the browser, so only the ZIP reaches the URL. `/api/shop-local/business/:id` reads one vendor live and returns `localDetail()`, without procurement fields or contact names.
 
 **Data quirks found (Oct 2026).** One row per vendor, so no dedupe was needed, and each vendor has exactly one NAICS code. There's **no email column**. `cert_renewal_date` is text (`M/D/YYYY`), sometimes doubled (`11/30/2026;11/30/2026`), and blank for all WBE-only firms. ZIPs are numeric, so NJ/New England ZIPs lose their leading zero. Names have junk prefixes (`=---`) and ~700 are all caps. Websites include `N/A`, `http://Under Construction` and company names. Phones come in mixed formats. Some establishment dates are in the future (up to 2996). `borough` is blank for ~4,700 rows: mostly outside NYC (NJ alone is ~1,000), but some NYC addresses failed to geocode and get a borough from their ZIP. `types_of_construction_projects_performed` and `capacity_building_programs` are always empty.
 

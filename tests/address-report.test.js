@@ -8,12 +8,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  spotFromParams, spotToParams, dashboardLinks, complaintsCard, complaintsStandouts, closuresCard, helpCard, nearestStation, restaurantsCard, neighborhoodName,
+  spotFromParams, spotToParams, dashboardLinks, complaintsCard, complaintsStandouts, closuresCard, helpCard, restaurantsCard, neighborhoodName,
   nearestSchools, milesText, safetyCard, nearestParks
 } from "../src/lib/address-report/report.js";
 import {
   complaintsHtml, complaintsGlance, standoutsHtml, closuresHtml, closuresGlance, helpHtml, helpGlance, schoolsHtml, schoolsGlance,
-  restaurantsHtml, restaurantsGlance, waterHtml, waterGlance, buildingHtml, buildingGlance, buildingAskGlance,
+  restaurantsHtml, restaurantsGlance, buildingHtml, buildingGlance, buildingAskGlance,
   safetyHtml, safetyGlance, parksHtml, parksGlance
 } from "../src/lib/address-report/render.js";
 import { reportHref, placeFromParams } from "../src/lib/address-report/link.js";
@@ -48,12 +48,10 @@ test("back to the report: a dashboard's spot (Restaurant Inspections' lat/lng to
 });
 
 test("links: each dashboard opens on the same spot", () => {
-  const links = dashboardLinks(EMPIRE, { waterSite: "1S03B" });
+  const links = dashboardLinks(EMPIRE);
   assert.equal(links.complaints, "/311-complaints/?lat=40.748&lon=-73.986&area=immediate");
   assert.equal(links.closures, "/street-closures/?lat=40.748&lon=-73.986&r=0.25");
   assert.equal(links.help, "/help-near-me/?lat=40.748&lon=-73.986");
-  assert.equal(links.water, "/drinking-water/near-me/?lat=40.748&lon=-73.986&sites=1S03B");
-  assert.equal(dashboardLinks(EMPIRE).water, "/drinking-water/near-me/?lat=40.748&lon=-73.986");
   assert.equal(links.restaurants, "/restaurant-inspections/?lat=40.748&lng=-73.986");
   assert.equal(links.schools, "/school-quality/?view=map&lat=40.748&lon=-73.986");
   assert.equal(links.safety, "/crash-hotspots/?lat=40.748&lon=-73.986&r=250");
@@ -217,28 +215,6 @@ test("help: the nearest open site of each kind within 2 miles", () => {
   assert.match(helpHtml([]), /No city help sites/);
   assert.equal(helpGlance(picked).text, "2 kinds of city help within 1 mi");
   assert.equal(helpGlance([{ ...picked[0], miles: 1.4 }]).text, "1 kind of city help within 2 mi");
-});
-
-// ---------- Water ----------
-
-test("water: the nearest station, and a card with no samples says so", () => {
-  const stations = [{ site: "A", lat: 40.76, lon: -73.98 }, { site: "B", lat: 40.749, lon: -73.986 }];
-  const s = nearestStation(stations, EMPIRE);
-  assert.equal(s.site, "B");
-  assert.equal(nearestStation([], EMPIRE), null);
-  assert.match(waterHtml(null, null), /No active sampling station/);
-  assert.match(waterHtml({ ...s, borough: null }, { months: [], stations: {} }), /no routine samples/);
-  assert.deepEqual(waterGlance(null, null), { tone: "info", text: "No recent water samples nearby" });
-});
-
-test("water: the glance says how old the samples are, and turns amber when they're stale", () => {
-  const s = { site: "B", place: "", borough: null, miles: 0.1 };
-  const details = { totals: { n: 40, coliN: 40, coliPos: 0, ecoliPos: 0, clN: 40, clOk: 40, turbN: 40, turbOk: 40 }, detections: [] };
-  const data = (month) => ({ months: [month], completeMonth: month, stations: { B: details } });
-  assert.deepEqual(waterGlance(s, data("2026-09"), "2026-10-30"), { tone: "good", text: "Water: looks good (samples to Sep 2026)" });
-  assert.deepEqual(waterGlance(s, data("2026-07"), "2026-10-30"), { tone: "warn", text: "Water: looks good, but no samples since Jul 2026" });
-  assert.match(waterHtml(s, data("2026-07"), "2026-10-30"), /may be out of date/);
-  assert.doesNotMatch(waterHtml(s, data("2026-09"), "2026-10-30"), /may be out of date/);
 });
 
 // ---------- Restaurants ----------

@@ -2,14 +2,11 @@
 import '../styles/landing.css';
 import ThemeInit from '../components/ThemeInit.astro';
 import ThemeToggle from '../components/ThemeToggle.astro';
-import { dashboards, ALL, AUDIENCES, CATEGORIES, categorySlug, categoryHref, categoryTone, categoryIcon } from '../data/dashboards.js';
+import { dashboards, ALL, CATEGORIES, categorySlug, categoryHref, categoryTone, categoryIcon } from '../data/dashboards.js';
 
 // Cards and the sidebar are rendered here; public/js/app.js only filters them.
-// Counts start at the default audience; app.js recounts when it changes.
-const DEFAULT_AUDIENCE = AUDIENCES[0].id;
-const forDefault = dashboards.filter((d) => d.audience.includes(DEFAULT_AUDIENCE));
 const countFor = (name: string) =>
-  name === ALL ? forDefault.length : forDefault.filter((d) => d.category === name).length;
+  name === ALL ? dashboards.length : dashboards.filter((d) => d.category === name).length;
 const plural = (n: number) => `${n} ${n === 1 ? 'dashboard' : 'dashboards'}`;
 ---
 
@@ -42,22 +39,16 @@ const plural = (n: number) => `${n} ${n === 1 ? 'dashboard' : 'dashboards'}`;
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 
-  <!-- Apply the saved sidebar state and audience before first paint to avoid a flash -->
-  <script is:inline define:vars={{ audiences: AUDIENCES.map((a) => a.id) }}>
+  <!-- Apply the saved sidebar state before first paint to avoid a flash -->
+  <script is:inline>
     try {
       if (localStorage.getItem("anycd-sidebar") === "collapsed") {
         document.documentElement.classList.add("sidebar-collapsed");
       }
     } catch (e) {}
-    // Same order as app.js: ?for=, then the saved choice. The address box is for residents only.
-    var audience = new URLSearchParams(location.search).get("for");
-    if (audiences.indexOf(audience) === -1) {
-      try { audience = localStorage.getItem("anycd-audience"); } catch (e) { audience = null; }
-    }
-    if (audiences.indexOf(audience) > 0) document.documentElement.classList.add("not-default-audience");
   </script>
 </head>
-<body class="has-audience">
+<body>
   <a class="skip-link" href="#main">Skip to dashboards</a>
 
   <header class="site-header">
@@ -69,15 +60,6 @@ const plural = (n: number) => `${n} ${n === 1 ? 'dashboard' : 'dashboards'}`;
       <span class="wordmark">Ask <span class="wordmark-accent">NYC</span> Data</span>
     </a>
     <p class="tagline">NYC's public data, made easy to understand.</p>
-    <div class="audience-toggle" id="audience-toggle" role="group" aria-label="Show dashboards">
-      {AUDIENCES.map(({ id, label, short, icon }, i) => (
-        <button class="audience-btn" type="button" data-audience={id} aria-pressed={i === 0 ? 'true' : 'false'}>
-          <svg viewBox="0 0 24 24" aria-hidden="true" set:html={icon} />
-          <span class="audience-label">{label}</span>
-          <span class="audience-short">{short}</span>
-        </button>
-      ))}
-    </div>
     <ThemeToggle />
   </header>
 
@@ -88,7 +70,7 @@ const plural = (n: number) => `${n} ${n === 1 ? 'dashboard' : 'dashboards'}`;
         <ul class="category-list" id="category-list">
           {CATEGORIES.map(({ name, tone, icon }) => {
             const n = countFor(name);
-            // Categories with nothing for this audience stay out of the list (app.js keeps this up).
+            // Categories with no dashboards stay out of the list.
             return (
               <li hidden={n === 0 && name !== ALL}>
                 <a class="category-btn" href={categoryHref(name)} data-category={name === ALL ? '' : categorySlug(name)}
@@ -133,12 +115,11 @@ const plural = (n: number) => `${n} ${n === 1 ? 'dashboard' : 'dashboards'}`;
       <section class="results" aria-labelledby="results-title">
         <div class="results-head">
           <h2 id="results-title">{ALL}</h2>
-          <p class="results-count" id="results-count" aria-live="polite">{plural(forDefault.length)}</p>
+          <p class="results-count" id="results-count" aria-live="polite">{plural(dashboards.length)}</p>
         </div>
-        <ul class="card-grid" id="card-grid" hidden={forDefault.length === 0}>
+        <ul class="card-grid" id="card-grid" hidden={dashboards.length === 0}>
           {dashboards.map((d) => (
-            <li data-category={categorySlug(d.category)} data-audience={d.audience.join(' ')}
-              hidden={!d.audience.includes(DEFAULT_AUDIENCE)}>
+            <li data-category={categorySlug(d.category)}>
               <a class="card" data-tone={categoryTone(d.category)} href={d.url || '#'}>
                 <span class="card-icon"><svg viewBox="0 0 24 24" aria-hidden="true" set:html={categoryIcon(d.category)} /></span>
                 <h3 class="card-title">{d.title}</h3>
@@ -151,7 +132,7 @@ const plural = (n: number) => `${n} ${n === 1 ? 'dashboard' : 'dashboards'}`;
             </li>
           ))}
         </ul>
-        <div class="empty-state" id="empty-state" hidden={forDefault.length !== 0}>
+        <div class="empty-state" id="empty-state" hidden={dashboards.length !== 0}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/></svg>
           <p id="empty-text">No dashboards in this category yet. Coming soon.</p>
         </div>

@@ -11,9 +11,6 @@ import { milesText } from "./report.js";
 import { count, percent } from "../format.js";
 import { ratioText } from "../complaints311/stats.js";
 import { blockTitle, timingText, milesText as metersText } from "../street-closures/render.js";
-import { stationVerdict } from "../water/near-me.js";
-import { monthLabel, isStale, STATUS_ICON, STATUS_TEXT } from "../water/stats.js";
-import { boroughLabel as waterBorough } from "../water/config.js";
 import { fullAddress, directionsUrl } from "../help-near-me/render.js";
 import { TYPE_BY_SLUG, LINKS } from "../schools/config.js";
 import { gradeInfo } from "../restaurants/inspections.js";
@@ -38,43 +35,6 @@ const row = (main, side = "", sub = "") =>
   `<li><span class="ar-row-main">${main}</span>${side ? `<span class="ar-row-side">${side}</span>` : ""}` +
   `${sub ? `<span class="ar-row-sub">${sub}</span>` : ""}</li>`;
 const glance = (tone, text) => ({ tone, text });
-
-// ---------- Drinking water ----------
-
-const WATER_TONE = { green: "good", amber: "warn", red: "bad" };
-
-// The latest month with samples ("2026-09"), and whether DEP should have posted newer ones by today.
-function waterMonth(data, today) {
-  const month = data?.completeMonth ?? data?.months?.at(-1);
-  return month ? { month, stale: isStale(month, today) } : null;
-}
-
-// station: nearestStation() (with .miles); data: /api/water/stations for it; today: "YYYY-MM-DD".
-export function waterGlance(station, data, today = new Date().toISOString().slice(0, 10)) {
-  const v = station ? stationVerdict(data?.stations?.[station.site]) : null;
-  if (!v || !WATER_TONE[v.status]) return glance("info", "No recent water samples nearby");
-  const text = `Water: ${STATUS_TEXT[v.status].toLowerCase()}`;
-  const m = waterMonth(data, today);
-  if (!m) return glance(WATER_TONE[v.status], text);
-  const when = monthLabel(m.month, "short");
-  // Old samples can't vouch for today's water, so a good verdict turns amber.
-  if (m.stale) return glance(v.status === "red" ? "bad" : "warn", `${text}, but no samples since ${when}`);
-  return glance(WATER_TONE[v.status], `${text} (samples to ${when})`);
-}
-
-export function waterHtml(station, data, today = new Date().toISOString().slice(0, 10)) {
-  if (!station) return lead("No active sampling station near here.");
-  const details = data?.stations?.[station.site];
-  const v = stationVerdict(details);
-  const months = data?.months ?? [];
-  const range = months.length ? `${monthLabel(months[0], "short")}–${monthLabel(months[months.length - 1], "short")}` : "";
-  const where = `Station ${escape(station.site)}, ${milesText(station.miles)} away${station.borough ? ` in ${escape(waterBorough(station.borough))}` : ""}`;
-  if (!v) return lead(`${where}: no routine samples in the last 12 months.`);
-  return `<p class="water-card-verdict" data-status="${v.status}"><span class="water-status-icon" aria-hidden="true">${STATUS_ICON[v.status]}</span>` +
-    `<span>${escape(v.text)}</span></p>` +
-    note(`${where}${station.place ? ` (${escape(station.place)})` : ""}. Routine samples${range ? `, ${escape(range)}` : ""}.`) +
-    (waterMonth(data, today)?.stale ? note("The city hasn’t posted newer samples yet, so this may be out of date.") : "");
-}
 
 // ---------- Street closures ----------
 

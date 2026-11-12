@@ -1,9 +1,0 @@
----
-/*
- * Restaurant Leads by Service Type was a section of NYC Restaurant Inspections; it's
- * its own dashboard now. Old links keep their filters (?group=, ?days=, ?boro=, ...).
- */
-export const prerender = false;
-
-return Astro.redirect('/restaurant-leads/' + Astro.url.search, 301);
----

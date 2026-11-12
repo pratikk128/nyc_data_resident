@@ -91,7 +91,7 @@ export const vendorsJob = {
 
 export const shopDiverseDataset = {
   id: "shop-diverse",
-  dashboard: "shop-diverse",
+  dashboard: "shop-local",
   datasetId: DATASET_ID,
   cadence: CADENCE,
   metadataJob,

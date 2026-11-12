@@ -1,16 +1,13 @@
 /*
  * Ask NYC Data — landing page behavior (loaded by src/pages/index.astro).
  * The sidebar and cards are rendered at build time from src/data/dashboards.js;
- * this script filters them by category and by audience (the For NYC Residents /
- * For NYC Businesses switch), keeps both in the URL (?category=<slug>&for=business)
- * so a view can be shared, remembers the audience for next time, and handles
- * the collapsible sidebar.
+ * this script filters them by category, keeps it in the URL (?category=<slug>)
+ * so a view can be shared, and handles the collapsible sidebar.
  */
 (function () {
   "use strict";
 
   var STORAGE_KEY = "anycd-sidebar";
-  var AUDIENCE_KEY = "anycd-audience";
   var MOBILE_QUERY = window.matchMedia("(max-width: 767px)");
 
   // ---------- Elements ----------
@@ -22,34 +19,11 @@
   var resultsCount = document.getElementById("results-count");
   var cardGrid = document.getElementById("card-grid");
   var emptyState = document.getElementById("empty-state");
-  var emptyText = document.getElementById("empty-text");
-  var audienceToggle = document.getElementById("audience-toggle");
 
   var links = Array.prototype.slice.call(categoryList.querySelectorAll(".category-btn"));
   var cards = Array.prototype.slice.call(cardGrid.children);
-  var heroAddress = document.getElementById("hero-address");
-  var audienceBtns = Array.prototype.slice.call(audienceToggle.querySelectorAll(".audience-btn"));
-  var DEFAULT_AUDIENCE = audienceBtns[0].getAttribute("data-audience");
-  var audience = DEFAULT_AUDIENCE;
 
   function plural(n) { return n + (n === 1 ? " dashboard" : " dashboards"); }
-
-  function isAudience(id) {
-    return audienceBtns.some(function (btn) { return btn.getAttribute("data-audience") === id; });
-  }
-
-  function forAudience(card) {
-    return (" " + card.getAttribute("data-audience") + " ").indexOf(" " + audience + " ") !== -1;
-  }
-
-  // Landing URL for a category slug ("" = all) under the current audience.
-  function urlFor(slug) {
-    var params = new URLSearchParams();
-    if (slug) params.set("category", slug);
-    if (audience !== DEFAULT_AUDIENCE) params.set("for", audience);
-    var query = params.toString();
-    return "/" + (query ? "?" + query : "");
-  }
 
   function linkFor(slug) {
     for (var i = 0; i < links.length; i++) {
@@ -64,72 +38,23 @@
     return linkFor(slug) ? slug : "";
   }
 
-  // Put a remembered audience in the URL too, so a copied link shows the same view.
-  function syncURL() {
-    var url = urlFor(slugFromURL());
-    if (url !== window.location.pathname + window.location.search) history.replaceState(null, "", url);
-  }
-
-  // ?for= wins (shared links), then the saved choice, then the default.
-  function audienceFromURL() {
-    var id = new URLSearchParams(window.location.search).get("for");
-    if (isAudience(id)) return id;
-    try { id = localStorage.getItem(AUDIENCE_KEY); } catch (e) { id = null; }
-    return isAudience(id) ? id : DEFAULT_AUDIENCE;
-  }
-
   // ---------- Filtering ----------
-  function applyAudience(id) {
-    audience = id;
-    // The address report is about where you live, so it's for residents only.
-    if (heroAddress) heroAddress.hidden = id !== DEFAULT_AUDIENCE;
-    root.classList.toggle("not-default-audience", id !== DEFAULT_AUDIENCE);
-    audienceBtns.forEach(function (btn) {
-      btn.setAttribute("aria-pressed", String(btn.getAttribute("data-audience") === id));
-    });
-
-    // Sidebar counts and links follow the audience.
-    links.forEach(function (link) {
-      var slug = link.getAttribute("data-category");
-      var n = cards.filter(function (card) {
-        return forAudience(card) && (slug === "" || card.getAttribute("data-category") === slug);
-      }).length;
-      link.querySelector(".category-count").textContent = n;
-      link.setAttribute("aria-label", link.querySelector(".category-label").textContent + ", " + plural(n));
-      link.setAttribute("href", urlFor(slug));
-      link.setAttribute("data-count", n);
-    });
-  }
-
-  // Hide categories with no dashboards for this audience, except the one being
-  // viewed (a shared ?category= link), so its "Coming soon" still has a home.
-  function hideEmptyCategories(active) {
-    links.forEach(function (link) {
-      link.parentNode.hidden = link !== active && link.getAttribute("data-category") !== "" &&
-        link.getAttribute("data-count") === "0";
-    });
-  }
-
   function applyCategory(slug) {
     var active = linkFor(slug);
     links.forEach(function (link) {
       if (link === active) link.setAttribute("aria-current", "page");
       else link.removeAttribute("aria-current");
     });
-    hideEmptyCategories(active);
 
     var shown = 0;
     cards.forEach(function (card) {
-      var match = forAudience(card) && (slug === "" || card.getAttribute("data-category") === slug);
+      var match = slug === "" || card.getAttribute("data-category") === slug;
       card.hidden = !match;
       if (match) shown++;
     });
 
     resultsTitle.textContent = active.querySelector(".category-label").textContent;
     resultsCount.textContent = plural(shown);
-    emptyText.textContent = audience === DEFAULT_AUDIENCE
-      ? "No dashboards in this category yet. Coming soon."
-      : "No dashboards for businesses in this category yet. Coming soon.";
     cardGrid.hidden = shown === 0;
     emptyState.hidden = shown !== 0;
   }
@@ -145,22 +70,7 @@
     if (MOBILE_QUERY.matches) closeDrawer(false);
   });
 
-  audienceToggle.addEventListener("click", function (e) {
-    var btn = e.target.closest(".audience-btn");
-    if (!btn) return;
-    var id = btn.getAttribute("data-audience");
-    if (id === audience) return;
-    try { localStorage.setItem(AUDIENCE_KEY, id); } catch (err) {}
-    applyAudience(id);
-    // A preference, not a navigation: rewrite the URL so Back doesn't flip it.
-    var slug = slugFromURL();
-    history.replaceState(null, "", urlFor(slug));
-    applyCategory(slug);
-  });
-
   window.addEventListener("popstate", function () {
-    applyAudience(audienceFromURL());
-    syncURL();
     applyCategory(slugFromURL());
   });
 
@@ -226,8 +136,6 @@
   });
 
   // ---------- Init ----------
-  applyAudience(audienceFromURL());
-  syncURL();
   applyCategory(slugFromURL());
   syncToggle();
 })();

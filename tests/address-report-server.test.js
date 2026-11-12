@@ -1,5 +1,5 @@
 /*
- * The address report's nearest water station, help, schools and park amenities in one small
+ * The address report's nearest help, schools and park amenities in one small
  * response (src/lib/server/address-report.js, src/pages/api/address/nearest.js).
  * Runs the real modules on a fake Workers env (tests/support/workers.js).
  *   npm test
@@ -14,20 +14,11 @@ import { env, fakeKv } from "./support/workers.js";
 const { helpNearMeDatasets } = await import("../src/lib/server/help-near-me.js");
 const { parkAmenitiesDatasets } = await import("../src/lib/server/park-amenities.js");
 const { indexJob } = await import("../src/lib/server/schools.js");
-const { monthlyJob, detectionsJob, stationsJob } = await import("../src/lib/server/water.js");
 const { GET } = await import("../src/pages/api/address/nearest.js");
 const { RATE_LIMITED_TEXT } = await import("../src/lib/server/rate-limit.js");
-const { SHOW_WATER } = await import("../src/lib/address-report/report.js");
 
-// The water card is switched off (SHOW_WATER): then the answer has no water part at all.
-function assertWater(body) {
-  if (SHOW_WATER) assert.equal(body.water.station.site, "10150");
-  else assert.equal(body.water, undefined);
-}
-
-const SPOT = { lat: 40.8252, lon: -73.8433 }; // Zerega Ave, the Bronx: next to water station 10150
+const SPOT = { lat: 40.8252, lon: -73.8433 }; // Zerega Ave, the Bronx
 const NOW = new Date().toISOString();
-const MONTHS = ["2026-08", "2026-09"];
 
 const stored = (value) => JSON.stringify({ computedAt: NOW, value: { computedAt: NOW, ...value } });
 
@@ -59,16 +50,7 @@ function parkEntry(ds) {
 }
 
 function kv({ schools = true } = {}) {
-  const entries = {
-    [monthlyJob.key]: stored({ latestDate: "2026-09-30", completeMonth: "2026-09", gaps: [], months: [] }),
-    [detectionsJob.key]: stored({ detections: [] }),
-    [stationsJob.key]: stored({
-      months: MONTHS,
-      sites: { 10150: [["2026-09", 4, 0.6, 0.7, 4, 0, 0]], 10250: [["2026-09", 4, 0.5, 0.6, 4, 0, 0]] },
-      totals: { 10150: { n: 4 }, 10250: { n: 4 } },
-      city: null
-    })
-  };
+  const entries = {};
   if (schools) entries[indexJob.key] = stored({ latestYear: 2025, years: [2025], schools: [1, 2, 3, 4, 5].map(school), cityAvg: {} });
   helpNearMeDatasets.forEach((ds, i) => { entries[ds.jobs[0].key] = helpEntry(ds, i); });
   parkAmenitiesDatasets.filter((ds) => ds.id !== "park-amenities-park-names").forEach((ds) => { entries[ds.jobs[0].key] = parkEntry(ds); });
@@ -97,11 +79,10 @@ test("a part that fails says so on its own; the rest still come back, and nothin
   assert.equal(res.headers.get("Cache-Control"), "no-store");
   const body = await res.json();
   assert.deepEqual(body.schools, { failed: true, error: null });
-  assertWater(body);
   assert.equal(body.help.sites.length, helpNearMeDatasets.length);
 });
 
-test("only what the cards show: the nearest station with its months, the nearest help of each kind, 3 schools, the nearest park amenity of each kind", async () => {
+test("only what the cards show: the nearest help of each kind, 3 schools, the nearest park amenity of each kind", async () => {
   env.DATA_CACHE = kv();
 
   const res = await nearest();
@@ -109,14 +90,6 @@ test("only what the cards show: the nearest station with its months, the nearest
   assert.equal(res.headers.get("Cache-Control"), "public, max-age=3600");
   const body = await res.json();
   assert.deepEqual(fetches, []);
-
-  assertWater(body);
-  if (SHOW_WATER) {
-    const { station, data } = body.water;
-    assert.ok(station.miles < 0.1 && station.place);
-    assert.deepEqual(Object.keys(data.stations), ["10150"]);
-    assert.deepEqual(data.months, MONTHS);
-  }
 
   assert.equal(body.help.sites.length, helpNearMeDatasets.length);
   assert.deepEqual(Object.keys(body.help.sites[0]).sort(), ["address", "borough", "kind", "lat", "lon", "miles", "name", "zip"]);
@@ -128,7 +101,7 @@ test("only what the cards show: the nearest station with its months, the nearest
   assert.deepEqual(Object.keys(body.parks.parks[0]).sort(), ["borough", "category", "details", "id", "lat", "lon", "miles", "name", "parkName"]);
   assert.equal(body.parks.partial, false);
 
-  // The whole answer is a few KB, not every station, help site, school and amenity.
+  // The whole answer is a few KB, not every help site, school and amenity.
   assert.ok(JSON.stringify(body).length < 5000);
 });
 
@@ -138,7 +111,6 @@ test("a client over a dashboard's limit gets that part's words to show", async (
 
   const body = await (await nearest()).json();
   assert.deepEqual(body.help, { failed: true, error: RATE_LIMITED_TEXT });
-  assertWater(body);
 });
 
 test("a spot outside NYC, or no spot, is a 400", async () => {

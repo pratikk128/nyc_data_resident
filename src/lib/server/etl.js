@@ -33,7 +33,6 @@ import { SNAPSHOTS, snapshotSourceIds } from "../etl/snapshots.js";
 import snapshotManifest from "../../data/snapshots.json";
 import { restaurantsDataset } from "./restaurants.js";
 import { complaints311Dataset } from "./complaints311.js";
-import { waterDataset } from "./water.js";
 import { shopDiverseDataset } from "./shop-diverse.js";
 import { schoolsDataset } from "./schools.js";
 import { payrollDataset } from "./payroll.js";
@@ -43,7 +42,7 @@ import { crashesDataset } from "./crashes.js";
 import { buildingReportDatasets } from "./building-report.js";
 import { parkAmenitiesDatasets } from "./park-amenities.js";
 
-export const DATASETS = [restaurantsDataset, complaints311Dataset, waterDataset, shopDiverseDataset, schoolsDataset, payrollDataset, streetClosuresDataset, ...helpNearMeDatasets, crashesDataset, ...buildingReportDatasets, ...parkAmenitiesDatasets];
+export const DATASETS = [restaurantsDataset, complaints311Dataset, shopDiverseDataset, schoolsDataset, payrollDataset, streetClosuresDataset, ...helpNearMeDatasets, crashesDataset, ...buildingReportDatasets, ...parkAmenitiesDatasets];
 
 const STATE_KEY = "etl:state";
 const iso = (ms) => new Date(ms).toISOString();

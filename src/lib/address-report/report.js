@@ -14,7 +14,7 @@ import { MIN_IMMEDIATE_REQUESTS } from "../complaints311/config.js";
 import { WINDOWS as CLOSURE_WINDOWS } from "../street-closures/config.js";
 import { windowRange, blocksInView, sortBlocks } from "../street-closures/closures.js";
 import { CATEGORIES as HELP_CATEGORIES } from "../help-near-me/config.js";
-import { nearestSites, distanceMiles } from "../water/stats.js";
+import { haversineMiles as distanceMiles } from "../help-near-me/distance.js";
 import { schoolPath } from "../schools/config.js";
 import { gradeInfo } from "../restaurants/inspections.js";
 import { buildingPath } from "../building-report/config.js";
@@ -27,24 +27,17 @@ const round3 = (n) => Math.round(n * 1e3) / 1e3;
 // The spot in the URL, or null; and back (link.js, shared with the dashboards' links here).
 export { spotFromParams, spotToParams };
 
-// The drinking water card is switched off: the Drinking Water Quality
-// dashboard is hidden (hidden: true in src/data/dashboards.js). Its code
-// stays; true brings back the card, its glance line, its server lookup in
-// /api/address/nearest and its mentions on the address page.
-export const SHOW_WATER = false;
-
 // Street safety looks this far around the spot (meters): Crash Hotspots' default.
 export { CRASH_RADIUS };
 
 // Each dashboard, opened on the same spot. bbl: the typed address's building, which only its own report can name.
-/** @param {{ lat: number, lon: number }} spot @param {{ waterSite?: string | null, bbl?: string | null }} [opts] */
-export function dashboardLinks({ lat, lon }, { waterSite = null, bbl = null } = {}) {
+/** @param {{ lat: number, lon: number }} spot @param {{ bbl?: string | null }} [opts] */
+export function dashboardLinks({ lat, lon }, { bbl = null } = {}) {
   const at = `lat=${round3(lat)}&lon=${round3(lon)}`;
   return {
     complaints: `/311-complaints/?${at}&area=immediate`,
     closures: `/street-closures/?${at}&r=0.25`,
     help: `/help-near-me/?${at}`,
-    water: `/drinking-water/near-me/?${at}${waterSite ? `&sites=${encodeURIComponent(waterSite)}` : ""}`,
     restaurants: `/restaurant-inspections/?lat=${round3(lat)}&lng=${round3(lon)}`,
     schools: `/school-quality/?view=map&${at}`,
     building: bbl ? buildingPath(bbl) : "/building-report/",
@@ -100,11 +93,6 @@ export function helpCard(sites, maxMiles = 2) {
   }
   return out.sort((a, b) => a.miles - b.miles);
 }
-
-// ---------- Drinking water ----------
-
-// The nearest active sampling station, with .miles, or null.
-export const nearestStation = (stations, spot) => nearestSites(stations, spot, 1)[0] ?? null;
 
 // ---------- Restaurants ----------
 

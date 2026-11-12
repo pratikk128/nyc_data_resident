@@ -19,13 +19,11 @@
  * light theme and adds the date and the link back to the report.
  */
 import { MAX_INPUT_LENGTH } from '../../lib/complaints311/location-input.js';
-import { SHOW_WATER } from '../../lib/address-report/report.js';
 
 // Topics in the order a resident asks about them: what affects today, then
 // the block itself, then what's around. Each has a line in "At a glance",
 // and its card says how far around the spot it looks (scope).
 const ICONS: Record<string, string> = {
-  water: '<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>',
   closures: '<path d="M3 10h18v5H3zM6 15v5M18 15v5M7 10l3 5M12 10l3 5"/>',
   complaints: '<path d="M4 5h16v11H9l-5 4z"/>',
   restaurants: '<path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M17 3c-2 2-3 5-3 8h3v10"/>',
@@ -35,9 +33,8 @@ const ICONS: Record<string, string> = {
   safety: '<path d="M12 3l9.5 17h-19z"/><path d="M12 10v4M12 17h.01"/>',
   parks: '<path d="M12 22v-6"/><path d="M12 2l5 7h-3l4 6H6l4-6H7z"/>'
 };
-const ALL_GROUPS = [
+const GROUPS = [
   { key: 'now', title: 'Right now', intro: 'What could change your day.', topics: [
-    { key: 'water', title: 'Drinking water', glance: 'Water', scope: 'The nearest sampling station', link: 'See the full results' },
     { key: 'closures', title: 'Street closures', glance: 'Streets', scope: 'Within ¼ mile, this week', link: 'See every closure nearby' }
   ] },
   { key: 'block', title: 'Your building and block', intro: 'Your building’s city records, crashes on the streets around it, and what neighbors call 311 about.', topics: [
@@ -52,10 +49,6 @@ const ALL_GROUPS = [
     { key: 'schools', title: 'Nearest public schools', glance: 'Schools', scope: 'The 3 nearest, at any distance', link: 'See schools near here on a map' }
   ] }
 ];
-// Hidden topics (SHOW_WATER) leave no card or glance line.
-const GROUPS = ALL_GROUPS
-  .map((g) => ({ ...g, topics: g.topics.filter((t) => t.key !== 'water' || SHOW_WATER) }))
-  .filter((g) => g.topics.length);
 const TOPICS = GROUPS.flatMap((g) => g.topics);
 ---
 
@@ -141,10 +134,10 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
 <script>
   import {
     spotFromParams, spotToParams, dashboardLinks, complaintsCard, complaintsStandouts, closuresCard, restaurantsCard, neighborhoodName,
-    safetyCard, BUILDING_SECTIONS, CRASH_RADIUS, SHOW_WATER
+    safetyCard, BUILDING_SECTIONS, CRASH_RADIUS
   } from '../../lib/address-report/report.js';
   import {
-    waterHtml, waterGlance, complaintsHtml, complaintsGlance, standoutsHtml, closuresHtml, closuresGlance,
+    complaintsHtml, complaintsGlance, standoutsHtml, closuresHtml, closuresGlance,
     helpHtml, helpGlance, schoolsHtml, schoolsGlance, restaurantsHtml, restaurantsGlance, escape,
     buildingHtml, buildingGlance, buildingAskHtml, buildingAskGlance, buildingMissingHtml, buildingMissingGlance,
     safetyHtml, safetyGlance, parksHtml, parksGlance
@@ -300,7 +293,7 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
     find.hidden = true;
     results.hidden = false;
 
-    // Water, help and schools share one small request: the server picks the nearest of each.
+    // Help, schools and parks share one small request: the server picks the nearest of each.
     // A failure clears it, so "Try again" asks again.
     let nearest: Promise<any> | null = null;
     const nearestPart = async (key: string) => {
@@ -315,13 +308,6 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
       }
     };
 
-    if (SHOW_WATER) card('water', links.water, async () => {
-      const { station, data } = await nearestPart('water');
-      return {
-        html: waterHtml(station, data), glance: waterGlance(station, data),
-        href: station ? dashboardLinks(spot, { waterSite: station.site }).water : undefined
-      };
-    }, id);
     // The building: only for a typed street address. Its lot first, so the sections find it cached.
     const bbl = placeBbl;
     card('building', links.building, async () => {

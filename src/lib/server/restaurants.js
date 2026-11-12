@@ -9,8 +9,7 @@ import { requestMaxAgeHours } from "../etl/cadence.js";
 import { nycToday } from "../format.js";
 import {
   SEARCH_LIMIT, searchParams, cuisinesParams, milesBetween, gradesParams, detailParams,
-  restaurantCountParams, familyCountParams, similarKey,
-  latestInspectionParams, leadViolationParams, leadInspectionParams
+  restaurantCountParams, familyCountParams, similarKey
 } from "../restaurants/soql.js";
 import {
   day, isInspected, latestGrade, groupInspections, latestScored, closesRestaurant, cutoffDate, countByCategory, inspectionsByCategory,
@@ -18,16 +17,12 @@ import {
   NOT_INSPECTED_DATE
 } from "../restaurants/inspections.js";
 import { LOOKBACK_YEARS, MIN_SIMILAR_RESTAURANTS } from "../restaurants/violation-categories.js";
-import { LEADS_CONFIG, MAPPED_CODES } from "../restaurants/business-groups.js";
-import { buildLeads, windowRange } from "../restaurants/leads.js";
 
 export const DATASET_ID = "43nn-pn8j";
 export const SEARCH_TTL = 3600;  // 1 hour
 export const DETAIL_TTL = 3600;
-export const LEADS_TTL = 3600;   // the leads API response (the value itself lives in KV)
-const LEADS_ROW_LIMIT = 50000;    // the $limit in leadViolationParams / leadInspectionParams
 
-// DOHMH updates daily, and the benchmarks and leads windows end today.
+// DOHMH updates daily, and the benchmarks window ends today.
 const CADENCE = "daily";
 const MAX_AGE_HOURS = requestMaxAgeHours(CADENCE, true);
 
@@ -91,45 +86,6 @@ export const benchmarksJob = {
   }
 };
 
-// Short, stable tag for the mapping, so changing business-groups.js starts a new KV entry.
-function mappingTag() {
-  const text = [...MAPPED_CODES, "|", ...LEADS_CONFIG.includeNonCriticalCodes, "|", LEADS_CONFIG.reinspectionScore].join(",");
-  let h = 5381;
-  for (let i = 0; i < text.length; i++) h = ((h * 33) ^ text.charCodeAt(i)) >>> 0;
-  return h.toString(36);
-}
-
-const LEADS_DAYS = Math.max(...LEADS_CONFIG.windows);
-
-// Restaurants with lead violations in the longest window, through the latest
-// inspection date in the data. The page narrows that to a group and window.
-export const leadsJob = {
-  key: `restaurants:leads:v2:${LEADS_DAYS}d:${mappingTag()}`, // v2: re-inspection likely needs an initial inspection
-  maxAgeHours: MAX_AGE_HOURS,
-  async run() {
-    const [{ latest } = {}] = await soql(DATASET_ID, latestInspectionParams(nycToday()));
-    const referenceDate = day(latest);
-    if (!referenceDate) throw new Error("No latest inspection date in the restaurant data");
-    const { since, through } = windowRange(referenceDate, LEADS_DAYS);
-    const [violationRows, inspectionRows] = await Promise.all([
-      soql(DATASET_ID, leadViolationParams(since, through, MAPPED_CODES, LEADS_CONFIG.includeNonCriticalCodes)),
-      soql(DATASET_ID, leadInspectionParams(since, through))
-    ]);
-    if (violationRows.length >= LEADS_ROW_LIMIT || inspectionRows.length >= LEADS_ROW_LIMIT) {
-      throw new Error(`Restaurant leads hit the ${LEADS_ROW_LIMIT}-row limit; page the queries`);
-    }
-    const { restaurants, descriptions } = buildLeads(violationRows, inspectionRows, LEADS_CONFIG);
-    return {
-      referenceDate,
-      since,
-      days: LEADS_DAYS,
-      computedAt: new Date().toISOString(),
-      descriptions,
-      restaurants
-    };
-  }
-};
-
 export const restaurantsDataset = {
   id: "restaurants",
   dashboard: "restaurant-inspections",
@@ -137,12 +93,8 @@ export const restaurantsDataset = {
   cadence: CADENCE,
   rolling: true,
   metadataJob,
-  jobs: [benchmarksJob, leadsJob, cuisinesJob]
+  jobs: [benchmarksJob, cuisinesJob]
 };
-
-export function getLeads() {
-  return dailyValue(leadsJob);
-}
 
 export function getCuisines() {
   return dailyValue(cuisinesJob);
