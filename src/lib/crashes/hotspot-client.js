@@ -6,9 +6,17 @@
  * downloaded once per page and kept.
  */
 import { queryToParams } from "./hotspot-query.js";
-import { unpackFacts, summarize, mapOf } from "./hotspot-compute.js";
+import { unpackFacts, summarize, mapOf, FACTS_FORMAT } from "./hotspot-compute.js";
 
 export const ERROR_TEXT = "We couldn’t load the crash numbers. Check your connection and try again.";
+
+/*
+ * The format the page reads, in every URL it asks for: the responses are
+ * cached by browsers for 30 minutes at a fixed URL, so without it a page
+ * with a new format would get the old one back from the cache and fail
+ * (unpackFacts() refuses it). The routes ignore the parameter.
+ */
+const V = `v=${FACTS_FORMAT}`;
 
 async function getJson(url, signal) {
   const res = await fetch(url, { signal });
@@ -20,7 +28,7 @@ async function getJson(url, signal) {
 // The unpacked facts, once per page; a failed download is tried again next time.
 let facts = null;
 function loadFacts() {
-  facts ??= getJson("/api/crash-hotspots/facts").then(unpackFacts);
+  facts ??= getJson(`/api/crash-hotspots/facts?${V}`).then(unpackFacts);
   facts.catch(() => { facts = null; });
   return facts;
 }
@@ -36,7 +44,7 @@ const isPrebuilt = (query) => !query.area || query.area.kind === "borough";
 export async function loadHotspots(query, { signal } = {}) {
   if (isPrebuilt(query)) {
     const p = queryToParams({ area: query.area, mode: query.mode });
-    return getJson(`/api/crash-hotspots/view${p.size ? `?${p}` : ""}`, signal);
+    return getJson(`/api/crash-hotspots/view?${p.size ? `${p}&` : ""}${V}`, signal);
   }
   const t = await abortable(loadFacts(), signal);
   const dates = { dataThrough: t.meta.dataThrough, dateFrom: t.meta.dateFrom };
