@@ -1,7 +1,7 @@
 /*
- * Source rows (Socrata JSON) → rows for the tables in schema.js. Shared by
- * the full build (scripts/ingest-crashes.mjs) and the daily sync
- * (src/lib/server/crashes-sync.js), so both store the same thing.
+ * Source rows (Socrata JSON) → rows in the shape of schema.js's tables, for
+ * the hotspots build (src/lib/server/crash-hotspots.js factsFromSource())
+ * and the tests' reference database.
  */
 import { streetMatchKey, streetBaseKey, minuteOf, personRole, positionKey, isInvolved, ageOf, sexOf, yearOf, textOf, numberOf, rowHash } from "./normalize.js";
 import { makeOf } from "./makes.js";

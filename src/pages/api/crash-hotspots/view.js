@@ -8,7 +8,7 @@
  * Reads one KV value and passes it through; cached at the edge per build.
  */
 import { readQuery } from "../../../lib/crashes/hotspot-query.js";
-import { viewResponse, isPrebuilt, NoDatabase, NOT_LOADED_TEXT } from "../../../lib/server/crash-hotspots.js";
+import { viewResponse, isPrebuilt, NotLoaded, NOT_LOADED_TEXT } from "../../../lib/server/crash-hotspots.js";
 import { NotBuilt } from "../../../lib/server/cache.js";
 import { json, upstreamError } from "../../../lib/server/json.js";
 
@@ -20,7 +20,7 @@ export async function GET({ url, locals }) {
   try {
     return await viewResponse(query, url, locals.cfContext);
   } catch (err) {
-    if (err instanceof NoDatabase || err instanceof NotBuilt) return json({ error: NOT_LOADED_TEXT }, { status: 503 });
+    if (err instanceof NotLoaded || err instanceof NotBuilt) return json({ error: NOT_LOADED_TEXT }, { status: 503 });
     return upstreamError(err);
   }
 }

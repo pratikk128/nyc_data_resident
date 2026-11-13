@@ -1,11 +1,10 @@
 /*
  * NYC Crash Hotspots' numbers, worked out in JavaScript from a year of
- * crash_facts rows instead of in SQL, so no request ever reads D1 (the free
- * plan allows 5M rows read a day, and one view used to scan the table three
- * times). Browser-safe.
+ * crash_facts rows (facts.js) instead of in SQL, so no request needs a
+ * database. Browser-safe.
  *
- * The data refresh (src/lib/server/crash-hotspots.js) reads crash_facts once,
- * packs it with packFacts() and stores it in KV, along with the summary and
+ * The data refresh (src/lib/server/crash-hotspots.js) builds the rows from a
+ * fresh fetch of NYC Open Data, packs them with packFacts() and stores it in KV, along with the summary and
  * map of every view it can work out ahead (all of NYC and each borough, with
  * each mode). For any other place (a ZIP, a street, an intersection, a spot)
  * the page downloads the packed facts once and calls summarize() and

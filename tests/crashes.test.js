@@ -1,6 +1,6 @@
 /*
  * The crash data behind NYC Crash Hotspots: normalizing streets, makes,
- * vehicle types, roles and seats; the date range; and the daily sync's diff.
+ * vehicle types, roles and seats; and the date range.
  *   npm test
  */
 import { test } from "node:test";
@@ -192,15 +192,4 @@ const RAW = {
     { unique_id: "p5", collision_id: id(3), crash_date: "2025-02-01T00:00:00.000", person_type: "Pedestrian", ped_role: "Pedestrian", person_age: "70", person_sex: "F", person_injury: "Injured", ped_location: "Pedestrian/Bicyclist/Other Pedestrian at Intersection" }
   ]
 };
-
-// ---------- Daily sync ----------
-
-test("sync diff: writes only new or changed rows, deletes what the source dropped", async () => {
-  const { diffTable } = await import("./support/workers.js").then(() => import("../src/lib/server/crashes-sync.js"));
-  const [a, b] = RAW.crashes;
-  const stored = [{ id: a.collision_id, h: crashRow(a).h }, { id: b.collision_id, h: "old" }, { id: id(9), h: "x" }];
-  const { upserts, deletes } = diffTable("crashes", [a, b, RAW.crashes[2]], stored);
-  assert.deepEqual(upserts.map((r) => r.collision_id), [id(2), id(3)]);
-  assert.deepEqual(deletes, [id(9)]);
-});
 

@@ -1,6 +1,6 @@
 /*
  * One spelling for the crash fields people search on, used on the data
- * (rows.js, at ingest) and on what a person types (query.js), so both meet
+ * (rows.js, in the hotspots build) and on what a person types (query.js), so both meet
  * in the middle. Browser-safe. Makes and vehicle types have their own maps
  * (makes.js, vehicle-types.js).
  */
@@ -134,9 +134,8 @@ export function numberOf(value) {
 }
 
 /*
- * A short, stable hash of a source row (cyrb53, 14 hex characters): the
- * daily sync compares it with the stored one and writes only rows that
- * changed. Keys are sorted, so the column order Socrata returns doesn't matter.
+ * A short, stable hash of a source row (cyrb53, 14 hex characters), part of
+ * each facts row's `h`. Keys are sorted, so the column order Socrata returns doesn't matter.
  */
 export function rowHash(row) {
   const text = JSON.stringify(Object.keys(row).sort().map((k) => [k, row[k]]));

@@ -1,10 +1,10 @@
 # The data refresh (scripts/run-etl.mjs): checks every dataset on NYC Open
-# Data, rebuilds the summaries that are due and writes them to Workers KV
-# (and the crash sync to D1). It runs here, not as a Worker cron, because a
-# refresh needs far more CPU and subrequests than the Workers free plan allows.
+# Data, rebuilds the summaries that are due and writes them to Workers KV.
+# It runs here, not as a Worker cron, because a refresh needs far more CPU
+# and subrequests than the Workers free plan allows.
 #
 # Repository secrets:
-#   CLOUDFLARE_API_TOKEN   a token with Workers KV Storage: Edit and D1: Edit
+#   CLOUDFLARE_API_TOKEN   a token with Workers KV Storage: Edit
 #   CLOUDFLARE_ACCOUNT_ID  the account the Worker is deployed to
 #   SOCRATA_APP_TOKEN      optional, raises NYC Open Data's rate limits
 # Repository variable:
@@ -23,7 +23,7 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45 # the crash fetch has its own 20-minute budget (crash-hotspots.js)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

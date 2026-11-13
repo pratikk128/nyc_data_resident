@@ -1,9 +1,9 @@
 /*
  * The data refresh, run outside the Worker: checks every dataset on NYC Open
  * Data, rebuilds the summaries that are due (src/lib/server/etl.js decides
- * which), and writes them to KV, plus the crash sync's rows to D1.
+ * which), and writes them to KV.
  *
- *   npm run etl -- --remote   production KV and D1
+ *   npm run etl -- --remote   production KV
  *   npm run etl -- --local    the local state `astro dev` reads
  *
  * Scheduled by .github/workflows/etl.yml. It used to be the Worker's hourly
@@ -41,8 +41,8 @@ try {
 } catch (err) {
   failed = err;
 }
-const { statements, keys } = await flush();
-console.log(`Wrote ${keys} KV key(s) and ${statements} D1 statement(s) in ${Math.round((Date.now() - started) / 1000)} s`);
+const { keys } = await flush();
+console.log(`Wrote ${keys} KV key(s) in ${Math.round((Date.now() - started) / 1000)} s`);
 if (failed) {
   console.error(failed.message);
   process.exit(1);

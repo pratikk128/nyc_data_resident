@@ -2,8 +2,8 @@
  * Vehicle types: the data's vehicle_type (free text on the police form:
  * "Sedan", "4 dr sedan", "Station Wagon/Sport Utility Vehicle", "PK",
  * "subn", "AMBULANCE", "E-Bike") grouped into the kinds people search by.
- * Browser-safe. The ingest lists the most common raw values nothing here
- * matches (npm run data:crashes).
+ * Browser-safe. Raw values nothing here matches get no
+ * group; add them here as they turn up.
  *
  * Rules are tried in order; the first whose pattern matches the upper-cased
  * value wins, so the specific ones (E-BIKE) come before the general (BIKE).

@@ -2,7 +2,7 @@
  * The data refresh pipeline: every dataset whose aggregates live in KV, and
  * the scheduled refresh that keeps them current. It runs in Node, not in the
  * Worker (scripts/run-etl.mjs, every 12 hours from .github/workflows/etl.yml),
- * with KV and D1 reached through wrangler (scripts/lib/workers-env.mjs). When to rebuild is decided in
+ * with KV reached through wrangler (scripts/lib/workers-env.mjs). When to rebuild is decided in
  * src/lib/etl/cadence.js; each dataset's module says how often the city
  * publishes it.
  *

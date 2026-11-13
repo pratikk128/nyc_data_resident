@@ -1,12 +1,14 @@
 /*
- * The crash lookup's tables, as SQLite (the local build in .data/crashes/
- * and Cloudflare D1 run the same SQL). Rows come from rows.js.
+ * The crash tables as SQLite, kept as the reference NYC Crash Hotspots'
+ * counting is checked against: tests/crash-hotspots.test.js loads rows into
+ * an in-memory database and runs hotspot-sql.js's statements on them. The
+ * site itself stores no tables (the hotspots are built from NYC Open Data
+ * straight into KV, src/lib/server/crash-hotspots.js). Rows come from rows.js.
  *
  * Raw values are kept as the city wrote them for display; the *_key columns
  * are the normalized forms the search matches on. Every table carries
  * crash_date so a search can narrow each one to its date range without a
- * join, and `h`, a hash of the source row, so the daily sync only writes
- * rows that changed.
+ * join, and `h`, a hash of the source row.
  *
  * Lists that are only ever shown (contributing factors, vehicle damage,
  * the crash's vehicle type codes) are JSON arrays.
@@ -128,19 +130,6 @@ export const TABLES = {
     maneuvers INTEGER NOT NULL,
     vehicles INTEGER NOT NULL,
     h TEXT NOT NULL                    -- of the crash's, its vehicles' and its persons' hashes
-  )`,
-
-  // One row per full build or daily sync.
-  ingest_log: `CREATE TABLE ingest_log (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    kind TEXT NOT NULL,                -- full | sync
-    started_at TEXT NOT NULL,
-    finished_at TEXT,
-    date_from TEXT,
-    date_to TEXT,
-    counts TEXT,                       -- JSON: rows per table (full) or rows written/deleted (sync)
-    orphans TEXT,                      -- JSON: { vehicles, persons, personVehicles, samples }
-    note TEXT
   )`
 };
 

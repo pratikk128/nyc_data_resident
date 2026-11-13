@@ -1,13 +1,14 @@
 /*
- * Builds NYC Crash Hotspots from the crash database into KV now, without
- * waiting for the data refresh (src/lib/server/crash-hotspots.js hotspotsJob):
+ * Builds NYC Crash Hotspots into KV now, without waiting for the data
+ * refresh (src/lib/server/crash-hotspots.js hotspotsJob): fetches a year of
+ * crashes from NYC Open Data and writes the packed facts and views.
  *
- *   npm run data:hotspots -- --remote   production D1 → production KV
+ *   npm run data:hotspots -- --remote   production KV
  *   npm run data:hotspots -- --local    the local state `astro dev` reads
  *
- * npm run data:crashes:push runs it after loading D1, so the page shows
- * the new build at once. Needs wrangler to be logged in, like the refresh
- * (scripts/run-etl.mjs).
+ * Needs wrangler to be logged in, like the refresh (scripts/run-etl.mjs).
+ * SOCRATA_APP_TOKEN (optional, also read from .dev.vars) raises Socrata's
+ * rate limits.
  */
 import { connect, flush } from "./lib/workers-env.mjs";
 

@@ -30,7 +30,7 @@ if (import.meta.env.PROD && status) Astro.response.headers.set('Cache-Control', 
   description="The NYC intersections where crashes hurt people most, near your home, work or school, and what goes wrong at each. For people who walk, bike or drive."
   path="/crash-hotspots/"
   category="Public Safety"
-  lastRefreshed={status?.lastSync ? date(status.lastSync.slice(0, 10)) : status?.lastFull ? date(status.lastFull.slice(0, 10)) : undefined}
+  lastRefreshed={status?.version ? date(status.version.slice(0, 10)) : undefined}
   dataUpdated={through ?? undefined}
   reportLink
   share
@@ -50,5 +50,5 @@ if (import.meta.env.PROD && status) Astro.response.headers.set('Cache-Control', 
   </div>
 
   <CrashHotspots />
-  <AboutSection dataThrough={through} lastSync={status?.lastSync ?? null} />
+  <AboutSection dataThrough={through} builtAt={status?.version ?? null} />
 </DashboardLayout>

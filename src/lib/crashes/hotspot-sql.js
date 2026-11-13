@@ -1,7 +1,9 @@
 /*
  * NYC Crash Hotspots' SQL, on crash_facts (schema.js) alone, plus
- * crash_streets for a street or intersection. Runs on D1 and on the local
- * SQLite build alike.
+ * crash_streets for a street or intersection. Nothing on the site runs it
+ * any more: it's the reference hotspot-compute.js's counting is tested
+ * against (tests/crash-hotspots.test.js, on an in-memory SQLite database),
+ * and the home of the ranking constants and readTotals() shapes both share.
  *
  * Places are bound parameters. Masks come from facts.js keys (through the
  * mode, hotspot-query.js), never from what was typed, so they're written
@@ -190,7 +192,7 @@ export function pointsSql(query) {
 }
 
 /*
- * One page of crash_facts for the data refresh to pack (hotspot-compute.js),
+ * One page of crash_facts with its streets, the rows packFacts() takes (the tests read them this way),
  * in collision_id order after `after`, each row with its crash_streets keys
  * joined by STREET_SEP in `streets`.
  */

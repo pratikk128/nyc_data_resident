@@ -16,14 +16,6 @@
   // No "id": wrangler creates the namespace on first deploy.
   "kv_namespaces": [{ "binding": "DATA_CACHE" }],
 
-  // NYC Crash Hotspots' crash, vehicle and person tables (src/lib/server/crashes.js).
-  // Loaded by `npm run data:crashes` + `npm run data:crashes:push -- --local|--remote`;
-  // the scheduled refresh (scripts/run-etl.mjs) keeps recent weeks current. Only the
-  // refresh reads it: requests read what it built into KV (src/lib/server/crash-hotspots.js),
-  // so page views use none of D1's daily row reads. No "database_id": wrangler
-  // creates the database on first deploy (push --remote after that).
-  "d1_databases": [{ "binding": "CRASHES_DB", "database_name": "asknycdata-crashes" }],
-
   // Per-client limits on searches, restaurant lookups and 311 areas that miss the cache
   // (src/lib/server/rate-limit.js). namespace_id is any number unique to each
   // limiter within the account.

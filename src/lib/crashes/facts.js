@@ -1,7 +1,7 @@
 /*
  * NYC Crash Hotspots: each crash boiled down to one row of crash_facts
- * (schema.js), with what the dashboard filters on worked out once, at
- * ingest and in the daily sync, instead of joining vehicles and persons on
+ * (schema.js), with what the dashboard filters on worked out once, in the
+ * data refresh's build, instead of joining vehicles and persons on
  * every request. Browser-safe: the page builds its filters from the same
  * groups.
  *
@@ -12,8 +12,9 @@
  *   maneuvers  what the vehicles were doing (pre_crash), grouped
  *   vehicles   the kinds of vehicle in the crash (vehicle-types.js keys)
  *
- * Bits are stored in D1, so a group's `bit` never changes and new groups
- * take the next free one (a test checks). The arrays' order is the order
+ * Bits are stored in the packed facts in KV (and browsers' caches of them),
+ * so a group's `bit` never changes and new groups take the next free one
+ * (a test checks). The arrays' order is the order
  * rules are tried, and the order the page lists them; it can change.
  *
  * factsRow() takes rows as rows.js builds them, or as they come back from
@@ -68,9 +69,6 @@ export const CAUSES = [
     pattern: /DEFECTIVE|TIRE|STEERING FAILURE|WINDSHIELD|TINTED WINDOWS|TOW HITCH|VANDALISM|LIGHTING DEFECTS/ }
 ];
 
-// Factors that are on purpose in no group, so the ingest doesn't list them as unmapped.
-export const UNGROUPED_CAUSES = /^(DOES NOT APPLY|OTHER VEHICULAR|REACTION TO UNINVOLVED VEHICLE|OVERSIZED VEHICLE|DRIVERLESS\/RUNAWAY VEHICLE|SLOW MOVING VEHICLE|OVER-CORRECTING\/OVER-STEERING)$/;
-
 // What a vehicle was doing just before the crash (vehicles.pre_crash).
 export const MANEUVERS = [
   { key: "left-turn", label: "Turning left", bit: 0, pattern: /LEFT TURN/ },
@@ -84,7 +82,6 @@ export const MANEUVERS = [
   { key: "straight", label: "Going straight", bit: 8, pattern: /GOING STRAIGHT/ }
 ];
 
-export const UNGROUPED_MANEUVERS = /^(OTHER\*?|AVOIDING .*|NEGOTIATING A CURVE)$/;
 
 // vehicle-types.js keys, with short labels for the filter pills.
 export const VEHICLES = [

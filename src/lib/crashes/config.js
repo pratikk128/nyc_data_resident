@@ -14,9 +14,10 @@ import { nycToday } from "../format.js";
 /*
  * The crash dates the site covers: a rolling window of the last RANGE_YEARS
  * years, from the same day RANGE_YEARS years before today (New York) through
- * the latest crash in the data. The daily sync deletes rows as they age out.
- * To widen or narrow it, change RANGE_YEARS, then run a full rebuild
- * (npm run data:crashes -- --refetch, then npm run data:crashes:push).
+ * the latest crash in the data. Each daily build fetches the whole window
+ * again, so older crashes drop off on their own. To widen or narrow it,
+ * change RANGE_YEARS (a wider window means a longer fetch and a bigger
+ * download for the page).
  */
 export const RANGE_YEARS = 1;
 
@@ -36,14 +37,24 @@ export const DATASETS = {
 export const sourceUrl = (table) => `https://data.cityofnewyork.us/d/${DATASETS[table].id}`;
 
 /*
- * The city republishes every row each day (":updated_at" moves on all of
- * them), so the daily sync can't ask what changed. It re-reads the crashes
- * of the last SYNC_DAYS days instead and writes only rows that differ.
- * Reports are amended later than that too; the monthly full rebuild picks
- * those up, and the ingest log warns when one is due.
+ * The source columns the facts need (rows.js, facts.js), per table: asking
+ * for only these keeps a year's fetch small. Add a column here before
+ * reading it in rows.js or facts.js, or it arrives empty.
  */
-export const SYNC_DAYS = 45;
-export const REBUILD_DUE_DAYS = 35;
+export const SOURCE_COLUMNS = {
+  crashes: [
+    "collision_id", "crash_date", "crash_time", "borough", "zip_code", "latitude", "longitude",
+    "on_street_name", "cross_street_name", "off_street_name",
+    "number_of_persons_injured", "number_of_persons_killed", "number_of_pedestrians_injured", "number_of_pedestrians_killed",
+    "number_of_cyclist_injured", "number_of_cyclist_killed", "number_of_motorist_injured", "number_of_motorist_killed",
+    "contributing_factor_vehicle_1", "contributing_factor_vehicle_2", "contributing_factor_vehicle_3",
+    "contributing_factor_vehicle_4", "contributing_factor_vehicle_5",
+    "vehicle_type_code1", "vehicle_type_code2", "vehicle_type_code_3", "vehicle_type_code_4", "vehicle_type_code_5"
+  ],
+  vehicles: ["unique_id", "collision_id", "crash_date", "vehicle_type", "pre_crash", "contributing_factor_1", "contributing_factor_2"],
+  persons: ["unique_id", "collision_id", "crash_date", "vehicle_id", "person_type", "ped_role", "person_injury",
+    "complaint", "emotional_status", "contributing_factor_1", "contributing_factor_2"]
+};
 
 // SoQL condition for the date range, for any of the three tables (each has crash_date).
 export function dateWhere({ from, to } = dateRange()) {

@@ -5,8 +5,8 @@
  * Since 2024 the city writes a make as an NCIC code plus a body class,
  * padded to four letters: "TOYT -CAR/SUV", "BMW  -CAR/SUV",
  * "FORD-TRUCK/BUS", "YAMA -MCL". A few rows (and older ones) spell it
- * out: "FORD", "Ford", "RAM", "Moped", "ZHILO". The ingest lists the most common raw values
- * nothing here matches (npm run data:crashes), which is how this list grows.
+ * out: "FORD", "Ford", "RAM", "Moped", "ZHILO". Raw values nothing here matches get
+ * key null; add them here as they turn up.
  *
  *   key     what the database stores in vehicles.make_key
  *   codes   NCIC codes the data uses

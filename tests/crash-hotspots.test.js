@@ -1,8 +1,8 @@
 /*
  * NYC Crash Hotspots: the crash groups and severity (facts.js), the URL and
  * modes (hotspot-query.js), the SQL on an in-memory database (hotspot-sql.js),
- * the same numbers counted in JS (hotspot-compute.js) and the build that
- * stores them (server/crash-hotspots.js), the sync's facts diff, and what
+ * the same numbers counted in JS (hotspot-compute.js), the build that
+ * fetches the source and stores them (server/crash-hotspots.js), and what
  * the page says (hotspot-view.js, hotspot-render.js).
  */
 import { test } from "node:test";
@@ -19,6 +19,7 @@ import { statCards, watchFor, patterns, mostCommon, cornerFindings, tipFor, howO
 import { watchHtml, spotsHtml } from "../src/lib/crashes/hotspot-render.js";
 import { crashRow, streetRows, vehicleRow, personRow } from "../src/lib/crashes/rows.js";
 import { TABLES, INDEXES, COLUMNS } from "../src/lib/crashes/schema.js";
+import { SOURCE_COLUMNS } from "../src/lib/crashes/config.js";
 import { VEHICLE_TYPES } from "../src/lib/crashes/vehicle-types.js";
 
 const q = (s) => readQuery(new URLSearchParams(s));
@@ -32,7 +33,7 @@ test("groups: bits are unique, fit an int, and never move", () => {
     assert.ok(bits.every((b) => Number.isInteger(b) && b >= 0 && b < 31));
     assert.equal(new Set(groups.map((g) => g.key)).size, groups.length);
   }
-  // Stored in D1: changing one of these silently relabels every crash until a full rebuild.
+  // Packed into the facts in KV and cached by browsers: changing one relabels crashes in a cached copy.
   assert.deepEqual(Object.fromEntries(CAUSES.map((c) => [c.key, c.bit])), {
     distracted: 0, yield: 1, tailgating: 2, speeding: 3, "red-light": 4, lane: 5, turning: 6, backing: 7,
     impaired: 8, aggressive: 9, inexperience: 10, "drowsy-ill": 11, road: 12, "ped-error": 13, defect: 14
@@ -319,21 +320,6 @@ test("SQL: places are bound parameters; filter values never reach the SQL text",
   assert.ok(stmt.params.every((p) => typeof p === "string" || typeof p === "number"));
 });
 
-// ---------- Sync ----------
-
-test("sync: facts rows written only for crashes that changed, deleted for crashes gone", async () => {
-  const { diffFacts } = await import("./support/workers.js").then(() => import("../src/lib/server/crashes-sync.js"));
-  const stored = facts().map((f) => ({ id: f.collision_id, h: f.h }));
-  stored[1].h = "old";
-  stored.push({ id: id(99), h: "x" });
-  const { upserts, deletes } = diffFacts(RAW, stored);
-  assert.deepEqual(upserts.map((r) => r.collision_id), [id(2)]);
-  assert.deepEqual(deletes, [id(99)]);
-  // A person changing rewrites their crash's row.
-  const changed = { ...RAW, persons: RAW.persons.map((p) => (p.unique_id === "p4" ? { ...p, person_injury: "Killed" } : p)) };
-  assert.deepEqual(diffFacts(changed, facts().map((f) => ({ id: f.collision_id, h: f.h }))).upserts.map((r) => r.collision_id), [id(2)]);
-});
-
 // ---------- What the page says ----------
 
 const groupsWith = (counts) => {
@@ -479,7 +465,6 @@ function syntheticDb(n = 1500) {
         .run(streetMatchKey(s[1]), streetBaseKey(streetMatchKey(s[1])), id, date, field);
     }
   }
-  db.exec("INSERT INTO ingest_log (kind, started_at, finished_at) VALUES ('full', '2026-10-01T00:00:00Z', '2026-10-01T01:00:00Z')");
   return db;
 }
 
@@ -561,29 +546,46 @@ test("packing: a row's coordinates survive exactly; an id is never sent", () => 
   assert.throws(() => unpackFacts({ ...packed, format: 0 }), /format/);
 });
 
-test("hotspots build: one read of D1, the views built ahead and the facts in KV, passed through untouched", async () => {
+// RAW as the build's fetch would return it: only SOURCE_COLUMNS, every value a string (Socrata's JSON).
+const asFetched = (raw = RAW) => Object.fromEntries(Object.entries(raw).map(([table, rows]) => [table, rows.map((r) =>
+  Object.fromEntries(SOURCE_COLUMNS[table].filter((c) => r[c] != null).map((c) => [c, String(r[c])])))]));
+
+test("facts from the source: one row per crash with its street keys, the same as the old database build", async () => {
+  const { factsFromSource } = await import("./support/workers.js").then(() => import("../src/lib/server/crash-hotspots.js"));
+  const rows = factsFromSource(asFetched());
+  const want = facts();
+  assert.equal(rows.length, want.length);
+  for (const [i, r] of rows.entries()) {
+    const { streets, ...row } = r;
+    assert.deepEqual(row, want[i]);
+    assert.deepEqual(streets, streetRows(crashRow(RAW.crashes[i])).map((s) => s.street));
+  }
+  // Vehicles and persons whose crash is out of range are dropped, not counted somewhere else.
+  const extra = asFetched({ ...RAW, vehicles: [...RAW.vehicles, { unique_id: "v9", collision_id: id(99), vehicle_type: "Sedan" }] });
+  assert.equal(factsFromSource(extra).length, rows.length);
+});
+
+test("hotspots build: the views built ahead and the facts in KV match the SQL, passed through untouched", async () => {
   const { env, fakeKv } = await import("./support/workers.js");
   const { hotspotsJob, viewKey, FACTS_KEY, viewResponse, factsResponse, isPrebuilt } = await import("../src/lib/server/crash-hotspots.js");
-  const db = syntheticDb(400);
-  let reads = 0;
-  const statement = (sql, params = []) => ({ bind: (...p) => statement(sql, p), all: async () => { reads++; return { results: db.prepare(sql).all(...params).map((r) => ({ ...r })) }; } });
-  env.CRASHES_DB = { prepare: (sql) => statement(sql) };
+  const { refreshDaily } = await import("../src/lib/server/cache.js");
   env.DATA_CACHE = fakeKv();
   try {
-    const built = await hotspotsJob.run();
-    assert.equal(built.crashes, 400);
+    // As the refresh runs it, with the source handed in instead of fetched.
+    const built = await refreshDaily({ ...hotspotsJob, run: () => hotspotsJob.run(asFetched()) });
+    assert.equal(built.crashes, RAW.crashes.length);
+    assert.equal(built.dataThrough, "2025-05-02");
     assert.equal(built.views, 24, "all of NYC and five boroughs, each with no mode and three");
-    assert.equal(built.lastFull, "2026-10-01T01:00:00Z");
-    assert.ok(reads <= 3, "the log and the facts, a page at a time");
-    assert.equal(env.DATA_CACHE.store.size, 25);
+    assert.equal(env.DATA_CACHE.store.size, 27, "24 views, the facts, the job's value and its :at");
 
-    const all = (stmt) => db.prepare(stmt.sql).all(...stmt.params).map((r) => ({ ...r }));
-    for (const qs of ["", "mode=walk", "boro=BROOKLYN&mode=bike"]) {
+    const all = memoryDb();
+    const rows = (stmt) => all(stmt).map((r) => ({ ...r }));
+    for (const qs of ["", "mode=walk", "boro=MANHATTAN&mode=bike", "boro=BROOKLYN"]) {
       const query = q(qs);
       assert.ok(isPrebuilt(query));
       const view = JSON.parse(env.DATA_CACHE.store.get(viewKey(query)));
-      assertSame(view.summary, { dataThrough: built.dataThrough, dateFrom: built.dateFrom, ...sqlView(all, query).summary }, qs);
-      assert.equal(view.map.points.length, sqlView(all, query).points.length);
+      assertSame(view.summary, { dataThrough: built.dataThrough, dateFrom: built.dateFrom, ...sqlView(rows, query).summary }, qs);
+      assert.equal(view.map.points.length, sqlView(rows, query).points.length);
     }
     assert.ok(!isPrebuilt(q("zip=10023")) && !isPrebuilt(q("street=Broadway")) && !isPrebuilt(q("lat=40.75&lon=-73.95")));
 
@@ -592,10 +594,60 @@ test("hotspots build: one read of D1, the views built ahead and the facts in KV,
     assert.equal(res.headers.get("Content-Type"), "application/json; charset=utf-8");
     assert.equal(await res.text(), env.DATA_CACHE.store.get(viewKey(q("boro=QUEENS"))));
     const facts = await (await factsResponse(url)).json();
-    assert.equal(facts.n, 400);
+    assert.equal(facts.n, RAW.crashes.length);
     assert.equal(env.DATA_CACHE.store.get(FACTS_KEY), JSON.stringify(facts));
   } finally {
-    delete env.CRASHES_DB;
     delete env.DATA_CACHE;
+  }
+});
+
+test("hotspots build: keeps the last build when the source suddenly has far fewer crashes", async () => {
+  const { env, fakeKv } = await import("./support/workers.js");
+  const { hotspotsJob } = await import("../src/lib/server/crash-hotspots.js");
+  const last = { computedAt: new Date().toISOString(), value: { crashes: 100 } };
+  env.DATA_CACHE = fakeKv({ [hotspotsJob.key]: JSON.stringify(last), [`${hotspotsJob.key}:at`]: last.computedAt });
+  try {
+    await assert.rejects(hotspotsJob.run(asFetched()), /keeping the last build/);
+    assert.equal(env.DATA_CACHE.store.size, 2, "nothing written");
+    await assert.rejects(hotspotsJob.run({ crashes: [], vehicles: [], persons: [] }), /keeping the last build/);
+  } finally {
+    delete env.DATA_CACHE;
+  }
+});
+
+test("fetching a year: only the needed columns, in Socrata's row order, one table at a time; a failed page is retried smaller", async () => {
+  await import("./support/workers.js");
+  const { fetchYear } = await import("../src/lib/server/crash-hotspots.js");
+  const realFetch = globalThis.fetch, realTimeout = globalThis.setTimeout;
+  const calls = [];
+  let failedOnce = false;
+  globalThis.setTimeout = (fn) => realTimeout(fn, 0); // no real waits between retries
+  globalThis.fetch = async (url) => {
+    const u = new URL(url);
+    const p = Object.fromEntries(u.searchParams);
+    calls.push({ id: u.pathname.split("/").at(-1).replace(".json", ""), ...p });
+    if (!failedOnce) { failedOnce = true; return new Response("busy", { status: 503 }); }
+    // Two pages for the persons table: a full one, then the rest (with a row repeated, as if republished mid-pull).
+    if (u.pathname.includes("f55k-p6yu") && p.$offset === "0") {
+      return Response.json(Array.from({ length: Number(p.$limit) }, (_, i) => ({ unique_id: `p${String(i).padStart(5, "0")}` })));
+    }
+    if (u.pathname.includes("f55k-p6yu")) return Response.json([{ unique_id: "p00007" }, { unique_id: "z" }]);
+    return Response.json([{ unique_id: "z", collision_id: "1" }]);
+  };
+  try {
+    const got = await fetchYear({ from: "2025-11-13", to: null });
+    assert.deepEqual(Object.keys(got), ["crashes", "vehicles", "persons"]);
+    assert.deepEqual(calls.map((c) => c.id), ["h9gi-nx95", "h9gi-nx95", "bm4k-52h4", "f55k-p6yu", "f55k-p6yu"], "the 503 retried, then one table after another");
+    assert.deepEqual(calls.map((c) => c.$limit), ["50000", "25000", "25000", "25000", "25000"], "half the size after a failure, and it sticks");
+    assert.equal(got.persons.length, 25001, "the repeated row kept once");
+    assert.deepEqual(calls.slice(-2).map((c) => c.$offset), ["0", "25000"]);
+    assert.equal(calls[0].$select, SOURCE_COLUMNS.crashes.join(","));
+    assert.equal(calls[0].$order, ":id");
+    assert.equal(calls[0].$where, "crash_date >= '2025-11-13T00:00:00'");
+    // Out of time: fails this job instead of running on.
+    await assert.rejects(fetchYear({ from: "2025-11-13", to: null }, { budgetMs: -1 }), /out of time/);
+  } finally {
+    globalThis.fetch = realFetch;
+    globalThis.setTimeout = realTimeout;
   }
 });
