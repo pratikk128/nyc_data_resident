@@ -597,7 +597,19 @@ test("hotspots build: keeps the last build when the source suddenly has far fewe
   }
 });
 
-test("fetching a year: only the needed columns, in Socrata's row order, one table at a time; a failed page is retried smaller", async () => {
+test("fetching a year: month windows, never an offset", async () => {
+  await import("./support/workers.js");
+  const { monthWindows } = await import("../src/lib/server/crash-hotspots.js");
+  assert.deepEqual(monthWindows({ from: "2025-11-13", to: null }, "2026-02-10"), [
+    { from: "2025-11-13", to: "2025-12-01" }, { from: "2025-12-01", to: "2026-01-01" },
+    { from: "2026-01-01", to: "2026-02-01" }, { from: "2026-02-01", to: null }
+  ], "the first from the range's start, the last open-ended");
+  assert.deepEqual(monthWindows({ from: "2026-01-15", to: "2026-02-28" }, "2026-06-01"),
+    [{ from: "2026-01-15", to: "2026-02-01" }, { from: "2026-02-01", to: "2026-03-01" }], "a range's end day is in it");
+  assert.deepEqual(monthWindows({ from: "2026-02-03", to: null }, "2026-02-10"), [{ from: "2026-02-03", to: null }]);
+});
+
+test("fetching a year: only the needed columns, one table at a time; a failed or full window is split", async () => {
   await import("./support/workers.js");
   const { fetchYear } = await import("../src/lib/server/crash-hotspots.js");
   const realFetch = globalThis.fetch, realTimeout = globalThis.setTimeout;
@@ -607,27 +619,45 @@ test("fetching a year: only the needed columns, in Socrata's row order, one tabl
   globalThis.fetch = async (url) => {
     const u = new URL(url);
     const p = Object.fromEntries(u.searchParams);
-    calls.push({ id: u.pathname.split("/").at(-1).replace(".json", ""), ...p });
+    const [, from, to] = p.$where.match(/>= '(\d{4}-\d\d-\d\d)T00:00:00'(?: AND crash_date < '(\d{4}-\d\d-\d\d)T)?/);
+    const table = u.pathname.includes("bm4k-52h4") ? "vehicles" : "crashes";
+    calls.push({ table, from, to: to ?? null, ...p });
     if (!failedOnce) { failedOnce = true; return new Response("busy", { status: 503 }); }
-    // Two pages for the vehicles table: a full one, then the rest (with a row repeated, as if republished mid-pull).
-    if (u.pathname.includes("bm4k-52h4") && p.$offset === "0") {
-      return Response.json(Array.from({ length: Number(p.$limit) }, (_, i) => ({ unique_id: `v${String(i).padStart(5, "0")}` })));
+    // December's vehicles come back full: the window is split rather than paged.
+    if (table === "vehicles" && from === "2025-12-01" && to === "2026-01-01") {
+      return Response.json(Array.from({ length: Number(p.$limit) }, (_, i) => ({ unique_id: `x${i}` })));
     }
-    if (u.pathname.includes("bm4k-52h4")) return Response.json([{ unique_id: "v00007" }, { unique_id: "z" }]);
-    return Response.json([{ unique_id: "z", collision_id: "1" }]);
+    // One row per window, plus a row republished mid-pull that shows up in every window.
+    return Response.json([{ unique_id: `${table}-${from}`, collision_id: `${table}-${from}` }, { unique_id: "again", collision_id: "again" }]);
   };
   try {
-    const got = await fetchYear({ from: "2025-11-13", to: null });
+    const got = await fetchYear({ from: "2025-11-13", to: null }, { today: "2026-02-10" });
     assert.deepEqual(Object.keys(got), ["crashes", "vehicles"], "the persons table isn't fetched");
-    assert.deepEqual(calls.map((c) => c.id), ["h9gi-nx95", "h9gi-nx95", "bm4k-52h4", "bm4k-52h4"], "the 503 retried, then one table after another");
-    assert.deepEqual(calls.map((c) => c.$limit), ["50000", "25000", "25000", "25000"], "half the size after a failure, and it sticks");
-    assert.equal(got.vehicles.length, 25001, "the repeated row kept once");
-    assert.deepEqual(calls.slice(-2).map((c) => c.$offset), ["0", "25000"]);
+    assert.ok(calls.every((c) => c.$offset == null && c.$order == null), "no offsets: each request costs the same however far in");
+    const windows = (table) => calls.filter((c) => c.table === table).map((c) => `${c.from}…${c.to ?? ""}`);
+    assert.deepEqual(windows("crashes"), [
+      "2025-11-13…2025-12-01", // 503
+      "2025-11-13…2025-11-22", "2025-11-22…2025-12-01", // in two after the failure
+      "2025-12-01…2026-01-01", "2026-01-01…2026-02-01", "2026-02-01…" // the next months whole again
+    ]);
+    assert.deepEqual(windows("vehicles"), [
+      "2025-11-13…2025-12-01",
+      "2025-12-01…2026-01-01", "2025-12-01…2025-12-16", "2025-12-16…2026-01-01", // full, so split
+      "2026-01-01…2026-02-01", "2026-02-01…"
+    ]);
+    assert.equal(got.crashes.length, 6, "one per window that worked, and the repeated row once");
+    assert.ok(!got.vehicles.some((r) => r.unique_id.startsWith("x")), "a full window's rows are dropped for its halves'");
     assert.equal(calls[0].$select, SOURCE_COLUMNS.crashes.join(","));
-    assert.equal(calls[0].$order, ":id");
-    assert.equal(calls[0].$where, "crash_date >= '2025-11-13T00:00:00'");
+    assert.equal(calls.find((c) => c.table === "vehicles").$select, SOURCE_COLUMNS.vehicles.join(","));
+    assert.equal(calls.at(-1).$where, "crash_date >= '2026-02-01T00:00:00'", "the last month runs through the latest crash");
+
     // Out of time: fails this job instead of running on.
-    await assert.rejects(fetchYear({ from: "2025-11-13", to: null }, { budgetMs: -1 }), /out of time/);
+    await assert.rejects(fetchYear({ from: "2025-11-13", to: null }, { budgetMs: -1, today: "2026-02-10" }), /out of time/);
+    // Down for good: gives up after enough failures in a row.
+    let tries = 0;
+    globalThis.fetch = async () => { tries++; return new Response("busy", { status: 503 }); };
+    await assert.rejects(fetchYear({ from: "2025-11-13", to: null }, { today: "2026-02-10" }), /503/);
+    assert.equal(tries, 10);
   } finally {
     globalThis.fetch = realFetch;
     globalThis.setTimeout = realTimeout;

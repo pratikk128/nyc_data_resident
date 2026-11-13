@@ -66,10 +66,3 @@ export const SOURCE_COLUMNS = {
   ],
   vehicles: ["unique_id", "collision_id", "pre_crash", "contributing_factor_2"]
 };
-
-// SoQL condition for the date range, for either table (each has crash_date).
-export function dateWhere({ from, to } = dateRange()) {
-  const parts = [`crash_date >= '${from}T00:00:00'`];
-  if (to) parts.push(`crash_date <= '${to}T23:59:59'`);
-  return parts.join(" AND ");
-}

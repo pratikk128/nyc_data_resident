@@ -10,7 +10,7 @@ import { streetMatchKey, streetBaseKey, textOf } from "../src/lib/crashes/normal
 import { vehicleTypeKey, resolveVehicleType } from "../src/lib/crashes/vehicle-types.js";
 import { streetsFromText } from "../src/lib/crashes/hotspot-query.js";
 import { crashRow } from "../src/lib/crashes/rows.js";
-import { dateWhere, dateRange } from "../src/lib/crashes/config.js";
+import { dateRange } from "../src/lib/crashes/config.js";
 
 // ---------- Streets ----------
 
@@ -92,10 +92,6 @@ test("values", () => {
   assert.equal(textOf("  Driver   Inattention "), "Driver Inattention");
 });
 
-test("date range: one SoQL condition for every table", () => {
-  assert.equal(dateWhere({ from: "2024-01-01", to: null }), "crash_date >= '2024-01-01T00:00:00'");
-  assert.equal(dateWhere({ from: "2024-01-01", to: "2024-12-31" }), "crash_date >= '2024-01-01T00:00:00' AND crash_date <= '2024-12-31T23:59:59'");
-});
 
 test("date range: the last year, rolling with today", () => {
   assert.deepEqual(dateRange("2026-10-31"), { from: "2025-10-31", to: null });
