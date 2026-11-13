@@ -18,7 +18,9 @@
 
   // NYC Crash Hotspots' crash, vehicle and person tables (src/lib/server/crashes.js).
   // Loaded by `npm run data:crashes` + `npm run data:crashes:push -- --local|--remote`;
-  // the scheduled refresh (scripts/run-etl.mjs) keeps recent weeks current. No "database_id": wrangler
+  // the scheduled refresh (scripts/run-etl.mjs) keeps recent weeks current. Only the
+  // refresh reads it: requests read what it built into KV (src/lib/server/crash-hotspots.js),
+  // so page views use none of D1's daily row reads. No "database_id": wrangler
   // creates the database on first deploy (push --remote after that).
   "d1_databases": [{ "binding": "CRASHES_DB", "database_name": "asknycdata-crashes" }],
 
@@ -37,8 +39,6 @@
     { "name": "CLOSURES_RATE_LIMITER", "namespace_id": "1007", "simple": { "limit": 60, "period": 60 } },
     // Help near me: KV only, one search per spot (radius and categories switch in the browser)
     { "name": "HELP_RATE_LIMITER", "namespace_id": "1008", "simple": { "limit": 60, "period": 60 } },
-    // Crash hotspots: D1 only; one summary and one map per view (place or filter change)
-    { "name": "HOTSPOTS_RATE_LIMITER", "namespace_id": "1010", "simple": { "limit": 60, "period": 60 } },
     // Building Report Card: live Socrata; one lot lookup and eight sections per building viewed
     { "name": "BUILDING_RATE_LIMITER", "namespace_id": "1011", "simple": { "limit": 90, "period": 60 } },
     // Park amenities: KV only, one search per spot (radius and categories switch in the browser)

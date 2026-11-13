@@ -1,5 +1,5 @@
 /*
- * NYC Crash Hotspots: the summary from /api/crash-hotspots/summary turned
+ * NYC Crash Hotspots: a view's summary (hotspot-client.js) turned
  * into what the page says: the stat cards, "What to watch for here" and, for
  * each dangerous intersection, what goes wrong there. Pure and browser-safe;
  * hotspot-render.js writes the HTML.

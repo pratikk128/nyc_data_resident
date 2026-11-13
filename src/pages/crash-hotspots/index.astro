@@ -1,13 +1,13 @@
 ---
 /*
  * NYC Crash Hotspots. Rendered on demand so "Data through" comes from the
- * crash database in D1 (src/lib/server/crashes.js); the numbers, map and
- * tables load in the browser (src/components/crash-hotspots/CrashHotspots.astro).
+ * data refresh's last build (src/lib/server/crash-hotspots.js, in KV); the
+ * numbers, map and tables load in the browser (src/components/crash-hotspots/CrashHotspots.astro).
  */
 import DashboardLayout from '../../layouts/DashboardLayout.astro';
 import CrashHotspots from '../../components/crash-hotspots/CrashHotspots.astro';
 import AboutSection from '../../components/crash-hotspots/AboutSection.astro';
-import { dataStatus } from '../../lib/server/crashes.js';
+import { hotspotsStatus } from '../../lib/server/crash-hotspots.js';
 import { dateRange } from '../../lib/crashes/config.js';
 import { date } from '../../lib/format.js';
 
@@ -15,7 +15,7 @@ export const prerender = false;
 
 let status = null;
 try {
-  status = await dataStatus();
+  status = await hotspotsStatus();
 } catch (err) {
   console.error(err); // the page still loads; its numbers say the data isn't loaded
 }

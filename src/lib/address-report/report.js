@@ -132,7 +132,7 @@ export const BUILDING_SECTIONS = ["flags", "violations", "complaints", "dob"];
 // ---------- Street safety ----------
 
 /*
- * /api/crash-hotspots/summary around the spot (CRASH_RADIUS, everyone) →
+ * Crash Hotspots' summary around the spot (hotspot-client.js loadHotspots()) (CRASH_RADIUS, everyone) →
  *   { hurt, killed, serious, crashes, from, through, compareLabel: what watch is compared with,
  *     watch: the first watchFor() item or null,
  *     corners: up to n of cornerFindings(), most often hurt first }

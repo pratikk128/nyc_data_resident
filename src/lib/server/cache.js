@@ -57,6 +57,25 @@ export async function edgeCached(requestUrl, key, ttl, compute, ctx, keep = () =
   return data;
 }
 
+/*
+ * Like edgeCached(), for a Response made as it is (a stored value passed
+ * through without parsing): make() → Response; only a 200 is cached.
+ */
+export async function edgeCachedResponse(requestUrl, key, make, ctx) {
+  const cache = globalThis.caches?.default;
+  const cacheKey = cache && new Request(new URL(`/__cache/${CACHE_VERSION}/${key}`, requestUrl));
+  if (cache) {
+    const hit = await cache.match(cacheKey);
+    if (hit) return hit;
+  }
+  const res = await make();
+  if (cache && res.status === 200) {
+    const put = cache.put(cacheKey, res.clone());
+    if (ctx?.waitUntil) ctx.waitUntil(put); else await put;
+  }
+  return res;
+}
+
 const REFRESH_LOCK_SECONDS = 120; // KV's minimum TTL is 60
 
 // Per isolate: the last value seen ({ computedAt, value }), when it was last

@@ -5,11 +5,12 @@
  *   npm run data:crashes -- --refetch    fetch every row in the date range again, then build
  *   npm run data:crashes:push -- --local   load the build into the local D1 (what `astro dev` reads)
  *   npm run data:crashes:push -- --remote  load it into production D1
+ *   (a push then rebuilds NYC Crash Hotspots' KV values: scripts/build-hotspots.mjs)
  *
  * The date range is dateRange() in src/lib/crashes/config.js (the last
  * RANGE_YEARS years); the build drops rows older than it on the day it runs,
  * so a kept fetch can be rebuilt later. The site's
- * hourly cron keeps recent weeks current (src/lib/server/crashes-sync.js);
+ * data refresh keeps recent weeks current (src/lib/server/crashes-sync.js);
  * run a full rebuild about monthly to pick up older amendments and rows the
  * city deleted (the ETL status page says when one is due).
  *
@@ -222,6 +223,9 @@ async function push() {
   await writeImportSql();
   console.log(`Loading into D1 (${where.slice(2)})…`);
   execFileSync("npx", ["wrangler", "d1", "execute", D1_NAME, where, "--yes", `--file=${SQL_FILE.pathname}`], { stdio: "inherit" });
+  // NYC Crash Hotspots serves what was built from D1 into KV, so build it again now.
+  console.log("Building NYC Crash Hotspots from it…");
+  execFileSync(process.execPath, [new URL("build-hotspots.mjs", import.meta.url).pathname, where], { stdio: "inherit" });
 }
 
 if (args.has("--push")) {

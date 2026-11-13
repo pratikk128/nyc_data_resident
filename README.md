@@ -24,7 +24,7 @@ src/pages/street-closures/  Street Closures Near You (rendered on demand)
 src/components/street-closures/  The finder (search, window tabs, map + cards, breakdown) and method notes
 src/pages/crash-hotspots/  NYC Crash Hotspots (rendered on demand)
 src/components/crash-hotspots/  Place and how you get around, stat cards, what to watch for, dangerous intersections and map; method notes
-src/lib/crashes/          Crash data: config (date range), schema, normalizing, rows, facts (facts.js); NYC Crash Hotspots' query, SQL, view and rendering (hotspot-*.js)
+src/lib/crashes/          Crash data: config (date range), schema, normalizing, rows, facts (facts.js); NYC Crash Hotspots' query, SQL, counting in JS, browser loader, view and rendering (hotspot-*.js)
 src/pages/building-report/  Building Report Card: /building-report/?bbl=<BBL> (key takeaways), plus repairs/, pests/, legal/ and all/ per tax lot (rendered on demand)
 src/components/building-report/  Page shell, address search, header and map, part cards, key takeaways, the nine sections; terms and sources
 src/lib/building-report/  Building report logic: datasets and labels (config.js), SoQL per section, summaries, rendering, address lookup
@@ -117,7 +117,7 @@ Each dashboard's data reaches the site one of two ways, and both are tracked in 
 | School Quality | `dnpx-dfnc` (+ `school-locations.json`) | yearly | no | 30 days |
 | City Payroll | `k397-673e` | yearly | no | 30 days |
 | Street Closures | `i6b5-j7bu` | weekly | no | 7 days |
-| Crash Hotspots (D1, not KV: see below) | `h9gi-nx95` (+ `bm4k-52h4`, `f55k-p6yu`) | daily | yes | 24 h |
+| Crash Hotspots (sync to D1, then built into KV: see below) | `h9gi-nx95` (+ `bm4k-52h4`, `f55k-p6yu`) | daily | yes | 24 h |
 
 Cadences are `daily`, `weekly`, `biweekly`, `monthly`, `quarterly`, `yearly` and `as-needed`. Each also sets when the source counts as **late** (`overdueDays`: 3 days for daily data, 45 for monthly, 400 for yearly, never for as-needed), which is logged and reported. Every source is checked on every run whatever its cadence, so an off-schedule or as-needed update is picked up within 12 hours.
 
@@ -376,7 +376,7 @@ Quick-filter chips (`JOB_CHIPS` in `build.js`). A chip with no matching title in
 
 ## Crash data (D1)
 
-NYC Crash Hotspots reads a local copy of the NYPD crash tables in D1.
+NYC Crash Hotspots is built from a local copy of the NYPD crash tables in D1. Only the data refresh reads D1; page views read what it built into KV (see NYC Crash Hotspots below).
 
 **Data.** The three NYPD tables on NYC Open Data: crashes (`h9gi-nx95`, key `collision_id`), vehicles (`bm4k-52h4`, key `unique_id`) and persons (`f55k-p6yu`, key `unique_id`). Things the column names don't tell you:
 
@@ -399,7 +399,7 @@ npm run dev                                # http://localhost:4321/crash-hotspot
 
 `SOCRATA_APP_TOKEN` (optional, in `.dev.vars` or the environment) raises Socrata's rate limits; without one the first fetch (about 600,000 rows for a year) can take an hour or so. A stopped fetch picks up after the tables it finished; `-- --refetch` starts over. The fetch is kept in `.data/crashes/raw/` (gitignored), so changing a normalizer only needs `npm run data:crashes` again, not a new fetch. The build prints rows per table, orphans (vehicles or persons whose crash isn't in the crash table, persons whose vehicle is missing; kept, not dropped) and the most common makes and vehicle types the maps don't know yet.
 
-**Production.** After the first deploy creates the D1 database (`asknycdata-crashes`, binding `CRASHES_DB`): `npm run data:crashes:push -- --remote`. A push replaces the tables in one go (built as `*_next`, then swapped in) and keeps `ingest_log`.
+**Production.** After the first deploy creates the D1 database (`asknycdata-crashes`, binding `CRASHES_DB`): `npm run data:crashes:push -- --remote`. A push replaces the tables in one go (built as `*_next`, then swapped in) and keeps `ingest_log`, then rebuilds NYC Crash Hotspots' KV values from it (`npm run data:hotspots -- --remote|--local` does that step alone).
 
 **Keeping it current.** The scheduled refresh (as dataset `crashes` in `etl.js`) runs `src/lib/server/crashes-sync.js` when the crash table changes: it re-reads the last 45 days (`SYNC_DAYS`) of all three tables, writes only rows whose hash changed, and deletes rows the city dropped from that window, plus crashes (and their vehicles, persons and street rows) that have aged out of the one-year range. It refuses to delete anything if the source suddenly has far fewer crashes than the database. Older amendments need a full rebuild, about monthly (`npm run data:crashes -- --refetch`, then `push -- --remote`); `/api/etl/status` says when one is due (`REBUILD_DUE_DAYS`).
 
@@ -421,9 +421,19 @@ Deliberately left out: time of day, trends by month and full breakdowns. They're
 - "Seriously hurt" isn't on the report; `personSeverity()` reads it from the injury type (fracture, internal, concussion, crush, severe bleeding…) and emotional status (unconscious, semiconscious, apparent death). The page says it's a stand-in for the city's KSI count.
 - The build prints contributing factors and pre-crash actions no group takes, like it does for makes.
 
-**API.** `GET /api/crash-hotspots/summary` and `GET /api/crash-hotspots/map` (serious and fatal crashes), both taking the page's URL parameters (`src/lib/crashes/hotspot-query.js`). SQL is in `hotspot-sql.js`; the summary carries every borough's totals for the mode, so an area and each of its corners are compared with their own borough (a borough with NYC). Both are cached at the edge for an hour per view and data version and rate limited per client (`HOTSPOTS_RATE_LIMITER`, 60 a minute); the four citywide views (no mode, and each mode) are also kept in KV per data version.
+**Built ahead, not queried per view.** The Workers free plan allows D1 5 million rows read a day, and counting one view in SQL scans `crash_facts` (about 80,000 rows) three or four times, so page views never touch D1. Instead, right after the crash sync, the data refresh runs `hotspotsJob` (`src/lib/server/crash-hotspots.js`): it reads `crash_facts` once (about 200,000 rows read with the street join, twice a day at most) and writes to KV
 
-**Tests.** `tests/crash-hotspots.test.js`: the groups and severity, bit stability, `factsRow()`, the URL round trip, the SQL on an in-memory database (totals, borough totals, ranked corners, an intersection's rank), the sync diff, "What to watch for", corner findings and tips.
+- `crashes:hotspots:facts:v1`: the whole year packed small by `packFacts()` in `src/lib/crashes/hotspot-compute.js` (about 4.6 MB, 1 MB gzipped, 0.8 MB brotli: rows in map order with coordinates as differences, places as dictionary numbers, an intersection as its two streets);
+- `crashes:hotspots:view:v1:<borough|nyc>:<mode|all>`: the summary and map of all of NYC and each borough, with no mode and each mode (24 views);
+- `crashes:hotspots:v1`: what was built and the data's dates (the page header and `/api/etl/status` read it).
+
+That's 27 KV writes a build, once a day. `hotspot-compute.js` counts the same things as `hotspot-sql.js`'s statements, in JavaScript (`summarize()`, `mapOf()`); a test checks they agree for every kind of place and mode, and SQL stays the reference.
+
+**API.** `GET /api/crash-hotspots/view?[boro=…][&mode=…]` → `{ summary, map }` for all of NYC or a borough, and `GET /api/crash-hotspots/facts` → the packed facts. Both pass one KV value through as text (no parsing, so almost no CPU) and are cached at the edge per build. The page (`src/lib/crashes/hotspot-client.js` `loadHotspots()`) uses the view for NYC and the boroughs; for a ZIP, street, intersection or address it downloads the facts once and counts in the browser (a few to 25 ms a view). The summary carries every borough's totals for the mode, so an area and each of its corners are compared with their own borough (a borough with NYC). The address report's street safety card uses the same loader. The map's points keep their shape `[lat, lon, severity, id, date, label]`, but `id` is always `null` now: the map never used it, and it kept the download smaller.
+
+**Changing the packed shape** (`packFacts()`): bump `FACTS_FORMAT` in `hotspot-compute.js`. The KV keys and job key carry it, so the next refresh builds the new keys, and a page that gets facts in a format it can't read says so instead of showing wrong numbers.
+
+**Tests.** `tests/crash-hotspots.test.js`: the groups and severity, bit stability, `factsRow()`, the URL round trip, the SQL on an in-memory database (totals, borough totals, ranked corners, an intersection's rank), the JS counting against the SQL on a made-up year (every kind of place and mode, after packing and a trip through JSON), the build into KV and the pass-through routes, the sync diff, "What to watch for", corner findings and tips.
 
 ## Theme
 

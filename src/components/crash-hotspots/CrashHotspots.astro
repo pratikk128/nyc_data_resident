@@ -6,8 +6,9 @@
  * people get hurt most, each with what goes wrong there.
  *
  * The view lives in the URL (src/lib/crashes/hotspot-query.js), so reload,
- * Back and shared links work. Each change loads /api/crash-hotspots/summary
- * and /api/crash-hotspots/map in parallel.
+ * Back and shared links work. Each change loads the view's summary and map
+ * (hotspot-client.js): built ahead for all of NYC and the boroughs, counted
+ * in the browser for anything else.
  */
 import { MODES, RADII, DEFAULT_RADIUS } from '../../lib/crashes/hotspot-query.js';
 import { WATCH, CORNER } from '../../lib/crashes/hotspot-view.js';
@@ -106,13 +107,13 @@ const radiusLabel = (m: number) => (m === 250 ? '250 m (about 3 blocks)' : '500 
   import { statCards, watchFor, mostCommon, cornerFindings, victimOf, toCsv, WATCH, CORNER } from '../../lib/crashes/hotspot-view.js';
   import { statCardsHtml, watchHtml, spotsHtml, escape } from '../../lib/crashes/hotspot-render.js';
   import { mountHotspotMap } from '../../lib/crashes/hotspot-map.js';
+  import { loadHotspots, ERROR_TEXT } from '../../lib/crashes/hotspot-client.js';
   import { suggest, resolveLocation } from '../../lib/complaints311/geocode.js';
   import { inCityLimits } from '../../lib/in-city.js';
   import { boroughLabel } from '../../lib/complaints311/config.js';
   import { count, date } from '../../lib/format.js';
   import { syncReportLink } from '../../lib/address-report/link.js';
 
-  const ERROR_TEXT = 'We couldn’t load the crash numbers. Check your connection and try again.';
   const root = document.querySelector<HTMLElement>('[data-hotspots]')!;
   const $ = <T extends Element = HTMLElement>(sel: string) => root.querySelector<T>(sel)!;
   const $$ = <T extends Element = HTMLElement>(sel: string) => [...root.querySelectorAll<T>(sel)];
@@ -152,13 +153,6 @@ const radiusLabel = (m: number) => (m === 250 ? '250 m (about 3 blocks)' : '500 
 
   // ---------- Loading ----------
 
-  async function getJson(path: string, signal: AbortSignal) {
-    const res = await fetch(`${path}?${queryToParams(query)}`, { signal });
-    const body = await res.json().catch(() => null);
-    if (!res.ok) throw new Error(typeof body?.error === 'string' && body.error !== 'upstream' ? body.error : ERROR_TEXT);
-    return body;
-  }
-
   async function load() {
     const id = ++request;
     controller?.abort();
@@ -168,12 +162,9 @@ const radiusLabel = (m: number) => (m === 250 ? '250 m (about 3 blocks)' : '500 
     root.classList.add('is-loading');
     let points: any;
     try {
-      const [s, m] = await Promise.all([
-        getJson('/api/crash-hotspots/summary', controller.signal),
-        getJson('/api/crash-hotspots/map', controller.signal)
-      ]);
+      const view = await loadHotspots(query, { signal: controller.signal });
       if (id !== request) return;
-      summary = s; points = m;
+      summary = view.summary; points = view.map;
     } catch (err: any) {
       if (err.name === 'AbortError' || id !== request) return;
       statusEl.innerHTML = `${escape(err.message || ERROR_TEXT)} <button type="button" class="cl-link-btn" data-retry>Try again</button>`;

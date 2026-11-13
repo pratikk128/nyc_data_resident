@@ -1,7 +1,9 @@
 /*
  * NYC Crash Hotspots: the crash groups and severity (facts.js), the URL and
  * modes (hotspot-query.js), the SQL on an in-memory database (hotspot-sql.js),
- * the sync's facts diff, and what the page says (hotspot-view.js, hotspot-render.js).
+ * the same numbers counted in JS (hotspot-compute.js) and the build that
+ * stores them (server/crash-hotspots.js), the sync's facts diff, and what
+ * the page says (hotspot-view.js, hotspot-render.js).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -9,7 +11,10 @@ import { DatabaseSync } from "node:sqlite";
 
 import { WHO, CAUSES, MANEUVERS, VEHICLES, DIMENSIONS, causeKey, maneuverKey, maskOf, keysOf, personSeverity, factsRow, cornerOf, cellOf, dayOfWeek, byCrash } from "../src/lib/crashes/facts.js";
 import { readQuery, queryToParams, queryKey, placeFromText, filtersFor } from "../src/lib/crashes/hotspot-query.js";
-import { totalsSql, boroughTotalsSql, readTotals, addTotals, cornersSql, readCorners, cornerRankSql, areaBoroughSql, pointsSql } from "../src/lib/crashes/hotspot-sql.js";
+import { totalsSql, boroughTotalsSql, readTotals, addTotals, cornersSql, readCorners, cornerRankSql, areaBoroughSql, pointsSql, factsPageSql, STREET_SEP } from "../src/lib/crashes/hotspot-sql.js";
+import { packFacts, unpackFacts, summarize, mapOf } from "../src/lib/crashes/hotspot-compute.js";
+import { streetMatchKey, streetBaseKey } from "../src/lib/crashes/normalize.js";
+import { boroughLabel } from "../src/lib/complaints311/config.js";
 import { statCards, watchFor, patterns, mostCommon, cornerFindings, tipFor, howOften, groupTitle, toCsv, WATCH, CORNER, TIPS } from "../src/lib/crashes/hotspot-view.js";
 import { watchHtml, spotsHtml } from "../src/lib/crashes/hotspot-render.js";
 import { crashRow, streetRows, vehicleRow, personRow } from "../src/lib/crashes/rows.js";
@@ -433,4 +438,164 @@ test("dangerous intersections: each against its own borough, numbered, escaped, 
   assert.match(html, /data-extra hidden/, "past the first two, folded");
   assert.match(html, /Show 1 more/);
   assert.match(spotsHtml([]), /No intersection here/);
+});
+
+// ---------- Counting without SQL (hotspot-compute.js) ----------
+
+// A seeded, made-up year of crash_facts and crash_streets: enough corners, streets, places and kinds to exercise every rule.
+function syntheticDb(n = 1500) {
+  let seed = 7;
+  const rand = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
+  const pick = (list) => list[Math.floor(rand() * list.length)];
+  const db = new DatabaseSync(":memory:");
+  for (const sql of Object.values(TABLES)) db.exec(sql);
+  for (const sql of INDEXES) db.exec(sql);
+  const put = (table, row) => db.prepare(`INSERT INTO ${table} (${COLUMNS[table].join(",")}) VALUES (${COLUMNS[table].map(() => "?").join(",")})`)
+    .run(...COLUMNS[table].map((c) => row[c] ?? null));
+  const streets = [["BROADWAY", "Broadway"], ["W 72 ST", "W 72 St"], ["E 72 ST", "E 72 St"], ["AMSTERDAM AVE", "Amsterdam Ave"],
+    ["ATLANTIC AVE", "Atlantic Ave"], ["FLATBUSH AVE", "Flatbush Ave"], ["QUEENS BLVD", "Queens Blvd"]];
+  const boroughs = ["MANHATTAN", "BROOKLYN", "QUEENS", "BRONX", "STATEN ISLAND", null];
+  const zips = ["10023", "10024", "11201", "11217", "11375", null];
+  for (let i = 0; i < n; i++) {
+    const on = pick(streets), cross = rand() < 0.7 ? pick(streets) : null, off = rand() < 0.1 ? pick(streets) : null;
+    const corner = cross && cross !== on ? cornerOf(rand() < 0.2 ? on[1].toUpperCase() : on[1], cross[1]) : { key: null, label: null };
+    const severity = pick([0, 0, 0, 1, 1, 2, 3]);
+    const located = rand() < 0.95;
+    const id = `c${String(i).padStart(5, "0")}`;
+    const date = `2026-${String(1 + Math.floor(rand() * 9)).padStart(2, "0")}-${String(1 + Math.floor(rand() * 28)).padStart(2, "0")}`;
+    const count = () => (rand() < 0.15 ? 1 + Math.floor(rand() * 2) : 0);
+    put("crash_facts", {
+      collision_id: id, crash_date: date, hour: 12, dow: 1, borough: pick(boroughs), zip_code: pick(zips),
+      lat: located ? Math.round((40.70 + rand() * 0.1) * 1e6) / 1e6 : null, lon: located ? Math.round((-74.0 + rand() * 0.1) * 1e6) / 1e6 : null,
+      cell: null, corner: corner.key, corner_label: corner.label, severity,
+      killed: severity === 3 ? 1 : 0, injured: severity ? 1 + count() : 0, serious: severity === 2 ? 1 : 0,
+      ped_killed: count(), ped_serious: count(), ped_injured: count(), cyc_killed: count(), cyc_serious: count(), cyc_injured: count(),
+      erider_killed: count(), erider_serious: count(), erider_injured: count(),
+      who: Math.floor(rand() * 32), causes: Math.floor(rand() * 32768), maneuvers: Math.floor(rand() * 512), vehicles: Math.floor(rand() * 8192), h: "x"
+    });
+    const named = [["on", on], ["cross", cross], ["off", off]].filter(([, s]) => s);
+    for (const [field, s] of named) {
+      db.prepare("INSERT OR IGNORE INTO crash_streets (street, street_base, collision_id, crash_date, field) VALUES (?, ?, ?, ?, ?)")
+        .run(streetMatchKey(s[1]), streetBaseKey(streetMatchKey(s[1])), id, date, field);
+    }
+  }
+  db.exec("INSERT INTO ingest_log (kind, started_at, finished_at) VALUES ('full', '2026-10-01T00:00:00Z', '2026-10-01T01:00:00Z')");
+  return db;
+}
+
+// What the Worker used to answer, from SQL (the reference the counting in JS must match).
+function sqlView(all, query) {
+  const { area } = query;
+  const byBorough = all(boroughTotalsSql(query));
+  const topBorough = area && area.kind !== "borough" ? all(areaBoroughSql(query))[0]?.borough ?? null : area?.borough ?? null;
+  const here = area ? readTotals(all(totalsSql(query))[0]) : null;
+  const boroughs = Object.fromEntries(byBorough.filter((r) => r.borough).map((r) => [r.borough, readTotals(r)]));
+  const city = addTotals(byBorough.map((r) => readTotals(r)));
+  let compareTo = null;
+  if (area?.kind === "borough") compareTo = { kind: "city", label: "NYC" };
+  else if (area) compareTo = topBorough && boroughs[topBorough] ? { kind: "borough", borough: topBorough, label: boroughLabel(topBorough) } : { kind: "city", label: "NYC" };
+  const compare = compareTo ? (compareTo.kind === "borough" ? boroughs[compareTo.borough] : city) : null;
+  const corner = area?.kind === "street" && area.streets.length === 2;
+  let rank = null;
+  if (corner && compareTo?.kind === "borough" && here.hurtCrashes) {
+    const [r] = all(cornerRankSql(query, compareTo.borough, here.hurtCrashes));
+    if (r?.total) rank = { label: compareTo.label, total: r.total, above: r.above };
+  }
+  return {
+    summary: { area: area ? { kind: corner ? "corner" : area.kind, label: area.label } : null, compareTo, here: here ?? city, compare, city, boroughs,
+      corners: readCorners(all(cornersSql(query))), rank },
+    points: all(pointsSql(query)).map((p) => [p.lat, p.lon, p.severity, null, p.date, p.label])
+  };
+}
+
+// Equal, with averaged coordinates allowed to differ in the last rounded place.
+function assertSame(actual, expected, path = "") {
+  if (typeof actual === "number" && typeof expected === "number" && !Number.isInteger(expected)) {
+    assert.ok(Math.abs(actual - expected) <= 2e-5, `${path}: ${actual} vs ${expected}`);
+  } else if (actual && expected && typeof actual === "object") {
+    assert.deepEqual(Object.keys(actual).sort(), Object.keys(expected).sort(), path);
+    for (const k of Object.keys(expected)) assertSame(actual[k], expected[k], `${path}.${k}`);
+  } else {
+    assert.equal(actual, expected, path);
+  }
+}
+
+const HOTSPOT_QUERIES = ["", "mode=walk", "mode=bike", "mode=drive", "boro=BROOKLYN", "boro=QUEENS&mode=bike", "zip=10023", "zip=11201&mode=walk",
+  "zip=10467", "street=Broadway", "street=72 St", "street=W 72 St", "street=E 72 St&mode=walk", "street=Broadway&cross=W 72 St",
+  "street=Broadway&cross=W 72 St&boro=MANHATTAN", "street=Atlantic Ave&cross=Flatbush Ave&boro=BROOKLYN&mode=bike", "street=Nowhere St",
+  "lat=40.75&lon=-73.95", "lat=40.75&lon=-73.95&r=500&mode=walk", "lat=40.72&lon=-73.99&mode=bike", "lat=40.60&lon=-74.10"];
+
+test("counting in JS: the same summary and map as the SQL, for every kind of place and mode, after a trip through JSON", () => {
+  const db = syntheticDb();
+  const all = (stmt) => db.prepare(stmt.sql).all(...stmt.params).map((r) => ({ ...r }));
+  const rows = all(factsPageSql("", 1e6)).map((r) => ({ ...r, streets: r.streets ? r.streets.split(STREET_SEP) : [] }));
+  const t = unpackFacts(JSON.parse(JSON.stringify(packFacts(rows, { dataThrough: "2026-09-28" }))));
+  assert.equal(t.meta.dataThrough, "2026-09-28");
+  let corners = 0, ranked = 0;
+  for (const qs of HOTSPOT_QUERIES) {
+    const query = q(qs);
+    const want = sqlView(all, query);
+    const summary = summarize(t, query);
+    assertSame(summary, want.summary, qs || "(nyc)");
+    corners += summary.corners.length;
+    if (summary.rank) ranked++;
+    const map = mapOf(t, query);
+    const key = (p) => p.join("|");
+    assert.deepEqual(map.points.map(key).sort(), want.points.map(key).sort(), `${qs} map`);
+    assert.deepEqual(map.points.map((p) => [p[2], p[4]]), want.points.map((p) => [p[2], p[4]]), `${qs}: killed first, then newest`);
+  }
+  assert.ok(corners > 20 && ranked > 0, "the made-up data has ranked corners and an intersection's rank");
+});
+
+test("packing: a row's coordinates survive exactly; an id is never sent", () => {
+  const rows = [
+    { collision_id: "a", crash_date: "2026-01-02", borough: "QUEENS", zip_code: "11375", lat: 40.712345, lon: -73.98765, corner: null, corner_label: null, severity: 2, injured: 1, who: 1, causes: 0, maneuvers: 0, vehicles: 0, streets: [] },
+    { collision_id: "b", crash_date: "2026-01-03", borough: null, zip_code: null, lat: null, lon: null, corner: null, corner_label: null, severity: 0, injured: 0, who: 0, causes: 0, maneuvers: 0, vehicles: 0, streets: [] },
+    { collision_id: "c", crash_date: "2026-01-04", borough: "QUEENS", zip_code: "11375", lat: 40.1234567, lon: -73.1, corner: null, corner_label: null, severity: 3, injured: 0, who: 0, causes: 0, maneuvers: 0, vehicles: 0, streets: [] }
+  ];
+  const packed = packFacts(rows);
+  assert.ok(!JSON.stringify(packed).includes('"a"'));
+  const t = unpackFacts(JSON.parse(JSON.stringify(packed)));
+  const coords = [...Array(t.n).keys()].map((i) => [t.lat[i], t.lon[i]]).filter(([a]) => !Number.isNaN(a)).sort();
+  assert.deepEqual(coords, [[40.1234567, -73.1], [40.712345, -73.98765]]);
+  assert.throws(() => unpackFacts({ ...packed, format: 0 }), /format/);
+});
+
+test("hotspots build: one read of D1, the views built ahead and the facts in KV, passed through untouched", async () => {
+  const { env, fakeKv } = await import("./support/workers.js");
+  const { hotspotsJob, viewKey, FACTS_KEY, viewResponse, factsResponse, isPrebuilt } = await import("../src/lib/server/crash-hotspots.js");
+  const db = syntheticDb(400);
+  let reads = 0;
+  const statement = (sql, params = []) => ({ bind: (...p) => statement(sql, p), all: async () => { reads++; return { results: db.prepare(sql).all(...params).map((r) => ({ ...r })) }; } });
+  env.CRASHES_DB = { prepare: (sql) => statement(sql) };
+  env.DATA_CACHE = fakeKv();
+  try {
+    const built = await hotspotsJob.run();
+    assert.equal(built.crashes, 400);
+    assert.equal(built.views, 24, "all of NYC and five boroughs, each with no mode and three");
+    assert.equal(built.lastFull, "2026-10-01T01:00:00Z");
+    assert.ok(reads <= 3, "the log and the facts, a page at a time");
+    assert.equal(env.DATA_CACHE.store.size, 25);
+
+    const all = (stmt) => db.prepare(stmt.sql).all(...stmt.params).map((r) => ({ ...r }));
+    for (const qs of ["", "mode=walk", "boro=BROOKLYN&mode=bike"]) {
+      const query = q(qs);
+      assert.ok(isPrebuilt(query));
+      const view = JSON.parse(env.DATA_CACHE.store.get(viewKey(query)));
+      assertSame(view.summary, { dataThrough: built.dataThrough, dateFrom: built.dateFrom, ...sqlView(all, query).summary }, qs);
+      assert.equal(view.map.points.length, sqlView(all, query).points.length);
+    }
+    assert.ok(!isPrebuilt(q("zip=10023")) && !isPrebuilt(q("street=Broadway")) && !isPrebuilt(q("lat=40.75&lon=-73.95")));
+
+    const url = new URL("https://example.test/api/crash-hotspots/view");
+    const res = await viewResponse(q("boro=QUEENS"), url);
+    assert.equal(res.headers.get("Content-Type"), "application/json; charset=utf-8");
+    assert.equal(await res.text(), env.DATA_CACHE.store.get(viewKey(q("boro=QUEENS"))));
+    const facts = await (await factsResponse(url)).json();
+    assert.equal(facts.n, 400);
+    assert.equal(env.DATA_CACHE.store.get(FACTS_KEY), JSON.stringify(facts));
+  } finally {
+    delete env.CRASHES_DB;
+    delete env.DATA_CACHE;
+  }
 });

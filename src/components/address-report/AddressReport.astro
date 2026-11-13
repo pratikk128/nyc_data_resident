@@ -148,6 +148,8 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
   import { inCityLimits } from '../../lib/in-city.js';
   import { resolveLocation, suggest, buildingBbl, GEOSEARCH } from '../../lib/complaints311/geocode.js';
   import zipFile from '../../data/zip-centroids.json';
+  import { readQuery } from '../../lib/crashes/hotspot-query.js';
+  import { loadHotspots } from '../../lib/crashes/hotspot-client.js';
 
   const ERROR_TEXT = 'Couldn’t reach NYC Open Data. Their servers might be stuck behind a double-parked truck. Try again in a minute.';
   const TIMEOUT_TEXT = 'NYC Open Data is taking too long to answer. Try again in a minute.';
@@ -325,7 +327,7 @@ const TOPICS = GROUPS.flatMap((g) => g.topics);
       return { html: buildingHtml(lot, parts), glance: buildingGlance(lot, parts) };
     }, id);
     card('safety', links.safety, async () => {
-      const c = safetyCard(await get(`/api/crash-hotspots/summary?${at}&r=${CRASH_RADIUS}`));
+      const c = safetyCard((await loadHotspots(readQuery(new URLSearchParams(`${at}&r=${CRASH_RADIUS}`)))).summary);
       return { html: safetyHtml(c), glance: safetyGlance(c) };
     }, id);
 

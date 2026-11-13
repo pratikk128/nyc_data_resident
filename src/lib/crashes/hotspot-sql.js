@@ -188,3 +188,21 @@ export function pointsSql(query) {
     params
   };
 }
+
+/*
+ * One page of crash_facts for the data refresh to pack (hotspot-compute.js),
+ * in collision_id order after `after`, each row with its crash_streets keys
+ * joined by STREET_SEP in `streets`.
+ */
+export const STREET_SEP = "\u001f";
+export const FACTS_COLUMNS = ["collision_id", "crash_date", "borough", "zip_code", "lat", "lon", "corner", "corner_label", "severity",
+  "killed", "injured", "serious", "ped_killed", "ped_serious", "ped_injured", "cyc_killed", "cyc_serious", "cyc_injured",
+  "erider_killed", "erider_serious", "erider_injured", "who", "causes", "maneuvers", "vehicles"];
+export function factsPageSql(after, limit) {
+  return {
+    sql: `SELECT ${FACTS_COLUMNS.map((c) => `f.${c}`).join(", ")},
+      (SELECT group_concat(s.street, char(31)) FROM crash_streets s WHERE s.collision_id = f.collision_id) AS streets
+      FROM crash_facts f WHERE f.collision_id > ? ORDER BY f.collision_id LIMIT ${Math.floor(limit)}`,
+    params: [after]
+  };
+}

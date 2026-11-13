@@ -17,6 +17,7 @@
     "data:nyc-outline": "node scripts/refresh-nyc-outline.mjs",
     "data:crashes": "node --env-file-if-exists=.dev.vars scripts/ingest-crashes.mjs",
     "data:crashes:push": "node scripts/ingest-crashes.mjs --push",
+    "data:hotspots": "node scripts/build-hotspots.mjs",
     "data:check": "node scripts/check-snapshots.mjs",
     "etl": "node --env-file-if-exists=.dev.vars scripts/run-etl.mjs"
   },
