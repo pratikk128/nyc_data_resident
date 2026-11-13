@@ -4,7 +4,7 @@
  * and kept current by the daily sync (crashes-sync.js). Requests never reach
  * Socrata.
  *
- * The ETL dataset at the bottom runs the daily sync from the hourly cron.
+ * The ETL dataset at the bottom runs the daily sync from the scheduled refresh.
  */
 import { env } from "cloudflare:workers";
 import { dailyValue } from "./cache.js";
@@ -94,7 +94,7 @@ export const crashesDataset = {
   rolling: true,
   metadataJob,
   jobs: [syncJob],
-  // For /api/etl/status: the monthly full rebuild, which the cron can't do.
+  // For /api/etl/status: the monthly full rebuild, which the refresh doesn't do.
   async attention(now = Date.now()) {
     try {
       const s = await dataStatus();

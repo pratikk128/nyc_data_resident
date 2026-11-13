@@ -1,14 +1,8 @@
 /*
  * Cloudflare Worker entry (wrangler.jsonc → main). Astro handles every HTTP
- * request; the hourly cron trigger refreshes the aggregates in KV whose
- * source datasets changed (src/lib/server/etl.js).
+ * request. The data refresh runs outside the Worker (scripts/run-etl.mjs,
+ * scheduled by .github/workflows/etl.yml) and writes to KV and D1.
  */
 import { handle } from "@astrojs/cloudflare/handler";
-import { runEtl } from "./lib/server/etl.js";
 
-export default {
-  fetch: handle,
-  scheduled(controller, _env, ctx) {
-    ctx.waitUntil(runEtl(controller.scheduledTime));
-  }
-};
+export default { fetch: handle };

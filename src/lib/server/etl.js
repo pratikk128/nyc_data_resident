@@ -1,7 +1,8 @@
 /*
  * The data refresh pipeline: every dataset whose aggregates live in KV, and
- * the hourly cron that keeps them current (wrangler.jsonc → triggers.crons;
- * handler in src/worker.js). When to rebuild is decided in
+ * the scheduled refresh that keeps them current. It runs in Node, not in the
+ * Worker (scripts/run-etl.mjs, every 3 hours from .github/workflows/etl.yml),
+ * with KV and D1 reached through wrangler (scripts/lib/workers-env.mjs). When to rebuild is decided in
  * src/lib/etl/cadence.js; each dataset's module says how often the city
  * publishes it.
  *
@@ -11,7 +12,7 @@
  *      the cadence's rebuild interval), in parallel except a job's `after`,
  *   3. record what each job was built from in the "etl:state" KV entry.
  * A job that fails keeps its last good value in KV and is retried the next
- * hour; the run then throws, so the failure shows in the Worker's cron logs.
+ * run; the run then throws, so the failure shows in the workflow's logs.
  * The same run checks the build-time snapshots (src/lib/etl/snapshots.js)
  * against their sources and logs the ones to refresh.
  *
@@ -48,9 +49,9 @@ const iso = (ms) => new Date(ms).toISOString();
 const snapshotBuiltAt = Object.fromEntries(Object.entries(snapshotManifest).map(([id, s]) => [id, s.builtAt]));
 
 // What /api/etl/status shows for a failure. The status route is public, so
-// it gets a short, fixed summary; the full message goes to the cron logs.
+// it gets a short, fixed summary; the full message goes to the refresh's logs.
 const publicError = (err) => {
-  if (!(err instanceof SocrataError)) return "build failed (see the Worker's cron logs)";
+  if (!(err instanceof SocrataError)) return "build failed (see the refresh's logs)";
   return err.status ? `NYC Open Data returned ${err.status}` : "couldn't reach NYC Open Data";
 };
 
@@ -192,7 +193,7 @@ export async function etlStatus(now = Date.now()) {
       jobs
     };
   });
-  // Datasets with upkeep the cron can't do say so themselves (crashes: the monthly full rebuild).
+  // Datasets with upkeep the refresh can't do say so themselves (crashes: the monthly full rebuild).
   for (const ds of DATASETS) if (ds.attention) attention.push(...await ds.attention(now));
   const snapshots = SNAPSHOTS.map((snap) => {
     const s = state.snapshots?.[snap.id] ?? {};

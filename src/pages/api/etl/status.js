@@ -5,7 +5,7 @@
  * error), and which build-time snapshots need a refresh. `ok` is false and
  * `attention` lists why when something needs a look. See src/lib/server/etl.js.
  *
- * Reads one KV entry the hourly cron writes, so it needs no rate limit.
+ * Reads one KV entry the scheduled refresh writes, so it needs no rate limit.
  */
 import { etlStatus } from "../../../lib/server/etl.js";
 import { json } from "../../../lib/server/json.js";

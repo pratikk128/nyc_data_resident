@@ -2,11 +2,11 @@
  * City Payroll Spending (Citywide Payroll Data (Fiscal Year), k397-673e).
  * The queries and checks are in src/lib/payroll/build.js.
  *
- * The source changes about once a year. When it does, the hourly cron
+ * The source changes about once a year. When it does, the scheduled refresh
  * (etl.js) rebuilds the whole dashboard's data, about 30 seconds of Socrata
  * queries plus NYC-area CPI from BLS, into one KV entry that both pages and /api/payroll/agencies read.
- * Requests never run those queries: until the cron has built it (local dev,
- * or a new deployment's first hour), the pages show the bundled copy in
+ * Requests never run those queries: until the refresh has built it (local dev,
+ * or before the first refresh after a deploy), the pages show the bundled copy in
  * src/data/, refreshed by `npm run data:payroll`.
  */
 import { soql, datasetMetadata } from "./socrata.js";
@@ -57,7 +57,7 @@ export const payrollDataset = {
 
 const bundled = { byYear: bundledByYear, byAgency: bundledByAgency, jobs: bundledJobs, overtime: bundledOvertime };
 
-// The cron's copy, or the bundled one until there is one (or KV can't be read).
+// The refresh's copy, or the bundled one until there is one (or KV can't be read).
 export async function getPayroll() {
   try {
     return (await storedValue(payrollJob)) ?? bundled;

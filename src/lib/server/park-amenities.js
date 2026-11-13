@@ -6,11 +6,11 @@
  * normalize.js.
  *
  * The datasets are small (under 4,000 rows) and change at most monthly. The
- * hourly ETL check (etl.js) rebuilds a dataset's amenities job when it
+ * scheduled ETL check (etl.js) rebuilds a dataset's amenities job when it
  * changes (or the park names do, the run after), keeping its normalized amenities (one point each) in KV, so the
  * geometry is fetched once per change, not per search. A search reads all
- * four (built on the request only when KV has none yet: local dev, or a
- * fresh deploy before its first search or cron run), keeps what's near the
+ * four (built on the request only in local dev when KV has none yet;
+ * production reads KV only, src/lib/server/cache.js), keeps what's near the
  * rounded spot, and is cached at the edge for an hour, so requests don't wait
  * on Socrata.
  */

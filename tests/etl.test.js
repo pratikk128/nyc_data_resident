@@ -1,5 +1,5 @@
 /*
- * The data refresh policy (src/lib/etl/cadence.js): when the hourly cron
+ * The data refresh policy (src/lib/etl/cadence.js): when the scheduled refresh
  * rebuilds a job, when a source counts as late, and when a build-time
  * snapshot is stale.
  *   npm test
@@ -50,7 +50,7 @@ test("rolling jobs rebuild daily whatever their cadence, with slack for cron tim
   assert.equal(rebuildHours("yearly", true), 24);
 });
 
-test("requests only recompute once the cron is clearly behind", () => {
+test("outside production, requests only recompute once the refresh is clearly behind", () => {
   assert.equal(requestMaxAgeHours("daily", true), 26);
   assert.equal(requestMaxAgeHours("yearly"), 30 * 24 + 2);
   for (const name of Object.keys(CADENCES)) assert.ok(requestMaxAgeHours(name) > rebuildHours(name));
@@ -112,7 +112,8 @@ test("every snapshot names its files, its refresh command and its sources", () =
 });
 
 test("the status flags a cron that never ran or has stopped", () => {
-  assert.equal(cronProblem(null, NOW), "the hourly refresh has never run");
+  assert.equal(cronProblem(null, NOW), "the scheduled refresh has never run");
   assert.equal(cronProblem(ago(1), NOW), null);
-  assert.match(cronProblem(ago(5), NOW), /hasn't run since .* \(5 h ago\)/);
+  assert.equal(cronProblem(ago(5), NOW), null);
+  assert.match(cronProblem(ago(9), NOW), /hasn't run since .* \(9 h ago\)/);
 });

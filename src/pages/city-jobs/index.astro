@@ -8,7 +8,7 @@ import JobsSection from '../../components/city-jobs/JobsSection.astro';
 import { getPayroll } from '../../lib/server/payroll.js';
 import { date } from '../../lib/format.js';
 
-// Rendered on demand from the payroll data the hourly cron keeps in KV.
+// Rendered on demand from the payroll data the scheduled refresh keeps in KV.
 export const prerender = false;
 
 const payroll = await getPayroll();

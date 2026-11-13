@@ -1,11 +1,11 @@
 /*
  * When to rebuild a dataset's aggregates, and when to worry about it. Pure
- * (no Worker imports), so the cron runner (src/lib/server/etl.js), the status
+ * (no Worker imports), so the refresh (src/lib/server/etl.js), the status
  * API and scripts/check-snapshots.mjs share it, and tests can import it.
  *
  * Every dataset declares how often the city publishes it (its cadence, from
- * "Update Frequency" on its NYC Open Data page). The hourly cron reads each
- * dataset's rowsUpdatedAt (one small metadata request) and rebuilds a job when:
+ * "Update Frequency" on its NYC Open Data page). Each scheduled refresh
+ * (scripts/run-etl.mjs, every 3 hours) reads each dataset's rowsUpdatedAt (one small metadata request) and rebuilds a job when:
  *   - it has never been built (new job, or a new key after a code change),
  *   - the source changed since it was built (at most once per minGapHours,
  *     so a source that's touched every hour doesn't rebuild every hour), or
@@ -26,8 +26,8 @@ export const CADENCES = {
   "as-needed": { label: "As needed",     minGapHours: 12, rebuildHours: 30 * 24, overdueDays: null }
 };
 
-// Hourly cron runs start a few seconds apart; without this, a job built at
-// 22:15:03 would be "23.99 hours old" at 22:15:01 the next day and wait an hour.
+// Scheduled runs start a little early or late; without this, a job built at
+// 22:17:03 would be "23.99 hours old" at 22:17:01 the next day and wait a run.
 const SLACK_HOURS = 0.5;
 
 export function cadenceOf(name) {
@@ -39,8 +39,8 @@ export function cadenceOf(name) {
 export const rebuildHours = (cadence, rolling = false) =>
   rolling ? 24 : cadenceOf(cadence).rebuildHours;
 
-// For dailyValue() on the request path: the cron keeps values current, so a
-// request only recomputes once the cron has clearly stopped (2 hours past due).
+// For dailyValue() outside production (astro dev, tests): a value this old is
+// rebuilt on the request. Production requests never build (cache.js).
 export const requestMaxAgeHours = (cadence, rolling = false) => rebuildHours(cadence, rolling) + 2;
 
 /*
@@ -85,14 +85,15 @@ export function isOverdue(cadence, sourceUpdatedAt, now = Date.now()) {
   return now - Date.parse(sourceUpdatedAt) > overdueDays * 864e5;
 }
 
-// The cron runs hourly; this long without a run means it has stopped.
-export const CRON_LATE_HOURS = 2;
+// The refresh runs every 3 hours (.github/workflows/etl.yml), and GitHub may
+// start a scheduled run late or skip one; this long without a run means it has stopped.
+export const CRON_LATE_HOURS = 8;
 
-// Why the cron needs a look, or null: never ran, or hasn't run lately.
+// Why the refresh needs a look, or null: never ran, or hasn't run lately.
 export function cronProblem(lastRunAt, now = Date.now()) {
-  if (!lastRunAt) return "the hourly refresh has never run";
+  if (!lastRunAt) return "the scheduled refresh has never run";
   const hours = (now - Date.parse(lastRunAt)) / 3600e3;
-  if (hours > CRON_LATE_HOURS) return `the hourly refresh hasn't run since ${lastRunAt} (${Math.floor(hours)} h ago)`;
+  if (hours > CRON_LATE_HOURS) return `the scheduled refresh hasn't run since ${lastRunAt} (${Math.floor(hours)} h ago)`;
   return null;
 }
 

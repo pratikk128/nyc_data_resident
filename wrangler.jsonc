@@ -9,13 +9,16 @@
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat"],
 
-  // Aggregates for every dataset and the ETL's state (src/lib/server/etl.js).
+  // Aggregates for every dataset and the ETL's state (src/lib/server/etl.js),
+  // written by the scheduled refresh outside the Worker (scripts/run-etl.mjs,
+  // .github/workflows/etl.yml); requests only read them. No cron trigger: a
+  // refresh needs more CPU and subrequests than the free plan gives a Worker.
   // No "id": wrangler creates the namespace on first deploy.
   "kv_namespaces": [{ "binding": "DATA_CACHE" }],
 
   // NYC Crash Hotspots' crash, vehicle and person tables (src/lib/server/crashes.js).
   // Loaded by `npm run data:crashes` + `npm run data:crashes:push -- --local|--remote`;
-  // the hourly cron keeps recent weeks current. No "database_id": wrangler
+  // the scheduled refresh (scripts/run-etl.mjs) keeps recent weeks current. No "database_id": wrangler
   // creates the database on first deploy (push --remote after that).
   "d1_databases": [{ "binding": "CRASHES_DB", "database_name": "asknycdata-crashes" }],
 
@@ -45,11 +48,6 @@
   // The deploy's version id, part of the Street Closures, Help Near Me and Park Amenities edge cache keys
   // (src/lib/server/street-closures.js, help-near-me.js, park-amenities.js) so a deploy's changes show at once.
   "version_metadata": { "binding": "CF_VERSION_METADATA" },
-
-  // Hourly: checks every dataset's last update on NYC Open Data and rebuilds
-  // only what changed or is due (src/lib/etl/cadence.js), so a source that
-  // publishes daily, monthly or whenever is picked up within the hour.
-  "triggers": { "crons": ["15 * * * *"] },
 
   "observability": { "enabled": true }
 }

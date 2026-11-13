@@ -1,5 +1,5 @@
 /*
- * The crash lookup's daily sync, run by the hourly ETL (etl.js) when the
+ * The crash tables' daily sync, run by the scheduled refresh (etl.js) when the
  * crash table changes on NYC Open Data.
  *
  * The city republishes every row each day, so ":updated_at" can't say what

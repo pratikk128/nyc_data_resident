@@ -4,7 +4,7 @@
  * cleaning rules are in src/lib/help-near-me/normalize.js.
  *
  * The directories are small (a few to a few thousand rows) and change rarely
- * (yearly to monthly). The hourly ETL check (etl.js) rebuilds a directory's
+ * (yearly to monthly). The scheduled ETL check (etl.js) rebuilds a directory's
  * sites job when it changes, at most daily, which keeps its normalized sites
  * in KV. The few rows with no lat/lon, or a lat/lon far from their ZIP, are
  * geocoded with NYC GeoSearch inside that job, never on a request

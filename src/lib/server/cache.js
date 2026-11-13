@@ -8,13 +8,17 @@
  *
  * dailyValue()  Aggregates that are expensive and change only when their
  *               dataset does (benchmarks, indexes, dataset metadata), kept in
- *               the DATA_CACHE KV namespace. The hourly cron rebuilds each job
- *               when its source changes (src/lib/server/etl.js). When KV's copy
- *               is past the job's maxAgeHours (the cron has stopped) requests
- *               keep serving it and refresh it in the background; only an
- *               empty KV (first deploy, local dev) makes a request wait.
+ *               the DATA_CACHE KV namespace. The scheduled refresh
+ *               (scripts/run-etl.mjs → src/lib/server/etl.js) rebuilds each
+ *               job when its source changes and writes it to KV.
+ *               In production, requests only read KV: building a job takes
+ *               more CPU and subrequests than a Worker request gets on the
+ *               free plan, so a stale value is served as it is, and a job
+ *               that was never built throws NotBuilt. Elsewhere (astro dev,
+ *               tests, the refresh itself) a missing or stale value is built
+ *               on the spot, as before.
  *               Each isolate also keeps the value in memory, asks KV every few
- *               minutes whether the cron has built a newer one (a small
+ *               minutes whether the refresh has written a newer one (a small
  *               "<key>:at" entry, so the full value is only read when it
  *               changed), and runs at most one refresh per job at a time, so
  *               concurrent requests share it.
@@ -26,6 +30,13 @@ const CACHE_VERSION = "v1";
 // so a stale copy outlives a long Socrata outage.
 const KV_EXPIRY_SECONDS = 90 * 24 * 3600;
 const RECHECK_MS = 5 * 60e3; // how long an isolate trusts its in-memory copy
+
+// True in the deployed Worker: Vite replaces import.meta.env.PROD at build
+// time. Node (tests, scripts/run-etl.mjs) has no import.meta.env, so it throws.
+let READ_ONLY = false;
+try { READ_ONLY = import.meta.env.PROD === true; } catch {}
+
+export class NotBuilt extends Error {}
 
 // keep(data): false leaves an answer out of the cache (one missing a dataset that failed to load).
 export async function edgeCached(requestUrl, key, ttl, compute, ctx, keep = () => true) {
@@ -71,8 +82,12 @@ export async function dailyValue(job) {
   const stored = await latestStored(job);
   if (isFresh(stored, job)) return stored.value;
 
+  if (READ_ONLY) {
+    if (stored) return stored.value; // the refresh is behind; /api/etl/status says so
+    throw new NotBuilt(`${job.key} isn't in KV yet: run npm run etl -- --remote`);
+  }
   if (stored) {
-    // Stale (the cron has stopped): serve it now and refresh behind the response.
+    // Stale (the refresh has stopped): serve it now and refresh behind the response.
     waitUntil(backgroundRefresh(job).catch((err) =>
       console.warn(`Serving stale ${job.key} from ${stored.computedAt}: ${err.message}`)));
     return stored.value;
@@ -81,7 +96,7 @@ export async function dailyValue(job) {
 }
 
 /*
- * The job's value as the cron last built it, or null when KV has none. Never
+ * The job's value as the refresh last built it, or null when KV has none. Never
  * runs the job: for jobs too slow to run on a request, whose page has a
  * fallback (City Payroll's bundled copy).
  */

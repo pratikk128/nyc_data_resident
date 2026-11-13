@@ -4,7 +4,7 @@
  * (src/components/city-payroll/WorkforceSection.astro), which loads it only
  * once someone picks an agency. → { refreshedAt, agencies: [{ id, name, label, years }] }
  *
- * Reads the payroll data the cron keeps in KV (src/lib/server/payroll.js),
+ * Reads the payroll data the scheduled refresh keeps in KV (src/lib/server/payroll.js),
  * so requests don't reach Socrata and need no rate limit.
  */
 import { getPayroll } from "../../../lib/server/payroll.js";

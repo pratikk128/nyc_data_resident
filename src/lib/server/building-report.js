@@ -4,7 +4,7 @@
  * SoQL that counts on Socrata (src/lib/building-report/soql.js) and kept at
  * the edge for an hour per lot and section. Lookups that miss the cache are
  * rate limited per client (BUILDING_RATE_LIMITER in wrangler.jsonc). Each
- * dataset's "last updated" comes from its metadata job, which the hourly
+ * dataset's "last updated" comes from its metadata job, which the scheduled
  * ETL keeps current (buildingReportDatasets, registered in etl.js).
  *
  * Sections load one request each, so a slow or broken dataset only holds up

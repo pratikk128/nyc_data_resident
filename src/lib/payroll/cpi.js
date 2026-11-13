@@ -9,7 +9,7 @@
  * rest.
  *
  * Pure apart from the global fetch (there in both Workers and Node), so the
- * cron and the refresh script share it through buildPayroll().
+ * ETL (scripts/run-etl.mjs) and the payroll refresh script share it through buildPayroll().
  */
 export const CPI_SERIES = "CUURS12ASA0";
 const BLS_API = "https://api.bls.gov/publicAPI/v1/timeseries/data/";

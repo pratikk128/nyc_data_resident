@@ -4,7 +4,7 @@
  * (src/lib/server/restaurants.js) sends them. Text fields in the data are
  * uppercase and inconsistent, so text matches use upper() on both sides.
  */
-import { BOROUGHS } from "./inspections.js";
+import { BOROUGHS, NOT_INSPECTED_DATE } from "./inspections.js";
 import { inCityLimits } from "../in-city.js";
 
 export const SEARCH_LIMIT = 25;

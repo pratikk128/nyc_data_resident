@@ -1,7 +1,7 @@
 /*
  * Builds the City Payroll Spending data from NYC Open Data's "Citywide Payroll
  * Data (Fiscal Year)" (k397-673e). Pure (no Worker or Node imports), so the
- * hourly cron (src/lib/server/payroll.js) and the script that refreshes the
+ * scheduled refresh (src/lib/server/payroll.js) and the script that refreshes the
  * bundled fallback copy (scripts/refresh-payroll-data.mjs) share it.
  *
  * The dataset has millions of rows (one per employee per fiscal year), so

@@ -3,7 +3,7 @@
  * the rules are in src/lib/street-closures/closures.js.
  *
  * The dataset is small (~4,500 rows, one per permit per block, about 2 MB)
- * and DOT updates it about weekly. The hourly ETL check (etl.js) rebuilds a
+ * and DOT updates it about weekly. The scheduled ETL check (etl.js) rebuilds a
  * job when it changes, which keeps every block in KV, deduped by uniqueid and
  * grouped by segmentid.
  * Searches (a street, a borough or a radius) filter that copy in the Worker

@@ -15,7 +15,7 @@ src/pages/city-jobs/           What NYC City Jobs Pay, from the same payroll dat
 src/components/city-jobs/      JobsSection.astro
 src/layouts/DashboardLayout.astro   Shared shell for dashboard pages
 src/lib/                  Formatting helpers, payroll stats, chart code
-src/lib/payroll/build.js  Payroll queries and checks, shared by the cron and npm run data:payroll
+src/lib/payroll/build.js  Payroll queries and checks, shared by the data refresh and npm run data:payroll
 src/pages/restaurant-inspections/   NYC Restaurant Inspections (rendered on demand)
 src/pages/311-complaints/  311 Complaints in My Neighborhood (rendered on demand)
 src/pages/school-quality/  NYC School Quality Explorer: browse page and /school-quality/<DBN>/ (rendered on demand)
@@ -35,13 +35,14 @@ src/lib/schools/          School Quality Explorer logic: curated metrics (metric
 src/lib/street-closures/  Street closures logic: street names, purposes, blocks, windows and status, URL state, rendering, map
 src/lib/server/           Server-only: Socrata client (holds the token), caches, the data refresh pipeline (etl.js)
 src/lib/etl/              Refresh policy: cadences and when to rebuild (cadence.js), build-time snapshots (snapshots.js)
-src/worker.js             Worker entry: Astro for requests, hourly cron for the data refresh
+src/worker.js             Worker entry: Astro for requests (no cron; see scripts/run-etl.mjs)
 src/middleware.js         Security headers on Worker responses (public/_headers for static files)
 src/pages/sitemap.xml.js  Sitemap from the dashboard registry; public/robots.txt points to it
-wrangler.jsonc            Worker config: KV namespace, cron trigger
+wrangler.jsonc            Worker config: KV namespace, D1 database, rate limiters
 tests/                    `npm test` (node:test, no extra dependencies)
 src/data/                 Precomputed data snapshots (generated, committed)
-scripts/                  Data refresh scripts
+scripts/                  Data refresh scripts (run-etl.mjs: the scheduled refresh to KV and D1)
+.github/workflows/etl.yml Runs scripts/run-etl.mjs every 3 hours
 src/data/dashboards.js    Dashboard registry: the cards, plus sidebar categories (icons, tones)
 public/js/app.js          Landing page: category filter (?category=<slug>), sidebar collapse
 public/favicon.svg        Favicon
@@ -72,9 +73,20 @@ npx wrangler secret put SOCRATA_APP_TOKEN   # once
 npm run deploy                              # tests, astro check, astro build, wrangler deploy
 ```
 
-The first deploy creates the `DATA_CACHE` KV namespace and the hourly cron trigger (`15 * * * *`). `npm run deploy` first checks the build-time snapshots against NYC Open Data and warns about stale ones (it never blocks the deploy). The search cache (Workers Cache API) only works on a custom domain, so add asknycdata.com as a custom domain on the Worker; on `*.workers.dev` every search goes straight to Socrata.
+The first deploy creates the `DATA_CACHE` KV namespace. It's empty until the data refresh fills it (below): in production, requests only read KV. `npm run deploy` first checks the build-time snapshots against NYC Open Data and warns about stale ones (it never blocks the deploy). The search cache (Workers Cache API) only works on a custom domain, so add asknycdata.com as a custom domain on the Worker; on `*.workers.dev` every search goes straight to Socrata.
 
-To test the cron locally: `npm run build && npx wrangler dev -c dist/server/wrangler.json --test-scheduled`, then open `http://localhost:8787/cdn-cgi/handler/scheduled`.
+### Data refresh (runs outside the Worker)
+
+The Worker has no cron. Rebuilding the summaries means paging through large Socrata responses (payroll alone is minutes of queries), far more than the Workers free plan's 10 ms of CPU and 50 subrequests per invocation. So the same pipeline (`src/lib/server/etl.js`) runs in Node and writes to KV and D1 through wrangler:
+
+```sh
+npm run etl -- --remote   # production KV and D1 (wrangler login, or CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID)
+npm run etl -- --local    # the local state astro dev reads (.wrangler/state)
+```
+
+`scripts/run-etl.mjs` loads the server modules with `cloudflare:workers` swapped for `scripts/lib/workers-env.mjs`, whose `DATA_CACHE` reads keys with `wrangler kv key get` and sends every write in one `wrangler kv bulk put` at the end, and whose `CRASHES_DB` reads with `wrangler d1 execute --json` and sends the queued writes as one SQL file. A run writes `etl:state` plus two keys per rebuilt job, so even every 3 hours it stays far under KV's 1,000 writes a day. It exits 1 when any step failed (what succeeded is still written).
+
+`.github/workflows/etl.yml` runs it every 3 hours (and on demand from the Actions tab). It needs the repository secrets `CLOUDFLARE_API_TOKEN` (Workers KV Storage: Edit, D1: Edit) and `CLOUDFLARE_ACCOUNT_ID`, optionally `SOCRATA_APP_TOKEN`, and the repository variable `KV_NAMESPACE_ID` (from `npx wrangler kv namespace list` after the first deploy). After a first deploy, run it once by hand so the dashboards have data.
 
 ### Live data and caching
 
@@ -84,14 +96,14 @@ All Socrata calls go through `src/lib/server/socrata.js`, which adds the `X-App-
 |---|---|---|
 | Search results | Workers Cache API, keyed by the normalized query | 1 hour |
 | One restaurant | Workers Cache API | 1 hour |
-| Benchmarks (category averages), 311 borough and city baselines and citywide distributions, the certified business list and School Quality indexes, dataset metadata | KV `DATA_CACHE`, rebuilt by the hourly cron when the source changes (see [Data refresh pipeline](#data-refresh-pipeline)) | Until the source changes, or the cadence's safety rebuild (a request recomputes only if the cron is 2 h past due; if Socrata is down the last value is served, kept up to 90 days) |
+| Benchmarks (category averages), 311 borough and city baselines and citywide distributions, the certified business list and School Quality indexes, dataset metadata | KV `DATA_CACHE`, rebuilt by the scheduled refresh when the source changes (see [Data refresh pipeline](#data-refresh-pipeline)) | Until the source changes, or the cadence's safety rebuild (production requests never recompute: they serve what KV has, kept up to 90 days; in local dev a missing or stale value is built on the request) |
 | 311 areas (¼ and 1 mile) and ZIPs | Workers Cache API, keyed by lat/lon rounded to 3 decimals + radius + window | 6 hours |
 
 ## Data refresh pipeline
 
 Each dashboard's data reaches the site one of two ways, and both are tracked in one place.
 
-**1. KV aggregates (most dashboards), refreshed automatically.** Each dataset's server module declares how often the city publishes it. An hourly cron (`src/lib/server/etl.js`) reads every dataset's `rowsUpdatedAt` from NYC Open Data (one small request each) and rebuilds only the jobs that are due (`src/lib/etl/cadence.js`):
+**1. KV aggregates (most dashboards), refreshed automatically.** Each dataset's server module declares how often the city publishes it. The scheduled refresh (`src/lib/server/etl.js`, run by `scripts/run-etl.mjs` every 3 hours) reads every dataset's `rowsUpdatedAt` from NYC Open Data (one small request each) and rebuilds only the jobs that are due (`src/lib/etl/cadence.js`):
 
 - **never built**: a new dataset, or a job whose key changed with the code,
 - **source updated**: the dataset's rows changed since the job was built, at most once every `minGapHours` (6 h for daily data, 12 h otherwise), so a source touched every hour doesn't rebuild every hour,
@@ -107,11 +119,11 @@ Each dashboard's data reaches the site one of two ways, and both are tracked in 
 | Street Closures | `i6b5-j7bu` | weekly | no | 7 days |
 | Crash Hotspots (D1, not KV: see below) | `h9gi-nx95` (+ `bm4k-52h4`, `f55k-p6yu`) | daily | yes | 24 h |
 
-Cadences are `daily`, `weekly`, `biweekly`, `monthly`, `quarterly`, `yearly` and `as-needed`. Each also sets when the source counts as **late** (`overdueDays`: 3 days for daily data, 45 for monthly, 400 for yearly, never for as-needed), which is logged and reported. Every source is checked hourly whatever its cadence, so an off-schedule or as-needed update is picked up within the hour.
+Cadences are `daily`, `weekly`, `biweekly`, `monthly`, `quarterly`, `yearly` and `as-needed`. Each also sets when the source counts as **late** (`overdueDays`: 3 days for daily data, 45 for monthly, 400 for yearly, never for as-needed), which is logged and reported. Every source is checked on every run whatever its cadence, so an off-schedule or as-needed update is picked up within 3 hours.
 
-A job that fails keeps its last good value in KV and is retried the next hour; the run throws so the failure shows in the Worker's cron events. Within a dataset jobs run in parallel, except a job with `after`, which waits for that job. What each job was built from is kept in the `etl:state` KV entry. A job that joins a bundled snapshot (`snapshots: ["school-locations"]`) also rebuilds after a deploy that refreshed that snapshot. Each isolate checks a small `<key>:at` KV entry every 5 minutes, so a rebuilt value reaches every request within minutes.
+A job that fails keeps its last good value in KV and is retried the next run; the run exits 1 so the failure shows in the workflow's runs. Within a dataset jobs run in parallel, except a job with `after`, which waits for that job. What each job was built from is kept in the `etl:state` KV entry. A job that joins a bundled snapshot (`snapshots: ["school-locations"]`) also rebuilds after a deploy that refreshed that snapshot. Each isolate checks a small `<key>:at` KV entry every 5 minutes, so a rebuilt value reaches every request within minutes.
 
-**2. Build-time snapshots, checked automatically and refreshed by command.** School addresses and the NYC outline join several datasets, so they're committed JSON in `src/data/`. The Worker can't rewrite them. `src/lib/etl/snapshots.js` lists each snapshot, its sources and its refresh command. Each script records when it ran in `src/data/snapshots.json`, and the hourly cron flags a snapshot as stale when a source's rows (or a watched attachment) changed after that.
+**2. Build-time snapshots, checked automatically and refreshed by command.** School addresses and the NYC outline join several datasets, so they're committed JSON in `src/data/`. The Worker can't rewrite them. `src/lib/etl/snapshots.js` lists each snapshot, its sources and its refresh command. Each script records when it ran in `src/data/snapshots.json`, and the scheduled refresh flags a snapshot as stale when a source's rows (or a watched attachment) changed after that.
 
 ```sh
 npm run data:check                # which snapshots are stale; exits 1 if any
@@ -119,7 +131,7 @@ npm run data:check -- --refresh   # also runs each stale snapshot's script
 npm run deploy                    # after reviewing the diff in src/data/
 ```
 
-**Is everything current?** `GET /api/etl/status` returns every dataset's last source update, cadence, whether it's late, and each job's last build, reason, duration, whether it's current and its last error, plus each snapshot's state. `ok` is `false` and `attention` lists plain sentences when something needs a look, including when the hourly cron hasn't run for over 2 hours. To run the cron locally: `npm run build && npx wrangler dev -c dist/server/wrangler.json --test-scheduled`, then open `http://localhost:8787/cdn-cgi/handler/scheduled` (the first run builds everything, a few minutes for 311; a second run rebuilds nothing).
+**Is everything current?** `GET /api/etl/status` returns every dataset's last source update, cadence, whether it's late, and each job's last build, reason, duration, whether it's current and its last error, plus each snapshot's state. `ok` is `false` and `attention` lists plain sentences when something needs a look, including when the scheduled refresh hasn't run for over 8 hours. To run it locally: `npm run etl -- --local` (the first run builds everything, a few minutes; a second run rebuilds only what failed or is due).
 
 **Adding a dataset.** In its server module, define jobs (`{ key, maxAgeHours: requestMaxAgeHours(CADENCE), run }`) and export a dataset (`{ id, dashboard, datasetId, cadence, rolling?, snapshots?, metadataJob, jobs }`). Add it to `DATASETS` in `src/lib/server/etl.js`, and read the jobs with `dailyValue(job)`. Change a job's key when its output shape changes, so the next run rebuilds it. **Adding a snapshot:** add it to `SNAPSHOTS` in `src/lib/etl/snapshots.js`, and have its script call `recordSnapshot(id, startedAt)` from `scripts/lib/snapshot-manifest.mjs` after it writes its files.
 
@@ -220,21 +232,21 @@ All tunables are in `src/lib/complaints311/config.js`: `RADII` (402 m and 1,609 
 - `status`: only `Closed` counts as closed; Open, In Progress, Assigned, Pending, Started and Unspecified count as still open.
 - About 2% of requests have no coordinates and so aren't in any radius.
 
-**Timing.** The ¼ mile takes Socrata ~2 s, the 1 mile ~3–12 s (4–5 queries each, in parallel; each is logged as `311 radius ...`). The borough and city baselines group the whole window by borough and take about a minute per query, so they're jobs (`311:baseline:v2:<window>`) that the cron rebuilds daily. The "more requests than 72% of NYC blocks with any 311 requests" line under each radius comes from `311:distribution:v1:<window>`: requests counted on a ~100 m grid (`gridCountParams`, run in 3 month pieces at once since the 12 month grid in one query takes Socrata over 4 minutes), then summed within ¼ and 1 mile of every cell with a request (`circleDistributions` in `stats.js`) and kept as 1,001 quantiles per radius. The page fetches it from `/api/311/distribution`. Before the first cron run (fresh deploy, local dev) the first request for each window waits for them, a few minutes without an app token.
+**Timing.** The ¼ mile takes Socrata ~2 s, the 1 mile ~3–12 s (4–5 queries each, in parallel; each is logged as `311 radius ...`). The borough and city baselines group the whole window by borough and take about a minute per query, so they're jobs (`311:baseline:v2:<window>`) that the refresh rebuilds daily. The "more requests than 72% of NYC blocks with any 311 requests" line under each radius comes from `311:distribution:v1:<window>`: requests counted on a ~100 m grid (`gridCountParams`, run in 3 month pieces at once since the 12 month grid in one query takes Socrata over 4 minutes), then summed within ¼ and 1 mile of every cell with a request (`circleDistributions` in `stats.js`) and kept as 1,001 quantiles per radius. The page fetches it from `/api/311/distribution`. In local dev before the first refresh, the first request for each window waits for them, a few minutes without an app token; in production the 311 page shows no comparison until the refresh has built them.
 
 The map section is a placeholder; its props and the plan for it are at the top of `src/lib/complaints311/heatmap.js`.
 
 ## Refresh the payroll data
 
-Both sections are built from NYC Open Data's [Citywide Payroll Data (Fiscal Year)](https://data.cityofnewyork.us/City-Government/Citywide-Payroll-Data-Fiscal-Year-/k397-673e) (`k397-673e`), which updates about once a year. **It refreshes itself:** when the source changes, the hourly cron runs the queries below (about 30 seconds) and saves the results in one KV entry, `payroll:data:v1` (`src/lib/server/payroll.js`). The pages render on demand from it, and the agency picker loads every agency's rows from `GET /api/payroll/agencies`. Requests never query Socrata.
+Both sections are built from NYC Open Data's [Citywide Payroll Data (Fiscal Year)](https://data.cityofnewyork.us/City-Government/Citywide-Payroll-Data-Fiscal-Year-/k397-673e) (`k397-673e`), which updates about once a year. **It refreshes itself:** when the source changes, the scheduled refresh runs the queries below (about 30 seconds) and saves the results in one KV entry, `payroll:data:v1` (`src/lib/server/payroll.js`). The pages render on demand from it, and the agency picker loads every agency's rows from `GET /api/payroll/agencies`. Requests never query Socrata.
 
-The queries and checks live in `src/lib/payroll/build.js`, shared by the cron and a script that writes the same data to `src/data/payroll-by-year.json`, `payroll-by-agency.json` and `payroll-jobs.json`. The pages show that bundled copy only while KV has none (local dev, or a new deployment before its first cron run), so refreshing it is optional; it's also a handy way to review a change as a diff:
+The queries and checks live in `src/lib/payroll/build.js`, shared by the data refresh and a script that writes the same data to `src/data/payroll-by-year.json`, `payroll-by-agency.json` and `payroll-jobs.json`. The pages show that bundled copy only while KV has none (local dev, or a new deployment before its first refresh), so refreshing it is optional; it's also a handy way to review a change as a diff:
 
 ```sh
 npm run data:payroll   # rewrites the bundled copy in src/data/
 ```
 
-Set `SOCRATA_APP_TOKEN` to avoid anonymous rate limits (optional). New fiscal years are picked up automatically. A build warns (in the cron's logs, or the script's output) if a total looks implausible, a year is missing, or the latest year looks like a partial load (people paid or total pay under 85% of the prior 3-year median). A partial load also shows a "Heads up" note on the page. A build that fails or returns nothing keeps the last good copy.
+Set `SOCRATA_APP_TOKEN` to avoid anonymous rate limits (optional). New fiscal years are picked up automatically. A build warns (in the refresh's output, or the script's) if a total looks implausible, a year is missing, or the latest year looks like a partial load (people paid or total pay under 85% of the prior 3-year median). A partial load also shows a "Heads up" note on the page. A build that fails or returns nothing keeps the last good copy.
 
 The dataset has millions of rows (one per employee per fiscal year), so the queries ask Socrata to aggregate server-side:
 
@@ -324,7 +336,7 @@ Quick-filter chips (`JOB_CHIPS` in `build.js`). A chip with no matching title in
 
 `/street-closures/` shows blocks closed for construction from NYC DOT's [Street Closures due to Construction Activities by Block](https://data.cityofnewyork.us/d/i6b5-j7bu) (`i6b5-j7bu`, ~4,500 rows, updated about weekly).
 
-**Architecture.** The dataset is small, so a job (`street-closures:blocks:v4`, rebuilt when the hourly check finds the source changed, in `src/lib/server/street-closures.js`) keeps every block in KV (about 1 MB). `/api/street-closures/search` filters it in the Worker by street, borough or radius, keeps permits that haven't ended, and is edge-cached for an hour (keyed by place, NYC date, data version and deploy version; `CLOSURES_RATE_LIMITER` on misses). The browser gets every upcoming permit for the place and applies the time window and purpose itself (`src/lib/street-closures/closures.js`), so the tabs and filters switch without a request. The page inlines the street list for the autocomplete, built per request from the blocks with a permit that hasn't ended, so its counts don't go stale between DOT updates.
+**Architecture.** The dataset is small, so a job (`street-closures:blocks:v4`, rebuilt when the scheduled refresh finds the source changed, in `src/lib/server/street-closures.js`) keeps every block in KV (about 1 MB). `/api/street-closures/search` filters it in the Worker by street, borough or radius, keeps permits that haven't ended, and is edge-cached for an hour (keyed by place, NYC date, data version and deploy version; `CLOSURES_RATE_LIMITER` on misses). The browser gets every upcoming permit for the place and applies the time window and purpose itself (`src/lib/street-closures/closures.js`), so the tabs and filters switch without a request. The page inlines the street list for the autocomplete, built per request from the blocks with a permit that hasn't ended, so its counts don't go stale between DOT updates.
 
 **URL state** (`src/lib/street-closures/filter.js`): `street` (the matching spelling, e.g. `WEST 8 STREET`) with optional `boro`; `boro` alone; or `lat`, `lon` (3 decimals) and `r` (`0.25`, `0.5` default, `1` mile). No place means all five boroughs. Plus `when` (`today` default, `week`, `month`, `90d`, `all`) and `purpose` (a group key from `purposes.js`). A typed address never goes in the URL.
 
@@ -348,7 +360,7 @@ Quick-filter chips (`JOB_CHIPS` in `build.js`). A chip with no matching title in
 
 **Adding an amenity.** Add one entry to `CATEGORIES` in `src/lib/park-amenities/config.js`: dataset id and name, cadence, label, tone, pin color, icon, the columns to `select`, and `map(row)` (row → `{ id, name, parkName?, parkId?, borough, geometry, details }`), `lines(details)` and `seasonal(details)`, plus `address(details)` when a row says where in its park it is (the card's place line), `season` (its usual months and the note for in, around and out of season) for a seasonal one, `withPark` when every row has the same name, and `together` to merge rows a few metres apart in one park. The ETL job, search API, chips, "nearest of each" cards, map and list pick it up. Add real sample rows to `tests/fixtures/park-amenities.json` and a test.
 
-**Architecture.** One ETL dataset per amenity (`park-amenities:amenities:<id>:v3`, in `src/lib/server/park-amenities.js`) fetches its rows, turns each into one point (polygons at their area-weighted centroid, `normalize.js`) and keeps the normalized amenities in KV; park names are their own job (`park-amenities:park-names:enfh-gkve:v1`). The hourly check rebuilds a job when its source changes, so geometry is fetched once per change, never per search; each amenity dataset lists the park names job in `dependsOn`, so new park names rebuild them on the next run. `/api/park-amenities/search?lat=&lon=` reads all four (building one only when KV has none yet, as in local dev: a few seconds), returns everything within 1 mile (plus 0.05 mi, `SPOT_SLACK`) plus the nearest one of any kind with none that close, and is edge-cached for an hour per rounded spot and deploy version, so a hit reads nothing from KV (a rebuilt dataset shows once that hour is up; an answer missing a dataset isn't cached; `PARKS_RATE_LIMITER` on misses). On a fresh deploy, one search (`curl "https://<site>/api/park-amenities/search?lat=40.757&lon=-73.986"`) builds all four into KV, so visitors don't wait for the first cron run to do it. The browser measures again from the exact address or GPS fix (kept in `history.state`, never sent), and applies the radius (½ mi default, or 1 mi), categories and paging itself (`nearby.js`), so they switch without a request. The list shows the nearest 8 of each kind (`PER_CATEGORY`), and "Show more" adds 8 more of each, so fountains (the most numerous) don't push the rest out of view. A "nearest of each" card outside the radius puts that amenity on the map, fitted with the spot.
+**Architecture.** One ETL dataset per amenity (`park-amenities:amenities:<id>:v3`, in `src/lib/server/park-amenities.js`) fetches its rows, turns each into one point (polygons at their area-weighted centroid, `normalize.js`) and keeps the normalized amenities in KV; park names are their own job (`park-amenities:park-names:enfh-gkve:v1`). The scheduled refresh rebuilds a job when its source changes, so geometry is fetched once per change, never per search; each amenity dataset lists the park names job in `dependsOn`, so new park names rebuild them on the next run. `/api/park-amenities/search?lat=&lon=` reads all four (building one only in local dev when KV has none yet: a few seconds), returns everything within 1 mile (plus 0.05 mi, `SPOT_SLACK`) plus the nearest one of any kind with none that close, and is edge-cached for an hour per rounded spot and deploy version, so a hit reads nothing from KV (a rebuilt dataset shows once that hour is up; an answer missing a dataset isn't cached; `PARKS_RATE_LIMITER` on misses). On a fresh deploy, run `npm run etl -- --remote` once so the four are in KV. The browser measures again from the exact address or GPS fix (kept in `history.state`, never sent), and applies the radius (½ mi default, or 1 mi), categories and paging itself (`nearby.js`), so they switch without a request. The list shows the nearest 8 of each kind (`PER_CATEGORY`), and "Show more" adds 8 more of each, so fountains (the most numerous) don't push the rest out of view. A "nearest of each" card outside the radius puts that amenity on the map, fitted with the spot.
 
 **URL state** (`src/lib/park-amenities/page-state.js`): `lat`, `lon` (3 decimals), `r` (`0.5` default, `1`), `cat` (comma-separated keys; absent means all, empty means none). A typed address never goes in the URL.
 
@@ -389,7 +401,7 @@ npm run dev                                # http://localhost:4321/crash-hotspot
 
 **Production.** After the first deploy creates the D1 database (`asknycdata-crashes`, binding `CRASHES_DB`): `npm run data:crashes:push -- --remote`. A push replaces the tables in one go (built as `*_next`, then swapped in) and keeps `ingest_log`.
 
-**Keeping it current.** The hourly cron (as dataset `crashes` in `etl.js`) runs `src/lib/server/crashes-sync.js` when the crash table changes: it re-reads the last 45 days (`SYNC_DAYS`) of all three tables, writes only rows whose hash changed, and deletes rows the city dropped from that window, plus crashes (and their vehicles, persons and street rows) that have aged out of the one-year range. It refuses to delete anything if the source suddenly has far fewer crashes than the database. Older amendments need a full rebuild, about monthly (`npm run data:crashes -- --refetch`, then `push -- --remote`); `/api/etl/status` says when one is due (`REBUILD_DUE_DAYS`).
+**Keeping it current.** The scheduled refresh (as dataset `crashes` in `etl.js`) runs `src/lib/server/crashes-sync.js` when the crash table changes: it re-reads the last 45 days (`SYNC_DAYS`) of all three tables, writes only rows whose hash changed, and deletes rows the city dropped from that window, plus crashes (and their vehicles, persons and street rows) that have aged out of the one-year range. It refuses to delete anything if the source suddenly has far fewer crashes than the database. Older amendments need a full rebuild, about monthly (`npm run data:crashes -- --refetch`, then `push -- --remote`); `/api/etl/status` says when one is due (`REBUILD_DUE_DAYS`).
 
 **Change the date range.** The data covers a rolling window: `dateRange()` in `src/lib/crashes/config.js` returns the last `RANGE_YEARS` (1) years before today in New York, through the latest data. Change `RANGE_YEARS`, then do a full rebuild and push. The page copy and every query follow it; the build drops fetched rows older than the window on the day it runs.
 

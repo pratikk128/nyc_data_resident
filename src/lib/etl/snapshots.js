@@ -5,7 +5,7 @@
  * script plus a deploy.
  *
  * Each script records when it ran in src/data/snapshots.json
- * (scripts/lib/snapshot-manifest.mjs). The hourly cron and
+ * (scripts/lib/snapshot-manifest.mjs). The scheduled refresh and
  * `npm run data:check` compare that with each source below and say which
  * snapshots are stale and the command that refreshes them.
  *
