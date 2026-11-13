@@ -45,6 +45,18 @@ process.on("exit", () => rmSync(tmp, { recursive: true, force: true }));
 const wrangler = (args) =>
   execFileSync("npx", ["wrangler", ...args], { encoding: "utf8", maxBuffer: 512 * 1024 * 1024, stdio: ["ignore", "pipe", "inherit"] });
 
+// A missing key: --local prints "Value not found"; --remote fails with a 404.
+function getText(args) {
+  try {
+    const out = execFileSync("npx", ["wrangler", ...args], { encoding: "utf8", maxBuffer: 512 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
+    return out === "Value not found\n" || out === "Value not found" ? null : out;
+  } catch (err) {
+    if (/404: Not Found/.test(err.stderr ?? "")) return null;
+    process.stderr.write(err.stderr ?? "");
+    throw err;
+  }
+}
+
 function kvNamespace(target) {
   const ns = process.env.KV_NAMESPACE_ID ? ["--namespace-id", process.env.KV_NAMESPACE_ID] : ["--binding", "DATA_CACHE"];
   const written = new Map(); // key → { value, expiration_ttl }
@@ -52,8 +64,7 @@ function kvNamespace(target) {
   const text = (key) => {
     if (written.has(key)) return written.get(key).value;
     if (!read.has(key)) {
-      const out = wrangler(["kv", "key", "get", key, ...ns, target, "--text"]);
-      read.set(key, out === "Value not found\n" || out === "Value not found" ? null : out);
+      read.set(key, getText(["kv", "key", "get", key, ...ns, target, "--text"]));
     }
     return read.get(key);
   };
