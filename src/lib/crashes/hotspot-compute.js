@@ -20,14 +20,14 @@ import { readTotals, addTotals, TOP_CORNERS, MIN_CORNER_CRASHES, MIN_CORNER_HURT
 import { boroughLabel } from "../complaints311/config.js";
 
 // Bump when the packed shape changes; the page refuses facts it can't read.
-export const FACTS_FORMAT = 1;
+export const FACTS_FORMAT = 2;
 
 // Meters per degree, exactly as hotspot-sql.js has them.
 const M_LAT = 111320;
 const M_LON = Math.round(111320 * Math.cos((40.7 * Math.PI) / 180));
 
 // People counts beyond `injured`, packed together since most crashes have none.
-const PEOPLE = ["killed", "serious", ...Object.values(KIND_COLUMNS).flatMap((p) => [`${p}_killed`, `${p}_serious`, `${p}_injured`])];
+const PEOPLE = ["killed", ...Object.values(KIND_COLUMNS).flatMap((p) => [`${p}_killed`, `${p}_injured`])];
 const MASKS = DIMENSIONS.map((d) => d.column);
 
 // ---------- Packing ----------
@@ -69,8 +69,8 @@ function zOrder(lat, lon) {
  *     beyond its intersection's two;
  *   - one label per intersection, with the rows that spell it differently
  *     listed apart;
- *   - dates only for crashes that seriously hurt or killed someone, the
- *     only ones the map shows.
+ *   - dates only for crashes that killed someone, the only ones the map
+ *     shows.
  * Row order is free: nothing summarize() or mapOf() gives depends on it.
  */
 export function packFacts(rows, meta = {}) {
@@ -247,8 +247,8 @@ const hasBorough = (t, i) => t.borough[i] !== 0;
 // The people columns to count: everyone, or only the mode's people (hotspot-sql.js peopleOf()).
 function peopleOf(filters = {}) {
   const prefixes = (filters.who ?? []).map((k) => KIND_COLUMNS[k]);
-  if (!prefixes.length || prefixes.some((p) => !p)) return { injured: ["injured"], killed: ["killed"], serious: ["serious"] };
-  return Object.fromEntries(["injured", "killed", "serious"].map((c) => [c, prefixes.map((p) => `${p}_${c}`)]));
+  if (!prefixes.length || prefixes.some((p) => !p)) return { injured: ["injured"], killed: ["killed"] };
+  return Object.fromEntries(["injured", "killed"].map((c) => [c, prefixes.map((p) => `${p}_${c}`)]));
 }
 
 const sumOf = (t, columns, i) => {
@@ -266,15 +266,14 @@ function totalsOf(t, rows, filters) {
     out.crashes++;
     out.injured += sumOf(t, people.injured, i);
     out.killed += sumOf(t, people.killed, i);
-    out.serious += sumOf(t, people.serious, i);
     if (sev >= 1) out.hurtCrashes++;
-    if (sev >= 2) out.ksiCrashes++;
+    if (sev >= 2) out.fatalCrashes++;
     countGroups(t, i, out.groups, sev >= 2);
   }
   return out;
 }
 
-function countGroups(t, i, groups, ksi) {
+function countGroups(t, i, groups, fatal) {
   for (const d of DIMENSIONS) {
     const v = t[d.column][i];
     if (!v) continue;
@@ -282,7 +281,7 @@ function countGroups(t, i, groups, ksi) {
     for (const grp of d.groups) {
       if ((v >> grp.bit) & 1) {
         g[grp.key].n++;
-        if (ksi) g[grp.key].ksi++;
+        if (fatal) g[grp.key].fatal++;
       }
     }
   }
@@ -306,12 +305,12 @@ function cornersOf(t, query) {
   const people = peopleOf(query.filters);
   const list = [];
   for (const [c, rows] of groupBy(t, select(t, query, [hasCorner]), "corner")) {
-    let hurt = 0, ksi = 0, injured = 0, killed = 0, latSum = 0, latN = 0, lonSum = 0, lonN = 0, label = null, borough = null;
+    let hurt = 0, fatal = 0, injured = 0, killed = 0, latSum = 0, latN = 0, lonSum = 0, lonN = 0, label = null, borough = null;
     const groups = readTotals().groups;
     for (const i of rows) {
       const sev = t.severity[i];
       if (sev >= 1) hurt++;
-      if (sev >= 2) ksi++;
+      if (sev >= 2) fatal++;
       injured += sumOf(t, people.injured, i);
       killed += sumOf(t, people.killed, i);
       if (!Number.isNaN(t.lat[i])) { latSum += t.lat[i]; latN++; }
@@ -327,10 +326,10 @@ function cornersOf(t, query) {
       corner: t.dict.corner[c - 1], label, borough,
       lat: latN ? sqliteRound5(latSum / latN) : null,
       lon: lonN ? sqliteRound5(lonSum / lonN) : null,
-      n: rows.length, hurt, injured, killed, ksi, groups
+      n: rows.length, hurt, injured, killed, fatal, groups
     });
   }
-  list.sort((a, b) => b.hurt - a.hurt || b.ksi - a.ksi || b.n - a.n || (a.corner < b.corner ? -1 : a.corner > b.corner ? 1 : 0));
+  list.sort((a, b) => b.hurt - a.hurt || b.fatal - a.fatal || b.n - a.n || (a.corner < b.corner ? -1 : a.corner > b.corner ? 1 : 0));
   return list.slice(0, TOP_CORNERS);
 }
 
@@ -411,7 +410,7 @@ export function summarize(t, query) {
 }
 
 /*
- * Each crash that seriously hurt or killed someone, worst and newest first (pointsSql()).
+ * Each crash that killed someone, newest first (pointsSql()).
  * → { points: [[lat, lon, severity, null, date, label]], capped }
  *   The fourth place held the crash's id, which the map never used; it's
  *   left empty so the points keep their shape.

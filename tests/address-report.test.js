@@ -105,17 +105,18 @@ const crashSummary = (here, corners = []) => ({
   here: readTotals(here), compare: readTotals({ crashes: 5000, hurt_crashes: 1500 }), city: readTotals({ crashes: 90000 }), boroughs: {},
   corners: readCorners(corners)
 });
-const corner = (label, hurt) => ({ corner: label, label, borough: "MANHATTAN", lat: 40.7, lon: -74, n: hurt + 2, hurt, injured: hurt, killed: 0, ksi: 0 });
+const corner = (label, hurt) => ({ corner: label, label, borough: "MANHATTAN", lat: 40.7, lon: -74, n: hurt + 2, hurt, injured: hurt, killed: 0, fatal: 0 });
 
 test("street safety: crashes that hurt someone, the worst corners (3 at most), the date range", () => {
-  const c = safetyCard(crashSummary({ crashes: 40, hurt_crashes: 12, killed: 1, serious: 2 },
+  const c = safetyCard(crashSummary({ crashes: 40, hurt_crashes: 12, injured: 15, killed: 1 },
     [corner("5 Ave & W 34 St", 6), corner("6 Ave & W 34 St", 4), corner("5 Ave & W 33 St", 3), corner("Madison Ave & E 34 St", 2)]));
   assert.equal(c.hurt, 12);
   assert.equal(c.corners.length, 3);
-  assert.deepEqual(safetyGlance(c), { tone: "warn", text: "12 crashes hurt someone within about 3 blocks; 3 people killed or seriously hurt" });
+  assert.deepEqual(safetyGlance(c), { tone: "warn", text: "12 crashes hurt someone within about 3 blocks; 1 person killed" });
   const html = safetyHtml(c);
   assert.match(html, /5 Ave &#38; W 34 St<\/span><span class="ar-row-side">6 injury crashes/);
   assert.match(html, /Crashes that hurt someone \(12 in the last year\)/);
+  assert.match(html, /People killed \(15 hurt\)/);
   assert.doesNotMatch(html, /Madison Ave/);
   assert.match(html, /Police-reported crashes, Nov 1, 2025 to Oct 31, 2026\./);
 });

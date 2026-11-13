@@ -133,14 +133,14 @@ export const BUILDING_SECTIONS = ["flags", "violations", "complaints", "dob"];
 
 /*
  * Crash Hotspots' summary around the spot (hotspot-client.js loadHotspots()) (CRASH_RADIUS, everyone) →
- *   { hurt, killed, serious, crashes, from, through, compareLabel: what watch is compared with,
+ *   { hurt, killed, injured, crashes, from, through, compareLabel: what watch is compared with,
  *     watch: the first watchFor() item or null,
  *     corners: up to n of cornerFindings(), most often hurt first }
  */
 export function safetyCard(summary, n = 3) {
   const { here } = summary;
   return {
-    hurt: here.hurtCrashes, killed: here.killed, serious: here.serious, crashes: here.crashes,
+    hurt: here.hurtCrashes, killed: here.killed, injured: here.injured, crashes: here.crashes,
     from: summary.dateFrom ?? null, through: summary.dataThrough ?? null, compareLabel: summary.compareTo?.label ?? null,
     watch: watchFor(summary)[0] ?? null,
     corners: cornerFindings(summary).slice(0, n)

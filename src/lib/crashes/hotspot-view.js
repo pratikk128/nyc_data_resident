@@ -200,21 +200,19 @@ export function howOften(n, days) {
 
 /*
  * → [{ name, label, value, context }] for StatCard-like cards: crashes that
- * hurt someone (the mode's someone), people killed or seriously hurt, and
- * either an intersection's rank in its borough or every crash reported.
+ * hurt someone (the mode's someone), people killed (and hurt), and either an
+ * intersection's rank in its borough or every crash reported.
  */
 /** @param {string | null} [mode] */
 export function statCards(summary, mode = null) {
   const { here, rank, area } = summary;
   const days = Math.max(1, daysCovered(summary));
   const victim = victimOf(mode);
+  const people = modeOf(mode)?.people ?? "People";
   const cards = [
     { name: "hurt", label: `Crashes that hurt ${victim}`, value: count(here.hurtCrashes), context: howOften(here.hurtCrashes, days) },
-    {
-      // With the walk or bike mode, only the mode's people (hotspot-sql.js peopleOf()).
-      name: "ksi", label: `${modeOf(mode)?.people ?? "People"} killed or seriously hurt`, value: count(here.killed + here.serious),
-      context: `${count(here.killed)} killed, ${count(here.serious)} seriously hurt.`
-    }
+    // With the walk or bike mode, only the mode's people (hotspot-sql.js peopleOf()).
+    { name: "killed", label: `${people} killed`, value: count(here.killed), context: `${count(here.injured)} ${people.toLowerCase()} hurt.` }
   ];
   if (rank && here.hurtCrashes) {
     const place = rank.above + 1;
@@ -232,7 +230,7 @@ export function statCards(summary, mode = null) {
  * The kinds of crash that make up a clearly bigger share of `here` than of
  * `base`, biggest gap first. Kinds that say nothing to act on, and (for a
  * mode) who was hurt, are left out.
- * → [{ id, column, key, title, n, of, ksi, share, baseShare, ratio, tip }]
+ * → [{ id, column, key, title, n, of, fatal, share, baseShare, ratio, tip }]
  */
 /** @param {string | null} [mode] */
 export function patterns(here, base, mode = null, rules = WATCH) {
@@ -243,12 +241,12 @@ export function patterns(here, base, mode = null, rules = WATCH) {
     for (const g of d.groups) {
       const id = `${d.column}:${g.key}`;
       if (NOT_WATCHED.has(id)) continue;
-      const { n, ksi } = here.groups[d.column][g.key];
+      const { n, fatal } = here.groups[d.column][g.key];
       if (n < rules.minLocal) continue;
       const s = n / here.crashes, b = base.groups[d.column][g.key].n / base.crashes;
       const ratio = b ? s / b : Infinity;
       if (ratio < rules.minRatio) continue;
-      items.push({ id, column: d.column, key: g.key, title: groupTitle(d.column, g), n, of: here.crashes, ksi, share: s, baseShare: b, ratio, tip: tipFor(id, mode) });
+      items.push({ id, column: d.column, key: g.key, title: groupTitle(d.column, g), n, of: here.crashes, fatal, share: s, baseShare: b, ratio, tip: tipFor(id, mode) });
     }
   }
   // Some kinds share a tip (backing up as a cause and as a maneuver); show it once.

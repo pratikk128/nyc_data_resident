@@ -47,7 +47,7 @@ export const TABLES = {
   ) WITHOUT ROWID`,
 
   vehicles: `CREATE TABLE vehicles (
-    unique_id TEXT PRIMARY KEY,        -- persons.vehicle_ref points here
+    unique_id TEXT PRIMARY KEY,
     collision_id TEXT NOT NULL,
     crash_date TEXT NOT NULL,
     vehicle_uuid TEXT,                 -- the source's vehicle_id; nothing joins on it
@@ -72,32 +72,6 @@ export const TABLES = {
     h TEXT NOT NULL
   )`,
 
-  persons: `CREATE TABLE persons (
-    unique_id TEXT PRIMARY KEY,
-    collision_id TEXT NOT NULL,
-    crash_date TEXT NOT NULL,
-    person_id TEXT,
-    vehicle_ref TEXT,                  -- vehicles.unique_id
-    person_type TEXT,
-    ped_role TEXT,
-    role TEXT,                         -- normalize.js personRole()
-    involved INTEGER NOT NULL,         -- 0 for registrants, owners, witnesses, people notified
-    age INTEGER,
-    sex TEXT,
-    injury TEXT,
-    position TEXT,
-    position_key TEXT,                 -- normalize.js positionKey()
-    safety_equipment TEXT,
-    ejection TEXT,
-    emotional_status TEXT,
-    bodily_injury TEXT,
-    complaint TEXT,
-    ped_location TEXT,
-    ped_action TEXT,
-    factors TEXT,                      -- JSON: contributing_factor_1, _2
-    h TEXT NOT NULL
-  )`,
-
   // NYC Crash Hotspots: one row per crash with its filters worked out (facts.js),
   // so the dashboard's counts read one narrow table with no joins.
   crash_facts: `CREATE TABLE crash_facts (
@@ -112,24 +86,20 @@ export const TABLES = {
     cell TEXT,                         -- facts.js cellOf(): the map's ~165 m grid square
     corner TEXT,                       -- facts.js cornerOf(): on & cross street, either order
     corner_label TEXT,
-    severity INTEGER NOT NULL,         -- 0 none, 1 hurt, 2 seriously hurt, 3 killed (the worst person)
+    severity INTEGER NOT NULL,         -- 0 none, 1 hurt, 2 killed (facts.js SEVERITY)
     killed INTEGER NOT NULL,
     injured INTEGER NOT NULL,
-    serious INTEGER NOT NULL,          -- people seriously hurt
-    ped_killed INTEGER NOT NULL,       -- the same three counts for pedestrians, cyclists and e-riders only
-    ped_serious INTEGER NOT NULL,      -- (facts.js KIND_COLUMNS); injured includes the seriously hurt
-    ped_injured INTEGER NOT NULL,
+    ped_killed INTEGER NOT NULL,       -- the same two counts for pedestrians, cyclists and e-riders only
+    ped_injured INTEGER NOT NULL,      -- (facts.js KIND_COLUMNS)
     cyc_killed INTEGER NOT NULL,
-    cyc_serious INTEGER NOT NULL,
     cyc_injured INTEGER NOT NULL,
     erider_killed INTEGER NOT NULL,
-    erider_serious INTEGER NOT NULL,
     erider_injured INTEGER NOT NULL,
     who INTEGER NOT NULL,              -- bitmasks over facts.js WHO, CAUSES, MANEUVERS, VEHICLES
     causes INTEGER NOT NULL,
     maneuvers INTEGER NOT NULL,
     vehicles INTEGER NOT NULL,
-    h TEXT NOT NULL                    -- of the crash's, its vehicles' and its persons' hashes
+    h TEXT NOT NULL                    -- of the crash's and its vehicles' hashes
   )`
 };
 
@@ -144,9 +114,6 @@ export const INDEXES = [
   "CREATE INDEX vehicles_make ON vehicles (make_key, crash_date)",
   "CREATE INDEX vehicles_type ON vehicles (type_key, crash_date)",
   "CREATE INDEX vehicles_date ON vehicles (crash_date)",
-  "CREATE INDEX persons_collision ON persons (collision_id)",
-  "CREATE INDEX persons_vehicle ON persons (vehicle_ref)",
-  "CREATE INDEX persons_date ON persons (crash_date)",
   "CREATE INDEX crash_facts_date ON crash_facts (crash_date)",
   "CREATE INDEX crash_facts_zip ON crash_facts (zip_code)",
   "CREATE INDEX crash_facts_borough ON crash_facts (borough)",

@@ -208,7 +208,6 @@ export function buildingHtml(lot, parts) {
 
 // ---------- Street safety ----------
 
-const KSI = (c) => c.killed + c.serious;
 // report.js CRASH_RADIUS (250 m), in Crash Hotspots' words.
 const CRASH_AREA = "within about 3 blocks";
 
@@ -216,7 +215,7 @@ const CRASH_AREA = "within about 3 blocks";
 export function safetyGlance(c) {
   if (!c.hurt) return glance("good", `No crashes hurt anyone ${CRASH_AREA}`);
   const text = `${plural(c.hurt, "crash", "crashes")} hurt someone ${CRASH_AREA}`;
-  return KSI(c) ? glance("warn", `${text}; ${plural(KSI(c), "person", "people")} killed or seriously hurt`) : glance("info", text);
+  return c.killed ? glance("warn", `${text}; ${plural(c.killed, "person", "people")} killed`) : glance("info", text);
 }
 
 export function safetyHtml(c) {
@@ -228,7 +227,7 @@ export function safetyHtml(c) {
   const w = c.watch;
   return `<div class="br-stats">` +
       stat(count(c.hurt), `Crashes that hurt someone (${escape(howOften(c.hurt, days).replace(/\.$/, "").replace(/^About/, "about"))})`) +
-      stat(count(KSI(c)), `People killed or seriously hurt${c.killed ? ` (${count(c.killed)} killed)` : ""}`, KSI(c) ? "warn" : "") +
+      stat(count(c.killed), `People killed (${count(c.injured)} hurt)`, c.killed ? "warn" : "") +
     `</div>` +
     (w ? sub("Stands out here") +
       `<p class="ar-lead"><strong>${escape(w.title)}</strong>: ${escape(`${pct(w.share)} of crashes here, vs ${pct(w.baseShare)} across ${c.compareLabel ?? "the borough"}`)}.</p>` +

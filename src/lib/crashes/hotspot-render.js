@@ -36,7 +36,7 @@ export function watchHtml(items, { compareLabel, areaLabel, enough, common }) {
     <p class="hs-watch-kicker">${escape(lead)}</p>
     <h3 class="hs-watch-title">${escape(w.title)}</h3>
     ${w.tip ? `<p class="hs-watch-tip">${escape(w.tip)}</p>` : ""}
-    <p class="hs-watch-stat">${escape(evidence(w, lead === "Most common here" ? null : compareLabel))}${w.ksi ? `. ${escape(count(w.ksi))} seriously hurt or killed someone` : ""}.</p>
+    <p class="hs-watch-stat">${escape(evidence(w, lead === "Most common here" ? null : compareLabel))}${w.fatal ? `. ${escape(count(w.fatal))} killed someone` : ""}.</p>
   </li>`;
   if (!items.length) {
     return `<p class="hs-watch-none">Nothing here is clearly more common than across ${escape(compareLabel)}, but one thing comes up often:</p>
@@ -65,7 +65,7 @@ export function spotsHtml(spots, { victim = "someone", shown = 5 } = {}) {
         <h3 class="hs-spot-name"><span class="sr-only">${i + 1}. </span>${escape(c.label)}</h3>
         <p class="hs-spot-boro">${escape(boro)}</p>
         <p class="hs-spot-counts"><strong>${escape(count(c.hurt))}</strong> crash${c.hurt === 1 ? "" : "es"} hurt ${escape(victim)}${
-          c.ksi ? ` · <strong class="hs-spot-ksi">${escape(count(c.ksi))}</strong> seriously hurt or killed someone` : ""} · ${escape(count(c.n))} in all</p>
+          c.fatal ? ` · <strong class="hs-spot-fatal">${escape(count(c.fatal))}</strong> killed someone` : ""} · ${escape(count(c.n))} in all</p>
         ${what ? `<p class="hs-spot-label">${c.findings.length ? "What goes wrong here" : "Most common here"}</p><ul class="hs-spot-what">${what}</ul>` : `<p class="hs-spot-label">No one pattern stands out here.</p>`}
         ${f?.tip ? `<p class="hs-spot-tip">${escape(f.tip)}</p>` : ""}
         <p class="hs-spot-actions">

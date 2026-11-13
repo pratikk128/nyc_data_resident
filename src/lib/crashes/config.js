@@ -2,11 +2,11 @@
  * NYC crash data (read by NYC Crash Hotspots): the datasets, the date range the site covers, and the
  * refresh window. Browser-safe.
  *
- * The three NYPD tables on NYC Open Data:
+ * Two of the three NYPD tables on NYC Open Data:
  *   crashes   h9gi-nx95  one row per crash, key collision_id
  *   vehicles  bm4k-52h4  one row per vehicle, key unique_id, collision_id → crashes
- *   persons   f55k-p6yu  one row per person, key unique_id, collision_id → crashes,
- *                        vehicle_id → vehicles.unique_id (not vehicles.vehicle_id)
+ * The third, persons (f55k-p6yu), isn't fetched: the crash's own counts say
+ * who was hurt or killed (facts.js factsRow()), and it's the biggest table.
  */
 
 import { nycToday } from "../format.js";
@@ -30,8 +30,7 @@ export function dateRange(today = nycToday()) {
 
 export const DATASETS = {
   crashes: { id: "h9gi-nx95", key: "collision_id", name: "Motor Vehicle Collisions - Crashes" },
-  vehicles: { id: "bm4k-52h4", key: "unique_id", name: "Motor Vehicle Collisions - Vehicles" },
-  persons: { id: "f55k-p6yu", key: "unique_id", name: "Motor Vehicle Collisions - Person" }
+  vehicles: { id: "bm4k-52h4", key: "unique_id", name: "Motor Vehicle Collisions - Vehicles" }
 };
 
 export const sourceUrl = (table) => `https://data.cityofnewyork.us/d/${DATASETS[table].id}`;
@@ -51,12 +50,10 @@ export const SOURCE_COLUMNS = {
     "contributing_factor_vehicle_4", "contributing_factor_vehicle_5",
     "vehicle_type_code1", "vehicle_type_code2", "vehicle_type_code_3", "vehicle_type_code_4", "vehicle_type_code_5"
   ],
-  vehicles: ["unique_id", "collision_id", "crash_date", "vehicle_type", "pre_crash", "contributing_factor_1", "contributing_factor_2"],
-  persons: ["unique_id", "collision_id", "crash_date", "vehicle_id", "person_type", "ped_role", "person_injury",
-    "complaint", "emotional_status", "contributing_factor_1", "contributing_factor_2"]
+  vehicles: ["unique_id", "collision_id", "crash_date", "vehicle_type", "pre_crash", "contributing_factor_1", "contributing_factor_2"]
 };
 
-// SoQL condition for the date range, for any of the three tables (each has crash_date).
+// SoQL condition for the date range, for either table (each has crash_date).
 export function dateWhere({ from, to } = dateRange()) {
   const parts = [`crash_date >= '${from}T00:00:00'`];
   if (to) parts.push(`crash_date <= '${to}T23:59:59'`);

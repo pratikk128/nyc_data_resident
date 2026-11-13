@@ -3,8 +3,8 @@
  * and the two responses the Worker passes through.
  *
  * The data refresh (scripts/run-etl.mjs, dataset `crashes` in crashes.js)
- * runs hotspotsJob. It pages through a year of the three NYPD tables on NYC
- * Open Data (fetchYear()), boils each crash down to one facts row
+ * runs hotspotsJob. It pages through a year of the NYPD crashes and vehicles
+ * tables on NYC Open Data (fetchYear()), boils each crash down to one facts row
  * (factsFromSource(), facts.js), and writes to KV
  *   - FACTS_KEY, the whole year packed small (hotspot-compute.js packFacts(),
  *     about 1 MB compressed), which the page downloads for a ZIP, street,
@@ -28,7 +28,7 @@ import { dailyValue, edgeCachedResponse } from "./cache.js";
 import { soql, SocrataError } from "./socrata.js";
 import { requestMaxAgeHours } from "../etl/cadence.js";
 import { DATASETS, SOURCE_COLUMNS, dateRange, dateWhere } from "../crashes/config.js";
-import { crashRow, streetRows, vehicleRow, personRow } from "../crashes/rows.js";
+import { crashRow, streetRows, vehicleRow } from "../crashes/rows.js";
 import { factsRow, byCrash } from "../crashes/facts.js";
 import { MODES, readQuery } from "../crashes/hotspot-query.js";
 import { packFacts, unpackFacts, summarize, mapOf, FACTS_FORMAT } from "../crashes/hotspot-compute.js";
@@ -110,7 +110,7 @@ async function fetchTable(table, where, paging) {
   }
 }
 
-// { crashes, vehicles, persons }: the source rows for the date range. One table
+// { crashes, vehicles }: the source rows for the date range. One table
 // at a time: Socrata throttles parallel pulls of these into timeouts.
 export async function fetchYear(range = dateRange(), { budgetMs = BUDGET_MS } = {}) {
   const where = dateWhere(range);
@@ -126,15 +126,14 @@ export async function fetchYear(range = dateRange(), { budgetMs = BUDGET_MS } = 
 
 /*
  * Source rows → the facts rows packFacts() takes: one per crash (factsRow()),
- * each with `streets`, the street keys it names. Vehicles and persons whose
- * crash isn't in the range are left out. Pure; exported for tests.
+ * each with `streets`, the street keys it names. Vehicles whose crash isn't
+ * in the range are left out. Pure; exported for tests.
  */
-export function factsFromSource({ crashes, vehicles, persons }) {
+export function factsFromSource({ crashes, vehicles }) {
   const vehiclesOf = byCrash(vehicles.map(vehicleRow));
-  const personsOf = byCrash(persons.map(personRow));
   return crashes.map((raw) => {
     const crash = crashRow(raw);
-    const row = factsRow(crash, vehiclesOf.get(crash.collision_id), personsOf.get(crash.collision_id));
+    const row = factsRow(crash, vehiclesOf.get(crash.collision_id));
     return { ...row, streets: streetRows(crash).map((s) => s.street) };
   });
 }

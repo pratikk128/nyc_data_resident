@@ -1,12 +1,12 @@
 /*
  * The crash data behind NYC Crash Hotspots: normalizing streets, makes,
- * vehicle types, roles and seats; and the date range.
+ * vehicle types and times; and the date range.
  *   npm test
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { streetMatchKey, streetBaseKey, minuteOf, timeLabel, personRole, positionKey, ageOf, sexOf, yearOf, textOf, rowHash } from "../src/lib/crashes/normalize.js";
+import { streetMatchKey, streetBaseKey, minuteOf, timeLabel, sexOf, yearOf, textOf, rowHash } from "../src/lib/crashes/normalize.js";
 import { makeOf, resolveMake } from "../src/lib/crashes/makes.js";
 import { vehicleTypeKey, resolveVehicleType } from "../src/lib/crashes/vehicle-types.js";
 import { streetsFromText } from "../src/lib/crashes/hotspot-query.js";
@@ -117,35 +117,15 @@ test("vehicle types: the form's spellings grouped", () => {
   assert.equal(resolveVehicleType("e bike"), "e-bike");
 });
 
-// ---------- People, times, values ----------
+// ---------- Times, values ----------
 
-test("roles: who was in the crash and who's only on the report", () => {
-  assert.equal(personRole("Occupant", "Driver"), "driver");
-  assert.equal(personRole("Occupant", "Passenger"), "passenger");
-  assert.equal(personRole("Occupant", "Registrant"), "registrant");
-  assert.equal(personRole("Pedestrian", "Pedestrian"), "pedestrian");
-  assert.equal(personRole("Bicyclist", "Driver"), "cyclist");
-  assert.equal(personRole("Other Motorized", "Driver"), "other-motorized");
-  assert.equal(personRole("Occupant", "Witness"), "witness");
-  assert.equal(personRole("Occupant", "Notified Person"), "notified");
-});
-
-test("seats, times, ages and other values", () => {
-  assert.equal(positionKey("Driver"), "driver");
-  assert.equal(positionKey("Front passenger, if two or more persons, including the driver, are in the front seat"), "front-passenger");
-  assert.equal(positionKey("Left rear passenger, or rear passenger on a bicycle, motorcycle, snowmobile"), "rear-left");
-  assert.equal(positionKey("Right rear passenger or motorcycle sidecar passenger"), "rear-right");
-  assert.equal(positionKey("Unknown"), null);
+test("times and other values", () => {
   assert.equal(minuteOf("9:25"), 565);
   assert.equal(minuteOf("00:00"), 0);
   assert.equal(minuteOf("25:00"), null);
   assert.equal(timeLabel(565), "9:25 AM");
   assert.equal(timeLabel(0), "12:00 AM");
   assert.equal(timeLabel(13 * 60 + 5), "1:05 PM");
-  assert.equal(ageOf("34"), 34);
-  assert.equal(ageOf("-1"), null);
-  assert.equal(ageOf("9999"), null);
-  assert.equal(ageOf(""), null);
   assert.equal(sexOf("U"), null);
   assert.equal(yearOf("2019"), 2019);
   assert.equal(yearOf("1066"), null);
@@ -183,13 +163,6 @@ const RAW = {
     { unique_id: "v3", collision_id: id(2), crash_date: "2024-06-15T00:00:00.000", vehicle_make: "TOYT -CAR/SUV", vehicle_year: "2015", vehicle_type: "Sedan", state_registration: "NJ" },
     { unique_id: "v4", collision_id: id(3), crash_date: "2025-02-01T00:00:00.000", vehicle_make: "HOND -CAR/SUV", vehicle_year: "2019", vehicle_type: "Sedan" },
     { unique_id: "v5", collision_id: id(4), crash_date: "2024-06-16T00:00:00.000", vehicle_make: "TOYT -CAR/SUV", vehicle_year: "2020", vehicle_type: "PK" }
-  ],
-  persons: [
-    { unique_id: "p1", collision_id: id(1), crash_date: "2024-06-15T00:00:00.000", vehicle_id: "v1", person_type: "Occupant", ped_role: "Driver", person_age: "34", person_sex: "F", person_injury: "Unspecified", position_in_vehicle: "Driver" },
-    { unique_id: "p2", collision_id: id(1), crash_date: "2024-06-15T00:00:00.000", vehicle_id: "v2", person_type: "Bicyclist", ped_role: "Driver", person_age: "27", person_sex: "M", person_injury: "Injured" },
-    { unique_id: "p3", collision_id: id(1), crash_date: "2024-06-15T00:00:00.000", vehicle_id: "v1", person_type: "Occupant", ped_role: "Registrant", person_age: "61", person_sex: "M" },
-    { unique_id: "p4", collision_id: id(2), crash_date: "2024-06-15T00:00:00.000", vehicle_id: "v3", person_type: "Occupant", ped_role: "Driver", person_age: "50", person_sex: "M" },
-    { unique_id: "p5", collision_id: id(3), crash_date: "2025-02-01T00:00:00.000", person_type: "Pedestrian", ped_role: "Pedestrian", person_age: "70", person_sex: "F", person_injury: "Injured", ped_location: "Pedestrian/Bicyclist/Other Pedestrian at Intersection" }
   ]
 };
 

@@ -3148,7 +3148,7 @@ span.pa-near { border-style: dashed; background: var(--card); }
 .hs-spot-name { font-size: 1.125rem; font-weight: 800; line-height: 1.3; }
 .hs-spot-boro { font-size: .875rem; color: var(--ink-soft); }
 .hs-spot-counts { margin-top: var(--space-2); font-variant-numeric: tabular-nums; }
-.hs-spot-ksi { color: var(--red-deep); }
+.hs-spot-fatal { color: var(--red-deep); }
 .hs-spot-label { margin-top: var(--space-3); font-size: .8125rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-soft); }
 .hs-spot-what { margin: var(--space-1) 0 0; padding-left: 1.1em; font-variant-numeric: tabular-nums; }
 .hs-spot-tip { margin-top: var(--space-2); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); background: var(--blue-tint); }
@@ -3165,7 +3165,6 @@ span.pa-near { border-style: dashed; background: var(--card); }
 .hs-key { display: inline-flex; align-items: center; gap: var(--space-1); }
 .hs-dot { display: inline-block; border-radius: 50%; }
 .hs-dot-killed { width: 13px; height: 13px; background: #B3261E; border: 2px solid var(--ink); }
-.hs-dot-serious { width: 9px; height: 9px; background: #F28C38; border: 1px solid #fff; box-shadow: 0 0 0 1px var(--line-strong); }
 .hs-pop { margin: 0; line-height: 1.5; }
 
 /* =========================================================

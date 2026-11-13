@@ -1,8 +1,7 @@
 /*
  * NYC Crash Hotspots' map: the dangerous intersections as numbered pins
- * (the same numbers as the list beside it), and a dot per crash that
- * seriously hurt or killed someone; killed is a larger dot with an ink ring,
- * so it doesn't rest on color alone. Each dot opens a popup with the crash's
+ * (the same numbers as the list beside it), and a dot per crash that killed
+ * someone, red with an ink ring. Each dot opens a popup with the crash's
  * date and corner. A spot gets a dashed circle for its distance.
  * Leaflet loads on first draw (complaints311/heatmap.js). Browser only; the
  * list is the non-map alternative.
@@ -23,7 +22,6 @@ const LABEL_TILES = `${ESRI}/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{
 const ATTRIBUTION = 'Tiles &copy; <a href="https://www.esri.com/">Esri</a>, HERE, Garmin, &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 const INK = "#1C2A44";
 const KILLED = "#B3261E";   // --red-deep
-const SERIOUS = "#F28C38";
 const NYC_BOUNDS = [[40.49, -74.26], [40.92, -73.69]];
 
 export function mountHotspotMap(canvas) {
@@ -34,13 +32,9 @@ export function mountHotspotMap(canvas) {
     dots.clearLayers();
     pins.clearLayers();
     ring.clearLayers();
-    // Serious first, so killed sits on top.
-    for (const [lat, lon, severity, , day, label] of [...points].sort((p, q) => p[2] - q[2])) {
-      const killed = severity === 3;
-      L.circleMarker([lat, lon], {
-        renderer, radius: killed ? 6.5 : 4.5, weight: killed ? 2 : 1, color: killed ? INK : "#fff",
-        fillColor: killed ? KILLED : SERIOUS, fillOpacity: 0.95
-      }).bindPopup(`<p class="hs-pop"><strong>${killed ? "Someone was killed" : "Someone was seriously hurt"}</strong><br>
+    for (const [lat, lon, , , day, label] of points) {
+      L.circleMarker([lat, lon], { renderer, radius: 6.5, weight: 2, color: INK, fillColor: KILLED, fillOpacity: 0.95 })
+        .bindPopup(`<p class="hs-pop"><strong>Someone was killed</strong><br>
         ${escape(date(day))}${label ? `<br>${escape(label)}` : ""}</p>`).addTo(dots);
     }
     markers = spots.map((c, i) => {

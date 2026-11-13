@@ -89,10 +89,9 @@ const radiusLabel = (m: number) => (m === 250 ? '250 m (about 3 blocks)' : '500 
     <div class="hs-spots-layout">
       <div data-spots-list></div>
       <div class="hs-map-col">
-        <div class="c311-map-frame hs-map-frame" data-map role="region" aria-label="Map of the intersections in the list, and of crashes that seriously hurt or killed someone."></div>
+        <div class="c311-map-frame hs-map-frame" data-map role="region" aria-label="Map of the intersections in the list, and of crashes that killed someone."></div>
         <div class="c311-map-legend">
           <span class="hs-key"><span class="water-pin hs-pin hs-pin-key" aria-hidden="true">1</span>Intersection in the list</span>
-          <span class="hs-key"><span class="hs-dot hs-dot-serious" aria-hidden="true"></span>Someone seriously hurt</span>
           <span class="hs-key"><span class="hs-dot hs-dot-killed" aria-hidden="true"></span>Someone killed</span>
         </div>
         <p class="field-hint" data-map-note></p>
@@ -233,10 +232,10 @@ const radiusLabel = (m: number) => (m === 250 ? '250 m (about 3 blocks)' : '500 
 
     // The dangerous intersections; for one intersection, the map alone.
     spots = corner ? [] : cornerFindings(s, query.mode);
-    $('[data-spots-title]').textContent = corner ? 'Serious crashes here'
+    $('[data-spots-title]').textContent = corner ? 'Deadly crashes here'
       : area ? `Intersections where people get hurt most, at ${area.label}` : 'Intersections where people get hurt most, across NYC';
     $('[data-spots-intro]').textContent = corner
-      ? 'Each dot is a crash that seriously hurt or killed someone. Tap one for the date and the report.'
+      ? 'Each dot is a crash that killed someone. Tap one for the date and the report.'
       : `Ranked by crashes that hurt ${victim} in the last year. Busy corners rank higher partly because more people go through them.${area ? '' : ' Type your street above to see the corners near you.'}`;
     $('[data-spots-list]').innerHTML = corner ? '' : spotsHtml(spots, { victim });
     $('[data-spots-list]').hidden = corner;
@@ -245,15 +244,15 @@ const radiusLabel = (m: number) => (m === 250 ? '250 m (about 3 blocks)' : '500 
 
     const n = points.points.length;
     $('[data-map-note]').textContent = points.capped
-      ? `Showing ${count(n)} of the crashes that seriously hurt or killed someone: every one that killed someone, then the most recent.`
-      : `${count(n)} crash${n === 1 ? '' : 'es'} here seriously hurt or killed someone. Some crashes have no map location, so the map can show fewer than the counts.`;
-    // One intersection: its own pin, so the map centers on it even with no serious crashes.
+      ? `Showing the ${count(n)} most recent crashes that killed someone.`
+      : `${count(n)} crash${n === 1 ? '' : 'es'} here killed someone. Some crashes have no map location, so the map can show fewer than the counts.`;
+    // One intersection: its own pin, so the map centers on it even with no deadly crashes.
     map.update({ spots: corner ? s.corners.slice(0, 1) : spots, points: points.points, area: query.area, victim });
   }
 
   function csv() {
-    return toCsv(['rank', 'intersection', 'borough', 'crashes', 'crashes_someone_hurt', 'people_hurt', 'people_killed', 'crashes_serious_or_fatal', 'what_goes_wrong'],
-      spots.map((c, i) => [i + 1, c.label, boroughLabel(c.borough) ?? '', c.n, c.hurt, c.injured, c.killed, c.ksi,
+    return toCsv(['rank', 'intersection', 'borough', 'crashes', 'crashes_someone_hurt', 'people_hurt', 'people_killed', 'crashes_fatal', 'what_goes_wrong'],
+      spots.map((c, i) => [i + 1, c.label, boroughLabel(c.borough) ?? '', c.n, c.hurt, c.injured, c.killed, c.fatal,
         (c.findings.length ? c.findings : c.common ? [c.common] : []).map((f: any) => `${f.title} (${f.n} of ${f.of})`).join('; ')]));
   }
 

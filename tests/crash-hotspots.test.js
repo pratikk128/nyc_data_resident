@@ -9,7 +9,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 
-import { WHO, CAUSES, MANEUVERS, VEHICLES, DIMENSIONS, causeKey, maneuverKey, maskOf, keysOf, personSeverity, factsRow, cornerOf, cellOf, dayOfWeek, byCrash } from "../src/lib/crashes/facts.js";
+import { WHO, CAUSES, MANEUVERS, VEHICLES, DIMENSIONS, causeKey, maneuverKey, maskOf, keysOf, factsRow, cornerOf, cellOf, dayOfWeek, byCrash } from "../src/lib/crashes/facts.js";
 import { readQuery, queryToParams, queryKey, placeFromText, filtersFor } from "../src/lib/crashes/hotspot-query.js";
 import { totalsSql, boroughTotalsSql, readTotals, addTotals, cornersSql, readCorners, cornerRankSql, areaBoroughSql, pointsSql, factsPageSql, STREET_SEP } from "../src/lib/crashes/hotspot-sql.js";
 import { packFacts, unpackFacts, summarize, mapOf } from "../src/lib/crashes/hotspot-compute.js";
@@ -17,7 +17,7 @@ import { streetMatchKey, streetBaseKey } from "../src/lib/crashes/normalize.js";
 import { boroughLabel } from "../src/lib/complaints311/config.js";
 import { statCards, watchFor, patterns, mostCommon, cornerFindings, tipFor, howOften, groupTitle, toCsv, WATCH, CORNER, TIPS } from "../src/lib/crashes/hotspot-view.js";
 import { watchHtml, spotsHtml } from "../src/lib/crashes/hotspot-render.js";
-import { crashRow, streetRows, vehicleRow, personRow } from "../src/lib/crashes/rows.js";
+import { crashRow, streetRows, vehicleRow } from "../src/lib/crashes/rows.js";
 import { TABLES, INDEXES, COLUMNS } from "../src/lib/crashes/schema.js";
 import { SOURCE_COLUMNS } from "../src/lib/crashes/config.js";
 import { VEHICLE_TYPES } from "../src/lib/crashes/vehicle-types.js";
@@ -77,18 +77,6 @@ test("masks: keys in, keys out, unknown keys skipped", () => {
   assert.deepEqual(keysOf(CAUSES, m).sort(), ["road", "speeding"]);
 });
 
-test("severity: killed, seriously hurt from the injury or state, hurt; bystanders don't count", () => {
-  const p = (x) => ({ involved: 1, ...x });
-  assert.equal(personSeverity(p({ injury: "Killed" })), 3);
-  assert.equal(personSeverity(p({ injury: "Injured", complaint: "Fracture - Distorted - Dislocation" })), 2);
-  assert.equal(personSeverity(p({ injury: "Injured", complaint: "Severe Lacerations" })), 2);
-  assert.equal(personSeverity(p({ injury: "Unspecified", emotional_status: "Apparent Death" })), 2);
-  assert.equal(personSeverity(p({ injury: "Injured", complaint: "Complaint of Pain or Nausea", emotional_status: "Conscious" })), 1);
-  assert.equal(personSeverity(p({ injury: "Injured", complaint: "Minor Burn" })), 1);
-  assert.equal(personSeverity(p({ injury: "Unspecified" })), 0);
-  assert.equal(personSeverity({ involved: 0, injury: "Killed" }), 0);
-});
-
 test("places: corners either way round, a grid square, Monday first", () => {
   const a = cornerOf("BROADWAY", "WEST 72 STREET"), b = cornerOf("W 72nd St", "Broadway");
   assert.equal(a.key, b.key);
@@ -107,17 +95,17 @@ const id = (n) => n.toString(16).padStart(32, "0");
 const day = (d) => `${d}T00:00:00.000`;
 const RAW = {
   crashes: [
-    // Broadway & W 72: a car turning left hits a pedestrian, seriously hurt
+    // Broadway & W 72: a car turning left hits a pedestrian, hurt
     { collision_id: id(1), crash_date: day("2025-03-03"), crash_time: "17:40", borough: "MANHATTAN", zip_code: "10023", latitude: "40.7781", longitude: "-73.9817",
       on_street_name: "BROADWAY", cross_street_name: "WEST 72 STREET", number_of_persons_injured: "1", number_of_pedestrians_injured: "1",
       contributing_factor_vehicle_1: "Failure to Yield Right-of-Way" },
-    // Same corner, written the other way round: speeding, an e-bike rider hurt
+    // Same corner, written the other way round: speeding, an e-bike rider hurt (in no count but the total) and the SUV's driver
     { collision_id: id(2), crash_date: day("2025-03-04"), crash_time: "23:15", borough: "MANHATTAN", zip_code: "10023", latitude: "40.7782", longitude: "-73.9816",
-      on_street_name: "W 72 ST", cross_street_name: "BROADWAY", number_of_persons_injured: "1", contributing_factor_vehicle_1: "Unsafe Speed" },
+      on_street_name: "W 72 ST", cross_street_name: "BROADWAY", number_of_persons_injured: "2", number_of_motorist_injured: "1", contributing_factor_vehicle_1: "Unsafe Speed" },
     // Same corner, nobody hurt, a truck backing
     { collision_id: id(3), crash_date: day("2025-04-10"), crash_time: "9:05", borough: "MANHATTAN", zip_code: "10023", latitude: "40.7780", longitude: "-73.9818",
       on_street_name: "BROADWAY", cross_street_name: "WEST 72 STREET", contributing_factor_vehicle_1: "Backing Unsafely" },
-    // Brooklyn, no vehicle or person rows: the crash's own counts and codes stand in; someone killed
+    // Brooklyn, no vehicle rows: the crash's own codes stand in; a cyclist killed
     { collision_id: id(4), crash_date: day("2025-05-01"), crash_time: "2:30", borough: "BROOKLYN", zip_code: "11201", latitude: "40.6887", longitude: "-73.9806",
       on_street_name: "ATLANTIC AVENUE", number_of_persons_killed: "1", number_of_cyclist_killed: "1", vehicle_type_code1: "Bike", vehicle_type_code2: "Sedan" },
     // No location at all
@@ -128,28 +116,17 @@ const RAW = {
     { unique_id: "v2", collision_id: id(2), crash_date: day("2025-03-04"), vehicle_type: "Station Wagon/Sport Utility Vehicle", pre_crash: "Going Straight Ahead" },
     { unique_id: "v3", collision_id: id(2), crash_date: day("2025-03-04"), vehicle_type: "E-Bike", pre_crash: "Going Straight Ahead" },
     { unique_id: "v4", collision_id: id(3), crash_date: day("2025-04-10"), vehicle_type: "Box Truck", pre_crash: "Backing" }
-  ],
-  persons: [
-    { unique_id: "p1", collision_id: id(1), crash_date: day("2025-03-03"), person_type: "Pedestrian", ped_role: "Pedestrian", person_injury: "Injured", complaint: "Fracture - Distorted - Dislocation" },
-    { unique_id: "p2", collision_id: id(1), crash_date: day("2025-03-03"), vehicle_id: "v1", person_type: "Occupant", ped_role: "Driver", person_injury: "Unspecified" },
-    { unique_id: "p3", collision_id: id(1), crash_date: day("2025-03-03"), vehicle_id: "v1", person_type: "Occupant", ped_role: "Witness", person_injury: "Killed" },
-    { unique_id: "p4", collision_id: id(2), crash_date: day("2025-03-04"), vehicle_id: "v3", person_type: "Bicyclist", ped_role: "Driver", person_injury: "Injured", complaint: "Abrasion" },
-    // The SUV's driver, seriously hurt: in the crash's counts, not the bike mode's
-    { unique_id: "p6", collision_id: id(2), crash_date: day("2025-03-04"), vehicle_id: "v2", person_type: "Occupant", ped_role: "Driver", person_injury: "Injured", complaint: "Concussion" },
-    { unique_id: "p5", collision_id: id(3), crash_date: day("2025-04-10"), vehicle_id: "v4", person_type: "Occupant", ped_role: "Driver", person_injury: "Unspecified" }
   ]
 };
 
 function facts(raw = RAW) {
   const vehicles = byCrash(raw.vehicles.map(vehicleRow));
-  const persons = byCrash(raw.persons.map(personRow));
-  return raw.crashes.map(crashRow).map((c) => factsRow(c, vehicles.get(c.collision_id), persons.get(c.collision_id)));
+  return raw.crashes.map(crashRow).map((c) => factsRow(c, vehicles.get(c.collision_id)));
 }
 
 test("facts row: who was hurt, how badly, the causes, maneuvers and vehicles", () => {
   const [f1, f2, f3, f4, f5] = facts();
-  assert.equal(f1.severity, 2, "a fracture is serious; the witness on the report doesn't count");
-  assert.equal(f1.serious, 1);
+  assert.equal(f1.severity, 1);
   assert.deepEqual(keysOf(WHO, f1.who), ["pedestrian"]);
   assert.deepEqual(keysOf(CAUSES, f1.causes).sort(), ["distracted", "yield"]);
   assert.deepEqual(keysOf(MANEUVERS, f1.maneuvers), ["left-turn"]);
@@ -157,21 +134,20 @@ test("facts row: who was hurt, how badly, the causes, maneuvers and vehicles", (
   assert.equal(f1.hour, 17);
   assert.equal(f1.corner, f2.corner, "the same corner written either way round");
 
-  assert.equal(f2.severity, 2, "the SUV's driver");
-  assert.equal(f2.serious, 1);
-  assert.deepEqual(keysOf(WHO, f2.who).sort(), ["e-rider", "occupant"], "a 'Bicyclist' on an e-bike is an e-rider");
-  assert.deepEqual([f2.erider_injured, f2.erider_serious, f2.erider_killed, f2.cyc_injured], [1, 0, 0, 0], "the e-rider's own counts leave out the driver");
-  assert.deepEqual([f1.ped_injured, f1.ped_serious, f1.ped_killed], [1, 1, 0]);
+  assert.equal(f2.severity, 1);
+  assert.deepEqual(keysOf(WHO, f2.who).sort(), ["e-rider", "occupant"], "the one hurt in no count but the total is an e-rider; the motorist is in the SUV");
+  assert.deepEqual([f2.erider_injured, f2.erider_killed, f2.cyc_injured], [1, 0, 0], "the e-rider's own counts leave out the driver");
+  assert.deepEqual([f1.ped_injured, f1.ped_killed], [1, 0]);
   assert.deepEqual(keysOf(VEHICLES, f2.vehicles).sort(), ["e-bike", "suv"]);
 
   assert.equal(f3.severity, 0);
   assert.deepEqual(keysOf(MANEUVERS, f3.maneuvers), ["backing"]);
   assert.deepEqual(keysOf(VEHICLES, f3.vehicles), ["truck"]);
 
-  assert.equal(f4.severity, 3);
+  assert.equal(f4.severity, 2);
   assert.equal(f4.killed, 1);
-  assert.deepEqual(keysOf(WHO, f4.who), ["cyclist"], "without person rows, the crash's counts say who");
-  assert.deepEqual([f4.cyc_killed, f4.cyc_serious, f4.ped_killed], [1, 0, 0], "and how many");
+  assert.deepEqual(keysOf(WHO, f4.who), ["cyclist"]);
+  assert.deepEqual([f4.cyc_killed, f4.ped_killed, f4.erider_killed], [1, 0, 0]);
   assert.deepEqual(keysOf(VEHICLES, f4.vehicles).sort(), ["bike", "sedan"]);
   assert.equal(f4.corner, null);
 
@@ -180,12 +156,22 @@ test("facts row: who was hurt, how badly, the causes, maneuvers and vehicles", (
   assert.equal(f5.hour, null);
 });
 
-test("facts row: the hash changes when a vehicle or person changes", () => {
+test("facts row: motorists hurt with a motorcycle in the crash are motorcyclists", () => {
+  const crash = (motorists, codes) => crashRow({ collision_id: "m", crash_date: day("2025-06-01"), number_of_persons_injured: String(motorists),
+    number_of_motorist_injured: String(motorists), ...Object.fromEntries(codes.map((c, i) => [i ? `vehicle_type_code${i + 1}` : "vehicle_type_code1", c])) });
+  const who = (motorists, codes) => keysOf(WHO, factsRow(crash(motorists, codes)).who).sort();
+  assert.deepEqual(who(1, ["Motorcycle", "Sedan"]), ["motorcyclist"]);
+  assert.deepEqual(who(2, ["Motorcycle", "Sedan"]), ["motorcyclist", "occupant"], "more hurt than motorcycles: someone in the car too");
+  assert.deepEqual(who(1, ["Sedan", "Taxi"]), ["occupant"]);
+  assert.deepEqual(who(0, ["Motorcycle"]), []);
+});
+
+test("facts row: the hash changes when a vehicle changes", () => {
   const before = facts()[0].h;
-  const changed = { ...RAW, persons: RAW.persons.map((p) => (p.unique_id === "p1" ? { ...p, complaint: "Minor Bleeding" } : p)) };
+  const changed = { ...RAW, vehicles: RAW.vehicles.map((v) => (v.unique_id === "v1" ? { ...v, pre_crash: "Going Straight Ahead" } : v)) };
   const after = facts(changed)[0];
   assert.notEqual(after.h, before);
-  assert.equal(after.severity, 1);
+  assert.deepEqual(keysOf(MANEUVERS, after.maneuvers), ["straight"]);
 });
 
 // ---------- URL ----------
@@ -256,20 +242,20 @@ test("SQL: totals and per-group counts follow the place and mode", () => {
   const city = readTotals(all(totalsSql(q("")))[0]);
   assert.equal(city.crashes, 5);
   assert.equal(city.killed, 1);
-  assert.equal(city.serious, 2);
-  assert.equal(city.ksiCrashes, 3);
+  assert.equal(city.injured, 3);
+  assert.equal(city.fatalCrashes, 1);
   assert.equal(city.groups.who.pedestrian.n, 1);
-  assert.equal(city.groups.who.pedestrian.ksi, 1);
+  assert.equal(city.groups.who.cyclist.fatal, 1);
   assert.equal(city.groups.maneuvers["left-turn"].n, 1);
 
   assert.equal(readTotals(all(totalsSql(q("mode=walk")))[0]).crashes, 1, "crashes that hurt a pedestrian");
   const bike = readTotals(all(totalsSql(q("mode=bike")))[0]);
   assert.equal(bike.crashes, 2, "a cyclist or an e-rider");
-  assert.deepEqual([bike.injured, bike.killed, bike.serious], [1, 1, 0], "only the cyclists and e-riders, not the SUV's seriously hurt driver");
+  assert.deepEqual([bike.injured, bike.killed], [1, 1], "only the cyclists and e-riders, not the SUV's hurt driver");
   const walk = readTotals(all(totalsSql(q("mode=walk")))[0]);
-  assert.deepEqual([walk.injured, walk.killed, walk.serious], [1, 0, 1]);
+  assert.deepEqual([walk.injured, walk.killed], [1, 0]);
   const drive = readTotals(all(totalsSql(q("mode=drive")))[0]);
-  assert.deepEqual([drive.killed, drive.serious], [city.killed, city.serious], "driving: everyone");
+  assert.deepEqual([drive.injured, drive.killed], [city.injured, city.killed], "driving: everyone");
   assert.equal(readTotals(all(totalsSql(q("mode=drive")))[0]).crashes, 5, "every crash");
   assert.equal(city.hurtCrashes, 3);
   assert.equal(readTotals(all(totalsSql(q("zip=10023")))[0]).crashes, 3);
@@ -296,7 +282,7 @@ test("SQL: borough totals, ranked corners, an intersection's rank, the area's bo
   assert.equal(corners.length, 1);
   assert.equal(corners[0].n, 3);
   assert.equal(corners[0].hurt, 2);
-  assert.equal(corners[0].ksi, 2);
+  assert.equal(corners[0].fatal, 0);
   assert.equal(corners[0].borough, "MANHATTAN");
   assert.ok(Math.abs(corners[0].lat - 40.7781) < 0.001);
   assert.equal(corners[0].groups.vehicles.truck.n, 1);
@@ -307,7 +293,7 @@ test("SQL: borough totals, ranked corners, an intersection's rank, the area's bo
   assert.equal(all(cornerRankSql(q(""), "BROOKLYN", 1))[0].total, 0, "the Brooklyn crash names no cross street");
 
   assert.equal(all(areaBoroughSql(q("zip=10023&mode=walk")))[0].borough, "MANHATTAN");
-  assert.deepEqual(all(pointsSql(q(""))).map((p) => p.severity), [3, 2, 2], "killed first");
+  assert.deepEqual(all(pointsSql(q(""))).map((p) => p.date), ["2025-05-01"], "only the crash that killed someone");
   // A corner from the list, back through the URL, finds the same crashes.
   const [street, cross] = corners[0].label.split(" & ");
   assert.equal(readTotals(all(totalsSql(q(new URLSearchParams({ street, cross, boro: corners[0].borough }).toString())))[0]).crashes, 3);
@@ -326,11 +312,11 @@ const groupsWith = (counts) => {
   const groups = {};
   for (const d of DIMENSIONS) {
     groups[d.column] = {};
-    for (const g of d.groups) groups[d.column][g.key] = { n: counts[`${d.column}:${g.key}`] ?? 0, ksi: 0 };
+    for (const g of d.groups) groups[d.column][g.key] = { n: counts[`${d.column}:${g.key}`] ?? 0, fatal: 0 };
   }
   return groups;
 };
-const totals = (crashes, counts, extra = {}) => ({ crashes, injured: 0, killed: 0, serious: 0, hurtCrashes: 0, ksiCrashes: 0, groups: groupsWith(counts), ...extra });
+const totals = (crashes, counts, extra = {}) => ({ crashes, injured: 0, killed: 0, hurtCrashes: 0, fatalCrashes: 0, groups: groupsWith(counts), ...extra });
 
 test("watch for: clearly more common here, enough of them, biggest gap first, the mode's victims left out", () => {
   const summary = {
@@ -371,20 +357,20 @@ test("tips: every one has a general line; a mode's line when there is one", () =
   assert.equal(tipFor("nope", "walk"), null);
 });
 
-test("stat cards: crashes that hurt the mode's someone, how often, killed or seriously hurt, an intersection's rank", () => {
+test("stat cards: crashes that hurt the mode's someone, how often, people killed and hurt, an intersection's rank", () => {
   const base = { dateFrom: "2024-06-01", dataThrough: "2025-05-31", area: { kind: "zip", label: "ZIP 11211" } };
-  const here = totals(730, {}, { injured: 400, killed: 2, serious: 8, hurtCrashes: 365, ksiCrashes: 10 });
+  const here = totals(730, {}, { injured: 400, killed: 2, hurtCrashes: 365, fatalCrashes: 2 });
   const cards = statCards({ ...base, here });
-  assert.deepEqual(cards.map((c) => c.name), ["hurt", "ksi", "crashes"]);
+  assert.deepEqual(cards.map((c) => c.name), ["hurt", "killed", "crashes"]);
   assert.equal(cards[0].label, "Crashes that hurt someone");
   assert.equal(cards[0].value, "365");
   assert.equal(cards[0].context, "About 7 a week.", "under 1.5 a day reads as a week");
-  assert.equal(cards[1].value, "10");
+  assert.equal(cards[1].value, "2");
   assert.equal(statCards({ ...base, here }, "walk")[0].label, "Crashes that hurt a pedestrian");
-  assert.equal(cards[1].context, "2 killed, 8 seriously hurt.");
-  assert.equal(cards[1].label, "People killed or seriously hurt");
-  assert.equal(statCards({ ...base, here }, "bike")[1].label, "Cyclists and e-riders killed or seriously hurt");
-  assert.equal(statCards({ ...base, here }, "walk")[1].context, "2 killed, 8 seriously hurt.");
+  assert.equal(cards[1].context, "400 people hurt.");
+  assert.equal(cards[1].label, "People killed");
+  assert.equal(statCards({ ...base, here }, "bike")[1].label, "Cyclists and e-riders killed");
+  assert.equal(statCards({ ...base, here }, "walk")[1].context, "400 pedestrians hurt.");
   assert.equal(statCards({ ...base, here }, "walk").length, 2, "walking: every crash counted hurt someone, so no all-crashes card");
   const rank = statCards({ ...base, area: { kind: "corner", label: "A & B" }, here, rank: { label: "Brooklyn", total: 4000, above: 9 } });
   assert.equal(rank[2].value, "#10");
@@ -399,7 +385,7 @@ test("stat cards: crashes that hurt the mode's someone, how often, killed or ser
 });
 
 test("dangerous intersections: each against its own borough, numbered, escaped, with the place for the click", () => {
-  const corner = (label, borough, counts) => ({ corner: label, label, borough, lat: 40.7, lon: -73.9, n: 10, hurt: 6, injured: 7, killed: 0, ksi: 1, groups: groupsWith(counts) });
+  const corner = (label, borough, counts) => ({ corner: label, label, borough, lat: 40.7, lon: -73.9, n: 10, hurt: 6, injured: 7, killed: 0, fatal: 1, groups: groupsWith(counts) });
   const summary = {
     city: totals(2000, { "vehicles:truck": 320 }),
     boroughs: { MANHATTAN: totals(1000, { "vehicles:truck": 20 }), BROOKLYN: totals(1000, { "vehicles:truck": 300 }) },
@@ -445,7 +431,7 @@ function syntheticDb(n = 1500) {
   for (let i = 0; i < n; i++) {
     const on = pick(streets), cross = rand() < 0.7 ? pick(streets) : null, off = rand() < 0.1 ? pick(streets) : null;
     const corner = cross && cross !== on ? cornerOf(rand() < 0.2 ? on[1].toUpperCase() : on[1], cross[1]) : { key: null, label: null };
-    const severity = pick([0, 0, 0, 1, 1, 2, 3]);
+    const severity = pick([0, 0, 0, 1, 1, 1, 2]);
     const located = rand() < 0.95;
     const id = `c${String(i).padStart(5, "0")}`;
     const date = `2026-${String(1 + Math.floor(rand() * 9)).padStart(2, "0")}-${String(1 + Math.floor(rand() * 28)).padStart(2, "0")}`;
@@ -454,9 +440,9 @@ function syntheticDb(n = 1500) {
       collision_id: id, crash_date: date, hour: 12, dow: 1, borough: pick(boroughs), zip_code: pick(zips),
       lat: located ? Math.round((40.70 + rand() * 0.1) * 1e6) / 1e6 : null, lon: located ? Math.round((-74.0 + rand() * 0.1) * 1e6) / 1e6 : null,
       cell: null, corner: corner.key, corner_label: corner.label, severity,
-      killed: severity === 3 ? 1 : 0, injured: severity ? 1 + count() : 0, serious: severity === 2 ? 1 : 0,
-      ped_killed: count(), ped_serious: count(), ped_injured: count(), cyc_killed: count(), cyc_serious: count(), cyc_injured: count(),
-      erider_killed: count(), erider_serious: count(), erider_injured: count(),
+      killed: severity === 2 ? 1 : 0, injured: severity ? 1 + count() : 0,
+      ped_killed: count(), ped_injured: count(), cyc_killed: count(), cyc_injured: count(),
+      erider_killed: count(), erider_injured: count(),
       who: Math.floor(rand() * 32), causes: Math.floor(rand() * 32768), maneuvers: Math.floor(rand() * 512), vehicles: Math.floor(rand() * 8192), h: "x"
     });
     const named = [["on", on], ["cross", cross], ["off", off]].filter(([, s]) => s);
@@ -534,9 +520,9 @@ test("counting in JS: the same summary and map as the SQL, for every kind of pla
 
 test("packing: a row's coordinates survive exactly; an id is never sent", () => {
   const rows = [
-    { collision_id: "a", crash_date: "2026-01-02", borough: "QUEENS", zip_code: "11375", lat: 40.712345, lon: -73.98765, corner: null, corner_label: null, severity: 2, injured: 1, who: 1, causes: 0, maneuvers: 0, vehicles: 0, streets: [] },
+    { collision_id: "a", crash_date: "2026-01-02", borough: "QUEENS", zip_code: "11375", lat: 40.712345, lon: -73.98765, corner: null, corner_label: null, severity: 1, injured: 1, who: 1, causes: 0, maneuvers: 0, vehicles: 0, streets: [] },
     { collision_id: "b", crash_date: "2026-01-03", borough: null, zip_code: null, lat: null, lon: null, corner: null, corner_label: null, severity: 0, injured: 0, who: 0, causes: 0, maneuvers: 0, vehicles: 0, streets: [] },
-    { collision_id: "c", crash_date: "2026-01-04", borough: "QUEENS", zip_code: "11375", lat: 40.1234567, lon: -73.1, corner: null, corner_label: null, severity: 3, injured: 0, who: 0, causes: 0, maneuvers: 0, vehicles: 0, streets: [] }
+    { collision_id: "c", crash_date: "2026-01-04", borough: "QUEENS", zip_code: "11375", lat: 40.1234567, lon: -73.1, corner: null, corner_label: null, severity: 2, injured: 0, who: 0, causes: 0, maneuvers: 0, vehicles: 0, streets: [] }
   ];
   const packed = packFacts(rows);
   assert.ok(!JSON.stringify(packed).includes('"a"'));
@@ -560,7 +546,7 @@ test("facts from the source: one row per crash with its street keys, the same as
     assert.deepEqual(row, want[i]);
     assert.deepEqual(streets, streetRows(crashRow(RAW.crashes[i])).map((s) => s.street));
   }
-  // Vehicles and persons whose crash is out of range are dropped, not counted somewhere else.
+  // Vehicles whose crash is out of range are dropped, not counted somewhere else.
   const extra = asFetched({ ...RAW, vehicles: [...RAW.vehicles, { unique_id: "v9", collision_id: id(99), vehicle_type: "Sedan" }] });
   assert.equal(factsFromSource(extra).length, rows.length);
 });
@@ -609,7 +595,7 @@ test("hotspots build: keeps the last build when the source suddenly has far fewe
   try {
     await assert.rejects(hotspotsJob.run(asFetched()), /keeping the last build/);
     assert.equal(env.DATA_CACHE.store.size, 2, "nothing written");
-    await assert.rejects(hotspotsJob.run({ crashes: [], vehicles: [], persons: [] }), /keeping the last build/);
+    await assert.rejects(hotspotsJob.run({ crashes: [], vehicles: [] }), /keeping the last build/);
   } finally {
     delete env.DATA_CACHE;
   }
@@ -627,19 +613,19 @@ test("fetching a year: only the needed columns, in Socrata's row order, one tabl
     const p = Object.fromEntries(u.searchParams);
     calls.push({ id: u.pathname.split("/").at(-1).replace(".json", ""), ...p });
     if (!failedOnce) { failedOnce = true; return new Response("busy", { status: 503 }); }
-    // Two pages for the persons table: a full one, then the rest (with a row repeated, as if republished mid-pull).
-    if (u.pathname.includes("f55k-p6yu") && p.$offset === "0") {
-      return Response.json(Array.from({ length: Number(p.$limit) }, (_, i) => ({ unique_id: `p${String(i).padStart(5, "0")}` })));
+    // Two pages for the vehicles table: a full one, then the rest (with a row repeated, as if republished mid-pull).
+    if (u.pathname.includes("bm4k-52h4") && p.$offset === "0") {
+      return Response.json(Array.from({ length: Number(p.$limit) }, (_, i) => ({ unique_id: `v${String(i).padStart(5, "0")}` })));
     }
-    if (u.pathname.includes("f55k-p6yu")) return Response.json([{ unique_id: "p00007" }, { unique_id: "z" }]);
+    if (u.pathname.includes("bm4k-52h4")) return Response.json([{ unique_id: "v00007" }, { unique_id: "z" }]);
     return Response.json([{ unique_id: "z", collision_id: "1" }]);
   };
   try {
     const got = await fetchYear({ from: "2025-11-13", to: null });
-    assert.deepEqual(Object.keys(got), ["crashes", "vehicles", "persons"]);
-    assert.deepEqual(calls.map((c) => c.id), ["h9gi-nx95", "h9gi-nx95", "bm4k-52h4", "f55k-p6yu", "f55k-p6yu"], "the 503 retried, then one table after another");
-    assert.deepEqual(calls.map((c) => c.$limit), ["50000", "25000", "25000", "25000", "25000"], "half the size after a failure, and it sticks");
-    assert.equal(got.persons.length, 25001, "the repeated row kept once");
+    assert.deepEqual(Object.keys(got), ["crashes", "vehicles"], "the persons table isn't fetched");
+    assert.deepEqual(calls.map((c) => c.id), ["h9gi-nx95", "h9gi-nx95", "bm4k-52h4", "bm4k-52h4"], "the 503 retried, then one table after another");
+    assert.deepEqual(calls.map((c) => c.$limit), ["50000", "25000", "25000", "25000"], "half the size after a failure, and it sticks");
+    assert.equal(got.vehicles.length, 25001, "the repeated row kept once");
     assert.deepEqual(calls.slice(-2).map((c) => c.$offset), ["0", "25000"]);
     assert.equal(calls[0].$select, SOURCE_COLUMNS.crashes.join(","));
     assert.equal(calls[0].$order, ":id");

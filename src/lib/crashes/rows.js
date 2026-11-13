@@ -3,7 +3,7 @@
  * the hotspots build (src/lib/server/crash-hotspots.js factsFromSource())
  * and the tests' reference database.
  */
-import { streetMatchKey, streetBaseKey, minuteOf, personRole, positionKey, isInvolved, ageOf, sexOf, yearOf, textOf, numberOf, rowHash } from "./normalize.js";
+import { streetMatchKey, streetBaseKey, minuteOf, sexOf, yearOf, textOf, numberOf, rowHash } from "./normalize.js";
 import { makeOf } from "./makes.js";
 import { vehicleTypeKey } from "./vehicle-types.js";
 import { inNyc } from "../complaints311/location-input.js";
@@ -86,35 +86,6 @@ export function vehicleRow(r) {
     damage: list(r.vehicle_damage, r.vehicle_damage_1, r.vehicle_damage_2, r.vehicle_damage_3),
     public_property_damage: textOf(r.public_property_damage),
     public_property_damage_type: textOf(r.public_property_damage_type),
-    factors: list(r.contributing_factor_1, r.contributing_factor_2),
-    h: rowHash(r)
-  };
-}
-
-export function personRow(r) {
-  const role = personRole(r.person_type, r.ped_role);
-  return {
-    unique_id: r.unique_id,
-    collision_id: r.collision_id,
-    crash_date: day(r.crash_date),
-    person_id: r.person_id ?? null,
-    vehicle_ref: r.vehicle_id ?? null,
-    person_type: textOf(r.person_type),
-    ped_role: textOf(r.ped_role),
-    role,
-    involved: isInvolved(role) ? 1 : 0,
-    age: ageOf(r.person_age),
-    sex: sexOf(r.person_sex),
-    injury: textOf(r.person_injury),
-    position: textOf(r.position_in_vehicle),
-    position_key: positionKey(r.position_in_vehicle),
-    safety_equipment: textOf(r.safety_equipment),
-    ejection: textOf(r.ejection),
-    emotional_status: textOf(r.emotional_status),
-    bodily_injury: textOf(r.bodily_injury),
-    complaint: textOf(r.complaint),
-    ped_location: textOf(r.ped_location),
-    ped_action: textOf(r.ped_action),
     factors: list(r.contributing_factor_1, r.contributing_factor_2),
     h: rowHash(r)
   };

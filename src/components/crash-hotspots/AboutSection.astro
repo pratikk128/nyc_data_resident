@@ -1,8 +1,8 @@
 ---
 /*
  * NYC Crash Hotspots: where the data comes from, how intersections are
- * ranked, how "what goes wrong" and the tips are picked, what "seriously
- * hurt" means here, and the limits (DESIGN.md §7).
+ * ranked, how "what goes wrong" and the tips are picked, what "hurt" and
+ * "killed" mean here, and the limits (DESIGN.md §7).
  */
 import { DATASETS, dateRange, sourceUrl } from '../../lib/crashes/config.js';
 import { CAUSES, MANEUVERS } from '../../lib/crashes/facts.js';
@@ -25,7 +25,7 @@ const range = dateRange();
   <div class="about-body cl-about">
     <h3>Where this comes from</h3>
     <p>
-      NYPD crash reports published on NYC Open Data, in three tables:{' '}
+      NYPD crash reports published on NYC Open Data, in two tables:{' '}
       {Object.entries(DATASETS).map(([t, d], i, all) => <><a href={sourceUrl(t)} rel="noopener">{d.name}</a> ({d.id}){i < all.length - 1 ? ', ' : '.'}</>)}{' '}
       This dashboard covers the last year, from {date(range.from)}{dataThrough ? ` to ${date(dataThrough)}` : ''}; older crashes drop off each day.
       {builtAt && <>We fetch the whole year again every day, so new reports, corrections and deletions all show up (last on {date(builtAt.slice(0, 10))}).{' '}</>}
@@ -34,7 +34,7 @@ const range = dateRange();
     <h3>How intersections are ranked</h3>
     <p>
       By the number of crashes there in the last year that hurt someone: with “I walk”, crashes that hurt a pedestrian; with
-      “I bike”, a cyclist or someone on an e-bike, e-scooter or moped. Ties go to the one with more crashes that seriously hurt or
+      “I bike”, a cyclist or someone on an e-bike, e-scooter or moped. Ties go to the one with more crashes that
       killed someone. We list up to {TOP_CORNERS}, and only intersections with at least {MIN_CORNER_CRASHES} crashes, {MIN_CORNER_HURT} of them
       hurting someone. “I drive” counts every crash, since a driver can be in any of them, and changes only who the tips speak to.
     </p>
@@ -48,20 +48,19 @@ const range = dateRange();
       Each kind comes with one plain safety tip. The tips are general advice, not a finding about any one crash.
     </p>
 
-    <h3>What “seriously hurt” means here</h3>
+    <h3>What “hurt” and “killed” mean here</h3>
     <p>
-      The police report doesn’t grade injuries. We count someone as seriously hurt when the report lists an injury that’s rarely
-      minor (a fracture or dislocation, an internal injury, a concussion, a crush injury, severe bleeding or cuts, an amputation,
-      paralysis, or a moderate or severe burn) or says they were unconscious, semiconscious or in apparent death. It’s our stand-in for
-      the city’s “killed or seriously injured” measure, not the city’s own count, and it likely misses some serious injuries.
-      With “I walk” the people killed or seriously hurt are only pedestrians, and with “I bike” only cyclists and people on
-      e-bikes, e-scooters and mopeds, not the drivers or passengers in the same crashes.
+      They’re the counts on the police report. The report doesn’t grade injuries, so “hurt” covers everything from a complaint of
+      pain to a life-changing injury, and this dashboard can’t pick out the serious ones. With “I walk” the people killed or hurt
+      are only pedestrians, and with “I bike” only cyclists and people on e-bikes, e-scooters and mopeds, not the drivers or
+      passengers in the same crashes.
     </p>
 
     <h3>How crashes are grouped</h3>
     <p>
-      <strong>Who was hurt</strong> comes from the people on the report who were hurt or killed: pedestrians; cyclists; people on e-bikes,
-      e-scooters and mopeds; motorcyclists; and people in cars, trucks and buses.{' '}
+      <strong>Who was hurt</strong> comes from the report’s counts of people hurt or killed: pedestrians; cyclists; people on e-bikes,
+      e-scooters and mopeds; motorcyclists; and people in cars, trucks and buses. The report counts drivers and passengers together, so
+      a motorist hurt in a crash with a motorcycle counts as a motorcyclist.{' '}
       <strong>Cause</strong> groups the contributing factors police list for the crash and each vehicle
       ({CAUSES.map((c) => c.label.toLowerCase()).join(', ')}). “Unspecified” and factors like “other vehicular” aren’t in any group.{' '}
       <strong>What the driver was doing</strong> groups each vehicle’s action just before the crash
