@@ -1,11 +1,11 @@
 /*
- * Source rows (Socrata JSON) → rows in the shape of schema.js's tables, for
- * the hotspots build (src/lib/server/crash-hotspots.js factsFromSource())
- * and the tests' reference database.
+ * Source rows (Socrata JSON, only config.js SOURCE_COLUMNS) → the rows
+ * facts.js factsRow() takes, for the hotspots build
+ * (src/lib/server/crash-hotspots.js factsFromSource()); crashRow() and
+ * streetRows() are also in the shape of schema.js's tables, for the tests'
+ * reference database.
  */
-import { streetMatchKey, streetBaseKey, minuteOf, sexOf, yearOf, textOf, numberOf, rowHash } from "./normalize.js";
-import { makeOf } from "./makes.js";
-import { vehicleTypeKey } from "./vehicle-types.js";
+import { streetMatchKey, streetBaseKey, textOf, numberOf } from "./normalize.js";
 import { inNyc } from "../complaints311/location-input.js";
 
 const day = (v) => String(v ?? "").slice(0, 10);
@@ -29,7 +29,6 @@ export function crashRow(r) {
   return {
     collision_id: r.collision_id,
     crash_date: day(r.crash_date),
-    crash_minute: minuteOf(r.crash_time),
     borough: textOf(r.borough)?.toUpperCase() ?? null,
     zip_code: /^\d{5}$/.test(String(r.zip_code ?? "").trim()) ? String(r.zip_code).trim() : null,
     latitude,
@@ -47,8 +46,7 @@ export function crashRow(r) {
     motorists_killed: int(r.number_of_motorist_killed),
     factors: list(r.contributing_factor_vehicle_1, r.contributing_factor_vehicle_2, r.contributing_factor_vehicle_3,
       r.contributing_factor_vehicle_4, r.contributing_factor_vehicle_5),
-    vehicle_codes: list(r.vehicle_type_code1, r.vehicle_type_code2, r.vehicle_type_code_3, r.vehicle_type_code_4, r.vehicle_type_code_5),
-    h: rowHash(r)
+    vehicle_codes: list(r.vehicle_type_code1, r.vehicle_type_code2, r.vehicle_type_code_3, r.vehicle_type_code_4, r.vehicle_type_code_5)
   };
 }
 
@@ -62,31 +60,12 @@ export function streetRows(crash) {
   return out;
 }
 
+// A vehicle's own extras: the crash row already has its type and first factor (config.js SOURCE_COLUMNS).
 export function vehicleRow(r) {
-  const make = makeOf(r.vehicle_make);
   return {
     unique_id: r.unique_id,
     collision_id: r.collision_id,
-    crash_date: day(r.crash_date),
-    vehicle_uuid: r.vehicle_id ?? null,
-    state_registration: textOf(r.state_registration)?.toUpperCase() ?? null,
-    type_raw: textOf(r.vehicle_type),
-    type_key: vehicleTypeKey(r.vehicle_type),
-    make_raw: textOf(r.vehicle_make),
-    make_key: make.key,
-    make_class: make.class,
-    vehicle_year: yearOf(r.vehicle_year),
-    travel_direction: textOf(r.travel_direction),
-    occupants: int(r.vehicle_occupants),
-    driver_sex: sexOf(r.driver_sex),
-    license_status: textOf(r.driver_license_status),
-    license_jurisdiction: textOf(r.driver_license_jurisdiction)?.toUpperCase() ?? null,
     pre_crash: textOf(r.pre_crash),
-    point_of_impact: textOf(r.point_of_impact),
-    damage: list(r.vehicle_damage, r.vehicle_damage_1, r.vehicle_damage_2, r.vehicle_damage_3),
-    public_property_damage: textOf(r.public_property_damage),
-    public_property_damage_type: textOf(r.public_property_damage_type),
-    factors: list(r.contributing_factor_1, r.contributing_factor_2),
-    h: rowHash(r)
+    factors: list(r.contributing_factor_2)
   };
 }

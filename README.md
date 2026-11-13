@@ -376,7 +376,7 @@ Quick-filter chips (`JOB_CHIPS` in `build.js`). A chip with no matching title in
 
 ## Crash data
 
-NYC Crash Hotspots is built from two of the three NYPD tables on NYC Open Data. The site keeps no copy of them: each daily build fetches the last year again and writes what the page needs to KV (see NYC Crash Hotspots below).
+NYC Crash Hotspots is built from two of the three NYPD tables on NYC Open Data. The site keeps no copy of them: every 3 days a build fetches the last year again and writes what the page needs to KV (see NYC Crash Hotspots below).
 
 **Data.** Crashes (`h9gi-nx95`, key `collision_id`) and vehicles (`bm4k-52h4`, key `unique_id`). The persons table (`f55k-p6yu`) isn't fetched: it's the biggest of the three, and the crash's own counts say who was hurt or killed. What it alone had was the injury type, which the page used to pick out "seriously hurt"; the page now counts killed and hurt only. Things the column names don't tell you:
 
@@ -384,8 +384,11 @@ NYC Crash Hotspots is built from two of the three NYPD tables on NYC Open Data. 
 - Motorists are drivers and passengers of any motor vehicle, motorcycles included; `factsRow()` calls a hurt motorist a motorcyclist when a motorcycle was in the crash.
 - Vehicle types are free text (`Sedan`, `4 dr sedan`, `PK`, `subn`); `src/lib/crashes/vehicle-types.js` groups them.
 - The city republishes every row daily (`:updated_at` moves on all of them), so it can't drive an incremental sync. That's one reason the build simply fetches the whole year each time.
+- The crash row's `vehicle_type_code1..5` and `contributing_factor_vehicle_1..5` are vehicles 1–5's `vehicle_type` and `contributing_factor_1`, so from the vehicles table the build asks only for `pre_crash` and `contributing_factor_2` (with `unique_id` and `collision_id`). Vehicles past the fifth, which are rare, aren't in the vehicle filter.
 
-**Why no database.** The crash tables used to live in D1, but loading a year (about 735,000 rows across the tables, plus their indexes) is far over the free plan's 100,000 rows written a day, and a reload needed about twice the 263 MB database, past the free plan's 500 MB. Requests never read it anyway: they read the facts built into KV. So the build fetches straight from NYC Open Data instead: only the columns the facts need (`SOURCE_COLUMNS` in `src/lib/crashes/config.js`, about 80,000 crashes and 160,000 vehicles), in Socrata's own row order (`:id`; ordering by a column made each page take minutes), one table at a time. Socrata's speed swings widely, so pages start at 50,000 rows and a page that fails is retried at half the size (down to 5,000). The fetch has a 20-minute budget: running out fails only this job, so the rest of the refresh is still written. A fresh fetch every day also picks up amended and deleted reports, which the old 45-day sync missed.
+**Why no database.** The crash tables used to live in D1, but loading a year (about 735,000 rows across the tables, plus their indexes) is far over the free plan's 100,000 rows written a day, and a reload needed about twice the 263 MB database, past the free plan's 500 MB. Requests never read it anyway: they read the facts built into KV. So the build fetches straight from NYC Open Data instead: only the columns the facts need (`SOURCE_COLUMNS` in `src/lib/crashes/config.js`, about 80,000 crashes and 160,000 vehicles), in Socrata's own row order (`:id`; ordering by a column made each page take minutes), one table at a time. Socrata's speed swings widely, so pages start at 50,000 rows and a page that fails is retried at half the size (down to 5,000). The fetch has a 20-minute budget: running out fails only this job, so the rest of the refresh is still written. A fresh fetch of the whole year also picks up amended and deleted reports, which the old 45-day sync missed.
+
+**How often.** The city updates the crash table daily, but the build runs only every 3 days (`REBUILD_HOURS` in `src/lib/crashes/config.js`, applied as the dataset's `rebuildHours` and `minGapHours` in `src/lib/server/crashes.js`): it's the refresh's biggest job by far, and a year's counts barely move in a few days.
 
 **Change the date range.** `dateRange()` in `src/lib/crashes/config.js` returns the last `RANGE_YEARS` (1) years before today in New York, through the latest data. A wider range makes the fetch longer and the page's facts download bigger.
 
@@ -397,11 +400,11 @@ NYC Crash Hotspots is built from two of the three NYPD tables on NYC Open Data. 
 
 `/crash-hotspots/`: for residents asking which corners near them are dangerous and what to do about it. Pick all of NYC, a borough, ZIP, street, intersection or address (a 250 or 500 m circle), and optionally how you get around (`mode`: walk counts crashes that hurt a pedestrian, bike a cyclist or e-rider, drive every crash; it also picks who the tips talk to). The page shows three stat cards (crashes that hurt someone, people killed, and for an intersection its rank in its borough), "What to watch for here" (kinds of crash clearly more common than in the borough, tip first), and the intersections where crashes hurt people most, each with what goes wrong there against its borough and a tip, next to a map of the same numbered corners and a dot per crash that killed someone. Picking an intersection shows "What goes wrong here" and the map. The view lives in the URL.
 
-Deliberately left out: time of day, trends by month and full breakdowns. They're interesting but don't change what anyone does at a given corner; the time and day columns are still in `crash_facts`.
+Deliberately left out: time of day, trends by month and full breakdowns. They're interesting but don't change what anyone does at a given corner.
 
 **Data.** The crash tables above (see Crash data), boiled down to one facts row per crash (`factsRow()` in `src/lib/crashes/facts.js`): each filter group stored as a bitmask, so any mix of filters is one pass over a narrow list with no joins, plus the street keys the crash names.
 
-- Bits are packed into the facts (and browsers cache them), so a group's `bit` never changes; add groups with the next free one. A changed mapping rule shows after the next daily build.
+- Bits are packed into the facts (and browsers cache them), so a group's `bit` never changes; add groups with the next free one. A changed mapping rule shows after the next build (within 3 days; `npm run data:hotspots` for sooner).
 - Severity is the crash's own counts: 2 someone killed, 1 someone hurt, 0 nobody hurt. The report doesn't grade injuries, so there's no "seriously hurt".
 
 **Built ahead, not queried per view.** Page views never count anything on the server. The data refresh runs `hotspotsJob` (`src/lib/server/crash-hotspots.js`) at least daily: it fetches the year (above), builds the facts rows (`factsFromSource()`), and writes to KV

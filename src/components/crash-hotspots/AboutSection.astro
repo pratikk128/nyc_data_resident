@@ -27,8 +27,8 @@ const range = dateRange();
     <p>
       NYPD crash reports published on NYC Open Data, in two tables:{' '}
       {Object.entries(DATASETS).map(([t, d], i, all) => <><a href={sourceUrl(t)} rel="noopener">{d.name}</a> ({d.id}){i < all.length - 1 ? ', ' : '.'}</>)}{' '}
-      This dashboard covers the last year, from {date(range.from)}{dataThrough ? ` to ${date(dataThrough)}` : ''}; older crashes drop off each day.
-      {builtAt && <>We fetch the whole year again every day, so new reports, corrections and deletions all show up (last on {date(builtAt.slice(0, 10))}).{' '}</>}
+      This dashboard covers the last year, from {date(range.from)}{dataThrough ? ` to ${date(dataThrough)}` : ''}; older crashes drop off as it’s rebuilt.
+      {builtAt && <>We fetch the whole year again every 3 days, so new reports, corrections and deletions all show up (last on {date(builtAt.slice(0, 10))}).{' '}</>}
     </p>
 
     <h3>How intersections are ranked</h3>

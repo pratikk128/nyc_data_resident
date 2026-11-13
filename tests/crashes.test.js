@@ -1,13 +1,12 @@
 /*
- * The crash data behind NYC Crash Hotspots: normalizing streets, makes,
- * vehicle types and times; and the date range.
+ * The crash data behind NYC Crash Hotspots: normalizing streets and
+ * vehicle types; and the date range.
  *   npm test
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { streetMatchKey, streetBaseKey, minuteOf, timeLabel, sexOf, yearOf, textOf, rowHash } from "../src/lib/crashes/normalize.js";
-import { makeOf, resolveMake } from "../src/lib/crashes/makes.js";
+import { streetMatchKey, streetBaseKey, textOf } from "../src/lib/crashes/normalize.js";
 import { vehicleTypeKey, resolveVehicleType } from "../src/lib/crashes/vehicle-types.js";
 import { streetsFromText } from "../src/lib/crashes/hotspot-query.js";
 import { crashRow } from "../src/lib/crashes/rows.js";
@@ -52,38 +51,7 @@ test("intersections: either separator, either order, house numbers dropped", () 
   assert.deepEqual(keys("350 5th Ave"), ["5AVENUE"]);
 });
 
-// ---------- Makes and vehicle types ----------
-
-test("makes: the data's codes with their body class, and spelled-out names", () => {
-  assert.deepEqual(makeOf("TOYT -CAR/SUV"), { key: "TOYOTA", class: "car" });
-  assert.deepEqual(makeOf("BMW  -CAR/SUV"), { key: "BMW", class: "car" });
-  assert.deepEqual(makeOf("FORD-TRUCK/BUS"), { key: "FORD", class: "truck" });
-  assert.deepEqual(makeOf("HINO -TRUCK/BUS"), { key: "HINO", class: "truck" });
-  assert.deepEqual(makeOf("Ford"), { key: "FORD", class: null });
-  assert.deepEqual(makeOf("TOYOT"), { key: "TOYOTA", class: null }, "a truncated name");
-  assert.deepEqual(makeOf("MERCEDES BENZ"), { key: "MERCEDES-BENZ", class: null });
-  assert.deepEqual(makeOf("ZZZZ -CAR/SUV"), { key: null, class: "car" });
-  assert.deepEqual(makeOf("YAMA -MCL"), { key: "YAMAHA", class: "motorcycle" });
-  assert.deepEqual(makeOf("HD -MCL"), { key: "HARLEY-DAVIDSON", class: "motorcycle" });
-  assert.deepEqual(makeOf("RAMB -CAR/SUV"), { key: "RAM", class: "car" });
-  assert.deepEqual(makeOf("THMS-TRUCK/BUS"), { key: "THOMAS BUILT", class: "truck" });
-  assert.equal(makeOf("NE/FL").key, "NEW FLYER");
-  assert.equal(makeOf("Zhilo").key, "ZHILO");
-  assert.equal(makeOf("FISKE").key, "FISKER", "a truncated name");
-  assert.equal(makeOf("UNK").key, null);
-  assert.deepEqual(makeOf(""), { key: null, class: null });
-});
-
-test("makes: what people type, exact, a prefix or a typo", () => {
-  assert.equal(resolveMake("Toyota").key, "TOYOTA");
-  assert.equal(resolveMake("toyt").key, "TOYOTA");
-  assert.equal(resolveMake("Chevy").key, "CHEVROLET");
-  assert.equal(resolveMake("VW").key, "VOLKSWAGEN");
-  assert.deepEqual([resolveMake("Merced").key, resolveMake("Merced").how], ["MERCEDES-BENZ", "prefix"]);
-  assert.deepEqual([resolveMake("Toyta").key, resolveMake("Toyta").how], ["TOYOTA", "typo"]);
-  assert.equal(resolveMake("Hundai").key, "HYUNDAI");
-  assert.equal(resolveMake("xq"), null);
-});
+// ---------- Vehicle types ----------
 
 test("vehicle types: the form's spellings grouped", () => {
   const t = vehicleTypeKey;
@@ -117,26 +85,11 @@ test("vehicle types: the form's spellings grouped", () => {
   assert.equal(resolveVehicleType("e bike"), "e-bike");
 });
 
-// ---------- Times, values ----------
+// ---------- Values ----------
 
-test("times and other values", () => {
-  assert.equal(minuteOf("9:25"), 565);
-  assert.equal(minuteOf("00:00"), 0);
-  assert.equal(minuteOf("25:00"), null);
-  assert.equal(timeLabel(565), "9:25 AM");
-  assert.equal(timeLabel(0), "12:00 AM");
-  assert.equal(timeLabel(13 * 60 + 5), "1:05 PM");
-  assert.equal(sexOf("U"), null);
-  assert.equal(yearOf("2019"), 2019);
-  assert.equal(yearOf("1066"), null);
+test("values", () => {
   assert.equal(textOf("Unspecified"), null);
   assert.equal(textOf("  Driver   Inattention "), "Driver Inattention");
-});
-
-test("row hash: stable across key order, changes with any value", () => {
-  assert.equal(rowHash({ a: "1", b: "2" }), rowHash({ b: "2", a: "1" }));
-  assert.notEqual(rowHash({ a: "1", b: "2" }), rowHash({ a: "1", b: "3" }));
-  assert.match(rowHash({}), /^[0-9a-f]{14}$/);
 });
 
 test("date range: one SoQL condition for every table", () => {

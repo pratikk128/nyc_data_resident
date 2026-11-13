@@ -9,7 +9,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 
-import { WHO, CAUSES, MANEUVERS, VEHICLES, DIMENSIONS, causeKey, maneuverKey, maskOf, keysOf, factsRow, cornerOf, cellOf, dayOfWeek, byCrash } from "../src/lib/crashes/facts.js";
+import { WHO, CAUSES, MANEUVERS, VEHICLES, DIMENSIONS, causeKey, maneuverKey, maskOf, keysOf, factsRow, cornerOf, cellOf, byCrash } from "../src/lib/crashes/facts.js";
 import { readQuery, queryToParams, queryKey, placeFromText, filtersFor } from "../src/lib/crashes/hotspot-query.js";
 import { totalsSql, boroughTotalsSql, readTotals, addTotals, cornersSql, readCorners, cornerRankSql, areaBoroughSql, pointsSql, factsPageSql, STREET_SEP } from "../src/lib/crashes/hotspot-sql.js";
 import { packFacts, unpackFacts, summarize, mapOf } from "../src/lib/crashes/hotspot-compute.js";
@@ -85,8 +85,6 @@ test("places: corners either way round, a grid square, Monday first", () => {
   assert.deepEqual(cornerOf("BROADWAY", "BROADWAY"), { key: null, label: null });
   assert.equal(cellOf(40.7781, -73.9817), cellOf(40.7785, -73.9812));
   assert.equal(cellOf(null, -73.98), null);
-  assert.equal(dayOfWeek("2025-06-16"), 0); // a Monday
-  assert.equal(dayOfWeek("2025-06-15"), 6);
 });
 
 // ---------- Fixtures ----------
@@ -98,24 +96,26 @@ const RAW = {
     // Broadway & W 72: a car turning left hits a pedestrian, hurt
     { collision_id: id(1), crash_date: day("2025-03-03"), crash_time: "17:40", borough: "MANHATTAN", zip_code: "10023", latitude: "40.7781", longitude: "-73.9817",
       on_street_name: "BROADWAY", cross_street_name: "WEST 72 STREET", number_of_persons_injured: "1", number_of_pedestrians_injured: "1",
-      contributing_factor_vehicle_1: "Failure to Yield Right-of-Way" },
+      contributing_factor_vehicle_1: "Failure to Yield Right-of-Way", vehicle_type_code1: "Sedan" },
     // Same corner, written the other way round: speeding, an e-bike rider hurt (in no count but the total) and the SUV's driver
     { collision_id: id(2), crash_date: day("2025-03-04"), crash_time: "23:15", borough: "MANHATTAN", zip_code: "10023", latitude: "40.7782", longitude: "-73.9816",
-      on_street_name: "W 72 ST", cross_street_name: "BROADWAY", number_of_persons_injured: "2", number_of_motorist_injured: "1", contributing_factor_vehicle_1: "Unsafe Speed" },
+      on_street_name: "W 72 ST", cross_street_name: "BROADWAY", number_of_persons_injured: "2", number_of_motorist_injured: "1", contributing_factor_vehicle_1: "Unsafe Speed",
+      vehicle_type_code1: "Station Wagon/Sport Utility Vehicle", vehicle_type_code2: "E-Bike" },
     // Same corner, nobody hurt, a truck backing
     { collision_id: id(3), crash_date: day("2025-04-10"), crash_time: "9:05", borough: "MANHATTAN", zip_code: "10023", latitude: "40.7780", longitude: "-73.9818",
-      on_street_name: "BROADWAY", cross_street_name: "WEST 72 STREET", contributing_factor_vehicle_1: "Backing Unsafely" },
-    // Brooklyn, no vehicle rows: the crash's own codes stand in; a cyclist killed
+      on_street_name: "BROADWAY", cross_street_name: "WEST 72 STREET", contributing_factor_vehicle_1: "Backing Unsafely", vehicle_type_code1: "Box Truck" },
+    // Brooklyn, no vehicle rows (nothing on what they were doing); a cyclist killed
     { collision_id: id(4), crash_date: day("2025-05-01"), crash_time: "2:30", borough: "BROOKLYN", zip_code: "11201", latitude: "40.6887", longitude: "-73.9806",
       on_street_name: "ATLANTIC AVENUE", number_of_persons_killed: "1", number_of_cyclist_killed: "1", vehicle_type_code1: "Bike", vehicle_type_code2: "Sedan" },
     // No location at all
     { collision_id: id(5), crash_date: day("2025-05-02"), borough: "QUEENS" }
   ],
+  // Types and first factors are on the crash row (vehicle_type_code*, contributing_factor_vehicle_*).
   vehicles: [
-    { unique_id: "v1", collision_id: id(1), crash_date: day("2025-03-03"), vehicle_type: "Sedan", pre_crash: "Making Left Turn", contributing_factor_1: "Driver Inattention/Distraction" },
-    { unique_id: "v2", collision_id: id(2), crash_date: day("2025-03-04"), vehicle_type: "Station Wagon/Sport Utility Vehicle", pre_crash: "Going Straight Ahead" },
-    { unique_id: "v3", collision_id: id(2), crash_date: day("2025-03-04"), vehicle_type: "E-Bike", pre_crash: "Going Straight Ahead" },
-    { unique_id: "v4", collision_id: id(3), crash_date: day("2025-04-10"), vehicle_type: "Box Truck", pre_crash: "Backing" }
+    { unique_id: "v1", collision_id: id(1), pre_crash: "Making Left Turn", contributing_factor_2: "Driver Inattention/Distraction" },
+    { unique_id: "v2", collision_id: id(2), pre_crash: "Going Straight Ahead" },
+    { unique_id: "v3", collision_id: id(2), pre_crash: "Going Straight Ahead" },
+    { unique_id: "v4", collision_id: id(3), pre_crash: "Backing" }
   ]
 };
 
@@ -131,7 +131,6 @@ test("facts row: who was hurt, how badly, the causes, maneuvers and vehicles", (
   assert.deepEqual(keysOf(CAUSES, f1.causes).sort(), ["distracted", "yield"]);
   assert.deepEqual(keysOf(MANEUVERS, f1.maneuvers), ["left-turn"]);
   assert.deepEqual(keysOf(VEHICLES, f1.vehicles), ["sedan"]);
-  assert.equal(f1.hour, 17);
   assert.equal(f1.corner, f2.corner, "the same corner written either way round");
 
   assert.equal(f2.severity, 1);
@@ -153,7 +152,6 @@ test("facts row: who was hurt, how badly, the causes, maneuvers and vehicles", (
 
   assert.equal(f5.lat, null);
   assert.equal(f5.cell, null);
-  assert.equal(f5.hour, null);
 });
 
 test("facts row: motorists hurt with a motorcycle in the crash are motorcyclists", () => {
@@ -166,12 +164,10 @@ test("facts row: motorists hurt with a motorcycle in the crash are motorcyclists
   assert.deepEqual(who(0, ["Motorcycle"]), []);
 });
 
-test("facts row: the hash changes when a vehicle changes", () => {
-  const before = facts()[0].h;
+test("facts row: what a vehicle was doing comes from its vehicle row", () => {
   const changed = { ...RAW, vehicles: RAW.vehicles.map((v) => (v.unique_id === "v1" ? { ...v, pre_crash: "Going Straight Ahead" } : v)) };
-  const after = facts(changed)[0];
-  assert.notEqual(after.h, before);
-  assert.deepEqual(keysOf(MANEUVERS, after.maneuvers), ["straight"]);
+  assert.deepEqual(keysOf(MANEUVERS, facts(changed)[0].maneuvers), ["straight"]);
+  assert.equal(facts()[3].maneuvers, 0, "no vehicle rows, no maneuvers");
 });
 
 // ---------- URL ----------
@@ -437,13 +433,13 @@ function syntheticDb(n = 1500) {
     const date = `2026-${String(1 + Math.floor(rand() * 9)).padStart(2, "0")}-${String(1 + Math.floor(rand() * 28)).padStart(2, "0")}`;
     const count = () => (rand() < 0.15 ? 1 + Math.floor(rand() * 2) : 0);
     put("crash_facts", {
-      collision_id: id, crash_date: date, hour: 12, dow: 1, borough: pick(boroughs), zip_code: pick(zips),
+      collision_id: id, crash_date: date, borough: pick(boroughs), zip_code: pick(zips),
       lat: located ? Math.round((40.70 + rand() * 0.1) * 1e6) / 1e6 : null, lon: located ? Math.round((-74.0 + rand() * 0.1) * 1e6) / 1e6 : null,
       cell: null, corner: corner.key, corner_label: corner.label, severity,
       killed: severity === 2 ? 1 : 0, injured: severity ? 1 + count() : 0,
       ped_killed: count(), ped_injured: count(), cyc_killed: count(), cyc_injured: count(),
       erider_killed: count(), erider_injured: count(),
-      who: Math.floor(rand() * 32), causes: Math.floor(rand() * 32768), maneuvers: Math.floor(rand() * 512), vehicles: Math.floor(rand() * 8192), h: "x"
+      who: Math.floor(rand() * 32), causes: Math.floor(rand() * 32768), maneuvers: Math.floor(rand() * 512), vehicles: Math.floor(rand() * 8192)
     });
     const named = [["on", on], ["cross", cross], ["off", off]].filter(([, s]) => s);
     for (const [field, s] of named) {
@@ -547,7 +543,7 @@ test("facts from the source: one row per crash with its street keys, the same as
     assert.deepEqual(streets, streetRows(crashRow(RAW.crashes[i])).map((s) => s.street));
   }
   // Vehicles whose crash is out of range are dropped, not counted somewhere else.
-  const extra = asFetched({ ...RAW, vehicles: [...RAW.vehicles, { unique_id: "v9", collision_id: id(99), vehicle_type: "Sedan" }] });
+  const extra = asFetched({ ...RAW, vehicles: [...RAW.vehicles, { unique_id: "v9", collision_id: id(99), pre_crash: "Backing" }] });
   assert.equal(factsFromSource(extra).length, rows.length);
 });
 

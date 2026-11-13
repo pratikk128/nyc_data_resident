@@ -65,7 +65,8 @@ export function sourceVersion(dataset, rowsUpdatedAt, snapshotBuiltAt = {}, jobB
 
 /*
  * Why a job needs rebuilding now, or null if it doesn't.
- *   dataset  { cadence, rolling, minGapHours? } (minGapHours overrides the cadence's)
+ *   dataset  { cadence, rolling, minGapHours?, rebuildHours? } (each overrides
+ *            the cadence's; rebuildHours also overrides rolling's 24)
  *   built    the job's state from its last successful build: { builtAt, sourceVersion }
  *   version  sourceVersion() now, or null if the source couldn't be read
  */
@@ -74,7 +75,7 @@ export function refreshReason(dataset, built, version, now = Date.now()) {
   const ageHours = (now - Date.parse(built.builtAt)) / 3600e3;
   const minGapHours = dataset.minGapHours ?? cadenceOf(dataset.cadence).minGapHours;
   if (version && version !== built.sourceVersion && ageHours >= minGapHours) return "source updated";
-  if (ageHours >= rebuildHours(dataset.cadence, dataset.rolling) - SLACK_HOURS) {
+  if (ageHours >= (dataset.rebuildHours ?? rebuildHours(dataset.cadence, dataset.rolling)) - SLACK_HOURS) {
     return dataset.rolling ? "new day" : "scheduled rebuild";
   }
   return null;

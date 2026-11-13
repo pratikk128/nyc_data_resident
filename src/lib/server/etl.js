@@ -193,7 +193,7 @@ export async function etlStatus(now = Date.now()) {
       jobs
     };
   });
-  // Datasets with upkeep the refresh can't do say so themselves (crashes: the monthly full rebuild).
+  // Datasets with upkeep the refresh can't do say so themselves (ds.attention).
   for (const ds of DATASETS) if (ds.attention) attention.push(...await ds.attention(now));
   const snapshots = SNAPSHOTS.map((snap) => {
     const s = state.snapshots?.[snap.id] ?? {};

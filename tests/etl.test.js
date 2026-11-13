@@ -50,6 +50,14 @@ test("rolling jobs rebuild daily whatever their cadence, with slack for cron tim
   assert.equal(rebuildHours("yearly", true), 24);
 });
 
+test("a dataset's own rebuildHours and minGapHours override rolling's day (crash hotspots: every 3 days)", async () => {
+  const { crashesDataset } = await import("./support/workers.js").then(() => import("../src/lib/server/crashes.js"));
+  assert.equal(refreshReason(crashesDataset, built(22.5), "v2", NOW), null, "a new day and a changed source aren't enough");
+  assert.equal(refreshReason(crashesDataset, built(60), "v2", NOW), null);
+  assert.equal(refreshReason(crashesDataset, built(69.5), "v1", NOW), "new day", "a late run is still in time");
+  assert.equal(refreshReason(crashesDataset, built(72), "v2", NOW), "source updated");
+});
+
 test("outside production, requests only recompute once the refresh is clearly behind", () => {
   assert.equal(requestMaxAgeHours("daily", true), 26);
   assert.equal(requestMaxAgeHours("yearly"), 30 * 24 + 2);

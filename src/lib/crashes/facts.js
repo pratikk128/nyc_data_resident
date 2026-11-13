@@ -20,12 +20,9 @@
  * factsRow() takes rows as rows.js builds them, or as they come back from
  * the tables (the same columns).
  */
-import { streetMatchKey, rowHash } from "./normalize.js";
+import { streetMatchKey } from "./normalize.js";
 import { vehicleTypeKey } from "./vehicle-types.js";
 import { prettyStreet } from "../complaints311/location-input.js";
-
-// Bump to rewrite every row on the next sync and full build (the hash includes it).
-export const FACTS_VERSION = 3;
 
 export const WHO = [
   { key: "pedestrian", label: "Pedestrians", bit: 0 },
@@ -151,9 +148,6 @@ export function cornerOf(on, cross) {
   return { key: `${first[0]}&${second[0]}`, label: `${prettyStreet(first[1])} & ${prettyStreet(second[1])}` };
 }
 
-// 2025-06-15 → 6 (Sunday); 0 is Monday.
-export const dayOfWeek = (date) => (new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7;
-
 // ---------- The row ----------
 
 const parse = (json) => {
@@ -186,8 +180,8 @@ export function factsRow(crash, vehicles = []) {
     }
   };
 
-  // The crash's own vehicle codes when the vehicle rows are missing.
-  const vehicleKeys = vehicles.length ? vehicles.map((v) => v.type_key) : parse(crash.vehicle_codes).map(vehicleTypeKey);
+  // The crash's vehicle codes are vehicles 1–5's types (config.js SOURCE_COLUMNS).
+  const vehicleKeys = parse(crash.vehicle_codes).map(vehicleTypeKey);
   const vehicleMask = maskOf(VEHICLES, vehicleKeys.filter(Boolean));
   const motorcycles = vehicleKeys.filter((k) => k === "motorcycle").length;
   const motorists = n(crash.motorists_killed) + n(crash.motorists_injured);
@@ -208,8 +202,6 @@ export function factsRow(crash, vehicles = []) {
   return {
     collision_id: crash.collision_id,
     crash_date: crash.crash_date,
-    hour: crash.crash_minute == null ? null : Math.floor(crash.crash_minute / 60),
-    dow: dayOfWeek(crash.crash_date),
     borough: crash.borough,
     zip_code: crash.zip_code,
     lat: crash.latitude,
@@ -224,8 +216,7 @@ export function factsRow(crash, vehicles = []) {
     who,
     causes,
     maneuvers,
-    vehicles: vehicleMask,
-    h: rowHash({ v: FACTS_VERSION, c: crash.h, vs: vehicles.map((v) => v.h).sort() })
+    vehicles: vehicleMask
   };
 }
 

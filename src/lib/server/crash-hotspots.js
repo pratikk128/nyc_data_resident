@@ -26,8 +26,7 @@
 import { env } from "cloudflare:workers";
 import { dailyValue, edgeCachedResponse } from "./cache.js";
 import { soql, SocrataError } from "./socrata.js";
-import { requestMaxAgeHours } from "../etl/cadence.js";
-import { DATASETS, SOURCE_COLUMNS, dateRange, dateWhere } from "../crashes/config.js";
+import { DATASETS, SOURCE_COLUMNS, REBUILD_HOURS, dateRange, dateWhere } from "../crashes/config.js";
 import { crashRow, streetRows, vehicleRow } from "../crashes/rows.js";
 import { factsRow, byCrash } from "../crashes/facts.js";
 import { MODES, readQuery } from "../crashes/hotspot-query.js";
@@ -147,7 +146,7 @@ export function factsFromSource({ crashes, vehicles }) {
  */
 export const hotspotsJob = {
   key: `crashes:hotspots:v${FACTS_FORMAT}`,
-  maxAgeHours: requestMaxAgeHours("daily", true),
+  maxAgeHours: REBUILD_HOURS + 2, // as requestMaxAgeHours() for the dataset's rebuildHours
   async run(source) {
     const kv = env.DATA_CACHE;
     const range = dateRange();
