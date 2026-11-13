@@ -16,14 +16,29 @@ export class SocrataError extends Error {
   }
 }
 
+// Waits before retrying a request that never got a response. Socrata (or the
+// network) sometimes drops a connection, which Node reports as a bare
+// "fetch failed"; the same request a moment later goes through. A timeout or
+// an HTTP error isn't retried: those wouldn't do better a second later, and
+// a page waiting on the request would only wait longer.
+const NETWORK_RETRY_MS = [1000, 3000];
+
 async function get(url, timeoutMs = TIMEOUT_MS) {
   const headers = { Accept: "application/json" };
   if (env.SOCRATA_APP_TOKEN) headers["X-App-Token"] = env.SOCRATA_APP_TOKEN;
   let res;
-  try {
-    res = await fetch(url, { headers, signal: AbortSignal.timeout(timeoutMs) });
-  } catch (err) {
-    throw new SocrataError(`NYC Open Data request failed: ${err.message}`, 0);
+  for (let attempt = 0; ; attempt++) {
+    try {
+      res = await fetch(url, { headers, signal: AbortSignal.timeout(timeoutMs) });
+      break;
+    } catch (err) {
+      const timedOut = err?.name === "TimeoutError" || err?.name === "AbortError";
+      if (timedOut || attempt >= NETWORK_RETRY_MS.length) {
+        const cause = err?.cause?.code ?? err?.cause?.message;
+        throw new SocrataError(`NYC Open Data request failed: ${err.message}${cause ? ` (${cause})` : ""}`, 0);
+      }
+      await new Promise((r) => setTimeout(r, NETWORK_RETRY_MS[attempt]));
+    }
   }
   if (!res.ok) {
     const body = (await res.text()).slice(0, 300);
