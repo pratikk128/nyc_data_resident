@@ -7,8 +7,9 @@
  *
  *   npm run data:hotspots
  *
- * Run it about once a month (npm run data:check flags it after 35 days,
- * src/lib/etl/snapshots.js), review the diff, commit, and deploy. It
+ * .github/workflows/hotspots.yml runs it on the 1st of each month and
+ * commits the result (npm run data:check flags it after 35 days,
+ * src/lib/etl/snapshots.js). Run by hand, review the diff, commit, and deploy. It
  * usually takes a few minutes, longer when Socrata is slow.
  * SOCRATA_APP_TOKEN (optional, also read from .dev.vars) raises Socrata's
  * rate limits. Nothing is written if the fetch fails or comes back short.

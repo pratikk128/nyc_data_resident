@@ -2,7 +2,7 @@
 # Data, rebuilds the summaries that are due and writes them to Workers KV.
 # It runs here, not as a Worker cron, because a refresh needs far more CPU
 # and subrequests than the Workers free plan allows. NYC Crash Hotspots isn't
-# part of it: it's a static snapshot rebuilt by hand (npm run data:hotspots).
+# part of it: it's a static snapshot rebuilt monthly by hotspots.yml.
 #
 # Repository secrets:
 #   CLOUDFLARE_API_TOKEN   a token with Workers KV Storage: Edit
@@ -29,7 +29,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version-file: .node-version
           cache: npm
       - run: npm ci
       - run: npm run etl -- --remote

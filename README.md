@@ -42,7 +42,7 @@ wrangler.jsonc            Worker config: KV namespace, rate limiters
 tests/                    `npm test` (node:test, no extra dependencies)
 src/data/                 Precomputed data snapshots (generated, committed), and snapshots.json, when each was built
 public/data/crash-hotspots/  NYC Crash Hotspots' snapshot, served as static files (npm run data:hotspots; generated, committed)
-scripts/                  Data refresh scripts (run-etl.mjs: the scheduled refresh to KV; build-hotspots.mjs and refresh-*.mjs: snapshots, run by hand)
+scripts/                  Data refresh scripts (run-etl.mjs: the scheduled refresh to KV; build-hotspots.mjs: the monthly Crash Hotspots snapshot; refresh-*.mjs: snapshots, run by hand)
 .github/workflows/etl.yml Runs scripts/run-etl.mjs every 12 hours
 src/data/dashboards.js    Dashboard registry: the cards, plus sidebar categories (icons, tones)
 public/js/app.js          Landing page: category filter (?category=<slug>), sidebar collapse
@@ -87,7 +87,7 @@ npm run etl -- --local    # the local state astro dev reads (.wrangler/state)
 
 `scripts/run-etl.mjs` loads the server modules with `cloudflare:workers` swapped for `scripts/lib/workers-env.mjs`, whose `DATA_CACHE` reads keys with `wrangler kv key get` and sends every write in one `wrangler kv bulk put` at the end. A run writes `etl:state` plus two keys per rebuilt job, so it stays far under KV's 1,000 writes a day. It exits 1 when any step failed (what succeeded is still written).
 
-`.github/workflows/etl.yml` runs it every 12 hours (and on demand from the Actions tab), with a 20-minute limit. NYC Crash Hotspots isn't part of it: a year of crashes is too big a fetch for a scheduled run, so it's a snapshot rebuilt by hand (below). It needs the repository secrets `CLOUDFLARE_API_TOKEN` (Workers KV Storage: Edit) and `CLOUDFLARE_ACCOUNT_ID`, optionally `SOCRATA_APP_TOKEN`, and the repository variable `KV_NAMESPACE_ID` (from `npx wrangler kv namespace list` after the first deploy). After a first deploy, run it once by hand so the dashboards have data.
+`.github/workflows/etl.yml` runs it every 12 hours (and on demand from the Actions tab), with a 20-minute limit. NYC Crash Hotspots isn't part of it: a year of crashes is too big a fetch for a scheduled run, so it's a snapshot rebuilt monthly by its own workflow (below). It needs the repository secrets `CLOUDFLARE_API_TOKEN` (Workers KV Storage: Edit) and `CLOUDFLARE_ACCOUNT_ID`, optionally `SOCRATA_APP_TOKEN`, and the repository variable `KV_NAMESPACE_ID` (from `npx wrangler kv namespace list` after the first deploy). After a first deploy, run it once by hand so the dashboards have data.
 
 ### Live data and caching
 
@@ -129,7 +129,7 @@ A job that fails keeps its last good value in KV and is retried the next run; th
 |---|---|---|---|
 | School locations | `src/data/school-locations.json` | a source's rows change | `npm run data:school-locations` |
 | NYC outline | `src/data/nyc-outline.json` | the borough boundaries change | `npm run data:nyc-outline` |
-| Crash Hotspots | `public/data/crash-hotspots/` | 35 days after it was built | `npm run data:hotspots` (about monthly) |
+| Crash Hotspots | `public/data/crash-hotspots/` | 35 days after it was built | `npm run data:hotspots` (monthly, by `.github/workflows/hotspots.yml`) |
 
 ```sh
 npm run data:check                # which snapshots are stale; exits 1 if any
@@ -137,7 +137,7 @@ npm run data:check -- --refresh   # also runs each stale snapshot's script
 npm run deploy                    # after reviewing and committing the diff in src/data/ and public/data/
 ```
 
-**Is everything current?** `GET /api/etl/status` returns every dataset's last source update, cadence, whether it's late, and each job's last build, reason, duration, whether it's current and its last error, plus each snapshot's state. `ok` is `false` and `attention` lists plain sentences when something needs a look, including when the scheduled refresh hasn't run for over 8 hours. To run it locally: `npm run etl -- --local` (the first run builds everything, a few minutes; a second run rebuilds only what failed or is due).
+**Is everything current?** `GET /api/etl/status` returns every dataset's last source update, cadence, whether it's late, and each job's last build, reason, duration, whether it's current and its last error, plus each snapshot's state. `ok` is `false` and `attention` lists plain sentences when something needs a look, including when the scheduled refresh hasn't run for over 26 hours. To run it locally: `npm run etl -- --local` (the first run builds everything, a few minutes; a second run rebuilds only what failed or is due).
 
 **Adding a dataset.** In its server module, define jobs (`{ key, maxAgeHours: requestMaxAgeHours(CADENCE), run }`) and export a dataset (`{ id, dashboard, datasetId, cadence, rolling?, snapshots?, metadataJob, jobs }`). Add it to `DATASETS` in `src/lib/server/etl.js`, and read the jobs with `dailyValue(job)`. Change a job's key when its output shape changes, so the next run rebuilds it. **Adding a snapshot:** add it to `SNAPSHOTS` in `src/lib/etl/snapshots.js`, and have its script call `recordSnapshot(id, startedAt, extra?)` from `scripts/lib/snapshot-manifest.mjs` after it writes its files (`extra` adds fields the site reads at build time, as Crash Hotspots' `dataThrough`).
 
@@ -382,7 +382,7 @@ Quick-filter chips (`JOB_CHIPS` in `build.js`). A chip with no matching title in
 
 ## Crash data
 
-NYC Crash Hotspots is built from two of the three NYPD tables on NYC Open Data. The site keeps no copy of the tables: about once a month, by hand, `npm run data:hotspots` fetches the last year again and writes what the page needs as static files (see NYC Crash Hotspots below).
+NYC Crash Hotspots is built from two of the three NYPD tables on NYC Open Data. The site keeps no copy of the tables: once a month, `.github/workflows/hotspots.yml` runs `npm run data:hotspots`, which fetches the last year again and writes what the page needs as static files (see NYC Crash Hotspots below).
 
 **Data.** Crashes (`h9gi-nx95`, key `collision_id`) and vehicles (`bm4k-52h4`, key `unique_id`). The persons table (`f55k-p6yu`) isn't fetched: it's the biggest of the three, and the crash's own counts say who was hurt or killed. What it alone had was the injury type, which the page used to pick out "seriously hurt"; the page now counts killed and hurt only. Things the column names don't tell you:
 
@@ -394,7 +394,7 @@ NYC Crash Hotspots is built from two of the three NYPD tables on NYC Open Data. 
 
 **Why no database.** The crash tables used to live in D1, but loading a year (about 735,000 rows across the tables, plus their indexes) is far over the free plan's 100,000 rows written a day, and a reload needed about twice the 263 MB database, past the free plan's 500 MB. Requests never read it anyway: they read the facts built from it. So the build fetches straight from NYC Open Data instead: only the columns the facts need (`SOURCE_COLUMNS` in `src/lib/crashes/config.js`, about 80,000 crashes and 160,000 vehicles), a calendar month at a time, one table at a time. It never pages with `$offset`: Socrata walks every earlier row to reach a deep offset, and on a slow day a 5,000-row page at row 150,000 of the vehicles took over 5 minutes, while a whole month by date took under one. (`:id` can't be used for keyset paging, since Socrata won't compare it to text.) A month that fails is split in half and retried, down to a single day, and the next month starts whole again. A window that comes back full (50,000 rows) is split rather than paged. The fetch has a 60-minute budget, so a Socrata that has stopped answering ends the build with a message; nothing is written then, and the last snapshot stays. A fresh fetch of the whole year also picks up amended and deleted reports, which the old 45-day sync missed.
 
-**How often.** The city updates the crash table daily, but the build is run by hand about once a month, not by the scheduled refresh: a year's fetch took over 1,000 s of the CI refresh's budget, Socrata sometimes times out from CI, and a year's counts barely move in a month. The window is anchored to the latest crash in the data, so a month-old snapshot is still a consistent year. `npm run data:check` (and the deploy's check) calls it stale 35 days after it was built (`maxAgeDays` in `src/lib/etl/snapshots.js`).
+**How often.** The city updates the crash table daily, but the build runs once a month in its own workflow (`.github/workflows/hotspots.yml`, the 1st at 06:41 UTC, 45-minute limit), not in the 12-hourly refresh: a year's fetch took over 1,000 s, Socrata sometimes times out from CI, and a year's counts barely move in a month. The workflow runs the tests and commits the files and `src/data/snapshots.json` to `main`, and the push redeploys the site. When the fetch fails or comes back short, nothing is written or committed and the run fails, so rerun it from the Actions tab (or run `npm run data:hotspots` locally and commit). The window is anchored to the latest crash in the data, so a month-old snapshot is still a consistent year. `npm run data:check` (and the deploy's check) calls it stale 35 days after it was built (`maxAgeDays` in `src/lib/etl/snapshots.js`).
 
 **Change the date range.** `dateRange()` in `src/lib/crashes/config.js` returns the last `RANGE_YEARS` (1) years before today in New York, through the latest data. A wider range makes the fetch longer and the page's facts download bigger.
 

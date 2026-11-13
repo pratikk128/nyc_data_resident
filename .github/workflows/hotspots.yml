@@ -1,0 +1,53 @@
+# Rebuilds NYC Crash Hotspots' static snapshot (npm run data:hotspots) once a
+# month and commits it, so the push redeploys the site (Workers Builds). The
+# snapshot counts as stale 35 days after it was built (src/lib/etl/snapshots.js).
+# The build writes nothing if the fetch fails or comes back short (under 80%
+# of the last build's crashes), so a bad Socrata day leaves the old snapshot.
+# The monthly commit also keeps the repo active: GitHub disables scheduled
+# workflows in a public repo after 60 days without one.
+#
+# Repository secret:
+#   SOCRATA_APP_TOKEN   optional, raises NYC Open Data's rate limits
+name: Crash Hotspots snapshot
+
+on:
+  schedule:
+    - cron: "41 6 1 * *" # the 1st of each month, 06:41 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: hotspots
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45 # a build has taken ~17 min; Socrata is sometimes far slower
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npm run data:hotspots
+        env:
+          SOCRATA_APP_TOKEN: ${{ secrets.SOCRATA_APP_TOKEN }}
+      # Includes the check that the files match src/data/snapshots.json.
+      - run: npm test
+      - name: Commit the snapshot
+        run: |
+          git add public/data/crash-hotspots src/data/snapshots.json
+          if git diff --cached --quiet; then
+            echo "Snapshot unchanged"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          through=$(node -p "require('./src/data/snapshots.json')['crash-hotspots'].dataThrough")
+          git commit -m "Refresh the Crash Hotspots snapshot (data through $through)"
+          git pull --rebase
+          git push
