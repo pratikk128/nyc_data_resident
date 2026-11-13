@@ -1,8 +1,8 @@
 /*
  * NYC Crash Hotspots: what the page asks for (a place, and how you get
  * around), as URL parameters. Browser-safe:
- * the page keeps its view in the URL with these, and the API routes read
- * the same ones.
+ * the page keeps its view in the URL with these. Also where the prebuilt
+ * views live among the static files (viewFile()).
  *
  *   Area (at most one; a spot wins, then streets, then a ZIP, then a borough):
  *     lat, lon, r, place    a spot and how far around it (r: RADII, meters); place labels it
@@ -24,6 +24,23 @@ import { inCityLimits } from "../in-city.js";
 
 export const RADII = [250, 500]; // meters
 export const DEFAULT_RADIUS = 250;
+
+/*
+ * The snapshot `npm run data:hotspots` writes (scripts/build-hotspots.mjs):
+ * static files under public/, served from ./dist as they are.
+ *   facts.json      the year packed small (hotspot-compute.js packFacts())
+ *   summary.json    what was built: dates, crash count, format
+ *   view-<borough|nyc>-<mode|all>.json   { summary, map } of each prebuilt view
+ *                   (borough in lower case, spaces as dashes: view-staten-island-walk.json)
+ */
+export const HOTSPOTS_PATH = "/data/crash-hotspots";
+export const FACTS_FILE = "facts.json";
+export const SUMMARY_FILE = "summary.json";
+
+// The views built ahead: all of NYC or a borough, with no mode or one.
+export const isPrebuilt = (query) => !query.area || query.area.kind === "borough";
+export const viewFile = ({ area, mode }) =>
+  `view-${(area?.borough ?? "nyc").toLowerCase().replace(/ /g, "-")}-${mode ?? "all"}.json`;
 
 
 // "Broadway & W 72 St" / "Broadway and West 72nd" / "Broadway at 72 St" → two streets.

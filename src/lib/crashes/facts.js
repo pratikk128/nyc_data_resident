@@ -1,7 +1,7 @@
 /*
  * NYC Crash Hotspots: each crash boiled down to one row of crash_facts
  * (schema.js), with what the dashboard filters on worked out once, in the
- * data refresh's build, instead of joining the vehicles on every
+ * hotspots build (npm run data:hotspots), instead of joining the vehicles on every
  * request. Browser-safe: the page builds its filters from the same
  * groups.
  *
@@ -12,7 +12,8 @@
  *   maneuvers  what the vehicles were doing (pre_crash), grouped
  *   vehicles   the kinds of vehicle in the crash (vehicle-types.js keys)
  *
- * Bits are stored in the packed facts in KV (and browsers' caches of them),
+ * Bits are stored in the packed facts (public/data/crash-hotspots/facts.json,
+ * and browsers' caches of it),
  * so a group's `bit` never changes and new groups take the next free one
  * (a test checks). The arrays' order is the order
  * rules are tried, and the order the page lists them; it can change.

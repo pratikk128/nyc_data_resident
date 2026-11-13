@@ -1,6 +1,6 @@
 /*
- * NYC crash data (read by NYC Crash Hotspots): the datasets, the date range the site covers, and the
- * refresh window. Browser-safe.
+ * NYC crash data (read by NYC Crash Hotspots): the datasets, the date range
+ * the site covers, and the columns the build fetches. Browser-safe.
  *
  * Two of the three NYPD tables on NYC Open Data:
  *   crashes   h9gi-nx95  one row per crash, key collision_id
@@ -12,17 +12,12 @@
 import { nycToday } from "../format.js";
 
 /*
- * How often the data refresh rebuilds the hotspots (src/lib/server/crashes.js):
- * every 3 days. Each build fetches the whole year, the refresh's biggest job,
- * and a year's counts barely move in a few days.
- */
-export const REBUILD_HOURS = 72;
-
-/*
  * The crash dates the site covers: a rolling window of the last RANGE_YEARS
  * years, from the same day RANGE_YEARS years before today (New York) through
- * the latest crash in the data. Each build fetches the whole window
- * again, so older crashes drop off on their own. To widen or narrow it,
+ * the latest crash in the data. Each build (npm run data:hotspots, by hand
+ * about once a month, src/lib/etl/snapshots.js) fetches the whole window
+ * again, so older crashes drop off on their own, and the snapshot it writes
+ * stays a consistent year however long it ships. To widen or narrow it,
  * change RANGE_YEARS (a wider window means a longer fetch and a bigger
  * download for the page).
  */

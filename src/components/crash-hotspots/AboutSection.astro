@@ -4,18 +4,18 @@
  * ranked, how "what goes wrong" and the tips are picked, what "hurt" and
  * "killed" mean here, and the limits (DESIGN.md §7).
  */
-import { DATASETS, dateRange, sourceUrl } from '../../lib/crashes/config.js';
+import { DATASETS, sourceUrl } from '../../lib/crashes/config.js';
 import { CAUSES, MANEUVERS } from '../../lib/crashes/facts.js';
 import { MIN_CORNER_CRASHES, MIN_CORNER_HURT, TOP_CORNERS } from '../../lib/crashes/hotspot-sql.js';
 import { WATCH, CORNER } from '../../lib/crashes/hotspot-view.js';
 import { date } from '../../lib/format.js';
 
 interface Props {
+  dateFrom: string;
   dataThrough: string | null;
   builtAt: string | null;
 }
-const { dataThrough, builtAt } = Astro.props;
-const range = dateRange();
+const { dateFrom, dataThrough, builtAt } = Astro.props;
 ---
 
 <section class="dash-section" id="hs-about" aria-labelledby="hs-about-title">
@@ -27,8 +27,8 @@ const range = dateRange();
     <p>
       NYPD crash reports published on NYC Open Data, in two tables:{' '}
       {Object.entries(DATASETS).map(([t, d], i, all) => <><a href={sourceUrl(t)} rel="noopener">{d.name}</a> ({d.id}){i < all.length - 1 ? ', ' : '.'}</>)}{' '}
-      This dashboard covers the last year, from {date(range.from)}{dataThrough ? ` to ${date(dataThrough)}` : ''}; older crashes drop off as it’s rebuilt.
-      {builtAt && <>We fetch the whole year again every 3 days, so new reports, corrections and deletions all show up (last on {date(builtAt.slice(0, 10))}).{' '}</>}
+      This dashboard covers a year, from {date(dateFrom)}{dataThrough ? ` to ${date(dataThrough)}, the latest crash in the data when we last built it` : ''}; older crashes drop off as it’s rebuilt.
+      {builtAt && <>We fetch the whole year again about once a month, so new reports, corrections and deletions all show up (last on {date(builtAt.slice(0, 10))}).{' '}</>}
     </p>
 
     <h3>How intersections are ranked</h3>

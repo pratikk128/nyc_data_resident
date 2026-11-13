@@ -3,8 +3,9 @@
  * crash_facts rows (facts.js) instead of in SQL, so no request needs a
  * database. Browser-safe.
  *
- * The data refresh (src/lib/server/crash-hotspots.js) builds the rows from a
- * fresh fetch of NYC Open Data, packs them with packFacts() and stores it in KV, along with the summary and
+ * The hotspots build (npm run data:hotspots, src/lib/server/crash-hotspots.js)
+ * builds the rows from a fresh fetch of NYC Open Data, packs them with
+ * packFacts() and writes them to a static file, along with the summary and
  * map of every view it can work out ahead (all of NYC and each borough, with
  * each mode). For any other place (a ZIP, a street, an intersection, a spot)
  * the page downloads the packed facts once and calls summarize() and
@@ -19,7 +20,7 @@ import { streetBaseKey } from "./normalize.js";
 import { readTotals, addTotals, TOP_CORNERS, MIN_CORNER_CRASHES, MIN_CORNER_HURT, MAX_POINTS } from "./hotspot-sql.js";
 import { boroughLabel } from "../complaints311/config.js";
 
-// Bump when the packed shape changes; the page refuses facts it can't read.
+// Bump when the packed shape changes, then run npm run data:hotspots; the page refuses facts it can't read.
 export const FACTS_FORMAT = 2;
 
 // Meters per degree, exactly as hotspot-sql.js has them.
@@ -377,7 +378,7 @@ function cityTotals(t, filters) {
 const isCorner = (area) => area?.kind === "street" && area.streets.length === 2;
 
 /*
- * A view's summary, as /api/crash-hotspots/view gives it (without the dates):
+ * A view's summary, as the prebuilt view files have it (without the dates):
  * → { area, compareTo, here, compare, city, boroughs, corners, rank }
  *   area: { kind ("corner" for an intersection), label } | null
  *   here, compare, city, boroughs[borough]: readTotals(), all with the query's mode.

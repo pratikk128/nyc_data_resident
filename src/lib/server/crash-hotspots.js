@@ -1,49 +1,35 @@
 /*
- * NYC Crash Hotspots: the build (run by the data refresh, outside the Worker)
- * and the two responses the Worker passes through.
+ * NYC Crash Hotspots: the build, run by hand on a developer's machine about
+ * once a month (npm run data:hotspots, scripts/build-hotspots.mjs). Nothing
+ * here runs in the Worker.
  *
- * The data refresh (scripts/run-etl.mjs, dataset `crashes` in crashes.js)
- * runs hotspotsJob. It fetches a year of the NYPD crashes and vehicles
- * tables on NYC Open Data, a month at a time (fetchYear()), boils each crash down to one facts row
- * (factsFromSource(), facts.js), and writes to KV
- *   - FACTS_KEY, the whole year packed small (hotspot-compute.js packFacts(),
- *     about 1 MB compressed), which the page downloads for a ZIP, street,
- *     intersection or spot and counts itself;
- *   - viewKey(), the summary and map of each view it can work out ahead: all
- *     of NYC and each borough, with no mode and with each, 24 in all;
- *   - the job's own value (dailyValue()), what was built and the data's
- *     dates, which the page header and /api/etl/status read.
- * Requests pass those values through as text, so they cost a KV read and
- * almost no CPU, and are cached at the edge. Nothing is stored between
- * builds but KV: each build starts from the source, so amendments and rows
- * the city deleted are picked up the next day.
- *
- * In astro dev and tests, a view with nothing built yet builds it on the
- * spot (dailyValue(); a few minutes of Socrata queries, so seed it first
- * with npm run data:hotspots -- --local). In production it says the data
- * isn't loaded.
+ * It fetches a year of the NYPD crashes and vehicles tables on NYC Open
+ * Data, a month at a time (fetchYear()), boils each crash down to one facts
+ * row (factsFromSource(), facts.js), and buildHotspots() turns those into the
+ * static files the page downloads (names in hotspot-query.js):
+ *   - facts.json, the whole year packed small (hotspot-compute.js
+ *     packFacts(), about 1 MB compressed), which the page downloads for a
+ *     ZIP, street, intersection or spot and counts itself;
+ *   - a view file per view it can work out ahead: all of NYC and each
+ *     borough, with no mode and with each, 24 in all;
+ *   - summary.json, what was built and the data's dates.
+ * They ship in ./dist as static assets, so requests never reach the Worker
+ * or KV. Each build starts from the source, so amendments and rows the city
+ * deleted are picked up at the next build. The date range is anchored to
+ * the latest crash in the data (config.js dateRange()), so a month-old
+ * snapshot is still a consistent year.
  */
-import { env } from "cloudflare:workers";
-import { dailyValue, edgeCachedResponse } from "./cache.js";
 import { soql, SocrataError } from "./socrata.js";
-import { DATASETS, SOURCE_COLUMNS, REBUILD_HOURS, dateRange } from "../crashes/config.js";
+import { DATASETS, SOURCE_COLUMNS, dateRange } from "../crashes/config.js";
 import { nycToday } from "../format.js";
 import { crashRow, streetRows, vehicleRow } from "../crashes/rows.js";
 import { factsRow, byCrash } from "../crashes/facts.js";
-import { MODES, readQuery } from "../crashes/hotspot-query.js";
+import { MODES, readQuery, viewFile, FACTS_FILE, SUMMARY_FILE } from "../crashes/hotspot-query.js";
 import { packFacts, unpackFacts, summarize, mapOf, FACTS_FORMAT } from "../crashes/hotspot-compute.js";
 import { BOROUGHS } from "../complaints311/config.js";
 
-export class NotLoaded extends Error {}
-export const NOT_LOADED_TEXT = "The crash data isn’t loaded yet. Try again later.";
-
-export const FACTS_KEY = `crashes:hotspots:facts:v${FACTS_FORMAT}`;
-
-// The views built ahead: all of NYC or a borough, with no mode or one.
-export const isPrebuilt = (query) => !query.area || query.area.kind === "borough";
-export const viewKey = ({ area, mode }) =>
-  `crashes:hotspots:view:v${FACTS_FORMAT}:${area?.borough ?? "nyc"}:${mode ?? "all"}`;
-const PREBUILT = [null, ...BOROUGHS.map((b) => b.value)].flatMap((boro) =>
+// The views built ahead (hotspot-query.js isPrebuilt()): all of NYC or a borough, with no mode or one.
+export const PREBUILT = [null, ...BOROUGHS.map((b) => b.value)].flatMap((boro) =>
   [null, ...MODES.map((m) => m.key)].map((mode) => readQuery(new URLSearchParams({ ...(boro && { boro }), ...(mode && { mode }) }))));
 
 // ---------- The source ----------
@@ -62,15 +48,15 @@ const PREBUILT = [null, ...BOROUGHS.map((b) => b.value)].flatMap((boro) =>
  * paged. A single day that keeps failing is retried after a growing wait,
  * and STREAK failures in a row with nothing fetched give up.
  *
- * The whole fetch has a budget. The data refresh sends every KV write at the
- * end of its run, so if the workflow's time limit killed the run, every
- * other dataset's rebuild would be lost too; running out of budget fails
- * only this job (the last build stays in KV).
+ * The whole fetch has a budget, generous now that it runs on a developer's
+ * machine rather than in CI: it's there so a Socrata that has stopped
+ * answering ends the run with a message instead of hanging. Running out
+ * fails the build and leaves the last snapshot's files as they were.
  */
 const LIMIT = 50000;           // rows per request; a month is about 7,000 crashes and 15,000 vehicles
 const TIMEOUT_MS = 120e3;      // per request
 const STREAK = 10;             // failures in a row before giving up
-const BUDGET_MS = 20 * 60e3;   // the whole fetch; the workflow allows 45 minutes for the whole refresh
+const BUDGET_MS = 60 * 60e3;   // the whole fetch
 const MIN_SHARE = 0.8;         // of the last build's crashes the source must still have
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -124,7 +110,7 @@ async function fetchTable(table, range, { deadline, today }) {
   let streak = 0;
   while (queue.length) {
     const w = queue.shift();
-    if (Date.now() > deadline) throw new Error(`Crash data: out of time fetching ${table} (at ${windowLabel(w)}); keeping the last build`);
+    if (Date.now() > deadline) throw new Error(`Crash data: out of time fetching ${table} (at ${windowLabel(w)}); keeping the last snapshot`);
     let got;
     try {
       got = await soql(id, {
@@ -186,63 +172,34 @@ export function factsFromSource({ crashes, vehicles }) {
 // ---------- The build ----------
 
 /*
- * Its value (what dailyValue() keeps) is
- *   { version, dataThrough, dateFrom, crashes, factsBytes, views }
- * version is when it was built; dataThrough the newest crash.
+ * Source rows ({ crashes, vehicles }, as fetchYear() returns them) → the
+ * snapshot: { summary, files }, files being { [file name]: JSON text } for
+ * every file under public/data/crash-hotspots/. Pure (no I/O); the script
+ * writes the files.
+ *   summary: { format, builtAt, dataThrough, dateFrom, crashes, factsBytes, views }
+ *     builtAt is when the build started; dataThrough the newest crash.
+ *   lastCrashes: the last snapshot's crash count. Far fewer now is an outage
+ *     or a half-published dataset, not a quiet year, so it throws and the
+ *     script keeps the last snapshot.
  */
-export const hotspotsJob = {
-  key: `crashes:hotspots:v${FACTS_FORMAT}`,
-  maxAgeHours: REBUILD_HOURS + 2, // as requestMaxAgeHours() for the dataset's rebuildHours
-  async run(source) {
-    const kv = env.DATA_CACHE;
-    const range = dateRange();
-    const rows = factsFromSource(source ?? await fetchYear(range));
-    // Far fewer crashes than last time is an outage or a half-published
-    // dataset, not a quiet year: keep the last build rather than replace it.
-    const last = (await kv?.get(hotspotsJob.key, "json").catch(() => null))?.value;
-    if (!rows.length || (last?.crashes && rows.length < last.crashes * MIN_SHARE)) {
-      throw new Error(`NYC Open Data returned ${rows.length} crashes since ${range.from} (the last build had ${last?.crashes ?? 0}); keeping the last build`);
-    }
-
-    let dataThrough = null;
-    for (const r of rows) if (!dataThrough || r.crash_date > dataThrough) dataThrough = r.crash_date;
-    const meta = { version: new Date().toISOString(), dataThrough, dateFrom: range.from, crashes: rows.length };
-    const packed = packFacts(rows, meta);
-    const facts = JSON.stringify(packed);
-    const t = unpackFacts(packed);
-    const dates = { dataThrough: meta.dataThrough, dateFrom: meta.dateFrom };
-    // The data first: the job's value, written after run() returns, says it's there.
-    for (const query of PREBUILT) {
-      await kv?.put(viewKey(query), JSON.stringify({ summary: { ...dates, ...summarize(t, query) }, map: { ...dates, ...mapOf(t, query) } }));
-    }
-    await kv?.put(FACTS_KEY, facts);
-    return { ...meta, factsBytes: facts.length, views: PREBUILT.length };
+export function buildHotspots(source, { range = dateRange(), builtAt = new Date().toISOString(), lastCrashes = 0 } = {}) {
+  const rows = factsFromSource(source);
+  if (!rows.length || (lastCrashes && rows.length < lastCrashes * MIN_SHARE)) {
+    throw new Error(`NYC Open Data returned ${rows.length} crashes since ${range.from} (the last build had ${lastCrashes}); keeping the last snapshot`);
   }
-};
 
-// The last build's dates (for the page header), building it first where that's allowed (dailyValue()).
-export const hotspotsStatus = () => dailyValue(hotspotsJob);
-
-const TTL = 1800;
-
-// One stored value as the response body, untouched (no parsing), cached at the edge per build.
-async function passThrough(key, requestUrl, ctx) {
-  const status = await hotspotsStatus();
-  return edgeCachedResponse(requestUrl, `hotspots/${status.version}/${key}`, async () => {
-    const body = await env.DATA_CACHE?.get(key, "stream");
-    if (!body) throw new NotLoaded(`${key} isn't in KV`);
-    return new Response(body, {
-      headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": `public, max-age=${TTL}` }
-    });
-  }, ctx);
+  let dataThrough = null;
+  for (const r of rows) if (!dataThrough || r.crash_date > dataThrough) dataThrough = r.crash_date;
+  const meta = { version: builtAt, dataThrough, dateFrom: range.from, crashes: rows.length };
+  const packed = packFacts(rows, meta);
+  const facts = JSON.stringify(packed);
+  const t = unpackFacts(packed);
+  const dates = { dataThrough, dateFrom: range.from };
+  const files = { [FACTS_FILE]: facts };
+  for (const query of PREBUILT) {
+    files[viewFile(query)] = JSON.stringify({ summary: { ...dates, ...summarize(t, query) }, map: { ...dates, ...mapOf(t, query) } });
+  }
+  const summary = { format: FACTS_FORMAT, builtAt, dataThrough, dateFrom: range.from, crashes: rows.length, factsBytes: facts.length, views: PREBUILT.length };
+  files[SUMMARY_FILE] = JSON.stringify(summary, null, 2) + "\n";
+  return { summary, files };
 }
-
-/*
- * → Response: { summary, map } for all of NYC or a borough (isPrebuilt()).
- *   summary: { dataThrough, dateFrom, ...summarize() }
- *   map: { dataThrough, dateFrom, ...mapOf() }
- */
-export const viewResponse = (query, requestUrl, ctx) => passThrough(viewKey(query), requestUrl, ctx);
-
-// → Response: the packed facts (packFacts()), for the page to count any other place itself.
-export const factsResponse = (requestUrl, ctx) => passThrough(FACTS_KEY, requestUrl, ctx);

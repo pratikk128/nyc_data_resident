@@ -1,17 +1,18 @@
 /*
  * Which build-time snapshots (src/lib/etl/snapshots.js) are out of date with
- * NYC Open Data, and the command that refreshes each. The hourly cron runs
- * the same check and reports it at /api/etl/status; this is the local copy.
+ * NYC Open Data (or too old, for a snapshot with maxAgeDays), and the
+ * command that refreshes each. The scheduled refresh runs the same check and
+ * reports it at /api/etl/status; this is the local copy.
  *
  *   npm run data:check                 lists stale snapshots; exits 1 if any
  *   npm run data:check -- --refresh    also runs each stale snapshot's script
  *   node scripts/check-snapshots.mjs --warn-only   never fails (used by deploy)
  *
- * After a refresh, review the diff in src/data/ and deploy.
+ * After a refresh, review the diff in src/data/ and public/data/, commit it, and deploy.
  */
 import { spawnSync } from "node:child_process";
 import { SNAPSHOTS, snapshotSourceIds } from "../src/lib/etl/snapshots.js";
-import { snapshotChanges } from "../src/lib/etl/cadence.js";
+import { snapshotChanges, changeText } from "../src/lib/etl/cadence.js";
 import { readManifest } from "./lib/snapshot-manifest.mjs";
 
 const DOMAIN = "https://data.cityofnewyork.us";
@@ -53,7 +54,7 @@ for (const snap of SNAPSHOTS) {
   }
   stale.push(snap);
   console.log(`✗ ${snap.id}: stale (${built})`);
-  for (const c of changes) console.log(`    ${c.datasetId}: ${c.why}`);
+  for (const c of changes) console.log(`    ${changeText(c)}`);
   console.log(`    refresh: ${snap.command}`);
 }
 
@@ -67,7 +68,7 @@ if (refresh) {
       process.exit(1);
     }
   }
-  if (stale.length) console.log("\nReview the changes in src/data/, then deploy (npm run deploy).");
+  if (stale.length) console.log("\nReview the changes in src/data/ and public/data/, commit them, then deploy (npm run deploy).");
 } else if (stale.length && !warnOnly) {
   process.exit(1);
 }

@@ -2,7 +2,8 @@
  * NYC Crash Hotspots: the crash groups and severity (facts.js), the URL and
  * modes (hotspot-query.js), the SQL on an in-memory database (hotspot-sql.js),
  * the same numbers counted in JS (hotspot-compute.js), the build that
- * fetches the source and stores them (server/crash-hotspots.js), and what
+ * fetches the source and writes the static snapshot (server/crash-hotspots.js,
+ * scripts/lib/hotspot-files.mjs), and what
  * the page says (hotspot-view.js, hotspot-render.js).
  */
 import { test } from "node:test";
@@ -10,9 +11,9 @@ import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 
 import { WHO, CAUSES, MANEUVERS, VEHICLES, DIMENSIONS, causeKey, maneuverKey, maskOf, keysOf, factsRow, cornerOf, cellOf, byCrash } from "../src/lib/crashes/facts.js";
-import { readQuery, queryToParams, queryKey, placeFromText, filtersFor } from "../src/lib/crashes/hotspot-query.js";
+import { readQuery, queryToParams, queryKey, placeFromText, filtersFor, isPrebuilt, viewFile, FACTS_FILE, SUMMARY_FILE } from "../src/lib/crashes/hotspot-query.js";
 import { totalsSql, boroughTotalsSql, readTotals, addTotals, cornersSql, readCorners, cornerRankSql, areaBoroughSql, pointsSql, factsPageSql, STREET_SEP } from "../src/lib/crashes/hotspot-sql.js";
-import { packFacts, unpackFacts, summarize, mapOf } from "../src/lib/crashes/hotspot-compute.js";
+import { packFacts, unpackFacts, summarize, mapOf, FACTS_FORMAT } from "../src/lib/crashes/hotspot-compute.js";
 import { streetMatchKey, streetBaseKey } from "../src/lib/crashes/normalize.js";
 import { boroughLabel } from "../src/lib/complaints311/config.js";
 import { statCards, watchFor, patterns, mostCommon, cornerFindings, tipFor, howOften, groupTitle, toCsv, WATCH, CORNER, TIPS } from "../src/lib/crashes/hotspot-view.js";
@@ -33,7 +34,7 @@ test("groups: bits are unique, fit an int, and never move", () => {
     assert.ok(bits.every((b) => Number.isInteger(b) && b >= 0 && b < 31));
     assert.equal(new Set(groups.map((g) => g.key)).size, groups.length);
   }
-  // Packed into the facts in KV and cached by browsers: changing one relabels crashes in a cached copy.
+  // Packed into the facts file and cached by browsers: changing one relabels crashes in a cached copy.
   assert.deepEqual(Object.fromEntries(CAUSES.map((c) => [c.key, c.bit])), {
     distracted: 0, yield: 1, tailgating: 2, speeding: 3, "red-light": 4, lane: 5, turning: 6, backing: 7,
     impaired: 8, aggressive: 9, inexperience: 10, "drowsy-ill": 11, road: 12, "ped-error": 13, defect: 14
@@ -547,54 +548,58 @@ test("facts from the source: one row per crash with its street keys, the same as
   assert.equal(factsFromSource(extra).length, rows.length);
 });
 
-test("hotspots build: the views built ahead and the facts in KV match the SQL, passed through untouched", async () => {
-  const { env, fakeKv } = await import("./support/workers.js");
-  const { hotspotsJob, viewKey, FACTS_KEY, viewResponse, factsResponse, isPrebuilt } = await import("../src/lib/server/crash-hotspots.js");
-  const { refreshDaily } = await import("../src/lib/server/cache.js");
-  env.DATA_CACHE = fakeKv();
-  try {
-    // As the refresh runs it, with the source handed in instead of fetched.
-    const built = await refreshDaily({ ...hotspotsJob, run: () => hotspotsJob.run(asFetched()) });
-    assert.equal(built.crashes, RAW.crashes.length);
-    assert.equal(built.dataThrough, "2025-05-02");
-    assert.equal(built.views, 24, "all of NYC and five boroughs, each with no mode and three");
-    assert.equal(env.DATA_CACHE.store.size, 27, "24 views, the facts, the job's value and its :at");
+test("hotspots build: the view files built ahead and the facts file match the SQL", async () => {
+  await import("./support/workers.js");
+  const { buildHotspots, PREBUILT } = await import("../src/lib/server/crash-hotspots.js");
+  const builtAt = "2025-05-10T12:00:00.000Z";
+  const range = { from: "2024-05-10", to: null };
+  const { summary, files } = buildHotspots(asFetched(), { range, builtAt });
+  assert.deepEqual(summary, {
+    format: FACTS_FORMAT, builtAt, dataThrough: "2025-05-02", dateFrom: range.from,
+    crashes: RAW.crashes.length, factsBytes: files[FACTS_FILE].length, views: 24
+  });
+  assert.equal(PREBUILT.length, 24, "all of NYC and five boroughs, each with no mode and three");
+  assert.equal(Object.keys(files).length, 26, "24 views, the facts and the summary");
+  assert.deepEqual(JSON.parse(files[SUMMARY_FILE]), summary);
+  assert.ok(PREBUILT.every(isPrebuilt));
+  assert.ok(Object.keys(files).every((name) => /^[a-z0-9-]+\.json$/.test(name)), "plain URL-safe names");
+  assert.ok(files["view-staten-island-walk.json"] && files["view-nyc-all.json"]);
 
-    const all = memoryDb();
-    const rows = (stmt) => all(stmt).map((r) => ({ ...r }));
-    for (const qs of ["", "mode=walk", "boro=MANHATTAN&mode=bike", "boro=BROOKLYN"]) {
-      const query = q(qs);
-      assert.ok(isPrebuilt(query));
-      const view = JSON.parse(env.DATA_CACHE.store.get(viewKey(query)));
-      assertSame(view.summary, { dataThrough: built.dataThrough, dateFrom: built.dateFrom, ...sqlView(rows, query).summary }, qs);
-      assert.equal(view.map.points.length, sqlView(rows, query).points.length);
-    }
-    assert.ok(!isPrebuilt(q("zip=10023")) && !isPrebuilt(q("street=Broadway")) && !isPrebuilt(q("lat=40.75&lon=-73.95")));
-
-    const url = new URL("https://example.test/api/crash-hotspots/view");
-    const res = await viewResponse(q("boro=QUEENS"), url);
-    assert.equal(res.headers.get("Content-Type"), "application/json; charset=utf-8");
-    assert.equal(await res.text(), env.DATA_CACHE.store.get(viewKey(q("boro=QUEENS"))));
-    const facts = await (await factsResponse(url)).json();
-    assert.equal(facts.n, RAW.crashes.length);
-    assert.equal(env.DATA_CACHE.store.get(FACTS_KEY), JSON.stringify(facts));
-  } finally {
-    delete env.DATA_CACHE;
+  const all = memoryDb();
+  const rows = (stmt) => all(stmt).map((r) => ({ ...r }));
+  for (const qs of ["", "mode=walk", "boro=MANHATTAN&mode=bike", "boro=BROOKLYN", "boro=STATEN ISLAND&mode=drive"]) {
+    const query = q(qs);
+    assert.ok(isPrebuilt(query));
+    const view = JSON.parse(files[viewFile(query)]);
+    assertSame(view.summary, { dataThrough: summary.dataThrough, dateFrom: summary.dateFrom, ...sqlView(rows, query).summary }, qs);
+    assert.equal(view.map.points.length, sqlView(rows, query).points.length);
   }
+  assert.ok(!isPrebuilt(q("zip=10023")) && !isPrebuilt(q("street=Broadway")) && !isPrebuilt(q("lat=40.75&lon=-73.95")));
+
+  const t = unpackFacts(JSON.parse(files[FACTS_FILE]));
+  assert.equal(t.n, RAW.crashes.length);
+  assert.equal(t.meta.dataThrough, "2025-05-02");
 });
 
-test("hotspots build: keeps the last build when the source suddenly has far fewer crashes", async () => {
-  const { env, fakeKv } = await import("./support/workers.js");
-  const { hotspotsJob } = await import("../src/lib/server/crash-hotspots.js");
-  const last = { computedAt: new Date().toISOString(), value: { crashes: 100 } };
-  env.DATA_CACHE = fakeKv({ [hotspotsJob.key]: JSON.stringify(last), [`${hotspotsJob.key}:at`]: last.computedAt });
-  try {
-    await assert.rejects(hotspotsJob.run(asFetched()), /keeping the last build/);
-    assert.equal(env.DATA_CACHE.store.size, 2, "nothing written");
-    await assert.rejects(hotspotsJob.run({ crashes: [], vehicles: [] }), /keeping the last build/);
-  } finally {
-    delete env.DATA_CACHE;
-  }
+test("hotspots build: keeps the last snapshot when the source suddenly has far fewer crashes", async () => {
+  await import("./support/workers.js");
+  const { buildHotspots } = await import("../src/lib/server/crash-hotspots.js");
+  assert.throws(() => buildHotspots(asFetched(), { lastCrashes: 100 }), /keeping the last snapshot/);
+  assert.throws(() => buildHotspots({ crashes: [], vehicles: [] }), /keeping the last snapshot/);
+  assert.equal(buildHotspots(asFetched(), { lastCrashes: RAW.crashes.length }).summary.crashes, RAW.crashes.length);
+});
+
+test("hotspots snapshot: the committed files are the build src/data/snapshots.json records, in the format the page reads", async () => {
+  const { readSnapshotFiles, versionOf } = await import("../scripts/lib/hotspot-files.mjs");
+  const { default: manifest } = await import("../src/data/snapshots.json", { with: { type: "json" } });
+  const files = await readSnapshotFiles();
+  const record = manifest["crash-hotspots"];
+  assert.ok(record, "run npm run data:hotspots");
+  assert.equal(versionOf(files), record.version, "the files changed without npm run data:hotspots: the page's URLs would serve old copies from caches");
+  const summary = JSON.parse(files[SUMMARY_FILE]);
+  assert.equal(summary.format, FACTS_FORMAT, "FACTS_FORMAT changed: run npm run data:hotspots");
+  assert.deepEqual([summary.builtAt, summary.dataThrough, summary.dateFrom], [record.builtAt, record.dataThrough, record.dateFrom]);
+  assert.equal(Object.keys(files).length, 26);
 });
 
 test("fetching a year: month windows, never an offset", async () => {

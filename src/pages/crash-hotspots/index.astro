@@ -1,28 +1,22 @@
 ---
 /*
- * NYC Crash Hotspots. Rendered on demand so "Data through" comes from the
- * data refresh's last build (src/lib/server/crash-hotspots.js, in KV); the
- * numbers, map and tables load in the browser (src/components/crash-hotspots/CrashHotspots.astro).
+ * NYC Crash Hotspots. Prerendered: its dates come from the static snapshot
+ * `npm run data:hotspots` writes (public/data/crash-hotspots/, recorded in
+ * src/data/snapshots.json), which ships with the same deploy. The numbers,
+ * map and tables load in the browser from those files
+ * (src/components/crash-hotspots/CrashHotspots.astro, hotspot-client.js).
  */
 import DashboardLayout from '../../layouts/DashboardLayout.astro';
 import CrashHotspots from '../../components/crash-hotspots/CrashHotspots.astro';
 import AboutSection from '../../components/crash-hotspots/AboutSection.astro';
-import { hotspotsStatus } from '../../lib/server/crash-hotspots.js';
+import snapshots from '../../data/snapshots.json';
 import { dateRange } from '../../lib/crashes/config.js';
 import { date } from '../../lib/format.js';
 
-export const prerender = false;
-
-let status = null;
-try {
-  status = await hotspotsStatus();
-} catch (err) {
-  console.error(err); // the page still loads; its numbers say the data isn't loaded
-}
-const through = status?.dataThrough ?? null;
-const range = dateRange();
-
-if (import.meta.env.PROD && status) Astro.response.headers.set('Cache-Control', 'public, max-age=300');
+type Snapshot = { builtAt?: string; dataThrough?: string; dateFrom?: string };
+const snapshot: Snapshot = (snapshots as Record<string, Snapshot>)['crash-hotspots'] ?? {};
+const through = snapshot.dataThrough ?? null;
+const from = snapshot.dateFrom ?? dateRange().from;
 ---
 
 <DashboardLayout
@@ -30,8 +24,8 @@ if (import.meta.env.PROD && status) Astro.response.headers.set('Cache-Control', 
   description="The NYC intersections where crashes hurt people most, near your home, work or school, and what goes wrong at each. For people who walk, bike or drive."
   path="/crash-hotspots/"
   category="Public Safety"
-  lastRefreshed={status?.version ? date(status.version.slice(0, 10)) : undefined}
-  dataUpdated={through ?? undefined}
+  lastRefreshed={snapshot.builtAt ? date(snapshot.builtAt.slice(0, 10)) : undefined}
+  dataThrough={through ?? undefined}
   reportLink
   share
 >
@@ -44,11 +38,11 @@ if (import.meta.env.PROD && status) Astro.response.headers.set('Cache-Control', 
   </header>
 
   <div class="callout callout-heads-up cl-heads-up" role="note">
-    <p><strong>Heads up.</strong> These are NYPD-reported crashes from NYC Open Data, {date(range.from)} to {through ? date(through) : 'the latest report'}.
+    <p><strong>Heads up.</strong> These are NYPD-reported crashes from NYC Open Data, {date(from)} to {through ? date(through) : 'the latest report'}.
     Recent weeks are still filling in, counts aren’t adjusted for how busy a street is, and the tips are general safety advice
     matched to what the reports show, not findings about any one crash (<a href="#hs-about">how this works</a>).</p>
   </div>
 
   <CrashHotspots />
-  <AboutSection dataThrough={through} builtAt={status?.version ?? null} />
+  <AboutSection dateFrom={from} dataThrough={through} builtAt={snapshot.builtAt ?? null} />
 </DashboardLayout>

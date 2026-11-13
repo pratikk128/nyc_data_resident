@@ -1,22 +1,24 @@
 /*
  * NYC Crash Hotspots in the browser: a view's { summary, map }, for the
- * dashboard and the address report. All of NYC and each borough come built
- * from /api/crash-hotspots/view; any other place is counted here from the
- * year of crashes at /api/crash-hotspots/facts (hotspot-compute.js),
- * downloaded once per page and kept.
+ * dashboard and the address report. All of NYC and each borough come built,
+ * one static file each (hotspot-query.js viewFile()); any other place is
+ * counted here from the year of crashes in facts.json (hotspot-compute.js),
+ * downloaded once per page and kept. The files are the snapshot
+ * `npm run data:hotspots` writes to public/data/crash-hotspots/.
  */
-import { queryToParams } from "./hotspot-query.js";
+import { HOTSPOTS_PATH, FACTS_FILE, isPrebuilt, viewFile } from "./hotspot-query.js";
 import { unpackFacts, summarize, mapOf, FACTS_FORMAT } from "./hotspot-compute.js";
+import snapshots from "../../data/snapshots.json";
 
 export const ERROR_TEXT = "We couldn’t load the crash numbers. Check your connection and try again.";
 
 /*
- * The format the page reads, in every URL it asks for: the responses are
- * cached by browsers for 30 minutes at a fixed URL, so without it a page
- * with a new format would get the old one back from the cache and fail
- * (unpackFacts() refuses it). The routes ignore the parameter.
+ * The snapshot's version (a hash of its files, scripts/lib/hotspot-files.mjs)
+ * in every URL the page asks for. The files are cached for a year as
+ * immutable (public/_headers), so a deploy with a new snapshot has to be a
+ * new URL. Static assets ignore the query string.
  */
-const V = `v=${FACTS_FORMAT}`;
+const V = `v=${snapshots["crash-hotspots"]?.version ?? FACTS_FORMAT}`;
 
 async function getJson(url, signal) {
   const res = await fetch(url, { signal });
@@ -28,12 +30,10 @@ async function getJson(url, signal) {
 // The unpacked facts, once per page; a failed download is tried again next time.
 let facts = null;
 function loadFacts() {
-  facts ??= getJson(`/api/crash-hotspots/facts?${V}`).then(unpackFacts);
+  facts ??= getJson(`${HOTSPOTS_PATH}/${FACTS_FILE}?${V}`).then(unpackFacts);
   facts.catch(() => { facts = null; });
   return facts;
 }
-
-const isPrebuilt = (query) => !query.area || query.area.kind === "borough";
 
 /*
  * A query from readQuery() → { summary, map }
@@ -43,8 +43,7 @@ const isPrebuilt = (query) => !query.area || query.area.kind === "borough";
  */
 export async function loadHotspots(query, { signal } = {}) {
   if (isPrebuilt(query)) {
-    const p = queryToParams({ area: query.area, mode: query.mode });
-    return getJson(`/api/crash-hotspots/view?${p.size ? `${p}&` : ""}${V}`, signal);
+    return getJson(`${HOTSPOTS_PATH}/${viewFile(query)}?${V}`, signal);
   }
   const t = await abortable(loadFacts(), signal);
   const dates = { dataThrough: t.meta.dataThrough, dateFrom: t.meta.dateFrom };

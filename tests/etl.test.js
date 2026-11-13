@@ -8,7 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  CADENCES, refreshReason, sourceVersion, isOverdue, snapshotChanges, rebuildHours, requestMaxAgeHours, cronProblem
+  CADENCES, refreshReason, sourceVersion, isOverdue, snapshotChanges, changeText, rebuildHours, requestMaxAgeHours, cronProblem
 } from "../src/lib/etl/cadence.js";
 import { SNAPSHOTS } from "../src/lib/etl/snapshots.js";
 
@@ -50,12 +50,12 @@ test("rolling jobs rebuild daily whatever their cadence, with slack for cron tim
   assert.equal(rebuildHours("yearly", true), 24);
 });
 
-test("a dataset's own rebuildHours and minGapHours override rolling's day (crash hotspots: every 3 days)", async () => {
-  const { crashesDataset } = await import("./support/workers.js").then(() => import("../src/lib/server/crashes.js"));
-  assert.equal(refreshReason(crashesDataset, built(22.5), "v2", NOW), null, "a new day and a changed source aren't enough");
-  assert.equal(refreshReason(crashesDataset, built(60), "v2", NOW), null);
-  assert.equal(refreshReason(crashesDataset, built(69.5), "v1", NOW), "new day", "a late run is still in time");
-  assert.equal(refreshReason(crashesDataset, built(72), "v2", NOW), "source updated");
+test("a dataset's own rebuildHours and minGapHours override rolling's day", () => {
+  const everyThreeDays = { cadence: "daily", rolling: true, rebuildHours: 72, minGapHours: 72 };
+  assert.equal(refreshReason(everyThreeDays, built(22.5), "v2", NOW), null, "a new day and a changed source aren't enough");
+  assert.equal(refreshReason(everyThreeDays, built(60), "v2", NOW), null);
+  assert.equal(refreshReason(everyThreeDays, built(69.5), "v1", NOW), "new day", "a late run is still in time");
+  assert.equal(refreshReason(everyThreeDays, built(72), "v2", NOW), "source updated");
 });
 
 test("outside production, requests only recompute once the refresh is clearly behind", () => {
@@ -110,12 +110,23 @@ test("an attachment source only changes when the file is replaced, not when rows
   }), [{ datasetId: "cccc-3333", why: "attachment replaced (Sites_2026.xlsx)" }]);
 });
 
-test("every snapshot names its files, its refresh command and its sources", () => {
+test("a snapshot with maxAgeDays goes stale by age, whatever its sources do (crash hotspots: 35 days)", () => {
+  const snap = SNAPSHOTS.find((s) => s.id === "crash-hotspots");
+  assert.equal(snap.maxAgeDays, 35);
+  assert.equal(snap.command, "npm run data:hotspots");
+  assert.deepEqual(snapshotChanges(snap, ago(34 * 24), {}, NOW), []);
+  assert.deepEqual(snapshotChanges(snap, ago(36 * 24), {}, NOW), [{ datasetId: null, why: "built 36 days ago (refresh after 35)" }]);
+  assert.deepEqual(snapshotChanges(snap, undefined, {}, NOW), [{ datasetId: null, why: "never recorded" }]);
+  assert.equal(changeText({ datasetId: null, why: "never recorded" }), "never recorded");
+  assert.equal(changeText({ datasetId: "aaaa-1111", why: "rows updated 2026-10-29" }), "aaaa-1111: rows updated 2026-10-29");
+});
+
+test("every snapshot names its files, its refresh command and its sources or maximum age", () => {
   const ids = new Set();
   for (const s of SNAPSHOTS) {
     assert.ok(!ids.has(s.id), `duplicate snapshot ${s.id}`);
     ids.add(s.id);
-    assert.ok(s.files.length && s.command.startsWith("npm run data:") && s.sources.length, s.id);
+    assert.ok(s.files.length && s.command.startsWith("npm run data:") && (s.sources.length || s.maxAgeDays), s.id);
   }
 });
 

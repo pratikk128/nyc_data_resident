@@ -81,6 +81,9 @@ export function refreshReason(dataset, built, version, now = Date.now()) {
   return null;
 }
 
+// One snapshotChanges() entry as text: "h9gi-nx95: rows updated …", or just why for the age rule.
+export const changeText = (c) => (c.datasetId ? `${c.datasetId}: ${c.why}` : c.why);
+
 // True when the city hasn't published on its usual schedule.
 export function isOverdue(cadence, sourceUpdatedAt, now = Date.now()) {
   const { overdueDays } = cadenceOf(cadence);
@@ -103,11 +106,19 @@ export function cronProblem(lastRunAt, now = Date.now()) {
 /*
  * A build-time snapshot (src/lib/etl/snapshots.js) is stale when a source
  * changed after it was built: rows updated later, or (for a file attached to
- * a dataset) the attachment replaced. sources: { [datasetId]: { rowsUpdatedAt,
- * attachments: [{ name, assetId }] } }. → [{ datasetId, why }], empty if current.
+ * a dataset) the attachment replaced; or, with maxAgeDays, once it's older
+ * than that (or was never recorded). sources: { [datasetId]: { rowsUpdatedAt,
+ * attachments: [{ name, assetId }] } }. → [{ datasetId, why }] (datasetId
+ * null for the age rule), empty if current.
  */
-export function snapshotChanges(snapshot, builtAt, sources) {
+export function snapshotChanges(snapshot, builtAt, sources, now = Date.now()) {
   const changes = [];
+  if (snapshot.maxAgeDays) {
+    const days = builtAt ? (now - Date.parse(builtAt)) / 864e5 : Infinity;
+    if (days > snapshot.maxAgeDays) {
+      changes.push({ datasetId: null, why: builtAt ? `built ${Math.floor(days)} days ago (refresh after ${snapshot.maxAgeDays})` : "never recorded" });
+    }
+  }
   for (const src of snapshot.sources) {
     const now = sources[src.datasetId];
     if (!now) continue;

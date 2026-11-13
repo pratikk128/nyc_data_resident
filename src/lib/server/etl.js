@@ -29,7 +29,7 @@
 import { env } from "cloudflare:workers";
 import { refreshDaily } from "./cache.js";
 import { datasetMetadata, SocrataError } from "./socrata.js";
-import { cadenceOf, refreshReason, sourceVersion, isOverdue, snapshotChanges, cronProblem } from "../etl/cadence.js";
+import { cadenceOf, refreshReason, sourceVersion, isOverdue, snapshotChanges, changeText, cronProblem } from "../etl/cadence.js";
 import { SNAPSHOTS, snapshotSourceIds } from "../etl/snapshots.js";
 import snapshotManifest from "../../data/snapshots.json";
 import { restaurantsDataset } from "./restaurants.js";
@@ -38,11 +38,10 @@ import { schoolsDataset } from "./schools.js";
 import { payrollDataset } from "./payroll.js";
 import { streetClosuresDataset } from "./street-closures.js";
 import { helpNearMeDatasets } from "./help-near-me.js";
-import { crashesDataset } from "./crashes.js";
 import { buildingReportDatasets } from "./building-report.js";
 import { parkAmenitiesDatasets } from "./park-amenities.js";
 
-export const DATASETS = [restaurantsDataset, complaints311Dataset, schoolsDataset, payrollDataset, streetClosuresDataset, ...helpNearMeDatasets, crashesDataset, ...buildingReportDatasets, ...parkAmenitiesDatasets];
+export const DATASETS = [restaurantsDataset, complaints311Dataset, schoolsDataset, payrollDataset, streetClosuresDataset, ...helpNearMeDatasets, ...buildingReportDatasets, ...parkAmenitiesDatasets];
 
 const STATE_KEY = "etl:state";
 const iso = (ms) => new Date(ms).toISOString();
@@ -140,10 +139,10 @@ async function checkSnapshots(metadata, prev, now) {
   for (const snap of SNAPSHOTS) {
     const reachable = snap.sources.every((src) => sources[src.datasetId]);
     if (!reachable && prev[snap.id]) { out[snap.id] = prev[snap.id]; continue; }
-    const changes = snapshotChanges(snap, snapshotBuiltAt[snap.id], sources);
+    const changes = snapshotChanges(snap, snapshotBuiltAt[snap.id], sources, now);
     out[snap.id] = { checkedAt: iso(now), changes };
     if (changes.length) {
-      console.warn(`Snapshot ${snap.id} is stale (${changes.map((c) => `${c.datasetId}: ${c.why}`).join("; ")}): run ${snap.command}, then deploy`);
+      console.warn(`Snapshot ${snap.id} is stale (${changes.map(changeText).join("; ")}): run ${snap.command}, then deploy`);
     }
   }
   return out;

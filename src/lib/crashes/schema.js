@@ -3,7 +3,7 @@
  * counting is checked against: tests/crash-hotspots.test.js loads rows into
  * an in-memory database and runs hotspot-sql.js's statements on them. The
  * site itself stores no tables (the hotspots are built from NYC Open Data
- * straight into KV, src/lib/server/crash-hotspots.js). Rows come from rows.js.
+ * straight into static files, src/lib/server/crash-hotspots.js). Rows come from rows.js.
  *
  * Raw values are kept as the city wrote them for display; the *_key columns
  * are the normalized forms the search matches on. Every table carries

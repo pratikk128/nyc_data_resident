@@ -1,7 +1,8 @@
 # The data refresh (scripts/run-etl.mjs): checks every dataset on NYC Open
 # Data, rebuilds the summaries that are due and writes them to Workers KV.
 # It runs here, not as a Worker cron, because a refresh needs far more CPU
-# and subrequests than the Workers free plan allows.
+# and subrequests than the Workers free plan allows. NYC Crash Hotspots isn't
+# part of it: it's a static snapshot rebuilt by hand (npm run data:hotspots).
 #
 # Repository secrets:
 #   CLOUDFLARE_API_TOKEN   a token with Workers KV Storage: Edit
@@ -23,7 +24,7 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 45 # the crash fetch has its own 20-minute budget (crash-hotspots.js)
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

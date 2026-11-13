@@ -1,4 +1,10 @@
 {
+  "crash-hotspots": {
+    "builtAt": "2026-11-13T19:40:18.047Z",
+    "dataThrough": "2026-11-10",
+    "dateFrom": "2025-11-13",
+    "version": "000a09f31f00"
+  },
   "nyc-outline": {
     "builtAt": "2026-11-03T16:24:20.269Z"
   },
