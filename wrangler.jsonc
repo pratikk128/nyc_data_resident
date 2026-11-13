@@ -13,8 +13,8 @@
   // written by the scheduled refresh outside the Worker (scripts/run-etl.mjs,
   // .github/workflows/etl.yml); requests only read them. No cron trigger: a
   // refresh needs more CPU and subrequests than the free plan gives a Worker.
-  // No "id": wrangler creates the namespace on first deploy.
-  "kv_namespaces": [{ "binding": "DATA_CACHE" }],
+  // Created by the first deploy as "asknycdata-data-cache".
+  "kv_namespaces": [{ "binding": "DATA_CACHE", "id": "d3ea12c00ea94f248541ec9d2276607b" }],
 
   // Per-client limits on searches, restaurant lookups and 311 areas that miss the cache
   // (src/lib/server/rate-limit.js). namespace_id is any number unique to each
