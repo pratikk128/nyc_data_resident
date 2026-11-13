@@ -55,13 +55,6 @@ export const dashboards = [
     url: "/city-jobs/"
   },
   {
-    id: "shop-local",
-    title: "Support Women- and Minority-Owned Businesses Near You",
-    description: "Find city-certified women- and minority-owned restaurants, shops, salons, home repair pros and more, nearest first.",
-    category: "Business",
-    url: "/shop-local/"
-  },
-  {
     id: "school-quality",
     title: "NYC School Quality Explorer",
     description: "Find any NYC public school and see how it’s doing now and whether it’s getting better or worse.",
@@ -74,13 +67,6 @@ export const dashboards = [
     description: "See which blocks are closed for construction near you, on your street or in your borough, today and in the weeks ahead.",
     category: "Transportation",
     url: "/street-closures/"
-  },
-  {
-    id: "crash-lookup",
-    title: "NYC Crash Lookup",
-    description: "Think a car, bike or person you know was in a crash? Enter what you know and see police-reported crashes from the last year that could match.",
-    category: "Public Safety",
-    url: "/crash-lookup/"
   },
   {
     id: "crash-hotspots",
@@ -121,7 +107,6 @@ export const ALL = "All Categories";
  */
 export const CATEGORIES = [
   { name: ALL, tone: "blue", icon: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>' },
-  { name: "Business", tone: "yellow", icon: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/>' },
   { name: "City Government", tone: "blue", icon: '<path d="M3 21h18M4 10h16M12 3l8 4H4l8-4zM6 10v8M10 10v8M14 10v8M18 10v8"/>' },
   { name: "Education", tone: "purple", icon: '<path d="M2 9l10-5 10 5-10 5L2 9z"/><path d="M6 11v5c0 1.5 2.7 3 6 3s6-1.5 6-3v-5M22 9v6"/>' },
   { name: "Health", tone: "green", icon: '<path d="M20.4 5.6a5 5 0 0 0-7.1 0L12 6.9l-1.3-1.3a5 5 0 0 0-7.1 7.1L12 21l8.4-8.3a5 5 0 0 0 0-7.1z"/><path d="M7 12h2.5l1.5-2.5 2 5 1.5-2.5H17"/>' },

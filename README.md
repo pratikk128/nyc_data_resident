@@ -2,7 +2,7 @@
 
 **asknycdata.com** · NYC's public data, made easy to understand.
 
-Interactive dashboards for NYC residents, built on public [NYC Open Data](https://opendata.cityofnewyork.us/): a landing page plus thirteen dashboards (your address report, restaurant inspections, 311 complaints, city payroll spending, what city jobs pay, women- and minority-owned businesses near you, school quality, street closures, help near me, crash lookup, crash hotspots, building report card, park amenities near me).
+Interactive dashboards for NYC residents, built on public [NYC Open Data](https://opendata.cityofnewyork.us/): a landing page plus eleven dashboards (your address report, restaurant inspections, 311 complaints, city payroll spending, what city jobs pay, school quality, street closures, help near me, crash hotspots, building report card, park amenities near me).
 
 Built with [Astro](https://docs.astro.build) and deployed to Cloudflare Workers. The page's interactivity is plain vanilla JavaScript. Most pages are prerendered; pages and API routes that read live NYC Open Data run in the Worker (`export const prerender = false`).
 
@@ -18,24 +18,19 @@ src/lib/                  Formatting helpers, payroll stats, chart code
 src/lib/payroll/build.js  Payroll queries and checks, shared by the cron and npm run data:payroll
 src/pages/restaurant-inspections/   NYC Restaurant Inspections (rendered on demand)
 src/pages/311-complaints/  311 Complaints in My Neighborhood (rendered on demand)
-src/pages/shop-local/      Support Women- and Minority-Owned Businesses Near You (rendered on demand)
 src/pages/school-quality/  NYC School Quality Explorer: browse page and /school-quality/<DBN>/ (rendered on demand)
 src/components/school-quality/  Finder, the school page's "now" and "over time" sections, method notes
 src/pages/street-closures/  Street Closures Near You (rendered on demand)
 src/components/street-closures/  The finder (search, window tabs, map + cards, breakdown) and method notes
-src/pages/crash-lookup/    NYC Crash Lookup (rendered on demand)
-src/components/crash-lookup/  The lookup form, results and deep dive; method notes
 src/pages/crash-hotspots/  NYC Crash Hotspots (rendered on demand)
 src/components/crash-hotspots/  Place and how you get around, stat cards, what to watch for, dangerous intersections and map; method notes
-src/lib/crashes/          Crash lookup logic: config (date range), schema, normalizing, form, scoring, search SQL, deep dive, rendering; crash hotspots' facts (facts.js) and hotspot-*.js
+src/lib/crashes/          Crash data: config (date range), schema, normalizing, rows, facts (facts.js); NYC Crash Hotspots' query, SQL, view and rendering (hotspot-*.js)
 src/pages/building-report/  Building Report Card: /building-report/?bbl=<BBL> (key takeaways), plus repairs/, pests/, legal/ and all/ per tax lot (rendered on demand)
 src/components/building-report/  Page shell, address search, header and map, part cards, key takeaways, the nine sections; terms and sources
 src/lib/building-report/  Building report logic: datasets and labels (config.js), SoQL per section, summaries, rendering, address lookup
-src/pages/api/            API routes (Worker): /api/restaurants/search, /api/restaurants/:camis, /api/311/*, /api/shop-local/*, /api/schools/search, /api/street-closures/search, /api/building-report/:section
+src/pages/api/            API routes (Worker): /api/restaurants/search, /api/restaurants/:camis, /api/311/*, /api/schools/search, /api/street-closures/search, /api/building-report/:section
 src/lib/restaurants/      Restaurant logic: SoQL builders, inspection rules, violation categories, rendering
 src/lib/complaints311/    311 logic: config, SoQL, share math, labels, input parsing, geocoding, rendering
-src/lib/shop-diverse/     Certified business list data layer shared by Shop Local: cleaning, ranking helpers
-src/lib/shop-local/       Women- and minority-owned businesses near you: categories, filters, distance ranking, rendering
 src/lib/schools/          School Quality Explorer logic: curated metrics (metrics.js), values, search, charts, maps
 src/lib/street-closures/  Street closures logic: street names, purposes, blocks, windows and status, URL state, rendering, map
 src/lib/server/           Server-only: Socrata client (holds the token), caches, the data refresh pipeline (etl.js)
@@ -66,7 +61,7 @@ Production build: `npm run build` (output in `dist/`), preview with `npm run pre
 Live data needs no setup locally (Socrata allows anonymous requests at low volume). To use a token, copy `.dev.vars.example` to `.dev.vars` and fill in `SOCRATA_APP_TOKEN`.
 
 ```sh
-npm test             # restaurant, 311, shop local, school quality, street closures and other logic tests
+npm test             # restaurant, 311, school quality, street closures and other logic tests
 ```
 
 ## Deploy (Cloudflare Workers)
@@ -107,11 +102,10 @@ Each dashboard's data reaches the site one of two ways, and both are tracked in 
 |---|---|---|---|---|
 | Restaurant Inspections | `43nn-pn8j` | daily | yes | 24 h |
 | 311 Complaints | `erm2-nwe9` | daily | yes | 24 h |
-| Shop Local | `ci93-uc8s` | biweekly | no | 7 days |
 | School Quality | `dnpx-dfnc` (+ `school-locations.json`) | yearly | no | 30 days |
 | City Payroll | `k397-673e` | yearly | no | 30 days |
 | Street Closures | `i6b5-j7bu` | weekly | no | 7 days |
-| Crash Lookup (D1, not KV: see below) | `h9gi-nx95` (+ `bm4k-52h4`, `f55k-p6yu`) | daily | yes | 24 h |
+| Crash Hotspots (D1, not KV: see below) | `h9gi-nx95` (+ `bm4k-52h4`, `f55k-p6yu`) | daily | yes | 24 h |
 
 Cadences are `daily`, `weekly`, `biweekly`, `monthly`, `quarterly`, `yearly` and `as-needed`. Each also sets when the source counts as **late** (`overdueDays`: 3 days for daily data, 45 for monthly, 400 for yearly, never for as-needed), which is logged and reported. Every source is checked hourly whatever its cadence, so an off-schedule or as-needed update is picked up within the hour.
 
@@ -300,14 +294,6 @@ Quick-filter chips (`JOB_CHIPS` in `build.js`). A chip with no matching title in
 | City Planner | CITY PLANNER |
 | Civil Engineer | CIVIL ENGINEER, ASSISTANT CIVIL ENGINEER |
 
-## Support Women- and Minority-Owned Businesses Near You
-
-**Data.** NYC Small Business Services' [SBS Certified Business List](https://data.cityofnewyork.us/d/ci93-uc8s) (`ci93-uc8s`, updated about every two weeks). A job (`shop-diverse:vendors:v5`, rebuilt when the list changes, in `src/lib/server/shop-diverse.js`) pages through the dataset with SoQL, cleans every row (`src/lib/shop-diverse/clean.js`) and keeps a slim index in KV. Searches filter and rank that index in the Worker and never call Socrata per request; a business's detail reads one vendor live by `account_number`.
-
-**Shop Local** (`/shop-local/`) covers about 2,300 NYC businesses a resident would eat at, shop at or hire. `src/lib/shop-local/config.js` maps each NAICS title to a plain label ("Hair or beauty salon") and one of nine categories; titles not listed (office construction, wholesalers, consulting, the "All Other Personal Services" junk drawer) are left out, and so are lapsed certifications. Each title is also marked walk-in or not: only walk-in businesses (restaurants, shops, salons, doctors, auto shops) show a street address and Directions, since many others are one-person businesses at a home address. The vendor index keeps street lines for walk-in businesses only (`indexRecord(v, { street })`). Search (`/api/shop-local/search`) runs over Shop Diverse's KV index in the Worker, on the same rate limiters: `what` (category), `own=women,black,hispanic,asian,native` (any of), `q`, `near` (a NYC ZIP: nearest first, ZIP middle to ZIP middle from `src/data/zip-centroids.json`), `boro`, `outside=1`, `page`, `biz`. Ties go to the best keyword match, then businesses with a website and phone, then a daily shuffle. "Use my location" turns the spot into the nearest NYC ZIP in the browser, so only the ZIP reaches the URL. `/api/shop-local/business/:id` reads one vendor live and returns `localDetail()`, without procurement fields or contact names.
-
-**Data quirks found (Oct 2026).** One row per vendor, so no dedupe was needed, and each vendor has exactly one NAICS code. There's **no email column**. `cert_renewal_date` is text (`M/D/YYYY`), sometimes doubled (`11/30/2026;11/30/2026`), and blank for all WBE-only firms. ZIPs are numeric, so NJ/New England ZIPs lose their leading zero. Names have junk prefixes (`=---`) and ~700 are all caps. Websites include `N/A`, `http://Under Construction` and company names. Phones come in mixed formats. Some establishment dates are in the future (up to 2996). `borough` is blank for ~4,700 rows: mostly outside NYC (NJ alone is ~1,000), but some NYC addresses failed to geocode and get a borough from their ZIP. `types_of_construction_projects_performed` and `capacity_building_programs` are always empty.
-
 ## NYC School Quality Explorer
 
 `/school-quality/` helps parents find any NYC public school and see how it's doing now and over time, from NYC DOE's [School Quality Reports Data](https://data.cityofnewyork.us/d/dnpx-dfnc) (`dnpx-dfnc`, ~1.5 million rows, school years 2015–16 to 2024–25, updated about once a year).
@@ -376,27 +362,27 @@ Quick-filter chips (`JOB_CHIPS` in `build.js`). A chip with no matching title in
 - A few dog runs have no `system` id or `gispropnum`; they get an id from their point and no park name. Park names are Parks Properties' `signname` as published.
 - Distances are straight-line from the searched spot; Directions opens Google Maps at the amenity's point.
 
-## NYC Crash Lookup
+## Crash data (D1)
 
-`/crash-lookup/`: for someone checking whether a person or vehicle they know may have been in a police-reported crash. Enter any mix of place, date and time, vehicle and person details; get crashes ranked by how well they fit, each with chips for what matched; open one for a deep dive (what helps recognize it first, what happened behind "Show crash details").
+NYC Crash Hotspots reads a local copy of the NYPD crash tables in D1.
 
 **Data.** The three NYPD tables on NYC Open Data: crashes (`h9gi-nx95`, key `collision_id`), vehicles (`bm4k-52h4`, key `unique_id`) and persons (`f55k-p6yu`, key `unique_id`). Things the column names don't tell you:
 
 - `persons.vehicle_id` points at **`vehicles.unique_id`**, not `vehicles.vehicle_id` (a UUID nothing joins on).
-- About 4 in 10 person rows aren't people in the crash: registered owners, witnesses, people notified. They're stored with `involved = 0`, left out of matching and counts, and listed apart in the deep dive.
-- `vehicle_model` is empty or junk ("-", "0") from 2024 on, so the form has no model field.
+- About 4 in 10 person rows aren't people in the crash: registered owners, witnesses, people notified. They're stored with `involved = 0` and left out of counts.
+- `vehicle_model` is empty or junk ("-", "0") from 2024 on.
 - Makes are NCIC codes with a body class (`TOYT -CAR/SUV`, `FORD-TRUCK/BUS`); `src/lib/crashes/makes.js` maps them. Vehicle types are free text (`Sedan`, `4 dr sedan`, `PK`, `subn`); `vehicle-types.js` groups them.
-- `person_injury` is only Injured / Killed / Unspecified, so "not hurt" is "No injury recorded".
+- `person_injury` is only Injured / Killed / Unspecified.
 - The city republishes every row daily (`:updated_at` moves on all of them), so it can't drive an incremental sync.
 
-**Why D1.** Ranking fuzzy matches across three tables is much easier in SQL over a local copy than through SoQL, and the site already runs on Cloudflare Workers, so the copy lives in D1 (SQLite) and the lookup is one more dashboard here rather than a separate server. The same SQL runs on the local SQLite build in tests. Searches pick candidates with indexed SQL (`src/lib/crashes/search-sql.js`), then re-rank the top 400 in JavaScript (`score.js`), which also decides the chips.
+**Why D1.** Grouping and filtering across three tables is much easier in SQL over a local copy than through SoQL, and the site already runs on Cloudflare Workers, so the copy lives in D1 (SQLite). The same SQL runs on the local SQLite build in tests.
 
 **Set up and load the data** (Node 22.5+ for `node:sqlite`):
 
 ```sh
 npm run data:crashes                       # fetch from NYC Open Data, build .data/crashes/crashes.sqlite
 npm run data:crashes:push -- --local       # load it into the local D1 that `npm run dev` reads
-npm run dev                                # http://localhost:4321/crash-lookup/
+npm run dev                                # http://localhost:4321/crash-hotspots/
 ```
 
 `SOCRATA_APP_TOKEN` (optional, in `.dev.vars` or the environment) raises Socrata's rate limits; without one the first fetch (about 600,000 rows for a year) can take an hour or so. A stopped fetch picks up after the tables it finished; `-- --refetch` starts over. The fetch is kept in `.data/crashes/raw/` (gitignored), so changing a normalizer only needs `npm run data:crashes` again, not a new fetch. The build prints rows per table, orphans (vehicles or persons whose crash isn't in the crash table, persons whose vehicle is missing; kept, not dropped) and the most common makes and vehicle types the maps don't know yet.
@@ -405,15 +391,9 @@ npm run dev                                # http://localhost:4321/crash-lookup/
 
 **Keeping it current.** The hourly cron (as dataset `crashes` in `etl.js`) runs `src/lib/server/crashes-sync.js` when the crash table changes: it re-reads the last 45 days (`SYNC_DAYS`) of all three tables, writes only rows whose hash changed, and deletes rows the city dropped from that window, plus crashes (and their vehicles, persons and street rows) that have aged out of the one-year range. It refuses to delete anything if the source suddenly has far fewer crashes than the database. Older amendments need a full rebuild, about monthly (`npm run data:crashes -- --refetch`, then `push -- --remote`); `/api/etl/status` says when one is due (`REBUILD_DUE_DAYS`).
 
-**Change the date range.** The lookup covers a rolling window: `dateRange()` in `src/lib/crashes/config.js` returns the last `RANGE_YEARS` (1) years before today in New York, through the latest data. Change `RANGE_YEARS`, then do a full rebuild and push. The form's date limits, the page copy and every query follow it; the build drops fetched rows older than the window on the day it runs.
+**Change the date range.** The data covers a rolling window: `dateRange()` in `src/lib/crashes/config.js` returns the last `RANGE_YEARS` (1) years before today in New York, through the latest data. Change `RANGE_YEARS`, then do a full rebuild and push. The page copy and every query follow it; the build drops fetched rows older than the window on the day it runs.
 
-**API.**
-- `POST /api/crashes/search` with `{ location, date, time, vehicle, person }` (all optional; `src/lib/crashes/query.js`) → `{ dataThrough, total, broad, dateOnly, results }`, the best 50; `400 { problems }` for input it can't use.
-- `GET /api/crashes/:collision_id` → the deep dive (`src/lib/crashes/detail.js`).
-
-Both read D1 only, are cached at the edge for an hour per query and data version, and are rate limited per client (`CRASHES_RATE_LIMITER`, 60 a minute).
-
-**Tests.** `tests/crashes.test.js` (normalizers, form, scoring, the search on a small in-memory database, the sync diff, rendering) runs with `npm test`. `tests/crashes-e2e.test.js` searches the real build in `.data/crashes/` with partial details of known crashes and checks each ranks at or near the top; it skips when there's no build.
+**Tests.** `tests/crashes.test.js` (normalizers, rows, the sync diff) runs with `npm test`.
 
 **Privacy.** The data has no names, plates or license numbers. Don't add anything that joins it to other sources to identify people.
 
@@ -423,7 +403,7 @@ Both read D1 only, are cached at the edge for an hour per query and data version
 
 Deliberately left out: time of day, trends by month and full breakdowns. They're interesting but don't change what anyone does at a given corner; the time and day columns are still in `crash_facts`.
 
-**Data.** The same D1 database as the crash lookup, through one extra table, `crash_facts`: a row per crash with each filter group stored as a bitmask (`src/lib/crashes/facts.js`), so any mix of filters is one scan of a narrow table with no joins. The full build writes it from the three tables; the daily sync rewrites a crash's row when it or any of its vehicles or persons changed (the row's hash covers all of them, plus `FACTS_VERSION`). A database built before this dashboard has no `crash_facts` until its next full build: run `npm run data:crashes` and `push` again; the page says the data isn't loaded until then.
+**Data.** The crash database above (see Crash data), through one extra table, `crash_facts`: a row per crash with each filter group stored as a bitmask (`src/lib/crashes/facts.js`), so any mix of filters is one scan of a narrow table with no joins. The full build writes it from the three tables; the daily sync rewrites a crash's row when it or any of its vehicles or persons changed (the row's hash covers all of them, plus `FACTS_VERSION`). A database built before this dashboard has no `crash_facts` until its next full build: run `npm run data:crashes` and `push` again; the page says the data isn't loaded until then.
 
 - Bits are stored, so a group's `bit` never changes; add groups with the next free one. Changing a mapping rule: bump `FACTS_VERSION` and rebuild.
 - "Seriously hurt" isn't on the report; `personSeverity()` reads it from the injury type (fracture, internal, concussion, crush, severe bleeding…) and emotional status (unconscious, semiconscious, apparent death). The page says it's a stand-in for the city's KSI count.

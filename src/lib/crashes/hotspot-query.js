@@ -17,13 +17,34 @@
  * hand-edited link still shows something sensible.
  */
 import { DIMENSIONS } from "./facts.js";
-import { streetsFromText } from "./query.js";
+import { streetMatchKey, streetBaseKey } from "./normalize.js";
 import { BOROUGHS, boroughLabel } from "../complaints311/config.js";
-import { parseLocationInput, isNycZip, MAX_INPUT_LENGTH } from "../complaints311/location-input.js";
+import { parseLocationInput, isNycZip, prettyStreet, MAX_INPUT_LENGTH } from "../complaints311/location-input.js";
 import { inCityLimits } from "../in-city.js";
 
 export const RADII = [250, 500]; // meters
 export const DEFAULT_RADIUS = 250;
+
+
+// "Broadway & W 72 St" / "Broadway and West 72nd" / "Broadway at 72 St" → two streets.
+const INTERSECTION = /\s*(?:&|\/|\+|@|\band\b|\bat\b|\bcorner of\b)\s*/i;
+
+/*
+ * The street part of the location text → up to two streets
+ * [{ key, base, label }]. A house number is dropped by streetMatchKey()
+ * ("200 W 72 St" is West 72nd Street; "72 St" stays 72nd Street): the data
+ * names streets, not addresses.
+ */
+export function streetsFromText(text) {
+  return clean(text).split(INTERSECTION).map((part) => part.trim())
+    .filter(Boolean).slice(0, 2)
+    .map((part) => {
+      const key = streetMatchKey(part);
+      const label = prettyStreet(part.replace(/^\d+(?:-\d+)?[A-Za-z]?\s+(?=\S+\s+\S)/, ""));
+      return key && { key, base: streetBaseKey(key), label };
+    })
+    .filter(Boolean);
+}
 
 /*
  * How the person gets around. It picks the crashes counted (walking: the

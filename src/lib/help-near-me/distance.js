@@ -5,7 +5,18 @@
  * to send, the page script to pick what to show.
  */
 import { RADII, MAX_RADIUS, FAR_PER_CATEGORY, PER_CATEGORY, CATEGORY_KEYS } from "./config.js";
-import { boroughFromZip } from "../shop-diverse/clean.js";
+
+// The borough a NYC ZIP code is in, from its first three digits; null when it isn't one.
+export function boroughFromZip(code) {
+  if (!/^\d{5}$/.test(code ?? "")) return null;
+  const p = code.slice(0, 3);
+  if (p === "100" || p === "101" || p === "102") return "Manhattan";
+  if (p === "103") return "Staten Island";
+  if (p === "104") return "Bronx";
+  if (p === "112") return "Brooklyn";
+  if (p === "111" || p === "113" || p === "114" || p === "116" || code === "11004" || code === "11005") return "Queens";
+  return null;
+}
 
 const EARTH_RADIUS_MILES = 3958.7613;
 const RAD = Math.PI / 180;

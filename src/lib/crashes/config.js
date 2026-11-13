@@ -1,5 +1,5 @@
 /*
- * NYC Crash Lookup: the datasets, the date range the site covers, and the
+ * NYC crash data (read by NYC Crash Hotspots): the datasets, the date range the site covers, and the
  * refresh window. Browser-safe.
  *
  * The three NYPD tables on NYC Open Data:

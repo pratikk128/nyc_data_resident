@@ -4,11 +4,10 @@
  * component (src/components/crash-hotspots/CrashHotspots.astro) puts them in place.
  */
 import { pct, ratioText } from "./hotspot-view.js";
-import { escape } from "./render.js";
 import { boroughLabel } from "../complaints311/config.js";
 import { count } from "../format.js";
 
-export { escape };
+export const escape = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 export function statCardsHtml(cards) {
   return cards.map((c) => `<div class="stat-card" data-stat="${escape(c.name)}">

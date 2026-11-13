@@ -1,35 +1,25 @@
 /*
- * NYC Crash Lookup on the Worker: searches and deep dives read the crash
- * tables in D1 (binding CRASHES_DB, wrangler.jsonc), loaded by
- * scripts/ingest-crashes.mjs and kept current by the daily sync
- * (crashes-sync.js). Requests never reach Socrata.
- *
- * Results are cached at the edge per query, data version and code version;
- * misses are rate limited per client (CRASHES_RATE_LIMITER).
+ * The crash tables in D1 (binding CRASHES_DB, wrangler.jsonc) that NYC Crash
+ * Hotspots reads (crash-hotspots.js), loaded by scripts/ingest-crashes.mjs
+ * and kept current by the daily sync (crashes-sync.js). Requests never reach
+ * Socrata.
  *
  * The ETL dataset at the bottom runs the daily sync from the hourly cron.
  */
 import { env } from "cloudflare:workers";
-import { edgeCached, dailyValue } from "./cache.js";
-import { checkRateLimit } from "./rate-limit.js";
+import { dailyValue } from "./cache.js";
 import { datasetMetadata } from "./socrata.js";
 import { syncCrashes } from "./crashes-sync.js";
 import { requestMaxAgeHours } from "../etl/cadence.js";
 import { nycToday } from "../format.js";
-import { searchCrashes, crashRows } from "../crashes/search.js";
-import { crashDetail } from "../crashes/detail.js";
-import { criteriaKey } from "../crashes/query.js";
-import { rowHash } from "../crashes/normalize.js";
 import { DATASETS, REBUILD_DUE_DAYS, dateRange } from "../crashes/config.js";
 
-export const SEARCH_TTL = 3600;
-export const DETAIL_TTL = 3600;
 const STATUS_MS = 5 * 60e3;
 
 export class NoDatabase extends Error {}
 export const NOT_LOADED_TEXT = "The crash data isn’t loaded yet. Try again later.";
 
-// D1 as search.js wants it: all(sql, params) → rows. Also read by crash-hotspots.js.
+// D1 as crash-hotspots.js wants it: all(sql, params) → rows.
 export function db() {
   const d1 = env.CRASHES_DB;
   if (!d1) throw new NoDatabase("No CRASHES_DB binding");
@@ -75,26 +65,6 @@ export async function dataStatus() {
 export const rebuildDue = (s, now = Date.now()) =>
   !s.lastFull || now - Date.parse(s.lastFull) > REBUILD_DUE_DAYS * 864e5;
 
-export async function loadSearch(criteria, requestUrl, ctx, clientAddress) {
-  const s = await dataStatus();
-  const key = `crashes/search/${codeVersion()}/${s.version}/${rowHash({ q: criteriaKey(criteria) })}`;
-  return edgeCached(requestUrl, key, SEARCH_TTL, async () => {
-    await checkRateLimit("CRASHES_RATE_LIMITER", clientAddress);
-    return { dataThrough: s.dataThrough, ...(await searchCrashes(db(), criteria)) };
-  }, ctx);
-}
-
-// → the deep dive, or null when there's no such crash in the database.
-export async function loadDetail(collisionId, requestUrl, ctx, clientAddress) {
-  const s = await dataStatus();
-  const key = `crashes/detail/${codeVersion()}/${s.version}/${collisionId}`;
-  return edgeCached(requestUrl, key, DETAIL_TTL, async () => {
-    await checkRateLimit("CRASHES_RATE_LIMITER", clientAddress);
-    const record = (await crashRows(db(), [collisionId])).get(collisionId);
-    return record ? { dataThrough: s.dataThrough, ...crashDetail(record) } : null;
-  }, ctx);
-}
-
 // ---------- The daily sync, as an ETL dataset (etl.js) ----------
 
 const CADENCE = "daily";
@@ -118,7 +88,7 @@ export const syncJob = {
 
 export const crashesDataset = {
   id: "crashes",
-  dashboard: "crash-lookup",
+  dashboard: "crash-hotspots",
   datasetId: DATASETS.crashes.id,
   cadence: CADENCE,
   rolling: true,

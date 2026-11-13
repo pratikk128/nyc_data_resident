@@ -2,15 +2,15 @@
  * NYC Crash Hotspots' map: the dangerous intersections as numbered pins
  * (the same numbers as the list beside it), and a dot per crash that
  * seriously hurt or killed someone; killed is a larger dot with an ink ring,
- * so it doesn't rest on color alone. Each dot opens a popup that links to the
- * crash in NYC Crash Lookup. A spot gets a dashed circle for its distance.
+ * so it doesn't rest on color alone. Each dot opens a popup with the crash's
+ * date and corner. A spot gets a dashed circle for its distance.
  * Leaflet loads on first draw (complaints311/heatmap.js). Browser only; the
  * list is the non-map alternative.
  *
  * mountHotspotMap(canvas) → { update({ spots, points, area, victim }), showSpot(i) }
  */
 import { loadLeaflet } from "../complaints311/heatmap.js";
-import { escape } from "./render.js";
+import { escape } from "./hotspot-render.js";
 import { boroughLabel } from "../complaints311/config.js";
 import { count, date } from "../format.js";
 import { touchOptions, addTouchHint } from "../maps/touch.js";
@@ -35,14 +35,13 @@ export function mountHotspotMap(canvas) {
     pins.clearLayers();
     ring.clearLayers();
     // Serious first, so killed sits on top.
-    for (const [lat, lon, severity, id, day, label] of [...points].sort((p, q) => p[2] - q[2])) {
+    for (const [lat, lon, severity, , day, label] of [...points].sort((p, q) => p[2] - q[2])) {
       const killed = severity === 3;
       L.circleMarker([lat, lon], {
         renderer, radius: killed ? 6.5 : 4.5, weight: killed ? 2 : 1, color: killed ? INK : "#fff",
         fillColor: killed ? KILLED : SERIOUS, fillOpacity: 0.95
       }).bindPopup(`<p class="hs-pop"><strong>${killed ? "Someone was killed" : "Someone was seriously hurt"}</strong><br>
-        ${escape(date(day))}${label ? `<br>${escape(label)}` : ""}<br>
-        <a href="/crash-lookup/?crash=${encodeURIComponent(id)}">See the crash report details</a></p>`).addTo(dots);
+        ${escape(date(day))}${label ? `<br>${escape(label)}` : ""}</p>`).addTo(dots);
     }
     markers = spots.map((c, i) => {
       if (c.lat == null) return null;

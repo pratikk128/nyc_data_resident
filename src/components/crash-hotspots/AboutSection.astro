@@ -29,7 +29,6 @@ const range = dateRange();
       {Object.entries(DATASETS).map(([t, d], i, all) => <><a href={sourceUrl(t)} rel="noopener">{d.name}</a> ({d.id}){i < all.length - 1 ? ', ' : '.'}</>)}{' '}
       This dashboard covers the last year, from {date(range.from)}{dataThrough ? ` to ${date(dataThrough)}` : ''}; older crashes drop off each day.
       {lastSync && <>We check for new and changed reports from the last {SYNC_DAYS} days every day (last on {date(lastSync.slice(0, 10))}).{' '}</>}
-      It uses the same data as <a href="/crash-lookup/">NYC Crash Lookup</a>, where you can look up a single crash.
     </p>
 
     <h3>How intersections are ranked</h3>

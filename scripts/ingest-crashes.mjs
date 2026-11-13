@@ -1,5 +1,5 @@
 /*
- * NYC Crash Lookup: the full build of its database, and the push to D1.
+ * The crash database (NYC Crash Hotspots): the full build, and the push to D1.
  *
  *   npm run data:crashes                 build .data/crashes/crashes.sqlite (fetches first if there's no copy)
  *   npm run data:crashes -- --refetch    fetch every row in the date range again, then build
