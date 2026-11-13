@@ -45,8 +45,8 @@ test("an unreadable source falls back to the age rule", () => {
 
 test("rolling jobs rebuild daily whatever their cadence, with slack for cron timing", () => {
   const rolling = { cadence: "monthly", rolling: true };
-  assert.equal(refreshReason(rolling, built(23), "v1", NOW), null);
-  assert.equal(refreshReason(rolling, built(23.9), "v1", NOW), "new day"); // last run started a few seconds later
+  assert.equal(refreshReason(rolling, built(20), "v1", NOW), null);
+  assert.equal(refreshReason(rolling, built(22.5), "v1", NOW), "new day"); // last run started late
   assert.equal(rebuildHours("yearly", true), 24);
 });
 
@@ -114,6 +114,6 @@ test("every snapshot names its files, its refresh command and its sources", () =
 test("the status flags a cron that never ran or has stopped", () => {
   assert.equal(cronProblem(null, NOW), "the scheduled refresh has never run");
   assert.equal(cronProblem(ago(1), NOW), null);
-  assert.equal(cronProblem(ago(5), NOW), null);
-  assert.match(cronProblem(ago(9), NOW), /hasn't run since .* \(9 h ago\)/);
+  assert.equal(cronProblem(ago(25), NOW), null);
+  assert.match(cronProblem(ago(27), NOW), /hasn't run since .* \(27 h ago\)/);
 });

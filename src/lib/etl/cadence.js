@@ -5,7 +5,7 @@
  *
  * Every dataset declares how often the city publishes it (its cadence, from
  * "Update Frequency" on its NYC Open Data page). Each scheduled refresh
- * (scripts/run-etl.mjs, every 3 hours) reads each dataset's rowsUpdatedAt (one small metadata request) and rebuilds a job when:
+ * (scripts/run-etl.mjs, every 12 hours) reads each dataset's rowsUpdatedAt (one small metadata request) and rebuilds a job when:
  *   - it has never been built (new job, or a new key after a code change),
  *   - the source changed since it was built (at most once per minGapHours,
  *     so a source that's touched every hour doesn't rebuild every hour), or
@@ -26,9 +26,11 @@ export const CADENCES = {
   "as-needed": { label: "As needed",     minGapHours: 12, rebuildHours: 30 * 24, overdueDays: null }
 };
 
-// Scheduled runs start a little early or late; without this, a job built at
-// 22:17:03 would be "23.99 hours old" at 22:17:01 the next day and wait a run.
-const SLACK_HOURS = 0.5;
+// GitHub starts scheduled runs late, sometimes by an hour or more; without
+// this, a job built by a late run would be "23 hours old" at the next day's
+// on-time run and wait another 12 hours. Less than the 12-hour run interval,
+// so a job is never rebuilt twice a day for its age.
+const SLACK_HOURS = 3;
 
 export function cadenceOf(name) {
   const cadence = CADENCES[name];
@@ -85,9 +87,9 @@ export function isOverdue(cadence, sourceUpdatedAt, now = Date.now()) {
   return now - Date.parse(sourceUpdatedAt) > overdueDays * 864e5;
 }
 
-// The refresh runs every 3 hours (.github/workflows/etl.yml), and GitHub may
+// The refresh runs every 12 hours (.github/workflows/etl.yml), and GitHub may
 // start a scheduled run late or skip one; this long without a run means it has stopped.
-export const CRON_LATE_HOURS = 8;
+export const CRON_LATE_HOURS = 26;
 
 // Why the refresh needs a look, or null: never ran, or hasn't run lately.
 export function cronProblem(lastRunAt, now = Date.now()) {

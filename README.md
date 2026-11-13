@@ -42,7 +42,7 @@ wrangler.jsonc            Worker config: KV namespace, D1 database, rate limiter
 tests/                    `npm test` (node:test, no extra dependencies)
 src/data/                 Precomputed data snapshots (generated, committed)
 scripts/                  Data refresh scripts (run-etl.mjs: the scheduled refresh to KV and D1)
-.github/workflows/etl.yml Runs scripts/run-etl.mjs every 3 hours
+.github/workflows/etl.yml Runs scripts/run-etl.mjs every 12 hours
 src/data/dashboards.js    Dashboard registry: the cards, plus sidebar categories (icons, tones)
 public/js/app.js          Landing page: category filter (?category=<slug>), sidebar collapse
 public/favicon.svg        Favicon
@@ -84,9 +84,9 @@ npm run etl -- --remote   # production KV and D1 (wrangler login, or CLOUDFLARE_
 npm run etl -- --local    # the local state astro dev reads (.wrangler/state)
 ```
 
-`scripts/run-etl.mjs` loads the server modules with `cloudflare:workers` swapped for `scripts/lib/workers-env.mjs`, whose `DATA_CACHE` reads keys with `wrangler kv key get` and sends every write in one `wrangler kv bulk put` at the end, and whose `CRASHES_DB` reads with `wrangler d1 execute --json` and sends the queued writes as one SQL file. A run writes `etl:state` plus two keys per rebuilt job, so even every 3 hours it stays far under KV's 1,000 writes a day. It exits 1 when any step failed (what succeeded is still written).
+`scripts/run-etl.mjs` loads the server modules with `cloudflare:workers` swapped for `scripts/lib/workers-env.mjs`, whose `DATA_CACHE` reads keys with `wrangler kv key get` and sends every write in one `wrangler kv bulk put` at the end, and whose `CRASHES_DB` reads with `wrangler d1 execute --json` and sends the queued writes as one SQL file. A run writes `etl:state` plus two keys per rebuilt job, so it stays far under KV's 1,000 writes a day. It exits 1 when any step failed (what succeeded is still written).
 
-`.github/workflows/etl.yml` runs it every 3 hours (and on demand from the Actions tab). It needs the repository secrets `CLOUDFLARE_API_TOKEN` (Workers KV Storage: Edit, D1: Edit) and `CLOUDFLARE_ACCOUNT_ID`, optionally `SOCRATA_APP_TOKEN`, and the repository variable `KV_NAMESPACE_ID` (from `npx wrangler kv namespace list` after the first deploy). After a first deploy, run it once by hand so the dashboards have data.
+`.github/workflows/etl.yml` runs it every 12 hours (and on demand from the Actions tab). It needs the repository secrets `CLOUDFLARE_API_TOKEN` (Workers KV Storage: Edit, D1: Edit) and `CLOUDFLARE_ACCOUNT_ID`, optionally `SOCRATA_APP_TOKEN`, and the repository variable `KV_NAMESPACE_ID` (from `npx wrangler kv namespace list` after the first deploy). After a first deploy, run it once by hand so the dashboards have data.
 
 ### Live data and caching
 
@@ -103,7 +103,7 @@ All Socrata calls go through `src/lib/server/socrata.js`, which adds the `X-App-
 
 Each dashboard's data reaches the site one of two ways, and both are tracked in one place.
 
-**1. KV aggregates (most dashboards), refreshed automatically.** Each dataset's server module declares how often the city publishes it. The scheduled refresh (`src/lib/server/etl.js`, run by `scripts/run-etl.mjs` every 3 hours) reads every dataset's `rowsUpdatedAt` from NYC Open Data (one small request each) and rebuilds only the jobs that are due (`src/lib/etl/cadence.js`):
+**1. KV aggregates (most dashboards), refreshed automatically.** Each dataset's server module declares how often the city publishes it. The scheduled refresh (`src/lib/server/etl.js`, run by `scripts/run-etl.mjs` every 12 hours) reads every dataset's `rowsUpdatedAt` from NYC Open Data (one small request each) and rebuilds only the jobs that are due (`src/lib/etl/cadence.js`):
 
 - **never built**: a new dataset, or a job whose key changed with the code,
 - **source updated**: the dataset's rows changed since the job was built, at most once every `minGapHours` (6 h for daily data, 12 h otherwise), so a source touched every hour doesn't rebuild every hour,
@@ -119,7 +119,7 @@ Each dashboard's data reaches the site one of two ways, and both are tracked in 
 | Street Closures | `i6b5-j7bu` | weekly | no | 7 days |
 | Crash Hotspots (D1, not KV: see below) | `h9gi-nx95` (+ `bm4k-52h4`, `f55k-p6yu`) | daily | yes | 24 h |
 
-Cadences are `daily`, `weekly`, `biweekly`, `monthly`, `quarterly`, `yearly` and `as-needed`. Each also sets when the source counts as **late** (`overdueDays`: 3 days for daily data, 45 for monthly, 400 for yearly, never for as-needed), which is logged and reported. Every source is checked on every run whatever its cadence, so an off-schedule or as-needed update is picked up within 3 hours.
+Cadences are `daily`, `weekly`, `biweekly`, `monthly`, `quarterly`, `yearly` and `as-needed`. Each also sets when the source counts as **late** (`overdueDays`: 3 days for daily data, 45 for monthly, 400 for yearly, never for as-needed), which is logged and reported. Every source is checked on every run whatever its cadence, so an off-schedule or as-needed update is picked up within 12 hours.
 
 A job that fails keeps its last good value in KV and is retried the next run; the run exits 1 so the failure shows in the workflow's runs. Within a dataset jobs run in parallel, except a job with `after`, which waits for that job. What each job was built from is kept in the `etl:state` KV entry. A job that joins a bundled snapshot (`snapshots: ["school-locations"]`) also rebuilds after a deploy that refreshed that snapshot. Each isolate checks a small `<key>:at` KV entry every 5 minutes, so a rebuilt value reaches every request within minutes.
 
